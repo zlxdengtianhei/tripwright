@@ -1,0 +1,21 @@
+id: F-261031-jk40af
+invalidated_by: 用户说有人同行
+key: companions_1031
+scope:
+  channel: '*'
+  end: '2026-10-31'
+  place: '*'
+  start: '2026-10-31'
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-thopzs
+  nature: user_verbatim
+status: active
+subject:
+- me
+text: 10-31 送完朋友、吃完饭以后，我 一个人（原话 10-31 11:35 CET）
+true_from: '2026-10-31T11:35:15+01:00'
+valid_until: null
+value: []

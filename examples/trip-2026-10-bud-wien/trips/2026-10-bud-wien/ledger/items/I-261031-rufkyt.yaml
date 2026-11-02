@@ -1,0 +1,39 @@
+always: false
+check: null
+compatible_with:
+- tool_in_sentence
+- pace_1031
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-rufkyt
+interpretations: []
+key: second_answer_diff
+kind: rule
+long_term: true
+origin: null
+priority: null
+quote: 第二次的检查后的结果如果有什么不同也可以简短的跟我说一下
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: conversation
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-tzqjcj
+  nature: user_verbatim
+status: active
+strength: prefer
+subject:
+- me
+text: 第二段核过后和第一段有不同，简短说一下（原话 10-30 18:36 CET）
+valid_from: null
+valid_until: null
+value: null

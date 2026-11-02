@@ -1,0 +1,52 @@
+always: false
+check: null
+compatible_with:
+- stage_headings
+- second_answer_diff
+- tool_in_sentence
+- pace_1031
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-dbtcmp
+interpretations: []
+key: todo_in_chat
+kind: rule
+long_term: true
+origin:
+  trip: 2026-10-bud-wien
+  event: E-261031-tzqjcj
+  said_at: '2026-10-31T19:37:03.571687+00:00'
+  speaker: me
+  nature: user_verbatim
+  path: trips/2026-10-bud-wien/raw/2026-10-31/20261031T193703Z-me-tzqjcj.md
+  message: 我们定了这个 然后这个入住怎么办 链接是啥我怎么做 我觉得可以把这些信息需要我做的直接在聊天或者终端给我。另外我想在和你讨论一下我们的输出方式和交互模式 我觉得还是需要有一些明确的分界或者说标题，让我能够分辨你的两次输出
+    以及我觉得第二次的检查后的结果如果有什么不同也可以简短的跟我说一下。对了还有一个事情我一直忘了说了，就是说我在完成一些搜索或者操作的时候 如果有什么很合适的软件，你可以在比如说用xxx查xxxx 用xxx买xxxx，直接在句子里加入这个工具，另外这个可以在做计划的时候
+    写网站的时候 把这些写入一些重要须知里，可以专门讲一下。另外还有一个小点就是，我觉得我们现在网站中的排布有点问题，可以考虑我们在每天行程中，最需要重复查看的内容，这些东西一定是信息密度高的，放在前面。比如我们最重要的时间节点 和我们重要的去的地点
+    那个时间轴可以放在下面。另外时间轴里现在有字显示不太全的情况。这些部分就是针对于我们整个旅行系统的更新你可以做一下。然后今晚应该我们先去入住青旅 然后朋友应该不去施华洛世奇了 明天早上再去 今天晚上去一下那个有莫比乌斯环的教堂 然后你在看看安排啥
+    然后去吃饭 然后就回去吧。明天我去哪你也安排一下？我感觉明天可以还是轻松一点 毕竟晚上要在机场睡一晚。
+priority: null
+quote: 我觉得可以把这些信息需要我做的直接在聊天或者终端给我
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: conversation
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-tzqjcj
+  nature: user_verbatim
+status: active
+strength: prefer
+subject:
+- me
+text: 要他做的事直接在对话里给他（原话 10-30 18:36 CET）
+valid_from: null
+valid_until: null
+value: null

@@ -1,0 +1,41 @@
+triggers:
+  - "今晚到明天 最晚几点出发机场 怎么走"
+  - "我刚从岩馆出来，有点饿，还想去市中心看看万圣节活动，我得赶紧去机场吗？"
+  - "Replan today's managed trip; I am alone until noon."
+  - "What preferences did you use for my trip?"
+  - "行李存好了，今天我一个人。"
+  - "从 7 月 14 日开始的三天，两个人，预算每人 €300，帮我排一下。"
+non_triggers:
+  - {query: "Write a fictional travel poem.", route: normal writing}
+  - {query: "Check draft DR-300715-b8d against job J-300715-k2m before the second response.", route: tripwright-verifier}
+  - {query: "Find whether the lakeside path at Seeufer Süd is open on 2030-07-15, with a source.", route: tripwright-researcher}
+  - {query: "Split these six voice messages into proposed records without planning.", route: tripwright-requirements}
+cold_read:
+  - query: "The host paraphrases: the user prefers a relaxed morning."
+    expected: "turn with host_restatement; preserve the soft wording without inventing a time or distance limit."
+  - query: "One message asks for two incompatible activities after the same dinner, for the same people and evening."
+    expected: "Declare exclusive_with only if one statement has two readings; otherwise both stay active with the non-blocking possible-contradiction notice; name both readings and the default; retain user-decided fields."
+  - query: "Two statements in one message name the same object but cover different dates that do not overlap."
+    expected: "The declaration does not apply outside the overlap; both records stay active for their own dates."
+  - query: "A second-response job returns stale after another plan version was committed."
+    expected: "Say only 已过期，需重算; call turn again and propose against the current version; give no conclusion from the old draft."
+  - query: "The user wants to save money and also travel relaxed today; there is no user-stated order."
+    expected: "No trade-off of one against the other: two or three complete day options with differences in numbers, what they share, before which point to choose; recommend only with a factual reason."
+  - query: "Commit returned write.state pending_sync."
+    expected: "Say nothing about the write to the user; never 记下了 or a success. If the second part shows the proposed plan, mark it （草稿）; its heading is 核过的安排 only if the deep check passed and the commit was accepted."
+  - query: "今晚到明天 最晚几点出发机场 怎么走 (no location given; the plan puts the user at a climbing gym in Grauwald; the user sleeps at the airport)"
+    expected: "Dispatch one tripwright-researcher in the background with the last train, the night bus and whether the terminal is open at night; then the first part as visible text: line 1 the latest departure, line 2 the assumed start; one line per destination with the app and search term; the fallback if missed; no write state. The second part, a separate message after the report, starts with what differs; each fact with source and time checked."
+  - query: "我刚从 Kletterhalle Ost 出来，有点饿，想去市中心看万圣节活动，我得赶紧去机场了吗？"
+    expected: "Line 1 answers whether to leave now; start from Kletterhalle Ost; 2–3 food places open now, one a common chain or supermarket, each with a place line, search term and link; the event searched in the check, named with a time or said not found; options only if the user's own preferences compete."
+  - query: "Tell the user how to get from Altmoor Bahnhof to Seeufer Nord."
+    expected: "One line for the leg with the app named and the exact search term in its original spelling (Seeufer Nord) in the text; the link is optional; no timetable unless a trigger applies."
+  - query: "The host is Claude Code and is about to send the first part for a replan it proposed."
+    expected: "Dispatch tripwright-verifier in the background with draft_id, job_id and ctx_id (and one researcher for the live facts); do not hand it the first part's unchecked lines as its checklist; write nothing when the first of two reports arrives; only the main agent commits."
+  - query: "The app has no Tripwright tools; the user reports 'luggage stored'."
+    expected: "Steps 1 then 5 without tools: one line of confirmation, a 写回仓 block with the raw message and the fact, and 'not saved until committed'."
+  - query: "The user says: 下个月去瑞士，帮我开一趟新的。Earlier trips stored preferences, a companion and a standing rule."
+    expected: "Step 0: list the long-term records grouped, one line each with the gist and the trip it came from; ask which still apply; never ask the user to read files; until answered, use them marked 待确认."
+  - query: "The user reports being alone today, without requesting a replacement plan."
+    expected: "Commit the scoped fact, disclose needs_replan for the current plan, then replan only that person and date."
+  - query: "The user explicitly changes their mind about a locked activity."
+    expected: "Record a new explicit user decision on the same stable block object; supersede the old lock without deleting its history."

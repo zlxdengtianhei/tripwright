@@ -1,0 +1,34 @@
+{
+  "schema": "tripwright.sample-snapshots/1",
+  "note": "样本里出现的四个有效快照。S1 绑窄包与作业 J-300715-j1a；S2 绑宽包与作业 J-300715-j2c；S3 只比 S2 多一条原话；S4 在冲突换头之后，计划版本号仍是 4 但编号不同。",
+  "snapshots": {
+    "S1": {
+      "taken_at": "2030-07-15T13:00:13+02:00",
+      "plan_version": 3, "plan_version_id": "V-300714-q8r",
+      "ledger_revision": 12, "ledger_digest": "sha256:aa7c44fe4f835a6e",
+      "raw_watermark": {"count": 4, "last_event": "E-300715-d04", "last_received_at": "2030-07-15T13:00:12+02:00"},
+      "repo": {"canonical": "origin/main", "head": "3f2a91c", "head_checked_at": "2030-07-15T12:59:58+02:00", "unsynced_ops": ["OP-300715-t4a"]}
+    },
+    "S2": {
+      "taken_at": "2030-07-15T13:08:41+02:00",
+      "plan_version": 3, "plan_version_id": "V-300714-q8r",
+      "ledger_revision": 13, "ledger_digest": "sha256:bbf45f400a3b7983",
+      "raw_watermark": {"count": 5, "last_event": "E-300715-e05", "last_received_at": "2030-07-15T13:08:40+02:00"},
+      "repo": {"canonical": "origin/main", "head": "8b1d0e4", "head_checked_at": "2030-07-15T13:08:30+02:00", "unsynced_ops": ["OP-300715-k5f"]}
+    },
+    "S3": {
+      "taken_at": "2030-07-15T13:16:06+02:00",
+      "plan_version": 3, "plan_version_id": "V-300714-q8r",
+      "ledger_revision": 13, "ledger_digest": "sha256:bbf45f400a3b7983",
+      "raw_watermark": {"count": 6, "last_event": "E-300715-f06", "last_received_at": "2030-07-15T13:16:05+02:00"},
+      "repo": {"canonical": "origin/main", "head": "5d27c3a", "head_checked_at": "2030-07-15T13:15:50+02:00", "unsynced_ops": ["OP-300715-r6g"]}
+    },
+    "S4": {
+      "taken_at": "2030-07-15T13:52:01+02:00",
+      "plan_version": 4, "plan_version_id": "V-300715-x4w",
+      "ledger_revision": 13, "ledger_digest": "sha256:bbf45f400a3b7983",
+      "raw_watermark": {"count": 7, "last_event": "E-300715-g07", "last_received_at": "2030-07-15T13:52:00+02:00"},
+      "repo": {"canonical": "origin/main", "head": "e93b5d1", "head_checked_at": "2030-07-15T13:51:40+02:00", "unsynced_ops": ["OP-300715-u7j"]}
+    }
+  }
+}

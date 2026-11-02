@@ -1,0 +1,37 @@
+always: false
+check: null
+compatible_with: []
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-squ2a1
+interpretations: []
+key: site_more_options_sorted
+kind: rule
+long_term: true
+origin: null
+priority: null
+quote: 网站上就可以存稍微多一点的安排方式啥的 按照最有可能最佳的安排来排序
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: site
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-rhpzk9
+  nature: user_verbatim
+status: active
+strength: prefer
+subject:
+- me
+text: 网站上可以多存几套安排，按最可能、最佳的排在前面（原话 10-29 10:56 CET）
+valid_from: null
+valid_until: null
+value: null

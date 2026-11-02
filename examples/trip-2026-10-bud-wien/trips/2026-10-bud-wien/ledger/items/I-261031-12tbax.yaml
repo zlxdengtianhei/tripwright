@@ -1,0 +1,37 @@
+always: false
+check: null
+compatible_with: []
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-12tbax
+interpretations: []
+key: pace_1031
+kind: preference
+long_term: false
+origin: null
+priority: null
+quote: 我感觉明天可以还是轻松一点 毕竟晚上要在机场睡一晚
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: '*'
+  end: '2026-10-31'
+  place: '*'
+  start: '2026-10-31'
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-tzqjcj
+  nature: user_verbatim
+status: superseded
+strength: prefer
+subject:
+- me
+text: 10-31 轻松一点（晚上要在机场睡）（原话 10-30 18:36 CET）
+valid_from: null
+valid_until: null
+value: null

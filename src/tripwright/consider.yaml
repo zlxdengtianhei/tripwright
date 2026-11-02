@@ -1,0 +1,54 @@
+# 记忆的种类（M1；R-79、R-80；D-61 六、D-63 四）：turn 的 consider 列表怎样给每条分类、默认改动频率、每个场景列多少。
+# stability：stable 定了基本不变，改它要用户本轮明说（账本条目被取代要过准入，计划里的 plan_paths 要本轮的用户决定）；
+#            changing 常变，照 D-53 可改、留变更记录、回答里说出改了什么。
+# 用户可改：账本里一条 setting，key 写 `stability:<种类>`，value 写 stable 或 changing；这一趟的盖过长期的，长期的盖过本表。
+
+kinds:
+  destination: {stability: stable, zh: 目的地, en: Destination, plan_paths: ["/areas"]}
+  person: {stability: stable, zh: 人员, en: Person, plan_paths: ["/people"]}
+  source: {stability: stable, zh: 数据源, en: Data source}
+  app: {stability: stable, zh: App 与查法, en: App}
+  ask_languages: {stability: stable, zh: 询问语言, en: Languages for asking}
+  stability: {stability: stable, zh: 改动频率, en: Change rate}
+  long_term: {stability: stable, zh: 长期偏好, en: Long-term preference}
+  note: {stability: changing, zh: 地区须知, en: Local note}
+  must_go: {stability: changing, zh: 必须去的, en: Must-go answer}
+  want_to_go: {stability: changing, zh: 想去的地方, en: Wants to go}
+  preference: {stability: changing, zh: 偏好, en: Preference}
+  rule: {stability: changing, zh: 硬条件与规矩, en: Rule}
+  decision: {stability: changing, zh: 决定, en: Decision}
+
+# setting 条目的 key 前缀 → 种类（`source:realtime`、`app:timetable`、`note:sunday`、`ask_languages`、`must_go`、`stability:want_to_go`）。
+settings:
+  source: source
+  app: app
+  note: note
+  ask_languages: ask_languages
+  must_go: must_go
+  stability: stability
+
+# 每个场景列哪些种类、最多几条（超出的数出来，`state(view='memory')` 列全）。快问只列直接相关的；没有计划时（从零计划）列全。
+scenarios:
+  quick: {limit: 6, kinds: [rule, decision, preference, want_to_go, long_term, app, ask_languages, note]}
+  status: {limit: 4, kinds: [rule, decision, preference, long_term]}
+  replan: {limit: 12, kinds: [rule, decision, preference, want_to_go, long_term, must_go, person, destination, source, app, ask_languages, note]}
+  plan: {limit: 16, kinds: [rule, decision, preference, want_to_go, long_term, must_go, person, destination, source, app, ask_languages, note]}
+  compare: {limit: 12, kinds: [rule, decision, preference, want_to_go, long_term, person, destination, source, app, note]}
+  requirements: {limit: 20, kinds: [rule, decision, preference, want_to_go, long_term, must_go, person, destination, source, app, ask_languages, note, stability]}
+  system: {limit: 8, kinds: [rule, decision, preference, long_term, source, stability]}
+  scratch: {limit: null, kinds: [rule, decision, preference, want_to_go, long_term, must_go, person, destination, source, app, ask_languages, note, stability]}
+
+# 列的次序：必须项在前，接着是定了基本不变的，再是常变的。
+order: [rule, decision, must_go, destination, person, long_term, preference, want_to_go, source, app, ask_languages, note, stability]
+
+# 起草询问时语言代号的叫法（regions.yaml 的 languages 与 ask_languages 条目用代号）。
+languages:
+  en: {zh: 英语, en: English}
+  de: {zh: 德语, en: German}
+  fr: {zh: 法语, en: French}
+  it: {zh: 意大利语, en: Italian}
+  es: {zh: 西班牙语, en: Spanish}
+  cs: {zh: 捷克语, en: Czech}
+  hu: {zh: 匈牙利语, en: Hungarian}
+  zh: {zh: 中文, en: Chinese}
+  ja: {zh: 日语, en: Japanese}

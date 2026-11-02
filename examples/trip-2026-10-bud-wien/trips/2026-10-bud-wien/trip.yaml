@@ -1,0 +1,20 @@
+areas:
+- Budapest
+- Wien
+- Salzkammergut
+budgets: {}
+default_pace: relaxed
+end: '2026-11-01'
+id: 2026-10-bud-wien
+people:
+- id: me
+  name: 我
+- id: mate-1
+  name: 同行人 A
+- id: mate-2
+  name: 同行人 B
+- id: mate-3
+  name: 同行人 C
+start: '2026-10-25'
+timezone: Europe/Vienna
+title: 布达佩斯、维也纳与萨尔茨卡默古特（4 人，10-25 至 11-01）

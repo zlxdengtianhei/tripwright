@@ -1,0 +1,45 @@
+always: false
+check: null
+compatible_with: []
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-crpo23
+interpretations: []
+key: first_answer_nearest_first
+kind: rule
+long_term: true
+origin:
+  trip: 2026-10-bud-wien
+  event: E-261031-clmx96
+  said_at: '2026-10-31T19:37:03.621532+00:00'
+  speaker: me
+  nature: user_verbatim
+  path: trips/2026-10-bud-wien/raw/2026-10-31/20261031T193703Z-me-clmx96.md
+  message: 你这次第一段输出也太久了吧 我感觉有点太久了，反而是第二段核验9分钟感觉比第一段时间短多了。之后这种可以考虑今晚的先输出出来，并且你也可以更加明确一下第一段和第二段输出的做法。然后我们决定第一段去教堂的打车去了，明天的话我的下午活动可以考虑攀岩，这个我的preference里，还是那个决策树里
+    应该有说，你为啥没有参考到？你是否有忘记使用我们旅行系统的情况，另外我的要求原话都记录了吗。明天的话是不是还是买个交通票好点？我到了莫比乌斯环教堂了 后面打车还是公交好？
+priority: null
+quote: 之后这种可以考虑今晚的先输出出来
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: conversation
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-clmx96
+  nature: user_verbatim
+status: active
+strength: prefer
+subject:
+- me
+text: 第一段先给最近要用的安排（例：先给今晚的）（原话 10-30 20:13 CET）
+valid_from: null
+valid_until: null
+value: null

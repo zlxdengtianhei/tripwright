@@ -1,0 +1,171 @@
+{
+  "schema": "tripwright.sample-sequence/1",
+  "note": "一次快问到第二段的全过程。第 4 步：深核期间只改了实况，计划版本没变，取回只交“已过期，需重算”。第 7、8 步：只多了一条不带账的原话，先 unsettled，宿主 ack 后才交结果。第 11、12 步：已展示的草稿在重放时冲突，下一次 turn 先给通知。",
+  "contexts": {"CTX-300715-n4k": "S1", "CTX-300715-n5c": "S2", "CTX-300715-w2d": "S2", "CTX-300715-q6h": "S3", "CTX-300715-s7v": "S4"},
+  "steps": [
+    {
+      "n": 1,
+      "at": "2030-07-15T13:00:13+02:00",
+      "step": "turn",
+      "event": "E-300715-d04",
+      "ctx_id": "CTX-300715-n4k",
+      "snapshot": "S1",
+      "write": {"op_id": "OP-300715-t4a", "state": "received", "unsynced": 1},
+      "pack": "pack_narrow.json",
+      "answer": "answer_first.json"
+    },
+    {
+      "n": 2,
+      "at": "2030-07-15T13:01:30+02:00",
+      "step": "propose",
+      "ctx_id": "CTX-300715-n4k",
+      "base_version": 3,
+      "draft_id": "DR-300715-a7x",
+      "job_id": "J-300715-j1a",
+      "job_snapshot": "S1"
+    },
+    {
+      "n": 3,
+      "at": "2030-07-15T13:08:41+02:00",
+      "step": "turn",
+      "event": "E-300715-e05",
+      "ctx_id": "CTX-300715-n5c",
+      "snapshot": "S2",
+      "write": {"op_id": "OP-300715-k5f", "state": "received", "unsynced": 1}
+    },
+    {
+      "n": 4,
+      "at": "2030-07-15T13:09:30+02:00",
+      "step": "result",
+      "job_id": "J-300715-j1a",
+      "job_snapshot": "S1",
+      "current": "S2",
+      "ack_events": [],
+      "response": {"job_id": "J-300715-j1a", "status": "stale", "changed": ["ledger"], "unsettled_events": [], "result": null, "notice": "已过期，需重算"}
+    },
+    {
+      "n": 5,
+      "at": "2030-07-15T13:10:00+02:00",
+      "step": "propose",
+      "ctx_id": "CTX-300715-n5c",
+      "base_version": 3,
+      "draft_id": "DR-300715-b8d",
+      "job_id": "J-300715-j2c",
+      "job_snapshot": "S2",
+      "pack": "pack_wide.json",
+      "candidate": "candidate.json"
+    },
+    {
+      "n": 6,
+      "at": "2030-07-15T13:16:06+02:00",
+      "step": "turn",
+      "event": "E-300715-f06",
+      "ctx_id": "CTX-300715-q6h",
+      "snapshot": "S3",
+      "write": {"op_id": "OP-300715-r6g", "state": "received", "unsynced": 1}
+    },
+    {
+      "n": 7,
+      "at": "2030-07-15T13:16:40+02:00",
+      "step": "result",
+      "job_id": "J-300715-j2c",
+      "job_snapshot": "S2",
+      "current": "S3",
+      "ack_events": [],
+      "response": {
+        "job_id": "J-300715-j2c",
+        "status": "unsettled",
+        "changed": [],
+        "unsettled_events": ["E-300715-f06"],
+        "result": null,
+        "notice": "有新原话还没归属：有账先记账，没账用 ack_events 声明"
+      }
+    },
+    {
+      "n": 8,
+      "at": "2030-07-15T13:16:50+02:00",
+      "step": "result",
+      "job_id": "J-300715-j2c",
+      "job_snapshot": "S2",
+      "current": "S3",
+      "ack_events": ["E-300715-f06"],
+      "response": {
+        "job_id": "J-300715-j2c",
+        "status": "completed",
+        "changed": [],
+        "unsettled_events": [],
+        "result": {
+          "draft_id": "DR-300715-b8d",
+          "verdict": "passed",
+          "conflicts": [],
+          "unverified": ["P-300714-w6t"],
+          "differences": ["472 路今天末班 16:40。"],
+          "usages": [
+            {
+              "item_id": "I-300713-p1n",
+              "status": "host_reported",
+              "verification": "unverified",
+              "block_ids": ["d2a-u2-books", "d2b-u2-books"],
+              "reason": "箱子与书店都只在 u2 的块里；服务端核不了这条原则"
+            },
+            {
+              "item_id": "I-300713-t2k",
+              "status": "host_reported",
+              "verification": "unverified",
+              "block_ids": ["d2-train", "d2b-train"],
+              "reason": "两套都只坐 ÖBB 的车；运营方没有可核的谓词"
+            },
+            {"item_id": "I-300713-s4v", "status": "host_reported", "verification": "unverified", "block_ids": ["d2a-walk"], "reason": "方案 A 走路省钱"},
+            {
+              "item_id": "I-300715-e5y",
+              "status": "host_reported",
+              "verification": "unverified",
+              "block_ids": ["d2b-bus472", "d2b-rest"],
+              "reason": "方案 B 坐车并留休息"
+            },
+            {
+              "item_id": "I-300714-w9a",
+              "status": "host_reported",
+              "verification": "unverified",
+              "block_ids": ["d2a-river", "d2b-river"],
+              "reason": "两套晚饭后都留了河边走走"
+            },
+            {
+              "item_id": "I-300715-b8k",
+              "status": "host_reported",
+              "verification": "unverified",
+              "block_ids": ["d2a-u2-books", "d2b-u2-books"],
+              "reason": "u2 下午在书店"
+            },
+            {"item_id": "I-300713-r7b", "status": "not_applicable", "verification": "unverified", "block_ids": [], "reason": "回答写法规矩，不落在计划块上；第二段照它写"}
+          ]
+        },
+        "notice": "Retrieved does not mean the user has read it."
+      }
+    },
+    {
+      "n": 9,
+      "at": "2030-07-15T13:17:10+02:00",
+      "step": "commit",
+      "draft_id": "DR-300715-b8d",
+      "idempotency_key": "commit-0715-b8d",
+      "draft_snapshot": "S2",
+      "current": "S3",
+      "acked_events": ["E-300715-f06"],
+      "response": {"accepted": true, "version": {"number": 4, "id": "V-300715-v4l"}, "write": {"op_id": "OP-300715-c9m", "state": "received", "unsynced": 1}}
+    },
+    {"n": 10, "at": "2030-07-15T13:17:12+02:00", "step": "display", "answer": "answer_second.json"},
+    {"n": 11, "at": "2030-07-15T13:17:15+02:00", "step": "sync", "op_id": "OP-300715-c9m", "state": "conflict", "notice_id": "N-300715-n1c"},
+    {
+      "n": 12,
+      "at": "2030-07-15T13:52:01+02:00",
+      "step": "turn",
+      "event": "E-300715-g07",
+      "ctx_id": "CTX-300715-s7v",
+      "snapshot": "S4",
+      "write": {"op_id": "OP-300715-u7j", "state": "received", "unsynced": 1},
+      "notices": ["N-300715-n1c"],
+      "answer": "answer_quick.json"
+    }
+  ]
+}

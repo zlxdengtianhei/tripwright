@@ -1,0 +1,21 @@
+{
+  "schema": "tripwright.answer/1",
+  "skeleton": "quick",
+  "pack_id": "CTX-300715-s7v",
+  "at": "2030-07-15T13:52:01+02:00",
+  "language": "zh",
+  "notices": [{"notice_id": "N-300715-n1c", "line": "上次的安排已在别处改动，需要重排。"}],
+  "answer": ["出站往湖的方向走 6 分钟，就到步道口。"],
+  "places": [
+    {
+      "place_id": "uferweg-nord",
+      "name_local": "Uferweg Nord",
+      "line": "北湖岸步道口 · 湖边路起点",
+      "search": {"app": "Google 地图", "query": "Uferweg Nord, Seeufer"},
+      "link": {"label": "Google 地图", "url": "https://www.google.com/maps/dir/?api=1&destination=Uferweg%20Nord%2C%20Seeufer&travelmode=walking"}
+    }
+  ],
+  "legs": [],
+  "hard_node": null,
+  "check": {"item_id": "P-300714-w6t", "what": "南湖岸步道今天开不开", "consequence": "封了就走不到南湖", "onsite": "在步道口看告示牌"}
+}

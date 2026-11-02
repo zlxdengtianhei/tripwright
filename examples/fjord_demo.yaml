@@ -1,0 +1,95 @@
+fictional: true
+trip:
+  id: fjord-friends
+  title: Fictional fjord friends — Oslo and Bergen
+  start: '2030-06-10'
+  end: '2030-06-13'
+  timezone: Europe/Oslo
+  areas: [Oslo, Bergen]
+  people:
+    - {id: p1, name: Mira}
+    - {id: p2, name: Noah}
+    - {id: p3, name: Lin}
+  default_pace: relaxed
+  budgets: {NOK: 3000}
+  places:
+    - {id: oslo-art, name: 奥斯陆虚构画廊, name_local: Example Oslo Gallery, area: Oslo, kind: museum}
+    - {id: oslo-cafe, name: 奥斯陆虚构港边咖啡馆, name_local: Havnekafé — fictional, area: Oslo, kind: food}
+    - {id: oslo-park, name: 奥斯陆虚构公园, name_local: Example Oslo Park, area: Oslo, kind: park}
+    - {id: oslo-station, name: 奥斯陆中央站示例节点, name_local: Oslo S — illustrative only, area: Oslo, kind: transport}
+    - {id: bergen-view, name: 卑尔根虚构观景点, name_local: Example Bergen Viewpoint, area: Bergen, kind: viewpoint}
+    - {id: bergen-food, name: 卑尔根虚构素食店, name_local: Example Bergen Vegetarian Café, area: Bergen, kind: food}
+  bookings:
+    - id: bk-example-rail
+      date: '2030-06-11'
+      kind: rail
+      what: Fictional Oslo–Bergen train; no real timetable or reservation
+      subject: [p1, p2, p3]
+      status: booked
+      place: oslo-station
+      if_missed: Fictional booking only; no actual ticket rights are asserted.
+      fares:
+        - {id: f-example-rail, segment: Oslo–Bergen, ticket: Fictional example ticket, subject: [p1, p2, p3], amount_per_person: 400, currency: NOK}
+  days:
+    - date: '2030-06-10'
+      title: Oslo — art and an agreed café
+      area: Oslo
+      plans:
+        - name: Recommended
+          tracks:
+            - subject: [p1, p2, p3]
+              blocks:
+                - {id: d1-art, start: '10:00', end: '11:00', kind: visit, place: oslo-art}
+                - {id: d1-dinner, start: '17:00', end: '18:00', kind: meal, place: oslo-cafe, transfer_minutes: 15}
+                - {id: d1-coffee, start: '18:00', end: '19:00', kind: flex, place: oslo-cafe, text: Agreed café after dinner, app: Maps search Havnekafé — fictional}
+    - date: '2030-06-11'
+      title: Solo morning, then a hard rail node
+      area: Oslo
+      anchors:
+        - id: example-rail-departure
+          time: '16:30'
+          text: Fictional train from Oslo to Bergen
+          subject: [p1, p2, p3]
+          place: oslo-station
+          buffer_minutes: 20
+          travel_minutes: 20
+          app: Train app search Oslo S → Bergen; times are illustrative
+          consequence: Missing this fictional node would require a different onward plan.
+          alternative: Confirm a real timetable and choose an earlier station arrival.
+      plans:
+        - name: Recommended
+          tracks:
+            - subject: [p1]
+              blocks:
+                - {id: d2-solo, start: '09:30', end: '10:30', kind: visit, place: oslo-park}
+                - {id: d2-p1-station, start: '15:30', end: '15:50', kind: reserve, place: oslo-station, transfer_minutes: 20}
+            - subject: [p2, p3]
+              blocks:
+                - {id: d2-museum, start: '10:00', end: '11:00', kind: visit, place: oslo-art}
+                - {id: d2-p23-station, start: '15:30', end: '15:50', kind: reserve, place: oslo-station, transfer_minutes: 20}
+    - date: '2030-06-12'
+      title: Bergen — an optional view
+      area: Bergen
+      rain_plan: Keep the viewpoint optional and choose an indoor café if wet.
+      plans:
+        - name: Recommended
+          tracks:
+            - subject: [p1, p2, p3]
+              blocks:
+                - {id: d3-view, start: '10:00', end: '11:00', kind: visit, place: bergen-view}
+                - {id: d3-food, start: '12:00', end: '13:00', kind: meal, place: bergen-food, transfer_minutes: 15}
+    - date: '2030-06-13'
+      title: Bergen — a quiet finish
+      area: Bergen
+      plans:
+        - name: Recommended
+          tracks:
+            - subject: [p1, p2, p3]
+              blocks:
+                - {id: d4-food, start: '10:00', end: '11:00', kind: meal, place: bergen-food}
+requirements:
+  - {subject: [p1], key: viewpoints, text: Go to a viewpoint if we can., strength: optional, reason: null}
+  - {subject: [p1], key: pace, text: Keep the pace relaxed because I have an early start afterwards., strength: prefer, reason: I have an early start afterwards.}
+  - {subject: [p2], key: museums, text: I would enjoy one art museum., strength: prefer, reason: null}
+  - {subject: [p3], key: food, text: Prefer vegetarian cafés., strength: prefer, reason: null}
+  - {subject: [p3], key: evening, text: Prefer quiet evenings., strength: prefer, reason: null}

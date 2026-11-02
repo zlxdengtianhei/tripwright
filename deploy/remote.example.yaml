@@ -1,0 +1,18 @@
+# Copy to <data folder>/remote.yaml (the container's /data/remote.yaml) and replace the placeholders.
+# No token, GitHub app secret or private key belongs in this YAML.
+public_url: https://YOUR-DOMAIN
+data_dir: /data/remote
+secrets_file: /data/remote-secrets.env
+oauth: true
+accounts:
+  YOUR-GITHUB-LOGIN: personal
+tenants:
+  personal:
+    # Port 443 works where outbound port 22 is blocked; known_hosts then needs the [ssh.github.com]:443 entries.
+    repo_url: ssh://git@ssh.github.com:443/OWNER/PRIVATE_REPO.git
+    branch: main
+    owner: local
+    ssh_key: /data/ssh/personal_ed25519
+    known_hosts: /data/ssh/known_hosts
+token_tenants:
+  local: personal

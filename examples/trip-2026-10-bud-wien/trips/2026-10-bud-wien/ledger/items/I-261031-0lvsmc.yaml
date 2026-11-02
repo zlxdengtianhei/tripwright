@@ -1,0 +1,37 @@
+always: false
+check: null
+compatible_with: []
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-0lvsmc
+interpretations: []
+key: answer_first
+kind: rule
+long_term: true
+origin: null
+priority: null
+quote: 以后的交互应该是你先给我终端输出我现在的走法 然后再去更新网站
+reason: 10-29 10:56 又说：因为有时候查询是很着急的 所以交互应该是你查好了就直接先输出结果在终端
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: conversation
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-r21xo2
+  nature: user_verbatim
+status: active
+strength: must
+subject:
+- me
+text: 先在对话里给现在怎么走，再去更新网站（原话 10-29 10:28 CET）
+valid_from: null
+valid_until: null
+value: null

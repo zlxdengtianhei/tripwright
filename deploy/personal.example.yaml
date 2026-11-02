@@ -1,0 +1,16 @@
+# Tripwright without GitHub: the trip files are a Git repository inside the data folder (no remote, no push).
+# Copy to deploy/data/remote.yaml and set public_url:
+#   - only a desktop app on this computer: http://localhost:8000
+#   - phone or web chat apps: the HTTPS address your tunnel gives (Cloudflare Tunnel, Tailscale Funnel), no path
+# Sign-in is the connector URL key (TRIPWRIGHT_URL_KEY in deploy/.env): the connector address is
+#   <public_url>/mcp/<the key>
+# No secret belongs in this file.
+public_url: http://localhost:8000
+data_dir: /data/remote
+secrets_file: /data/remote-secrets.env
+oauth: false
+accounts: {}
+tenants:
+  personal: {}
+token_tenants:
+  local: personal

@@ -1,0 +1,222 @@
+- area: Wien
+  checked: 2026-10-31 Falter、Swipein、Tripaligner（第三方，主会话 WebSearch 摘要）
+  coords:
+  - 48.18505
+  - 16.37783
+  hours: 第三方说法不一：周一至周六 09–22、周日和节假日 09–23（Falter）；每天 09–23（Swipein）；没在店家官网核
+  id: som-kitchen-hbf
+  kind: food
+  links:
+  - https://www.falter.at/lokal/9046/som-kitchen
+  name: Som Kitchen（中央车站店，泰国菜）
+  name_local: Som Kitchen, Am Hauptbahnhof 1, 1100 Wien
+  notes: 地址 Am Hauptbahnhof 1/EG 116（车站一层）；坐标取的是车站楼（Nominatim“Am Hauptbahnhof 1”），店在站内。泰国菜：汤、烤、炒锅；收卡和现金（Falter）。别和 4 区的高档餐厅
+    Z'SOM（Gußhausstraße 12）弄混。
+  price: null
+  priority: optional
+  rain_ok: true
+  reason: 用户 10-31 点名（“S O M restaurant”）；在 Hbf 站内一层，送队友上车前打包吃
+  subject: []
+  transit_id: null
+- area: Wien
+  checked: 2026-10-30 官网首页（面积、周六时间、有没有活动）；价格 2026-10-22 官网价格页（排版乱）
+  coords:
+  - 48.1906
+  - 16.36029
+  hours: 周一至周五 07:30–23:00，周六、周日及公共假日 07:30–22:00，全年每天开放（官网首页，主会话 10-30 23:3x 读）。10-31（周六）07:30–22:00，官网首页没见 10-31 有特别活动。
+  id: blockfabrik
+  kind: climbing
+  links:
+  - https://www.blockfabrik.at/
+  - https://www.blockfabrik.at/preise/
+  name: Blockfabrik 抱石馆
+  name_local: Blockfabrik, Schloßgasse 10-12, 1050 Wien
+  notes: 地址 Schloßgasse 10-12（也写 Schlossgasse），1050 Wien；U4 Pilgramgasse 步行约 5′。官网首页写“1400m² Grundfläche”，是场地面积；boulderbar
+    Hannovergasse 官网写的是约 1300 m² 攀爬面积（Kletterfläche），两个数不是同一种量；调研表写 Hannovergasse 场地约 1200 m²，按场地面积比，Blockfabrik（1400 m²）比它大。Hbf
+    那家 boulderbar 调研表只写了岩面约 1300 m² 加室外 200 m²，场地面积没查到。纳什市场 13:12 59A → Margaretenplatz 13:16，步行 5′；回程 18:37 13A Leibenfrostgasse
+    → Hbf 18:44（Transitous 10-30 23:34 查）。调研表说馆里有素食小餐馆、绿色内院（没核）。10-31 周六 22:00 关门。
+  price:
+    adult: 约 €13.40（Einzeleintritt；官网价格表排版乱，只能推出该数，未确认）
+    checked: '2026-10-22'
+    note: 租鞋约 €4、粉约 €2（同样是推断，没确认）；我 自带攀岩鞋，不租（旧系统 D-106，D-74）。官网价格页文字没有行列对应，两次读取都只能“推测”。到前台带学生证问减价。
+    source: 官网 blockfabrik.at/preise/（价格表排版乱，未确认）
+    student: 约 €11.00 减价（同样未确认；官网写减价给 26 岁以下学生、学徒、老年等）
+  priority: recommended
+  rain_ok: true
+  reason: 10-31 我 下午第一家岩馆（D-73、D-74）：用户要“大点的岩馆”，官网首页写 1400 m² 场地，10-31 没见特别活动；小红书说“11💵的价格两层的区域也太爽了。线很多，定得也很有趣”
+  subject:
+  - me
+  transit_id: null
+- area: Wien
+  checked: 2026-10-31 wien.info（周一至周六 06:00–22:00，周日与节假日 07:00–22:00；主会话 10-31 13:5x WebSearch 摘要）；其余 2026-10-18 store（官网
+    10-20 连不上，没重核）
+  coords:
+  - 48.20849
+  - 16.37313
+  hours: 入口区周一至周六 06–22 免费；正式参观 09–11:30、13–16:30；南塔 09–19；教堂周一至周六 06:00–22:00，周日 07:00–22:00。北塔每天 09:00–19:00（最后上塔 18:30）；南塔每天
+    09:00–19:00（最后上塔 18:15）；墓穴导览周一至周六 10:00、11:00、11:30、13:30、14:30、15:30、16:30。10-27（周二）、10-30（周五）、10-31（周六）都开。官网注明参观时间可能因礼仪活动调整。
+  id: stephansdom
+  kind: church
+  links:
+  - https://www.stephanskirche.at/info.php
+  name: 圣斯蒂芬大教堂
+  name_local: Stephansdom, Stephansplatz, Wien
+  notes: 10-31（周六）16:05 前后去：出 U1/U3 Stephansplatz（圣斯蒂芬广场站）地铁口就是，入口区免费，正式参观 13:00–16:30 那段可以不买（D-75）。DDDarko：主殿前厅免费，主祭坛核心区和南北塔楼单独收费；Julia
+    帖：周一至周六 06–22、周日 07–22，早弥撒多在侧祭坛
+  price:
+    adult: 入口区免费；正式参观教堂 €8（官网写 09:00–11:30 周一至周六、13:00–16:30 每天）；北塔（Pummerin，电梯）€8；南塔（343 级台阶）€8；地下墓穴导览 €8；公开教堂导览 €8（周一至周五
+      10:30 英语、15:30 德语）；All Inclusive（教堂语音导览+两座塔+公开墓穴导览+Dom Museum）€29，一年有效
+    checked: '2026-10-22'
+    combo: All Inclusive €29（官网英文页）。商店页或西语页曾写 €25，价格不一致，以现场为准。
+    note: 官网没写学生价，26 岁以下的我们按成人价买。第三方说教堂售票处现金支付，官网英文页没写，未证实。Domschatz 官网没单列价；Dom Museum Wien 周二至周日 10:00–18:00（周四到 20:00），周一闭，门票含在
+      All Inclusive 里，单买价官网没列。
+    source: 官网 stephanskirche.at/info.php?setLang=en；WebSearch 摘要提到该页英语与西语版价格有出入
+    student: 官网没有学生价。只有：6–14 岁儿童 €3（塔、墓穴、教堂导览）；学校团体 14–18 岁 €5
+    youth: 6–14 岁 €3；All Inclusive 6–14 岁 €7
+  priority: must
+  rain_ok: true
+  reason: 小红书说“老城绝对C位”；入口区免费
+  subject: []
+  transit_id: null
+- area: Wien
+  checked: 2026-10-31 官网 peterskirche.at（周六、周日 09:00–19:00；管风琴演奏每天 15:00，自愿捐款；主会话 10-31 13:5x 读）
+  coords:
+  - 48.20944
+  - 16.37001
+  hours: 官网 peterskirche.at：周六、周日 09:00–19:00；管风琴演奏每天 15:00（捐款）。工作日时间官网这次没读，Julia 帖写周一至周五 08–19。
+  id: peterskirche
+  kind: church
+  links: []
+  name: 圣伯多禄教堂（彼得教堂）
+  name_local: Peterskirche, Petersplatz 6, 1010 Wien
+  notes: 官网没写要不要门票，第三方都说免费进。10-31 16:28 前后去，圣斯蒂芬步行约 3′（D-75）。米歇尔教堂步行 5′；圣斯蒂芬步行 5′；DDDarko：整座教堂无收费区，运气好遇到免费管风琴
+  price:
+    adult: 免费（第三方，未在官网核）
+    checked: '2026-10-22'
+    note: 第三方说常有管风琴音乐会，免费，自愿捐款；晚间音乐会另收票。没读到官网 peterskirche.at。
+    source: 第三方（WebSearch 摘要：explorial、ganz-wien 等），未在官网核
+    student: 免费
+  priority: optional
+  rain_ok: true
+  reason: 小红书说“藏在老城区中心的一座巴洛克风格教堂，外形不起眼但内部依然华丽”；在格拉本旁，顺路进去 10 分钟
+  subject: []
+  transit_id: null
+- area: Wien
+  checked: 2026-10-31 活动页（团队赛时间与规则）；2026-10-30 官网门店页（面积、周六时间、换线日）
+  coords:
+  - 48.23149
+  - 16.36791
+  hours: 周六 09:00–22:00（官网门店页，主会话 10-30 23:3x 读）；周一至周五 09:00–23:00（调研表 10-18）
+  id: boulderbar-hannovergasse
+  kind: climbing
+  links:
+  - https://boulderbar.net/standorte/hannovergasse/
+  - https://boulderbar.net/events/team-spirit-halloween-edition-2026/
+  name: boulderbar 抱石馆（Hannovergasse 店，第一家 boulderbar）
+  name_local: boulderbar Hannovergasse, Hannovergasse 21, 1200 Wien
+  notes: 10-31 Team Spirit Halloween Edition（活动页 10-31 11:3x 读）：17:30–17:45 在前台报名，18:00 开始；报名的人随机分队，每队最多 5 人，穿万圣节装扮的先分队、给队伍加
+    5 分，超过 50 人就抽 10 队；每队在 5 个区各爬 5 条，每区 10 分钟；每人挑一个难度档（1：5A–5C，2：5C–6A+，3：6A+–6B+，4：6B+–6C+，5：6C+–7A+）；奖品由 Wild Country、Ottakringer、Sens
+    赞助，其余报名的人抽奖。报名要不要另交钱、不参赛的人能不能照常爬、几点结束，活动页没写。官网门店页写“Ca. 1300 m² Kletterfläche”（攀爬面积，不是场地面积；调研表写场地约 1200 m²、含约 120 m² 室外、墙高
+    ≤4.5 m）；10-31 有“Team Spirit Halloween Edition”活动，换线日（Schraubtag）也移到 31.10，部分墙会封。2012 年开的第一家 boulderbar。在 20 区，离青旅和 Hbf
+    远（Hbf 约 27′ 加步行，调研表）。坐标 Nominatim（OpenStreetMap）10-30 查。
+  price:
+    adult: €14.50（同 boulderbar 维也纳各店）
+    checked: '2026-10-22'
+    note: 租鞋 €4.50，粉 €2.00。价来自 boulderbar 官网价格页（10-22 读）与调研表。
+    source: 官网 boulderbar.net/de/preise；research/调研/tables/vienna-climbing-gyms.csv
+    student: €13.10（18–26 岁）
+  priority: recommended
+  rain_ok: true
+  reason: 10-31 晚上推荐（D-74）：这天只有这家办 Team Spirit 万圣节团队赛（17:30–17:45 报名，18:00 开始），一个人也能报、随机分队；大馆（官网写约 1300 m² 攀爬面积）。31.10 也是换线日（Schraubtag）
+  subject:
+  - me
+  transit_id: null
+- area: Wien
+  checked: 2026-10-31 活动页（Halloween Edition 只在 Hannovergasse）；2026-10-30 官网门店页（周末时间）；价格 2026-10-22 官网
+  coords:
+  - 48.18156
+  - 16.38496
+  hours: 官网门店页（主会话 10-30 20:1x 读）：周六、周日和节假日 09:00–22:00；周一至周五 09–23（旧库，未重读）。
+  id: boulderbar-hbf
+  kind: climbing
+  links:
+  - https://boulderbar.net/standorte/wien-hauptbahnhof/
+  name: boulderbar 抱石馆（中央车站店）
+  name_local: boulderbar Hauptbahnhof, Maria-Lassnig-Straße 18/2, 1100 Wien
+  notes: 学生价要学生证（没限定 ISIC）；门店页列着“Team Spirit Halloween Edition 2026”，但活动页（boulderbar.net/events/team-spirit-halloween-edition-2026/，10-31
+    11:3x 读）写明这一场在 Hannovergasse，门店页的图片说明也写“in der Hannovergasse”，所以这家 10-31 没有活动（10-30 读门店页时误以为两家都有）；租鞋、淋浴在门店页没写（价格页写租鞋成人
+    €4.50，我 自带鞋不租）。小红书 0 篇，来自调研表
+  price:
+    adult: €14.50（日票，18 岁以上）
+    checked: '2026-10-22'
+    combo: 周一至周五（假日除外）15:00 前入场：成人 €12.30，学生 €11.10
+    note: 租鞋成人 €4.50，粉袋 €2.00。官网价格页写学生年龄线 26 岁（脚注“含 25 岁”只指林茨和萨尔茨堡）；官网没写要不要证件，带学生证。
+    source: 官网 boulderbar.net/de/preise
+    student: €13.10（18–26 岁）
+    youth: 14–17 岁 €11.60；0–13 岁 €10.30
+  priority: optional
+  rain_ok: true
+  reason: 离 Hbf 步行约 10 分钟，去机场顺路；10-31 晚上的另一套：不参加团队赛就来这家（D-74）。10-31 这家没有活动：D-72、D-73 写的“10-31 有 Halloween 活动”是错的，活动只在 Hannovergasse
+  subject:
+  - me
+  transit_id: null
+- area: Wien
+  checked: 2026-10-22 官网（位置、数量、尺寸、付款、可预订）；价格 heute.at 2026-05
+  coords:
+  - 48.18519
+  - 16.37641
+  hours: 储物柜在车站营业时间内可用；INTERSPAR-pronto（Spar 超市的小店）每天 06:00–23:00（visitingvienna、weekend.at、vienna.at 三处第三方一致，没在 Spar 官网核；大的
+    Interspar 周日可能不开）；官网页没写储物柜开放时间；旧库写车站营业时间内可用。
+  id: wien-hbf
+  kind: transport
+  links:
+  - https://hauptbahnhofcity.oebb.at/de/services/schliessfaecher
+  - https://www.oebb.at/de/reiseplanung-services/am-bahnhof/gepaeckaufbewahrung
+  name: 维也纳中央车站（存包、买菜）
+  name_local: Wien Hauptbahnhof
+  notes: 站里没有 BILLA；去 Bad Ischl 的 IC 和去机场的 REX7 都从这里走（2026-09-07 起 S7 不进城，去机场从这里坐 REX 7 或 Railjet，wien.info 10-31 读）；站内一层有
+    Som Kitchen 泰国菜；地下层（UG）约 650–670 格数字储物柜（Tamburi），无钥匙；只能非接触刷卡；可在 Tamburi 网站提前订，也可现场订，取件码发邮件。尺寸只差一边：S 12、M 23、L 47、XL 71、XXL
+    89、3XL 214 cm，另两边都是 41 × 62 cm。两个小登机箱放一格 XL，或两格 L。最长存多久官网没写。站里没有人工寄存；满了用附近 Stasher 合作点（Schweizer Garden 酒店步行约 5′、24 h）
+  price:
+    adult: 储物柜：ÖBB 官网的常规储物柜表（24 小时）小号 €2.00、中号 €2.50、大号 €3.50、特大 €4.50，但该表的维也纳站只列 Westbahnhof、Meidling、Praterstern，Hauptbahnhof
+      不在其中；Hauptbahnhof 只出现在“多功能储物柜”名单里，价格在订柜流程中显示。
+    checked: '2026-10-22'
+    note: 旧库的 Hbf 价 S 3 h €2.20 / 24 h €2.70、L 3 h €3.30 / 24 h €4.30 来自 heute.at（2026-05-18），这次没有从官网重核，可能就是多功能储物柜价；两处不一致，以到站实际屏幕显示为准。
+    source: 官网 oebb.at/de/reiseplanung-services/am-bahnhof/gepaeckaufbewahrung；旧库 heute.at 2026-05-18（未重核）
+  priority: must
+  rain_ok: true
+  reason: 两次进出维也纳都在这里；地下层有储物柜，站内超市每天开到 23 点
+  subject: []
+  transit_id: null
+- area: Wien
+  checked: 2026-10-31 机场线路改动（wien.info）；2026-10-30 过夜信息（第三方，主会话 19:4x 搜）；2026-10-18 store（V-025、V-027）
+  coords:
+  - 48.12023
+  - 16.56427
+  hours: null
+  id: vie-airport
+  kind: transport
+  links: []
+  name: 维也纳机场（11-01 早班，前一晚在这里过夜）
+  name_local: Flughafen Wien (VIE), Schwechat
+  notes: 10-31 推荐在机场过夜（用户 10-30 19:12 说，D-71）；不在机场睡的备选见本条最后和 10-31 天页“明天注意”。 Hbf 坐 REX 约 22 分钟；ÖBB Tickets app 买 Wien → Flughafen
+    Wien 全程约 €5.50（含维也纳市内段）；有有效的维也纳市内票才只补机场段约 €2.30（价来自 wien.info，页面没写日期，ÖBB 官网没核）。D-74 的“晚上买 Friedensbrücke → 机场全程票”已被 D-75
+    取代：用户 10-31 13:51 已买 24 小时票。 2026-09-07 起 S7 只开到 St. Marx，不停 Wien Mitte、Rennweg；REX 7 和 Railjet 照常 Hbf ↔ 机场（Railjet 每小时两班，约
+    15 分钟）；CAT 到 2027-10-31 改成 Wien Mitte ↔ 机场的大巴（wien.info“Important information for airport travellers from September 2026”，10-31
+    11:3x 读）。 10-31 实际（D-75）：用户 13:51 说已买 24 小时票（€9.70，到 11-01 约 13:50），去机场只补“机场 → 维也纳市界”一段 €2.30（wien.info：持多日票、Vienna City
+    Card 的人只补这一段；同页 FAQ 写 €5.50 全程票也管 Railjet）。推荐 22:42 Railjet（RJX 19959）→ 22:57；22:53 REX 22779 → 23:15；末班 23:53 REX → 00:15（Transitous
+    10-31 13:50 查）。 火车都误了：VAB 1 机场大巴（Vienna Airport Lines）从 Wien Hauptbahnhof Süd（中央车站南侧）整夜都有，23:15 → 23:40，11-01 03:15 →
+    03:40、03:45 → 04:10（Transitous 10-31 13:50 查；wien.info 写往机场方向 03:00–00:00 每半小时、00:30–02:30 每小时）；不认维也纳市内票，单程约 €11（第三方，官网价没查到）。周六夜里
+    U1 通宵开（同一次查询有 03:22 U1）。 过夜：没有宵禁、航站楼公共区域 24 小时开、过夜一般不被赶，都是第三方说法（sleepinginairports.net、layoverindex），机场官网没找到明确说法。机场官方新闻稿（2021–2022）：T3
+    安检外（landside）2 楼 16 个 Zzzleepandgo 睡眠舱，€9/小时，整晚 €48 起，在 zzzleepandgo.com 订；现价没查到。机场旁 NH、Moxy 酒店贵。 11-01 航班号略 07:45：Ryanair
+    网上值机到起飞前 2 小时（05:45），过了只能柜台值机、另收费。非欧盟/EEA 护照要先到 Ryanair Visa/Document check 柜台盖章再过安检，没盖章不能登机、不退钱；柜台至少起飞前 2 小时开、起飞前 40
+    分钟（07:05）关；部分国籍可在 app 值机时做护照验证，通过就不用去柜台（Ryanair 帮助中心，主会话 10-31 13:5x WebSearch 摘要，官网页 403 没直接读到）。07:15 登机口关（旧记录，没重核）。航站楼：第三方说
+    Ryanair 在 T1 值机，安检和登机走 T3（2021 年的说法，aviation.direct），以 Ryanair app 登机牌为准。 不在机场睡的备选：城里睡床位，11-01 04:22 REX Wien Hbf → 04:45
+    到机场，或 03:45 VAB 1 Wien Hbf Süd → 04:10（Transitous 10-30 19:4x 查）。
+  price: null
+  priority: must
+  rain_ok: true
+  reason: 11-01 07:45 起飞；10-31 晚上到这里过夜
+  subject:
+  - me
+  transit_id: null

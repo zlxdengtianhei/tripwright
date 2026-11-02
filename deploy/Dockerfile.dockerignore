@@ -1,0 +1,13 @@
+**
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+!src/**
+!skills/
+!skills/**
+!examples/
+!examples/fjord_demo.yaml
+!deploy/
+!deploy/healthcheck.py
+!deploy/entrypoint.py

@@ -1,0 +1,44 @@
+always: false
+check: null
+compatible_with: []
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-uzp6i2
+interpretations: []
+key: second_answer_full
+kind: rule
+long_term: true
+origin:
+  trip: 2026-10-bud-wien
+  event: E-261031-ub04jp
+  said_at: '2026-10-31T19:37:03.550082+00:00'
+  speaker: me
+  nature: user_verbatim
+  path: trips/2026-10-bud-wien/raw/2026-10-31/20261031T193703Z-me-ub04jp.md
+  message: 好的 现在这样大概可以 但是我觉得最好你的第二段输出 也是完全全量的在终端或者说聊天中输出一下完整的安排内容，或者说给我的回答 因为我们的聊天可能夹着我说的话和你的中间输出 那么如果你是说一些修改的点 对我来说不是很直观。然后我朋友的票也确实是标准票，我们行李存在了巴德伊舍车站旁边的咖啡店了
+priority: null
+quote: 最好你的第二段输出 也是完全全量的在终端或者说聊天中输出一下完整的安排内容
+reason: 因为我们的聊天可能夹着我说的话和你的中间输出 那么如果你是说一些修改的点 对我来说不是很直观
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: conversation
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-ub04jp
+  nature: user_verbatim
+status: active
+strength: prefer
+subject:
+- me
+text: 第二段在对话里全量给出完整安排，不只说改了哪里（原话 10-30 12:34 CET）
+valid_from: null
+valid_until: null
+value: null

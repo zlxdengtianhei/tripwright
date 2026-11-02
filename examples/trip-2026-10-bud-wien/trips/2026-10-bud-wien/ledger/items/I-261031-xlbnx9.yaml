@@ -1,0 +1,42 @@
+always: false
+check: null
+compatible_with:
+- whole_picture
+- big_heading_for_plan
+- pace_1031
+- save_money_1031
+- transport_1031
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-xlbnx9
+interpretations: []
+key: second_round_verify_all
+kind: rule
+long_term: true
+origin: null
+priority: null
+quote: 那么你在第二任去核验的时候，那肯定是要把你要需要去了解的这些信息、需要检查的这些信息呢，都去核验
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: conversation
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-hvhhc9
+  nature: user_verbatim
+status: active
+strength: must
+subject:
+- me
+text: 第二段要把需要了解、需要检查的信息都核掉（“第二任”是第二轮的转写）（原话 10-31 13:48 CET）
+valid_from: null
+valid_until: null
+value: null

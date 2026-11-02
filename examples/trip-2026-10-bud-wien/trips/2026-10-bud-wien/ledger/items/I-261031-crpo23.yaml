@@ -1,0 +1,37 @@
+always: false
+check: null
+compatible_with: []
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-crpo23
+interpretations: []
+key: first_answer_nearest_first
+kind: rule
+long_term: true
+origin: null
+priority: null
+quote: 之后这种可以考虑今晚的先输出出来
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: conversation
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-clmx96
+  nature: user_verbatim
+status: active
+strength: prefer
+subject:
+- me
+text: 第一段先给最近要用的安排（例：先给今晚的）（原话 10-30 20:13 CET）
+valid_from: null
+valid_until: null
+value: null

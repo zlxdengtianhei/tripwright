@@ -1,0 +1,238 @@
+[
+ {
+  "type": "STOP",
+  "name": "Wien Hbf",
+  "id": "at-Railway-Current-Reference-Data-2026_Pat:49:1349",
+  "lat": 48.185190000000006,
+  "lon": 16.376413,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Wien",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   },
+   {
+    "name": "Favoriten",
+    "adminLevel": 9.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Katastralgemeinde Favoriten",
+    "adminLevel": 10.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   }
+  ],
+  "modes": [
+   "HIGHSPEED_RAIL",
+   "LONG_DISTANCE",
+   "COACH",
+   "NIGHT_RAIL",
+   "REGIONAL_RAIL",
+   "SUBURBAN",
+   "SUBWAY",
+   "TRAM",
+   "BUS"
+  ],
+  "importance": 0.015662511810660362
+ },
+ {
+  "type": "STOP",
+  "name": "Wien Hauptbahnhof Ost",
+  "id": "at-PTA-Eastern-Region-Flex-2026_Pat:49:905",
+  "lat": 48.18458905999999,
+  "lon": 16.380572599999997,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Wien",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   },
+   {
+    "name": "Favoriten",
+    "adminLevel": 9.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Katastralgemeinde Favoriten",
+    "adminLevel": 10.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   }
+  ],
+  "modes": [
+   "TRAM"
+  ],
+  "importance": 4.4742664613295346e-05
+ },
+ {
+  "type": "STOP",
+  "name": "Wien Hauptbahnhof Autoreisezug",
+  "id": "at-Railway-Current-Reference-Data-2026_Pat:49:1350",
+  "lat": 48.177443999999994,
+  "lon": 16.391838000000003,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Wien",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   },
+   {
+    "name": "Favoriten",
+    "adminLevel": 9.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Katastralgemeinde Favoriten",
+    "adminLevel": 10.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   }
+  ],
+  "modes": [
+   "NIGHT_RAIL"
+  ],
+  "importance": 2.6826748580788262e-05
+ },
+ {
+  "type": "STOP",
+  "name": "Wiener Neustadt Hauptbahnhof",
+  "id": "at-Railway-Current-Reference-Data-2026_Pat:43:5210",
+  "lat": 47.811305999999995,
+  "lon": 16.233618,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Niederösterreich",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Wiener Neustadt",
+    "adminLevel": 6.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   },
+   {
+    "name": "Katastralgemeinde Wiener Neustadt",
+    "adminLevel": 10.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   }
+  ],
+  "modes": [
+   "HIGHSPEED_RAIL",
+   "LONG_DISTANCE",
+   "NIGHT_RAIL",
+   "REGIONAL_RAIL",
+   "SUBURBAN",
+   "BUS",
+   "ODM"
+  ],
+  "importance": 0.002908986760303378
+ },
+ {
+  "type": "STOP",
+  "name": "Hauptbahnhof/ZOB",
+  "id": "at-Railway-Current-Reference-Data-2026_de:02000:10950:1:5",
+  "lat": 53.552383,
+  "lon": 10.007493,
+  "country": "DE",
+  "tz": "Europe/Berlin",
+  "areas": [
+   {
+    "name": "Deutschland",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Hamburg",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   },
+   {
+    "name": "Hamburg-Mitte",
+    "adminLevel": 9.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "St. Georg",
+    "adminLevel": 10.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   }
+  ],
+  "modes": [
+   "HIGHSPEED_RAIL",
+   "LONG_DISTANCE",
+   "COACH",
+   "NIGHT_RAIL",
+   "REGIONAL_RAIL",
+   "SUBURBAN",
+   "SUBWAY",
+   "BUS"
+  ],
+  "importance": 0.017726276069879532
+ }
+]

@@ -1,0 +1,3 @@
+# 本项目自己管 uv 设置，不继承外层仓的 only-managed：可用系统已装的 Python 3.12
+python-preference = "managed"
+python-downloads = "manual"

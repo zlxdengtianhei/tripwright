@@ -1,0 +1,46 @@
+always: false
+check: null
+compatible_with:
+- first_answer_always
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-v1cogl
+interpretations: []
+key: two_stage_answer
+kind: rule
+long_term: true
+origin:
+  trip: 2026-10-bud-wien
+  event: E-261031-4s7x05
+  said_at: '2026-10-31T19:37:03.527662+00:00'
+  speaker: me
+  nature: user_verbatim
+  path: trips/2026-10-bud-wien/raw/2026-10-31/20261031T193703Z-me-4s7x05.md
+  message: 那我想知道就是从大家的评价来看 既然我们只有这一个晴天 去哈尔施塔特还是圣沃尔夫冈好 你就是不考虑我们去过没去过来评价 然后另外就是我的今天的民宿应该可以在gmail看到 以及我的车票 你先给我行程等你查好 然后其他的你可以输出了行程再去查
+    另外就是我觉得每次我们在旅行部分的输出你都可以考虑两个部分 一个是及时快速的查询和决定后先告诉我快速的结果 这个部分一定输出出来 然后再去核验需要核验的部分 然后可以再输出一遍 并且更新网站 这样两段式输出比较好
+priority: null
+quote: 每次我们在旅行部分的输出你都可以考虑两个部分 一个是及时快速的查询和决定后先告诉我快速的结果 这个部分一定输出出来 然后再去核验需要核验的部分 然后可以再输出一遍 并且更新网站 这样两段式输出比较好
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: conversation
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-4s7x05
+  nature: user_verbatim
+status: active
+strength: prefer
+subject:
+- me
+text: 旅行回答分两段：先给快速结果，再核验后再出一遍并更新网站（原话 10-30 11:20 CET）
+valid_from: null
+valid_until: null
+value: null

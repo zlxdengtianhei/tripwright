@@ -1,0 +1,47 @@
+{
+  "id": "2030-07-seenland",
+  "title": "Seenland 两日（虚构）",
+  "start": "2030-07-14",
+  "end": "2030-07-15",
+  "timezone": "Europe/Vienna",
+  "areas": ["grauwald", "seenland"],
+  "people": [{"id": "u1", "name": "Mira"}, {"id": "u2", "name": "Teo"}],
+  "default_pace": "relaxed",
+  "budgets": {"EUR": 400},
+  "places": [
+    {"id": "grauwald-hbf", "name": "Grauwald 总站", "name_local": "Grauwald Hauptbahnhof", "area": "grauwald", "kind": "station"},
+    {"id": "kunsthalle", "name": "格劳瓦尔德美术馆", "name_local": "Kunsthalle Grauwald", "area": "grauwald", "kind": "museum"},
+    {"id": "lindengrund", "name": "林登格伦德餐馆", "name_local": "Gasthaus Lindengrund", "area": "grauwald", "kind": "restaurant"},
+    {"id": "eckstein", "name": "埃克施泰因书店", "name_local": "Buchhandlung Eckstein", "area": "grauwald", "kind": "shop"},
+    {"id": "altmoor-bf", "name": "Altmoor 火车站", "name_local": "Altmoor Bahnhof", "area": "seenland", "kind": "station"},
+    {"id": "moorblick", "name": "住处", "name_local": "Pension Moorblick", "area": "seenland", "kind": "lodging"},
+    {"id": "seeufer-nord", "name": "北湖岸车站", "name_local": "Seeufer Nord", "area": "seenland", "kind": "stop"},
+    {"id": "uferweg-nord", "name": "北湖岸步道口", "name_local": "Uferweg Nord", "area": "seenland", "kind": "trailhead"},
+    {"id": "seeufer-sued", "name": "南湖岸", "name_local": "Seeufer Süd", "area": "seenland", "kind": "park"}
+  ],
+  "bookings": [
+    {"id": "bk-dinner", "date": "2030-07-15", "kind": "reservation", "what": "两人晚饭 19:30", "subject": ["u1", "u2"], "status": "booked",
+     "place": "lindengrund", "contact": {"name": "Gasthaus Lindengrund"}}
+  ],
+  "days": [
+    {"date": "2030-07-14", "title": "Grauwald → Altmoor", "area": "grauwald",
+     "plans": [{"id": "P1", "name": "当前安排", "tracks": [{"subject": ["u1", "u2"], "blocks": [
+       {"id": "d1-museum", "start": "10:00", "end": "12:00", "kind": "visit", "place": "kunsthalle"},
+       {"id": "d1-train", "start": "15:00", "end": "16:10", "kind": "travel", "text": "坐火车去 Altmoor", "mode": "train",
+        "origin": "grauwald-hbf", "destination": "altmoor-bf"}
+     ]}]}]},
+    {"date": "2030-07-15", "title": "两个湖，晚上回 Grauwald", "area": "seenland",
+     "anchors": [{"id": "hn-dinner", "time": "19:30", "text": "Gasthaus Lindengrund 晚饭（已订）", "subject": ["u1", "u2"],
+                  "place": "lindengrund", "booking": "bk-dinner", "buffer_minutes": 15, "travel_minutes": 70,
+                  "consequence": "误了就坐 18:50 那班，晚饭迟到约 40 分钟。", "alternative": "先给餐厅打电话。",
+                  "destination": "grauwald-hbf"}],
+     "plans": [{"id": "P1", "name": "当前安排", "tracks": [{"subject": ["u1", "u2"], "blocks": [
+       {"id": "d2-north", "start": "10:00", "end": "12:00", "kind": "visit", "place": "seeufer-nord"},
+       {"id": "d2-luggage", "start": "12:30", "end": "13:00", "kind": "travel", "text": "回 Pension Moorblick 取箱子",
+        "destination": "moorblick", "baggage_holder": "u1"},
+       {"id": "d2-train", "start": "18:05", "end": "19:15", "kind": "travel", "text": "坐火车回 Grauwald", "mode": "train",
+        "origin": "altmoor-bf", "destination": "grauwald-hbf", "certainty": "fixed"},
+       {"id": "d2-dinner", "start": "19:30", "end": "21:00", "kind": "meal", "place": "lindengrund", "booking": "bk-dinner", "certainty": "fixed"}
+     ]}]}]}
+  ]
+}

@@ -1,0 +1,78 @@
+concession_order: []
+id: conversation-defaults
+rule_items:
+- id: SYS-R1
+  kind: rule
+  scope:
+    channel: conversation
+  source: system_default
+  strength: must
+  subject:
+  - '*'
+  text: Answer directly in the conversation.
+- id: SYS-R2
+  kind: rule
+  scope:
+    channel: conversation
+  source: system_default
+  strength: must
+  subject:
+  - '*'
+  text: Answer before updating publication views.
+- id: SYS-R3
+  kind: rule
+  scope:
+    channel: conversation
+  source: system_default
+  strength: must
+  subject:
+  - '*'
+  text: Separate first and second responses with visible titles; begin the second with differences.
+- id: SYS-R4
+  kind: rule
+  scope:
+    channel: conversation
+  source: system_default
+  strength: must
+  subject:
+  - '*'
+  text: Start from the current place and local time; put hard nodes and latest departure first.
+- id: SYS-R5
+  kind: rule
+  scope:
+    channel: conversation
+  source: system_default
+  strength: must
+  subject:
+  - '*'
+  text: Put each local place name on its own copyable line, with a Chinese explanation and app search or purchase action.
+- id: SYS-R6
+  kind: rule
+  scope:
+    channel: conversation
+  source: system_default
+  strength: must
+  subject:
+  - '*'
+  text: Use prose and lists in conversation; avoid tables.
+- id: SYS-R7
+  kind: rule
+  scope:
+    channel: conversation
+  source: system_default
+  strength: must
+  subject:
+  - '*'
+  text: State which conditions were used and which were traded off, with reasons.
+rules:
+- Answer directly in the conversation.
+- Answer before updating publication views.
+- Separate first and second responses with visible titles; begin the second with differences.
+- Start from the current place and local time; put hard nodes and latest departure first.
+- Put each local place name on its own copyable line, with a Chinese explanation and app search or purchase action.
+- Use prose and lists in conversation; avoid tables.
+- State which conditions were used and which were traded off, with reasons.
+scope:
+  channel: conversation
+subject:
+- '*'

@@ -1,0 +1,269 @@
+{
+ "from": {
+  "name": "Flughafen Wien Bahnhof",
+  "stopId": "at-Railway-Current-Reference-Data-2026_Pat:43:4708",
+  "lat": 48.120564,
+  "lon": 16.563658,
+  "vertexType": "TRANSIT"
+ },
+ "to": {
+  "name": "Wien Hauptbahnhof",
+  "stopId": "at-Railway-Current-Reference-Data-2026_Pat:49:1349",
+  "lat": 48.185190000000006,
+  "lon": 16.376413,
+  "vertexType": "TRANSIT"
+ },
+ "direct": [],
+ "itineraries": [
+  {
+   "startTime": "2026-11-04T22:30:00Z",
+   "endTime": "2026-11-04T22:58:00Z",
+   "duration": 1680,
+   "legs": [
+    {
+     "mode": "BUS",
+     "from": {
+      "name": "Flughafen Wien Busterminal",
+      "stopId": "at-PTA-Eastern-Region-Flex-2026_at:43:5764:0:7",
+      "lat": 48.11992308,
+      "lon": 16.563586369999996,
+      "track": "7",
+      "scheduledTrack": "7",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Wien Hauptbahnhof Süd",
+      "stopId": "at-PTA-Eastern-Region-Flex-2026_at:49:1358:0:2",
+      "lat": 48.184343489999996,
+      "lon": 16.37697933,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T22:30:00Z",
+     "endTime": "2026-11-04T22:55:00Z",
+     "duration": 1500,
+     "displayName": "VAB 1",
+     "routeShortName": "VAB 1",
+     "tripShortName": "",
+     "headsign": "Wien Westbahnhof",
+     "agencyName": "Österreichische Postbus AG",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T22:30:00Z",
+     "scheduledEndTime": "2026-11-04T22:55:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Wien Hauptbahnhof Süd",
+      "stopId": "at-PTA-Eastern-Region-Flex-2026_at:49:1358:0:2",
+      "lat": 48.184343489999996,
+      "lon": 16.37697933,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Wien Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_Pat:49:1349",
+      "lat": 48.185190000000006,
+      "lon": 16.376413,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T22:55:00Z",
+     "endTime": "2026-11-04T22:58:00Z",
+     "duration": 180,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T22:55:00Z",
+     "scheduledEndTime": "2026-11-04T22:58:00Z"
+    }
+   ]
+  },
+  {
+   "startTime": "2026-11-04T22:46:00Z",
+   "endTime": "2026-11-04T23:06:00Z",
+   "duration": 1200,
+   "legs": [
+    {
+     "mode": "REGIONAL_RAIL",
+     "from": {
+      "name": "Flughafen Wien Bahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:43:4708:0:1",
+      "lat": 48.120224,
+      "lon": 16.564429999999998,
+      "track": "1",
+      "scheduledTrack": "1",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Wien Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:49:1349:0:27",
+      "lat": 48.18487,
+      "lon": 16.378452,
+      "track": "8",
+      "scheduledTrack": "8",
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T22:46:00Z",
+     "endTime": "2026-11-04T23:06:00Z",
+     "duration": 1200,
+     "displayName": "REX 22790",
+     "routeShortName": "REX 22790",
+     "tripShortName": "REX 22790",
+     "headsign": "Mödling Bahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T22:46:00Z",
+     "scheduledEndTime": "2026-11-04T23:06:00Z"
+    }
+   ]
+  },
+  {
+   "startTime": "2026-11-04T23:02:00Z",
+   "endTime": "2026-11-04T23:17:00Z",
+   "duration": 900,
+   "legs": [
+    {
+     "mode": "HIGHSPEED_RAIL",
+     "from": {
+      "name": "Flughafen Wien Bahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:43:4708:0:1",
+      "lat": 48.120224,
+      "lon": 16.564429999999998,
+      "track": "1",
+      "scheduledTrack": "1",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Wien Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:49:1349:0:27",
+      "lat": 48.18487,
+      "lon": 16.378452,
+      "track": "8",
+      "scheduledTrack": "8",
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T23:02:00Z",
+     "endTime": "2026-11-04T23:17:00Z",
+     "duration": 900,
+     "displayName": "RJ 820",
+     "routeShortName": "RJ 820",
+     "tripShortName": "RJ 820",
+     "headsign": "Wels Hauptbahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T23:02:00Z",
+     "scheduledEndTime": "2026-11-04T23:17:00Z"
+    }
+   ]
+  },
+  {
+   "startTime": "2026-11-04T23:16:00Z",
+   "endTime": "2026-11-04T23:36:00Z",
+   "duration": 1200,
+   "legs": [
+    {
+     "mode": "REGIONAL_RAIL",
+     "from": {
+      "name": "Flughafen Wien Bahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:43:4708:0:4",
+      "lat": 48.12015500000001,
+      "lon": 16.564304,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Wien Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:49:1349:0:27",
+      "lat": 48.18487,
+      "lon": 16.378452,
+      "track": "8",
+      "scheduledTrack": "8",
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T23:16:00Z",
+     "endTime": "2026-11-04T23:36:00Z",
+     "duration": 1200,
+     "displayName": "REX 22792",
+     "routeShortName": "REX 22792",
+     "tripShortName": "REX 22792",
+     "headsign": "Wien Liesing",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T23:16:00Z",
+     "scheduledEndTime": "2026-11-04T23:36:00Z"
+    }
+   ]
+  },
+  {
+   "startTime": "2026-11-04T23:30:00Z",
+   "endTime": "2026-11-04T23:58:00Z",
+   "duration": 1680,
+   "legs": [
+    {
+     "mode": "BUS",
+     "from": {
+      "name": "Flughafen Wien Busterminal",
+      "stopId": "at-PTA-Eastern-Region-Flex-2026_at:43:5764:0:7",
+      "lat": 48.11992308,
+      "lon": 16.563586369999996,
+      "track": "7",
+      "scheduledTrack": "7",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Wien Hauptbahnhof Süd",
+      "stopId": "at-PTA-Eastern-Region-Flex-2026_at:49:1358:0:2",
+      "lat": 48.184343489999996,
+      "lon": 16.37697933,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T23:30:00Z",
+     "endTime": "2026-11-04T23:55:00Z",
+     "duration": 1500,
+     "displayName": "VAB 1",
+     "routeShortName": "VAB 1",
+     "tripShortName": "",
+     "headsign": "Wien Westbahnhof",
+     "agencyName": "Österreichische Postbus AG",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T23:30:00Z",
+     "scheduledEndTime": "2026-11-04T23:55:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Wien Hauptbahnhof Süd",
+      "stopId": "at-PTA-Eastern-Region-Flex-2026_at:49:1358:0:2",
+      "lat": 48.184343489999996,
+      "lon": 16.37697933,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Wien Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_Pat:49:1349",
+      "lat": 48.185190000000006,
+      "lon": 16.376413,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T23:55:00Z",
+     "endTime": "2026-11-04T23:58:00Z",
+     "duration": 180,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T23:55:00Z",
+     "scheduledEndTime": "2026-11-04T23:58:00Z"
+    }
+   ]
+  }
+ ],
+ "_probe": {
+  "url": "https://api.transitous.org/api/v6/plan?fromPlace=at-Railway-Current-Reference-Data-2026_Pat%3A43%3A4708&toPlace=at-Railway-Current-Reference-Data-2026_Pat%3A49%3A1349&time=2026-11-04T23%3A30%3A00%2B01%3A00&transitModes=TRAM%2CSUBWAY%2CFERRY%2CBUS%2CCOACH%2CRAIL%2CHIGHSPEED_RAIL%2CLONG_DISTANCE%2CNIGHT_RAIL%2CREGIONAL_FAST_RAIL%2CREGIONAL_RAIL%2CSUBURBAN%2CFUNICULAR%2CAERIAL_LIFT%2CCABLE_CAR%2COTHER&numItineraries=5&maxPreTransitTime=1200&maxPostTransitTime=1200&detailedTransfers=false",
+  "status": 200,
+  "at": "2026-11-01T20:31:26+0100"
+ }
+}

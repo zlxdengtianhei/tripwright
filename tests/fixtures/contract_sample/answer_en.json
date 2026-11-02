@@ -1,0 +1,74 @@
+{
+  "schema": "tripwright.answer/1",
+  "skeleton": "first",
+  "pack_id": "CTX-300715-n4k",
+  "at": "2030-07-15T13:00:13+02:00",
+  "language": "en",
+  "notices": [],
+  "heading_time": "13:00",
+  "now": [
+    "Take bus 471 at 13:24 to Seeufer Nord. If you miss it, the next one leaves at 14:24."
+  ],
+  "latest": [
+    {
+      "hard_node": "hn-dinner",
+      "line": "take the 18:05 train from Altmoor to Grauwald for the 19:30 dinner."
+    }
+  ],
+  "options": {
+    "common": [
+      "Buy a return ticket on bus 471 first, €8.20 per person. Both options need it."
+    ],
+    "decide_before": "Decide before Seeufer Nord",
+    "variants": [
+      {
+        "label": "A Save money",
+        "diff": null,
+        "how": "Walk the lakeside path between the lakes, 50 minutes. No extra cost.",
+        "item_ids": [
+          "I-300713-s4v"
+        ],
+        "plan": "A 省钱"
+      },
+      {
+        "label": "B Easy",
+        "diff": "40 minutes less walking than A, €3.20 more per person.",
+        "how": "Take bus 472 between the lakes, 12 minutes. Buy a single ticket on the bus.",
+        "item_ids": [
+          "I-300715-e5y"
+        ],
+        "plan": "B 轻松"
+      }
+    ],
+    "recommend": null,
+    "default": null
+  },
+  "places": [
+    {
+      "place_id": "seeufer-nord",
+      "name_local": "Seeufer Nord",
+      "line": "North shore stop, first lake",
+      "search": {
+        "app": "ÖBB app",
+        "query": "Altmoor Bahnhof → Seeufer Nord"
+      },
+      "link": {
+        "label": "ÖBB / Scotty",
+        "url": "https://fahrplan.oebb.at/bin/query.exe/dn?S=Altmoor+Bahnhof&Z=Seeufer+Nord&date=15.07.2030&time=13:24&timesel=depart&start=1"
+      }
+    }
+  ],
+  "legs": [],
+  "tool_hint": {
+    "tool": "oebb-scotty",
+    "line": "ÖBB app (Google Maps does not show the buses here): enter the start stop under from and the end stop under to. Set the departure time, then search."
+  },
+  "checks": [
+    {
+      "item_id": "P-300714-w6t",
+      "what": "whether the south shore path is open today",
+      "consequence": "if closed, A does not work",
+      "onsite": "read the sign at the north shore path; if closed, choose B"
+    }
+  ]
+}

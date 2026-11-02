@@ -1,0 +1,21 @@
+id: F-261031-e4zo0z
+invalidated_by: 用户说这趟带了别的行李
+key: luggage
+scope:
+  channel: '*'
+  end: '2026-11-01'
+  place: '*'
+  start: '2026-10-25'
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-i6i4n6
+  nature: user_verbatim
+status: active
+subject:
+- me
+text: 我 这趟只有随身包，行李不用另买（原话 10-24 17:04 CEST）
+true_from: '2026-10-24T17:04:03+02:00'
+valid_until: null
+value: personal_item_only

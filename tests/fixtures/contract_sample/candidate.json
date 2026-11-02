@@ -1,0 +1,58 @@
+{
+  "schema": "tripwright.sample-candidate/1",
+  "draft_id": "DR-300715-b8d",
+  "base": "trip.json",
+  "note": "草稿 DR-300715-b8d 的候选：trip.json 换掉 2030-07-15 这一天。u1 一个人、不取箱子；两套方案 A 省钱、B 轻松；晚饭块 d2-dinner 留在第一套、两人、原地点。",
+  "replace_days": [
+    {"date": "2030-07-15", "title": "两个湖，晚上回 Grauwald", "area": "seenland",
+     "anchors": [{"id": "hn-dinner", "time": "19:30", "text": "Gasthaus Lindengrund 晚饭（已订）", "subject": ["u1", "u2"],
+                  "place": "lindengrund", "booking": "bk-dinner", "buffer_minutes": 15, "travel_minutes": 70,
+                  "consequence": "误了就坐 18:50 那班，晚饭迟到约 40 分钟。", "alternative": "先给餐厅打电话。",
+                  "destination": "grauwald-hbf"}],
+     "plans": [
+       {"id": "P1", "name": "A 省钱", "tracks": [
+         {"subject": ["u1"], "blocks": [
+           {"id": "d2a-bus471", "start": "13:24", "end": "13:50", "kind": "travel", "text": "坐 471 路", "mode": "bus", "line": "471",
+            "origin": "altmoor-bf", "destination": "seeufer-nord"},
+           {"id": "d2a-north", "start": "14:00", "end": "15:30", "kind": "visit", "place": "seeufer-nord"},
+           {"id": "d2a-walk", "start": "15:30", "end": "16:20", "kind": "travel", "text": "走湖边路去南湖", "mode": "walk", "walk_minutes": 50,
+            "origin": "uferweg-nord", "destination": "seeufer-sued"},
+           {"id": "d2a-south", "start": "16:30", "end": "17:30", "kind": "visit", "place": "seeufer-sued"},
+           {"id": "d2a-bus-back", "start": "17:40", "end": "18:00", "kind": "travel", "text": "坐 471 路回 Altmoor", "mode": "bus", "line": "471",
+            "origin": "seeufer-sued", "destination": "altmoor-bf"},
+           {"id": "d2-train", "start": "18:05", "end": "19:15", "kind": "travel", "text": "坐火车回 Grauwald", "mode": "train",
+            "origin": "altmoor-bf", "destination": "grauwald-hbf", "certainty": "fixed"}
+         ]},
+         {"subject": ["u2"], "blocks": [
+           {"id": "d2a-u2-books", "start": "11:00", "end": "17:00", "kind": "visit", "place": "eckstein"}
+         ]},
+         {"subject": ["u1", "u2"], "blocks": [
+           {"id": "d2-dinner", "start": "19:30", "end": "21:00", "kind": "meal", "place": "lindengrund", "booking": "bk-dinner", "certainty": "fixed"},
+           {"id": "d2a-river", "start": "21:00", "end": "22:00", "kind": "flex", "text": "河边走走"}
+         ]}
+       ]},
+       {"id": "P2", "name": "B 轻松", "tracks": [
+         {"subject": ["u1"], "blocks": [
+           {"id": "d2b-bus471", "start": "13:24", "end": "13:50", "kind": "travel", "text": "坐 471 路", "mode": "bus", "line": "471",
+            "origin": "altmoor-bf", "destination": "seeufer-nord"},
+           {"id": "d2b-north", "start": "14:00", "end": "15:30", "kind": "visit", "place": "seeufer-nord"},
+           {"id": "d2b-bus472", "start": "15:30", "end": "15:42", "kind": "travel", "text": "坐 472 路去南湖", "mode": "bus", "line": "472",
+            "origin": "seeufer-nord", "destination": "seeufer-sued"},
+           {"id": "d2b-rest", "start": "15:45", "end": "16:30", "kind": "flex", "text": "在南湖岸歇一会儿"},
+           {"id": "d2b-south", "start": "16:30", "end": "17:30", "kind": "visit", "place": "seeufer-sued"},
+           {"id": "d2b-bus-back", "start": "17:40", "end": "18:00", "kind": "travel", "text": "坐 471 路回 Altmoor", "mode": "bus", "line": "471",
+            "origin": "seeufer-sued", "destination": "altmoor-bf"},
+           {"id": "d2b-train", "start": "18:05", "end": "19:15", "kind": "travel", "text": "坐火车回 Grauwald", "mode": "train",
+            "origin": "altmoor-bf", "destination": "grauwald-hbf", "certainty": "fixed"}
+         ]},
+         {"subject": ["u2"], "blocks": [
+           {"id": "d2b-u2-books", "start": "11:00", "end": "17:00", "kind": "visit", "place": "eckstein"}
+         ]},
+         {"subject": ["u1", "u2"], "blocks": [
+           {"id": "d2b-dinner", "start": "19:30", "end": "21:00", "kind": "meal", "place": "lindengrund", "booking": "bk-dinner", "certainty": "fixed"},
+           {"id": "d2b-river", "start": "21:00", "end": "22:00", "kind": "flex", "text": "河边走走"}
+         ]}
+       ]}
+     ]}
+  ]
+}

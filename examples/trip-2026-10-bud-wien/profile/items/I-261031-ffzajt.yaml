@@ -1,0 +1,48 @@
+always: false
+check: null
+compatible_with:
+- climbing_big_gym_1031
+- sightseeing_1031
+- save_money_1031
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-ffzajt
+interpretations: []
+key: preferences_with_choices
+kind: rule
+long_term: true
+origin:
+  trip: 2026-10-bud-wien
+  event: E-261031-18w7zt
+  said_at: '2026-10-31T19:37:03.649045+00:00'
+  speaker: me
+  nature: user_verbatim
+  path: trips/2026-10-bud-wien/raw/2026-10-31/20261031T193703Z-me-18w7zt.md
+  message: 我现在回来没买交通票 明天早上起来了买吧 然后我觉得你的轻松一点考虑不抱石其实问题不大 但是因为我的preference还是应该考虑并且给我选择的 然后我明天就是去个大点的岩馆吧 我还是想攀岩 你看看去哪个馆好点 然后就是随便转转博物馆或者教堂
+    可以考虑花费低一点 然后这个博物馆是有莫奈梵高真迹吗 有什么很有名的吗 或者有什么推荐我来维也纳必玩的项目。我甚至觉得可以考虑在岩馆呆一天。
+priority: null
+quote: 我的preference还是应该考虑并且给我选择的
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: '*'
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-18w7zt
+  nature: user_verbatim
+status: active
+strength: must
+subject:
+- me
+text: 排计划要考虑他存下的偏好，并给他选择（原话 10-30 23:32 CET）
+valid_from: null
+valid_until: null
+value: null

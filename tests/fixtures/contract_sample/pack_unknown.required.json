@@ -1,0 +1,51 @@
+{
+  "note": "render_pack 返回的 required（预算降级后）；tokens 是 B 的估算，不冻结。",
+  "tokens": 1763,
+  "required": {
+    "items": {
+      "status": "unknown",
+      "ids": [
+        "I-300713-p1n",
+        "I-300713-t2k",
+        "I-300713-s4v",
+        "I-300715-e5y",
+        "I-300713-r7b"
+      ],
+      "reason": "这条消息没说 u2 晚上是否同行；u2 的条目先按人不在范围放"
+    },
+    "facts": {
+      "status": "complete",
+      "ids": [
+        "F-300715-s1o",
+        "F-300715-n2l"
+      ],
+      "reason": null
+    },
+    "decisions": {
+      "status": "complete",
+      "ids": [
+        "D-300714-d3r"
+      ],
+      "reason": null
+    },
+    "hard_nodes": {
+      "status": "complete",
+      "ids": [
+        "hn-dinner"
+      ],
+      "reason": null
+    },
+    "checks_due": {
+      "status": "complete",
+      "ids": [
+        "P-300714-w6t"
+      ],
+      "reason": null
+    },
+    "questions": {
+      "status": "complete",
+      "ids": [],
+      "reason": null
+    }
+  }
+}

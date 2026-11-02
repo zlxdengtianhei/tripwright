@@ -1,0 +1,46 @@
+# Tripwright on your own computer (or any machine without a domain): one container, reachable only from this computer
+# at http://127.0.0.1:8000. Phones and web chat apps reach it through a tunnel (see README.md, "个人电脑").
+#   cd deploy && cp .env.example .env    # the URL key is generated into data/remote/url-key (set TRIPWRIGHT_PUBLIC_URL for a tunnel)
+#   docker-compose -f compose.personal.yaml up -d --build
+name: tripwright-personal
+
+services:
+  tripwright:
+    image: tripwright-app:local
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    stop_grace_period: 40s
+    # The configuration comes from deploy/.env (TRIPWRIGHT_PUBLIC_URL, TRIPWRIGHT_URL_KEY_GENERATE, optional repository);
+    # TRIPWRIGHT_REMOTE_CONFIG=/data/remote.yaml there uses a YAML file instead.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      TRIPWRIGHT_PUBLIC_URL: ${TRIPWRIGHT_PUBLIC_URL:-http://localhost:8000}
+    ports:
+      - "127.0.0.1:${TRIPWRIGHT_PORT:-8000}:8000"
+    volumes:
+      # The data folder must persist: it holds the trip repository, unpushed writes and sign-ins.
+      - ./data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "/app/healthcheck.py"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

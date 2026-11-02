@@ -1,0 +1,44 @@
+always: false
+check: null
+compatible_with: []
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-3nnbbg
+interpretations: []
+key: no_tables
+kind: rule
+long_term: true
+origin:
+  trip: 2026-10-bud-wien
+  event: E-261031-kd556r
+  said_at: '2026-10-31T19:37:03.459512+00:00'
+  speaker: me
+  nature: user_verbatim
+  path: trips/2026-10-bud-wien/raw/2026-10-31/20261031T193703Z-me-kd556r.md
+  message: 以后注意终端输出不要用表格的 然后我们现在好像错过了一个车 现在的话怎么走
+priority: null
+quote: 以后注意终端输出不要用表格的
+reason: 10-29 10:56 说明：我说不要表格是因为我只能复制完整的表格而不能复制其中的一部分，我要只复制一个地名的话就有点麻烦
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: conversation
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-kd556r
+  nature: user_verbatim
+status: active
+strength: forbid
+subject:
+- me
+text: 对话里的回答不用表格（原话 10-29 10:24 CET）
+valid_from: null
+valid_until: null
+value: null

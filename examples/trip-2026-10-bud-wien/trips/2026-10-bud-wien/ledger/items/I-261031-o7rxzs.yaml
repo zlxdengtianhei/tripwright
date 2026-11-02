@@ -1,0 +1,40 @@
+always: false
+check: null
+compatible_with:
+- pace_1031
+- save_money_1031
+- transport_1031
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-o7rxzs
+interpretations: []
+key: big_heading_for_plan
+kind: rule
+long_term: true
+origin: null
+priority: null
+quote: 你把那个安排那个标题要把它放大一点
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: conversation
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-hvhhc9
+  nature: user_verbatim
+status: active
+strength: must
+subject:
+- me
+text: 第二段正式安排的标题放大，让他一眼看到新安排从哪开始（原话 10-31 13:48 CET）
+valid_from: null
+valid_until: null
+value: null

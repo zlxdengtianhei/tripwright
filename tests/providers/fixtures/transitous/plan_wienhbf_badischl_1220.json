@@ -1,0 +1,23 @@
+{
+ "from": {
+  "name": "Wien Hauptbahnhof",
+  "stopId": "at-Railway-Current-Reference-Data-2026_Pat:49:1349",
+  "lat": 48.185190000000006,
+  "lon": 16.376413,
+  "vertexType": "TRANSIT"
+ },
+ "to": {
+  "name": "Bad Ischl Sueß",
+  "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46546:0:1",
+  "lat": 47.72231711000001,
+  "lon": 13.573570890000001,
+  "vertexType": "TRANSIT"
+ },
+ "direct": [],
+ "itineraries": [],
+ "_probe": {
+  "url": "https://api.transitous.org/api/v6/plan?fromPlace=at-Railway-Current-Reference-Data-2026_Pat%3A49%3A1349&toPlace=at-PTA-Upper-Austria-Flex-2026_at%3A44%3A46546%3A0%3A1&time=2026-12-20T08%3A00%3A00%2B01%3A00&transitModes=TRAM%2CSUBWAY%2CFERRY%2CBUS%2CCOACH%2CRAIL%2CHIGHSPEED_RAIL%2CLONG_DISTANCE%2CNIGHT_RAIL%2CREGIONAL_FAST_RAIL%2CREGIONAL_RAIL%2CSUBURBAN%2CFUNICULAR%2CAERIAL_LIFT%2CCABLE_CAR%2COTHER&numItineraries=5&maxPreTransitTime=1200&maxPostTransitTime=1200&detailedTransfers=false",
+  "status": 200,
+  "at": "2026-11-01T20:31:27+0100"
+ }
+}

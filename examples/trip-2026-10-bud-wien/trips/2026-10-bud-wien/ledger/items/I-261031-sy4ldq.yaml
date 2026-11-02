@@ -1,0 +1,39 @@
+always: false
+check: null
+compatible_with:
+- sightseeing_1031
+- transport_1031
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-sy4ldq
+interpretations: []
+key: rent_climbing_shoes
+kind: rule
+long_term: true
+origin: null
+priority: null
+quote: 还有我自己的话，这个攀岩也是不需要去租鞋的
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: '*'
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-thopzs
+  nature: user_verbatim
+status: active
+strength: forbid
+subject:
+- me
+text: 我 攀岩自带鞋：不排租鞋，费用里不算租鞋（原话 10-31 11:35 CET）
+valid_from: null
+valid_until: null
+value: null

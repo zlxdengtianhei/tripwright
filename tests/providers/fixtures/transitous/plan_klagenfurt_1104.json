@@ -1,0 +1,571 @@
+{
+ "from": {
+  "name": "START",
+  "lat": 46.6155,
+  "lon": 14.3127,
+  "vertexType": "NORMAL"
+ },
+ "to": {
+  "name": "END",
+  "lat": 46.6237,
+  "lon": 14.3054,
+  "vertexType": "NORMAL"
+ },
+ "direct": [
+  {
+   "duration": 1551,
+   "legs": [
+    {
+     "mode": "WALK"
+    }
+   ]
+  }
+ ],
+ "itineraries": [
+  {
+   "startTime": "2026-11-04T09:47:00Z",
+   "endTime": "2026-11-04T10:26:00Z",
+   "duration": 2340,
+   "legs": [
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "START",
+      "lat": 46.6155,
+      "lon": 14.3127,
+      "vertexType": "NORMAL"
+     },
+     "to": {
+      "name": "Klagenfurt Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3642:0:6",
+      "lat": 46.61573800000001,
+      "lon": 14.313683500000002,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T09:47:00Z",
+     "endTime": "2026-11-04T09:53:00Z",
+     "duration": 360,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T09:47:00Z",
+     "scheduledEndTime": "2026-11-04T09:53:00Z"
+    },
+    {
+     "mode": "SUBURBAN",
+     "from": {
+      "name": "Klagenfurt Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3642:0:6",
+      "lat": 46.61573800000001,
+      "lon": 14.313683500000002,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Klagenfurt Annabichl Bahnhst",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3640:0:4",
+      "lat": 46.649998000000004,
+      "lon": 14.315112000000001,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T09:53:00Z",
+     "endTime": "2026-11-04T09:58:00Z",
+     "duration": 300,
+     "displayName": "S4",
+     "routeShortName": "S4",
+     "tripShortName": "S 4212",
+     "headsign": "St.Veit/Glan Bahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T09:53:00Z",
+     "scheduledEndTime": "2026-11-04T09:58:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Klagenfurt Annabichl Bahnhst",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3640:0:4",
+      "lat": 46.649998000000004,
+      "lon": 14.315112000000001,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Klagenfurt Annabichl Bahnhst",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3640:0:2",
+      "lat": 46.650013,
+      "lon": 14.315193,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T09:58:00Z",
+     "endTime": "2026-11-04T10:00:00Z",
+     "duration": 120,
+     "realTime": false,
+     "cancelled": false,
+     "scheduledStartTime": "2026-11-04T09:58:00Z",
+     "scheduledEndTime": "2026-11-04T10:00:00Z"
+    },
+    {
+     "mode": "SUBURBAN",
+     "from": {
+      "name": "Klagenfurt Annabichl Bahnhst",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3640:0:2",
+      "lat": 46.650013,
+      "lon": 14.315193,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Klagenfurt Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3642:0:2",
+      "lat": 46.615807,
+      "lon": 14.313666000000001,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T10:02:00Z",
+     "endTime": "2026-11-04T10:07:00Z",
+     "duration": 300,
+     "displayName": "S4",
+     "routeShortName": "S4",
+     "tripShortName": "S 4213",
+     "headsign": "Arnoldstein Bahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T10:02:00Z",
+     "scheduledEndTime": "2026-11-04T10:07:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Klagenfurt Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3642:0:2",
+      "lat": 46.615807,
+      "lon": 14.313666000000001,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "END",
+      "lat": 46.6237,
+      "lon": 14.3054,
+      "vertexType": "NORMAL"
+     },
+     "startTime": "2026-11-04T10:07:00Z",
+     "endTime": "2026-11-04T10:26:00Z",
+     "duration": 1140,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T10:07:00Z",
+     "scheduledEndTime": "2026-11-04T10:26:00Z"
+    }
+   ]
+  },
+  {
+   "startTime": "2026-11-04T10:47:00Z",
+   "endTime": "2026-11-04T11:26:00Z",
+   "duration": 2340,
+   "legs": [
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "START",
+      "lat": 46.6155,
+      "lon": 14.3127,
+      "vertexType": "NORMAL"
+     },
+     "to": {
+      "name": "Klagenfurt Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3642:0:6",
+      "lat": 46.61573800000001,
+      "lon": 14.313683500000002,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T10:47:00Z",
+     "endTime": "2026-11-04T10:53:00Z",
+     "duration": 360,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T10:47:00Z",
+     "scheduledEndTime": "2026-11-04T10:53:00Z"
+    },
+    {
+     "mode": "SUBURBAN",
+     "from": {
+      "name": "Klagenfurt Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3642:0:6",
+      "lat": 46.61573800000001,
+      "lon": 14.313683500000002,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Klagenfurt Annabichl Bahnhst",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3640:0:4",
+      "lat": 46.649998000000004,
+      "lon": 14.315112000000001,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T10:53:00Z",
+     "endTime": "2026-11-04T10:58:00Z",
+     "duration": 300,
+     "displayName": "S4",
+     "routeShortName": "S4",
+     "tripShortName": "S 4214",
+     "headsign": "St.Veit/Glan Bahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T10:53:00Z",
+     "scheduledEndTime": "2026-11-04T10:58:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Klagenfurt Annabichl Bahnhst",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3640:0:4",
+      "lat": 46.649998000000004,
+      "lon": 14.315112000000001,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Klagenfurt Annabichl Bahnhst",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3640:0:2",
+      "lat": 46.650013,
+      "lon": 14.315193,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T10:58:00Z",
+     "endTime": "2026-11-04T11:00:00Z",
+     "duration": 120,
+     "realTime": false,
+     "cancelled": false,
+     "scheduledStartTime": "2026-11-04T10:58:00Z",
+     "scheduledEndTime": "2026-11-04T11:00:00Z"
+    },
+    {
+     "mode": "SUBURBAN",
+     "from": {
+      "name": "Klagenfurt Annabichl Bahnhst",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3640:0:2",
+      "lat": 46.650013,
+      "lon": 14.315193,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Klagenfurt Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3642:0:2",
+      "lat": 46.615807,
+      "lon": 14.313666000000001,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T11:02:00Z",
+     "endTime": "2026-11-04T11:07:00Z",
+     "duration": 300,
+     "displayName": "S4",
+     "routeShortName": "S4",
+     "tripShortName": "S 4215",
+     "headsign": "Arnoldstein Bahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T11:02:00Z",
+     "scheduledEndTime": "2026-11-04T11:07:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Klagenfurt Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3642:0:2",
+      "lat": 46.615807,
+      "lon": 14.313666000000001,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "END",
+      "lat": 46.6237,
+      "lon": 14.3054,
+      "vertexType": "NORMAL"
+     },
+     "startTime": "2026-11-04T11:07:00Z",
+     "endTime": "2026-11-04T11:26:00Z",
+     "duration": 1140,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T11:07:00Z",
+     "scheduledEndTime": "2026-11-04T11:26:00Z"
+    }
+   ]
+  },
+  {
+   "startTime": "2026-11-04T11:47:00Z",
+   "endTime": "2026-11-04T12:26:00Z",
+   "duration": 2340,
+   "legs": [
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "START",
+      "lat": 46.6155,
+      "lon": 14.3127,
+      "vertexType": "NORMAL"
+     },
+     "to": {
+      "name": "Klagenfurt Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3642:0:6",
+      "lat": 46.61573800000001,
+      "lon": 14.313683500000002,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T11:47:00Z",
+     "endTime": "2026-11-04T11:53:00Z",
+     "duration": 360,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T11:47:00Z",
+     "scheduledEndTime": "2026-11-04T11:53:00Z"
+    },
+    {
+     "mode": "SUBURBAN",
+     "from": {
+      "name": "Klagenfurt Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3642:0:6",
+      "lat": 46.61573800000001,
+      "lon": 14.313683500000002,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Klagenfurt Annabichl Bahnhst",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3640:0:4",
+      "lat": 46.649998000000004,
+      "lon": 14.315112000000001,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T11:53:00Z",
+     "endTime": "2026-11-04T11:58:00Z",
+     "duration": 300,
+     "displayName": "S4",
+     "routeShortName": "S4",
+     "tripShortName": "S 4216",
+     "headsign": "St.Veit/Glan Bahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T11:53:00Z",
+     "scheduledEndTime": "2026-11-04T11:58:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Klagenfurt Annabichl Bahnhst",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3640:0:4",
+      "lat": 46.649998000000004,
+      "lon": 14.315112000000001,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Klagenfurt Annabichl Bahnhst",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3640:0:2",
+      "lat": 46.650013,
+      "lon": 14.315193,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T11:58:00Z",
+     "endTime": "2026-11-04T12:00:00Z",
+     "duration": 120,
+     "realTime": false,
+     "cancelled": false,
+     "scheduledStartTime": "2026-11-04T11:58:00Z",
+     "scheduledEndTime": "2026-11-04T12:00:00Z"
+    },
+    {
+     "mode": "SUBURBAN",
+     "from": {
+      "name": "Klagenfurt Annabichl Bahnhst",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3640:0:2",
+      "lat": 46.650013,
+      "lon": 14.315193,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Klagenfurt Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3642:0:2",
+      "lat": 46.615807,
+      "lon": 14.313666000000001,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T12:02:00Z",
+     "endTime": "2026-11-04T12:07:00Z",
+     "duration": 300,
+     "displayName": "S4",
+     "routeShortName": "S4",
+     "tripShortName": "S 4217",
+     "headsign": "Arnoldstein Bahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T12:02:00Z",
+     "scheduledEndTime": "2026-11-04T12:07:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Klagenfurt Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3642:0:2",
+      "lat": 46.615807,
+      "lon": 14.313666000000001,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "END",
+      "lat": 46.6237,
+      "lon": 14.3054,
+      "vertexType": "NORMAL"
+     },
+     "startTime": "2026-11-04T12:07:00Z",
+     "endTime": "2026-11-04T12:26:00Z",
+     "duration": 1140,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T12:07:00Z",
+     "scheduledEndTime": "2026-11-04T12:26:00Z"
+    }
+   ]
+  },
+  {
+   "startTime": "2026-11-04T12:29:00Z",
+   "endTime": "2026-11-04T13:08:00Z",
+   "duration": 2340,
+   "legs": [
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "START",
+      "lat": 46.6155,
+      "lon": 14.3127,
+      "vertexType": "NORMAL"
+     },
+     "to": {
+      "name": "Klagenfurt Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3642:0:7",
+      "lat": 46.615635000000005,
+      "lon": 14.313702000000001,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T12:29:00Z",
+     "endTime": "2026-11-04T12:34:00Z",
+     "duration": 300,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T12:29:00Z",
+     "scheduledEndTime": "2026-11-04T12:34:00Z"
+    },
+    {
+     "mode": "SUBURBAN",
+     "from": {
+      "name": "Klagenfurt Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3642:0:7",
+      "lat": 46.615635000000005,
+      "lon": 14.313702000000001,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Klagenfurt Lend Bahnhst",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3645:0:2",
+      "lat": 46.62149,
+      "lon": 14.284380999999998,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T12:34:00Z",
+     "endTime": "2026-11-04T12:36:00Z",
+     "duration": 120,
+     "displayName": "S1",
+     "routeShortName": "S1",
+     "tripShortName": "S 4670",
+     "headsign": "Pusarnitz Bahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T12:34:00Z",
+     "scheduledEndTime": "2026-11-04T12:36:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Klagenfurt Lend Bahnhst",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3645:0:2",
+      "lat": 46.62149,
+      "lon": 14.284380999999998,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Klagenfurt Lend Bahnhst",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3645:0:1",
+      "lat": 46.6214,
+      "lon": 14.284336,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T12:36:00Z",
+     "endTime": "2026-11-04T12:38:00Z",
+     "duration": 120,
+     "realTime": false,
+     "cancelled": false,
+     "scheduledStartTime": "2026-11-04T12:36:00Z",
+     "scheduledEndTime": "2026-11-04T12:38:00Z"
+    },
+    {
+     "mode": "SUBURBAN",
+     "from": {
+      "name": "Klagenfurt Lend Bahnhst",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3645:0:1",
+      "lat": 46.6214,
+      "lon": 14.284336,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Klagenfurt Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3642:0:2",
+      "lat": 46.615807,
+      "lon": 14.313666000000001,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T12:46:00Z",
+     "endTime": "2026-11-04T12:49:00Z",
+     "duration": 180,
+     "displayName": "S4",
+     "routeShortName": "S4",
+     "tripShortName": "S 4218",
+     "headsign": "St.Veit/Glan Bahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T12:46:00Z",
+     "scheduledEndTime": "2026-11-04T12:49:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Klagenfurt Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:42:3642:0:2",
+      "lat": 46.615807,
+      "lon": 14.313666000000001,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "END",
+      "lat": 46.6237,
+      "lon": 14.3054,
+      "vertexType": "NORMAL"
+     },
+     "startTime": "2026-11-04T12:49:00Z",
+     "endTime": "2026-11-04T13:08:00Z",
+     "duration": 1140,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T12:49:00Z",
+     "scheduledEndTime": "2026-11-04T13:08:00Z"
+    }
+   ]
+  }
+ ],
+ "_probe": {
+  "url": "https://api.transitous.org/api/v6/plan?fromPlace=46.6155%2C14.3127&toPlace=46.6237%2C14.3054&time=2026-11-04T10%3A00%3A00%2B01%3A00&transitModes=TRAM%2CSUBWAY%2CFERRY%2CBUS%2CCOACH%2CRAIL%2CHIGHSPEED_RAIL%2CLONG_DISTANCE%2CNIGHT_RAIL%2CREGIONAL_FAST_RAIL%2CREGIONAL_RAIL%2CSUBURBAN%2CFUNICULAR%2CAERIAL_LIFT%2CCABLE_CAR%2COTHER&numItineraries=5&maxPreTransitTime=1200&maxPostTransitTime=1200&detailedTransfers=false",
+  "status": 200,
+  "at": "2026-11-01T20:31:29+0100"
+ }
+}

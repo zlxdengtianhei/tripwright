@@ -1,0 +1,39 @@
+always: false
+check: null
+compatible_with:
+- plan_detail
+- option_count
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-18h111
+interpretations: []
+key: split_up_allowed
+kind: authorization
+long_term: true
+origin: null
+priority: null
+quote: 如果同一时间段有逛小镇之类的其他活动，我不太感兴趣，但我队友可能想去，这种情况下可以允许分头行动：我去徒步，他们去别处。
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: '*'
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-4msg8c
+  nature: user_verbatim
+status: active
+strength: optional
+subject:
+- me
+text: 同一时段队友想逛小镇、他不感兴趣时，可以分头：他去徒步，队友去别处（原话 10-20 00:39 CEST）
+valid_from: null
+valid_until: null
+value: null

@@ -1,0 +1,44 @@
+always: false
+check: null
+compatible_with:
+- hard_nodes_latest_time
+- second_round_verify_all
+- whole_picture
+- big_heading_for_plan
+- pace_1031
+- save_money_1031
+- transport_1031
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-9ge9i4
+interpretations: []
+key: place_name_translation
+kind: rule
+long_term: true
+origin: null
+priority: null
+quote: 至少要给出一个这个用户常用语言的一个这种翻译，然后啊，你、呃、说明一下这东西是什么，对吧？
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: conversation
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-hvhhc9
+  nature: user_verbatim
+status: active
+strength: must
+subject:
+- me
+text: 地名给出用户常用语言（中文）的译名，并说明是什么（原话 10-31 13:48 CET）
+valid_from: null
+valid_until: null
+value: null

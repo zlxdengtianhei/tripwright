@@ -1,0 +1,38 @@
+always: false
+check: null
+compatible_with:
+- pace_1031
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-lq04ap
+interpretations: []
+key: tool_in_sentence
+kind: rule
+long_term: true
+origin: null
+priority: null
+quote: 如果有什么很合适的软件，你可以在比如说用xxx查xxxx 用xxx买xxxx，直接在句子里加入这个工具
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: conversation
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-tzqjcj
+  nature: user_verbatim
+status: active
+strength: prefer
+subject:
+- me
+text: 合适的 App 直接写进句子：用 xxx 查 xxx、用 xxx 买 xxx（原话 10-30 18:36 CET）
+valid_from: null
+valid_until: null
+value: null

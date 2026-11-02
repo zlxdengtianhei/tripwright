@@ -1,0 +1,21 @@
+id: F-261031-oe9cve
+invalidated_by: 票过期（买后 24 小时）或用户另说
+key: ticket_vienna_24h
+scope:
+  channel: '*'
+  end: '2026-11-01'
+  place: '*'
+  start: '2026-10-31'
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-otomgf
+  nature: user_verbatim
+status: active
+subject:
+- me
+text: 我 已买维也纳 24 小时票（他说九欧；官网数字票 €9.70），去岩馆的交通用它（原话 10-31 13:51 CET）
+true_from: '2026-10-31T13:51:28+01:00'
+valid_until: null
+value: bought

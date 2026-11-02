@@ -1,0 +1,40 @@
+always: false
+check: null
+compatible_with:
+- climbing_big_gym_1031
+- sightseeing_1031
+- save_money_1031
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-ffzajt
+interpretations: []
+key: preferences_with_choices
+kind: rule
+long_term: true
+origin: null
+priority: null
+quote: 我的preference还是应该考虑并且给我选择的
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: '*'
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-18w7zt
+  nature: user_verbatim
+status: active
+strength: must
+subject:
+- me
+text: 排计划要考虑他存下的偏好，并给他选择（原话 10-30 23:32 CET）
+valid_from: null
+valid_until: null
+value: null

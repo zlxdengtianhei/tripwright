@@ -1,0 +1,84 @@
+name: tripwright
+
+services:
+  tripwright:
+    image: tripwright-app:local
+    container_name: tripwright-app
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    init: true
+    # Runs as the image's unprivileged user; the entrypoint's root-only volume fix is for platforms without compose.
+    user: "10001:10001"
+    # Shutdown commits waiting writes and tries one push within about 30 s; a kill in the middle of a Git command
+    # would leave a lock (cleared at the next start, but the push waits until then).
+    stop_grace_period: 40s
+    env_file:
+      - ../../tripwright.env
+    environment:
+      TRIPWRIGHT_DB: /data/tripwright.sqlite3
+    expose:
+      - "8000"
+    volumes:
+      - ../../data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "/app/healthcheck.py"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    networks:
+      - backend
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: tripwright-caddy
+    restart: unless-stopped
+    environment:
+      # Set in deploy/.env (TRIPWRIGHT_DOMAIN=trip.example.org); compose refuses to start without it, so Caddy never
+      # asks for a certificate for someone else's name.
+      TRIPWRIGHT_DOMAIN: ${TRIPWRIGHT_DOMAIN:?set TRIPWRIGHT_DOMAIN in deploy/.env to your domain}
+    depends_on:
+      tripwright:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../../caddy-data:/data
+      - ../../caddy-config:/config
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  backend:
+    name: tripwright-backend
+    driver: bridge

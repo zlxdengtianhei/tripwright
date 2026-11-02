@@ -1,0 +1,357 @@
+BASE = """<!doctype html>
+<html lang="{{ 'zh-CN' if language == 'zh' else 'en' }}" data-language="{{ language }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>{{ title }} · {{ trip.title }}</title>
+<style>{{ style|safe }}</style>
+</head>
+<body>
+<header class="top">
+<span class="brand">{{ trip.title }}</span>
+{% if not result_page %}
+<button type="button" class="navtoggle" data-menu aria-expanded="false">{{ label('菜单','Menu') }}</button>
+<nav>
+<a href="index.html" data-language-link>{{ label('首页','Home') }}</a>
+{% for item in days %}
+<a href="{{ item.date }}.html" data-language-link>{{ item.date }}</a>
+{% endfor %}
+<a href="decisions.html" data-language-link>{{ label('决定','Decisions') }}</a>
+{% if memory_sections is defined and memory_sections is not none %}<a href="memory.html" data-language-link>{{ label('记忆','Memory') }}</a>{% endif %}
+</nav>
+{% endif %}
+<div class="language" role="group" aria-label="语言 / Language">
+<button type="button" data-language-button="zh">中文</button>
+<button type="button" data-language-button="en">EN</button>
+</div>
+</header>
+<main>
+<p class="meta">{{ label('版本','Version') }} {{ version.number }} · {{ label('生成于','Generated') }} {{ generated }} · {{ trip.timezone }}</p>
+{% block main %}{% endblock %}
+</main>
+<footer>{{ label('此页展示已提交版本。未核与冲突请在行动前确认。','This page shows the committed version. Review unverified facts and conflicts before acting.') }}<br>{{ label('核验时刻','Checked at') }} {{ checked_at or label('尚无核验记录','No recorded checks') }}</footer>
+<script>{{ script|safe }}</script>
+</body>
+</html>"""
+
+MACROS = """
+{% macro checks(items) %}{% for check in items %}
+<div class="check {{ check.status }}">
+<span class="badge {{ check.status }}">{{ status_label(check.status) }}</span> {{ check.text }}{% if check.status != 'passed' %}
+<p>
+<b>{{ label('后果','Consequence') }}:</b> {{ check.consequence or label('可行性尚未证实，可能无法按计划完成。','Feasibility remains unverified; the plan may not work.') }}</p>
+<p>
+<b>{{ label('替代走法','Fallback') }}:</b> {{ check.alternative or label('行动前核实，保留较简单的备选。','Confirm before acting and retain a simpler fallback.') }}</p>
+{% endif %}
+</div>
+{% endfor %}{% endmacro %}
+{% macro place(place) %}
+<span class="place-name">{{ place.name_local }}</span>
+<button type="button" class="copy" data-copy="{{ place.name_local }}">{{ label('复制当地名','Copy local name') }}</button>
+<span class="place-note">{{ place.name }}</span>
+{% if place.reason %}
+<p>{{ place.reason }}</p>
+{% endif %}{% if place.map_url %}
+<a href="{{ place.map_url }}" target="_blank" rel="noopener noreferrer">{{ label('地图搜索','Map search') }}</a>
+{% endif %}{% endmacro %}
+{% macro day_content(day) %}
+<h1>{{ day.date }} · {{ day.title }}</h1>
+<p class="muted">{{ day.area }} · {{ day.pace }}{% if day.sunset %} · {{ label('日落','Sunset') }} {{ day.sunset }}{% endif %}
+</p>
+<section class="callout">
+<h2>{{ label('速览','At a glance') }}</h2>
+{% if day.notes %}
+<p>{{ day.notes }}</p>
+{% endif %}{% for anchor in day.anchors %}
+<p class="time">{{ anchor.time }} {{ anchor.text }} · {{ label('最晚出发','Latest departure') }} {{ anchor.latest_departure or label('未核','Unverified') }}</p>
+{% endfor %}{% if day.plans %}
+<p>{{ label('推荐','Recommended') }}: {{ day.plans[0].name }}</p>
+{% for track in day.plans[0].tracks %}
+<p>{{ people(track.subject) }}: {% for block in track.blocks %}{{ block.start }} {{ block.title }}{% if not loop.last %} → {% endif %}{% endfor %}
+</p>
+{% endfor %}{% endif %}
+</section>
+<div class="foldbar">
+<button type="button" data-fold="open">{{ label('全部展开','Expand all') }}</button>
+<button type="button" data-fold="close">{{ label('全部收起','Collapse all') }}</button>
+</div>
+<details class="fold" open>
+<summary>
+<h2>{{ label('硬节点','Hard nodes') }}</h2>
+</summary>
+{% for anchor in day.anchors %}
+<article class="card">
+<h3>{{ anchor.time }} {{ anchor.text }}</h3>
+<p>{{ people(anchor.subject) }} · {{ label('余量（分钟）','Buffer (minutes)') }} {{ anchor.buffer_minutes }}</p>
+<p>
+<b>{{ label('最晚出发','Latest departure') }}:</b> {{ anchor.latest_departure or label('未核','Unverified') }}</p>
+<p>{{ label('错过的后果','If missed') }}: {{ anchor.consequence }}</p>
+<p>{{ label('替代走法','Fallback') }}: {{ anchor.alternative }}</p>{{ checks(anchor.verification) }}</article>
+{% else %}
+<p class="empty">{{ label('没有已记录的硬节点。','No recorded hard nodes.') }}</p>
+{% endfor %}
+</details>
+<details class="fold" open id="timeline">
+<summary>
+<h2>{{ label('一天的时间轴','Day timeline') }}</h2>
+</summary>
+{% for plan in day.plans %}
+<h3>{{ plan.name }} {% if loop.first %}
+<span class="badge">{{ label('推荐','Recommended') }}</span>
+{% endif %}
+</h3>
+<div class="tracks">
+{% for track in plan.tracks %}
+<section>
+<h4>{{ people(track.subject) }}</h4>
+<ol class="timeline">
+{% for block in track.blocks %}
+<li>
+<span class="time">{{ block.start }}–{{ block.end or block.start }}</span> · {{ block.kind }}<h4>{{ block.title }}</h4>
+<p>{{ label('排程把握','Schedule certainty') }}: {{ block.certainty }}</p>
+{% if block.place_view %}{{ place(block.place_view) }}{% endif %}{% if block.text %}
+<p>{{ block.text }}</p>
+{% endif %}{% if block.app %}
+<p>
+<b>App:</b> {{ block.app }}</p>
+{% endif %}{% if block.note %}
+<p>{{ block.note }}</p>
+{% endif %}{% if block.source %}
+<p>{{ label('出处','Source') }}: {{ block.source }}</p>
+{% endif %}{{ checks(block.verification) }}{% if block.option_views %}
+<p>{{ label('备选','Alternatives') }}:</p>
+{% for alternative in block.option_views %}{{ place(alternative) }}{% endfor %}{% endif %}
+</li>
+{% endfor %}
+</ol>
+</section>
+{% endfor %}
+</div>
+{% endfor %}
+</details>
+<details class="fold" open>
+<summary>
+<h2>{{ label('地点与地图','Places and maps') }}</h2>
+</summary>
+<div class="cards">
+{% for item in day.places %}
+<article class="card">{{ place(item) }}{% if item.hours %}
+<p>{{ label('营业资料（以核验结论为准）','Opening information (see checks)') }}: {{ item.hours }}</p>
+{% endif %}{{ checks(item.verification) }}</article>
+{% else %}
+<p class="empty">{{ label('没有地点资料。','No place information.') }}</p>
+{% endfor %}
+</div>
+</details>
+<details class="fold" open>
+<summary>
+<h2>{{ label('按时段的候选','Candidates by time slot') }}</h2>
+</summary>
+{% for slot, choices in day.candidate_views.items() %}
+<h3>{{ slot }}</h3>
+{% for item in choices %}
+<article class="card">{{ place(item) }}{{ checks(item.verification) }}</article>
+{% endfor %}{% else %}
+<p class="empty">{{ label('尚无额外候选。','No additional candidates recorded.') }}</p>
+{% endfor %}
+</details>
+<details class="fold" open>
+<summary>
+<h2>{{ label('下雨怎么办','Rain plan') }}</h2>
+</summary>
+<p>{{ day.rain_plan or label('尚未记录雨天备选；天气不适时先确认。','No rain alternative recorded; confirm before weather-sensitive activities.') }}</p>
+</details>
+<details class="fold" open>
+<summary>
+<h2>{{ label('交通花费','Transport costs') }}</h2>
+</summary>
+{% for fare in day.fares %}
+<article class="card">
+<h3>{{ fare.segment }}</h3>
+<p>{{ fare.ticket }} · {{ people(fare.subject) }}</p>
+<p>{{ label('每人','Per person') }}: {{ fare.amount_per_person if fare.amount_per_person is not none else label('金额未知，未计入合计','Unknown amount; excluded from totals') }} {{ fare.currency or '' }}{% if fare.estimated %} · {{ label('估算','Estimate') }}{% endif %}
+</p>
+{% if fare.alternative or fare.included_in %}
+<p>{{ label('备选或已包含，不重复计费','Alternative or included; excluded from totals') }} {{ fare.included_in or '' }}</p>
+{% endif %}{{ checks(fare.verification) }}</article>
+{% else %}
+<p class="empty">{{ label('未记录票价，不代表免费。','No fares recorded; this does not mean travel is free.') }}</p>
+{% endfor %}{% for person, currencies in day.totals.items() %}
+<p>
+<b>{{ label('已知金额合计','Known cost total') }} · {{ people([person]) }}:</b> {% for currency, amount in currencies.items() %}{{ currency }} {{ amount }} {% endfor %}
+</p>
+{% endfor %}
+<p class="muted">{{ label('各币种分开合计。未知金额不计入，估算仍是估算。','Currencies are totalled separately. Unknown amounts are excluded; estimates remain estimates.') }}</p>
+</details>
+<details class="fold" open>
+<summary>
+<h2>{{ label('本日核验结论','Day verification') }}</h2>
+</summary>{{ checks(day.verification) }}{% if not day.verification %}
+<p>{{ label('尚无核验记录，不代表已核。','No recorded checks; this does not mean verified.') }}</p>
+{% endif %}
+</details>
+{% endmacro %}
+"""
+
+INDEX = """{% extends 'base' %}{% import 'macros' as m with context %}{% block main %}
+<h1>{{ trip.title }}</h1>
+<p>{{ trip.start }} → {{ trip.end }}</p>
+<h2>{{ label('今天与明天','Today and tomorrow') }}</h2>
+<div class="cards">
+{% for title, day in nearby %}
+<article class="card daycard">
+<h3>{{ title }}</h3>
+{% if day %}
+<a href="{{ day.date }}.html" data-language-link>{{ day.date }} · {{ day.title }}</a>
+{% for anchor in day.anchors %}
+<p>{{ anchor.time }} {{ anchor.text }}</p>
+{% endfor %}{% else %}
+<p>{{ label('这天没有已提交的行程。','No committed itinerary for this date.') }}</p>
+{% endif %}
+</article>
+{% endfor %}
+</div>
+<h2>{{ label('每天','Every day') }}</h2>
+<ul class="daylist">
+{% for day in days %}
+<li>
+<a href="{{ day.date }}.html" data-language-link>{{ day.date }} · {{ day.title }}</a> · {{ day.area }}</li>
+{% endfor %}
+</ul>
+<section class="fold">
+<h2>{{ label('要提前做的','Prepare ahead') }}</h2>
+{% for booking in actions %}
+<article class="card">
+<h3>{{ booking.what }}</h3>
+<p>{{ booking.due or booking.date }} · {{ booking.status }}</p>
+<p>{{ booking.why_now }}</p>
+{% if booking.if_missed %}
+<p>{{ label('后果','Consequence') }}: {{ booking.if_missed }}</p>
+{% endif %}
+</article>
+{% else %}
+<p>{{ label('没有已记录的待办。','No recorded pending actions.') }}</p>
+{% endfor %}
+</section>
+<section class="fold">
+<h2>{{ label('待你定','Pending decisions') }}</h2>
+{% for question in undecided %}
+<article class="card">
+<h3>{{ question.question or question.text }}</h3>
+<p>{{ question.options|join(' · ') }}</p>
+</article>
+{% else %}
+<p>{{ label('没有已记录的待定问题。','No recorded undecided questions.') }}</p>
+{% endfor %}
+<a href="decisions.html" data-language-link>{{ label('全部决定','All decisions') }}</a>
+</section>
+<section class="fold">
+<h2>{{ label('待核与冲突','Unverified facts and conflicts') }}</h2>{{ m.checks(attention) }}{% for check in pending %}
+<p>{{ check.text or check.question }} · {{ check.consequence or label('后果尚未记录，行动前确认。','Consequences not recorded; confirm before acting.') }}</p>
+{% endfor %}
+</section>
+{% endblock %}"""
+
+DAY = """{% extends 'base' %}{% import 'macros' as m with context %}{% block main %}{{ m.day_content(day) }}<nav class="daynavs">
+{% if previous %}
+<a href="{{ previous.date }}.html" data-language-link>← {{ previous.date }}</a>
+{% endif %}{% if following %}
+<a href="{{ following.date }}.html" data-language-link>{{ following.date }} →</a>
+{% endif %}
+</nav>
+{% endblock %}"""
+
+DECISIONS = """{% extends 'base' %}{% block main %}
+<h1>{{ label('决定','Decisions') }}</h1>
+{% for decision in decisions %}
+<article class="card">
+<h2>{{ decision.question }}</h2>
+<dl>
+<dt>{{ label('选项','Options') }}</dt>
+<dd>{{ decision.options|join(' · ') }}</dd>
+<dt>{{ label('选了哪支','Choice') }}</dt>
+<dd>{{ decision.choice }}</dd>
+<dt>{{ label('谁定','Decided by') }}</dt>
+<dd>{{ decision.decided_by }}</dd>
+<dt>{{ label('理由','Reason') }}</dt>
+<dd>{{ decision.reason or label('未记录','Not recorded') }}</dd>
+<dt>{{ label('回头条件','Revisit when') }}</dt>
+<dd>{{ decision.revisit_when or label('未记录','Not recorded') }}</dd>
+<dt>{{ label('出处','Provenance') }}</dt>
+<dd>{{ decision.source }}</dd>
+</dl>
+</article>
+{% else %}
+<p>{{ label('没有已记录的决定。','No recorded decisions.') }}</p>
+{% endfor %}{% endblock %}"""
+
+RESULT = """{% extends 'base' %}
+{% import 'macros' as m with context %}
+{% block main %}
+<h1>{{ label('手机结果页','Trip results') }}</h1>
+<section class="fold">
+<h2>{{ label('第一段材料','First response material') }}</h2>
+<p class="muted">{{ label('这里展示服务保存的回答材料；宿主实际写出的对话未保存在本服务。','These are the materials saved by the service; the host-written conversation is not stored here.') }}</p>
+{% if first %}
+<p>{{ label('材料时刻','Material time') }}: {{ first.created_at }} · {{ label('基于版本','Based on version') }} {{ first.base_version }}</p>
+{% if first.base_version != version.number %}
+<p class="unverified">{{ label('材料来自旧版本，请以下方当前版本为准。','These materials belong to an older version; refer to the current version below.') }}</p>
+{% endif %}
+{% if first.text %}
+<p>{{ label(first.outline.zh, first.outline.en) }}</p>
+<h3>{{ label('给宿主的约束包','Constraint pack given to the host') }}</h3>
+{{ first.text }}
+{% else %}<p class="unverified">{{ label('这条材料没有存约束包（从仓重建的运行库不带它）。','This material has no stored pack (a store rebuilt from the repository has none).') }}</p>{% endif %}
+{% else %}<p>{{ label('尚无第一段材料。','No first response material yet.') }}</p>{% endif %}
+</section>
+<section class="fold">
+<h2>{{ label('第二段：先看差异','Second response: differences first') }}</h2>
+{% if pending %}
+{% if job and job.status == 'failed' %}
+<p class="conflict">{{ label('核验失败，请在对话中重试。','Verification failed; retry through the conversation.') }}</p>
+{% elif job and job.status == 'stale' %}
+<p class="unverified">{{ label('核验任务已过期，请在对话中重新发起。','The check job is stale; request a new check through the conversation.') }}</p>
+{% else %}
+<p>{{ label('核验中','Verification pending') }} · {{ job.status if job else label('尚无核验任务','No check job recorded') }}</p>
+{% endif %}
+<p>{{ label('预计','Expected') }}: {{ job.eta if job and job.eta else label('尚未提供完成时刻。重排设计目标约 8 分钟，并非服务保证；请稍后刷新。','No completion time supplied. The replan design target is about 8 minutes, not a service guarantee; refresh later.') }}</p>
+{% endif %}
+{% if second %}
+{% if second.historical %}<h3>{{ label('最近一次已有结果（先前任务）','Most recent available result (earlier job)') }}</h3>{% endif %}
+<p>{{ label('基于版本','Based on version') }} {{ second.base_version }} · {{ second.state }} · {{ second.generated_at }}</p>
+{% if second.stale %}<p class="unverified">{{ label('此结果已过期，不代表当前版本核验通过。','This result is stale and does not verify the current version.') }}</p>{% endif %}
+<p class="result-material">{{ second.value.differences or label('尚无差异说明。','No difference summary recorded.') }}</p>
+{{ m.checks(second.checks) }}
+{% if second.days %}
+<h3>{{ label('本次核验的完整候选日程','Complete candidate itinerary checked in this result') }}</h3>
+{% for day in second.days %}{{ m.day_content(day) }}{% endfor %}
+{% endif %}
+{% endif %}
+</section>
+<section>
+<h2>{{ label('当前版本：今天','Current version: today') }}</h2>
+{% if not today %}<p>{{ label('今天没有已提交的行程。','No committed itinerary for today.') }}</p>
+{% if upcoming %}<h3>{{ label('下一天行程','Next itinerary day') }}</h3>{% endif %}{% endif %}
+{% if today_text %}{{ today_text }}{% endif %}
+</section>
+{% endblock %}"""
+
+
+MEMORY = """{% extends 'base' %}{% block main %}
+<h1>{{ label('记忆（长期内容）','Memory (long-term content)') }}</h1>
+<p>{{ label(memory_summary.zh, memory_summary.en) }}</p>
+{% if memory_pending %}<p>{{ label('待确认的：回“沿用”或“这趟不用”，记进这一趟。','For each waiting entry, reply "keep" or "not this trip".') }}</p>{% endif %}
+{% for section in memory_sections %}
+<section class="card">
+<h2>{{ label(section.zh.title, section.en.title) }}</h2>
+{% for zh, en in section.pairs %}
+<div class="memory {{ zh.status }}">
+<p><span class="badge {{ zh.status }}">{{ label(zh.status_label, en.status_label) }}</span> {{ zh.words }}</p>
+<p class="meta">{% if zh.subject_ids %}{{ people(zh.subject_ids) }} · {% endif %}{{ label(zh.origin, en.origin) }} · {{ label(zh.used, en.used) }}{% if zh.basis %} · {{ label(zh.basis, en.basis) }}{% endif %}</p>
+</div>
+{% endfor %}
+</section>
+{% else %}
+<p>{{ label('还没有长期内容。','No long-term content yet.') }}</p>
+{% endfor %}{% endblock %}"""

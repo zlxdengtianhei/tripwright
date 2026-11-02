@@ -1,0 +1,37 @@
+always: false
+check: null
+compatible_with: []
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-ifvq82
+interpretations: []
+key: airport_night_cheap
+kind: preference
+long_term: false
+origin: null
+priority: null
+quote: 我机场过夜的话，怎么样去做好一点，比较便宜
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: '*'
+  end: '2026-10-31'
+  place: '*'
+  start: '2026-10-31'
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-7mc9ms
+  nature: user_verbatim
+status: active
+strength: prefer
+subject:
+- me
+text: 10-31 夜里在机场过夜，想便宜一点（原话 10-30 19:12 CET）
+valid_from: null
+valid_until: null
+value: null

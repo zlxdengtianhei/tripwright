@@ -1,0 +1,38 @@
+always: false
+check: null
+compatible_with:
+- site_more_options_sorted
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-gm2zlj
+interpretations: []
+key: map_app_search
+kind: rule
+long_term: true
+origin: null
+priority: null
+quote: 关于去哪里的跟我交互的方式应该是要告诉我我要在什么地图软件搜什么
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: conversation
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-rhpzk9
+  nature: user_verbatim
+status: active
+strength: must
+subject:
+- me
+text: 说去哪里时，写明在哪个地图 App 搜什么（原话 10-29 10:56 CET）
+valid_from: null
+valid_until: null
+value: null

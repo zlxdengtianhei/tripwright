@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en" data-lang="en"
+  data-title-zh="tripwright：把你说过的，带进每一次安排"
+  data-title-en="tripwright: your preferences, in every plan">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tripwright</title>
+<meta name="description" content="An open-source trip-planning service over MCP: relevant memories each turn, sourced transport facts, and recorded plan changes. Remote HTTP and local stdio; app connections remain to be tested.">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230e6b66'/%3E%3Cpath d='M8 22 L14 10 L18 18 L21 13 L25 22' stroke='white' stroke-width='2.6' fill='none'/%3E%3C/svg%3E">
+<script src="assets/site.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top">tripwright</a>
+    <nav class="nav" aria-label="Sections / 章节">
+      <a href="#how"><span class="zh">怎样工作</span><span class="en">How it works</span></a>
+      <a href="#facts"><span class="zh">事实与边界</span><span class="en">Facts and limits</span></a>
+      <a href="#where"><span class="zh">怎样连接</span><span class="en">Connect</span></a>
+      <a href="#demo"><span class="zh">展示</span><span class="en">Examples</span></a>
+      <a href="method.html"><span class="zh">方法</span><span class="en">Method</span></a>
+    </nav>
+    <span class="spacer"></span>
+    <div class="lang" role="group" aria-label="Language / 语言">
+      <button type="button" data-set-lang="zh" aria-pressed="false">中文</button>
+      <button type="button" data-set-lang="en" aria-pressed="false">EN</button>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="badge"><span class="dot"></span><span class="zh">开源 · 可本地运行 · 可自行部署</span><span class="en">Open source · run locally or self-host</span></span>
+      <h1><span class="zh">把你说过的，<br>带进每一次安排。</span><span class="en">Your preferences,<br>in every plan.</span></h1>
+      <p class="pitch zh">tripwright 是旅行规划服务，通过 MCP 连接协议供 AI 助手调用。它取出这次该考虑的偏好与决定，给出有来源的交通事实，记录计划为什么改变。由你选择的 AI 助手组织回答。</p>
+      <p class="pitch en">tripwright is a trip-planning service for AI assistants over the Model Context Protocol (MCP). It brings relevant preferences and decisions into each turn, supplies sourced transport facts, and records what changed and why. Your chosen AI assistant writes the answer.</p>
+      <div class="cta">
+        <a class="btn primary" href="#where"><span class="zh">查看连接方式</span><span class="en">Ways to connect</span></a>
+        <a class="btn" href="#start"><span class="zh">本地试用</span><span class="en">Try locally</span></a>
+      </div>
+      <ul class="facts">
+        <li><span class="zh">每问取出相关记忆，避免只看最近一句话。</span><span class="en">Relevant memories each turn, beyond the latest message.</span></li>
+        <li><span class="zh">能查的先查好；拿不到的说明去哪里查。</span><span class="en">Check what can be checked; show where to find what is missing.</span></li>
+        <li><span class="zh">数据存在自己的行程仓或本地库，可查看与导出。</span><span class="en">Keep a trip repository or local database you can inspect and export.</span></li>
+      </ul>
+    </div>
+    <aside class="phone" aria-label="Answer structure / 回答结构">
+      <div class="bar"><span class="zh">你会得到怎样的回答</span><span class="en">What the answer contains</span><span>MCP</span></div>
+      <div class="msg user"><div class="bubble"><span class="zh">今天我一个人，后面怎么排？</span><span class="en">I'm on my own today. What next?</span></div></div>
+      <div class="msg bot"><div class="who"><span class="zh">第一段 · 先给下一步</span><span class="en">Part 1 · the next step</span></div><div class="bubble"><span class="zh">按存的计划与现在的条件给安排。存的车次时刻标为待核，不沿用“只剩末班”的旧结论。</span><span class="en">A next step from the stored plan and current conditions. Saved departure times stay marked as unchecked; an old “last train” claim is not reused.</span></div></div>
+      <div class="msg bot"><div class="who"><span class="zh">第二段 · 查后给完整安排</span><span class="en">Part 2 · the plan after checks</span></div><div class="bubble">
+        <p><span class="zh">先说与第一段的不同。交通逐程写清，保留数据范围；计划若改了，说明改动与理由。</span><span class="en">Start with what changed. Give each transport leg and its data limits. Explain accepted plan changes and their reasons.</span></p>
+        <div class="pending"><b><span class="zh">怎么查、怎么问</span><span class="en">How to check, how to ask</span></b><br><span class="zh">拿不到的实时信息：给 App、搜索内容、步骤和链接。要问人时，先提供起草邀请。</span><span class="en">For missing live information: the app, search, steps and link. When asking a person is needed, offer a draft first.</span></div>
+      </div></div>
+      <p class="note"><span class="zh">回答结构示意，不是行程输出或出行建议。两段接续取决于宿主能力。</span><span class="en">A structure illustration, not a trip output or travel advice. Continuation between parts depends on the host.</span></p>
+    </aside>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <div class="kicker"><span class="zh">每次对话的路径</span><span class="en">From message to plan</span></div>
+    <h2><span class="zh">记下之后，还要取出来用。</span><span class="en">A memory needs to be used.</span></h2>
+    <ol class="flow" aria-label="Workflow / 工作流程">
+      <li><span class="num">01</span><h3><span class="zh">收到这一问</span><span class="en">Receive this turn</span></h3><p><span class="zh">保存消息，分清偏好、实况和决定。</span><span class="en">Store the message and distinguish preferences, facts and decisions.</span></p></li>
+      <li><span class="num">02</span><h3><span class="zh">取适用记忆</span><span class="en">Bring in memories</span></h3><p><span class="zh">按人、时段与地点，列出该考虑的条件和问题。</span><span class="en">Select conditions and questions for these people, times and places.</span></p></li>
+      <li><span class="num">03</span><h3><span class="zh">核事实范围</span><span class="en">Check the facts</span></h3><p><span class="zh">交通、天气和已记录来源，查不到就保留未知。</span><span class="en">Use transport, weather and recorded sources. Keep missing facts unknown.</span></p></li>
+      <li><span class="num">04</span><h3><span class="zh">说明每次改动</span><span class="en">Explain changes</span></h3><p><span class="zh">接受的改动留记录，旧结果不能覆盖新计划。</span><span class="en">Record accepted edits. Stale results cannot overwrite a newer plan.</span></p></li>
+    </ol>
+    <div class="grid3" style="margin-top:24px">
+      <article class="card"><h3><span class="zh">先问必须项</span><span class="en">Ask what is a must</span></h3><p><span class="zh">排计划前问有没有必须去的地方或必须守的时间。没提就当没有；普通选择可以带理由调整。</span><span class="en">Before planning, ask about must-go places or fixed times. If none are named, assume none. Other choices may change with a reason.</span></p></article>
+      <article class="card"><h3><span class="zh">改动看得见</span><span class="en">Make edits visible</span></h3><p><span class="zh">改了你先前的选择，就说原来是什么、现在改成什么、为什么。被拒绝的改动不会说成已完成。</span><span class="en">When revising your choice, say what it was, what it becomes and why. A rejected edit is not reported as done.</span></p></article>
+      <article class="card"><h3><span class="zh">记忆不是保证</span><span class="en">Memory is not a guarantee</span></h3><p><span class="zh">程序会返回相关记忆与下一步指引；宿主模型还需要实际使用。当前远程服务不包含独立核验模型。</span><span class="en">The service returns relevant memories and next-step guidance. The host model must still use them. A separate server-side verifier model is not included.</span></p></article>
+    </div>
+  </div>
+</section>
+
+<section id="facts">
+  <div class="wrap">
+    <div class="kicker"><span class="zh">事实与边界</span><span class="en">Facts and limits</span></div>
+    <h2><span class="zh">能拿到什么，拿不到什么。</span><span class="en">What the data can tell you.</span></h2>
+    <div class="grid2">
+      <article class="card"><h3><span class="zh">由 agent 查好</span><span class="en">Checked by the agent</span></h3><p><span class="zh">覆盖范围内的车次、目的地和按时刻表的换乘，逐程给出；天气有预报来源。营业规则可从保存的资料或宿主读到的官方页面核查。</span><span class="en">Departures, destinations and timetable transfers within coverage, leg by leg; weather with its forecast source. Opening rules can be checked against saved material or official pages the host reads.</span></p></article>
+      <article class="card"><h3><span class="zh">不能假装知道</span><span class="en">Keep unknowns visible</span></h3><p><span class="zh">晚点、站台、临时停运、余位或预约库存没有完整实时保证。工具会在能提供查法时给出操作；需要问人时，先邀请起草，用户要了再给英语与当地语言。</span><span class="en">Delays, platforms, disruptions, availability and booking inventory have no complete live guarantee. Where possible, tools supply checking steps. Inquiry drafts wait for your request and include English and the local language.</span></p></article>
+    </div>
+    <div class="callout"><span class="zh">交通主要按时刻表，不是实时。覆盖和有效期识别尚不完整：已知克恩顿本地巴士缺口，日期规则目前只有奥地利。数据未覆盖时说“查不到”，不说“没车”。</span><span class="en">Transport is primarily timetable-based, not live. Coverage and validity checks are partial: a known Carinthia bus gap, and date rules currently only for Austria. Missing data means “not found”, not “no service”.</span></div>
+    <p class="note"><span class="zh">真实来源：</span><span class="en">Live providers: </span><a href="https://transitous.org/sources/">Transitous</a> · <a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a> · <a href="https://open-meteo.com/">Open-Meteo (CC BY 4.0)</a>.<br><span class="zh">Transitous 路线请求默认最多 720 次／滚动 24 小时，公共 API 条款另行适用。Wiener Linien、VAO 额外实时适配器尚未接入；VAO 如需接入，要用户本人确认合同并申请凭据。</span><span class="en">Transitous route requests default to 720 per rolling 24 hours, subject to its public API terms. Extra Wiener Linien and VAO adapters are not implemented. VAO access would require the user to arrange a contract and credentials.</span></p>
+  </div>
+</section>
+
+<section id="where">
+  <div class="wrap">
+    <div class="kicker"><span class="zh">怎样连接</span><span class="en">Connect</span></div>
+    <h2><span class="zh">同一个 MCP 服务，各家能力分别核。</span><span class="en">One MCP service. Check each host.</span></h2>
+    <p class="lede zh">部署者提供完整的 <code>https://trip.example/mcp</code> 地址。配置好 GitHub 应用后，通过标准 OAuth 登录，只放行配置里的账号；支持请求头的客户端也可使用部署者分配的令牌。没有开放注册或令牌自助管理页。</p>
+    <p class="lede en">Your operator supplies the full <code>https://trip.example/mcp</code> URL. After GitHub app setup, sign in through standard OAuth; only configured accounts are allowed. Header-capable clients can use an operator-provided token. There is no public signup or self-service token page.</p>
+    <div class="hosts">
+      <article class="host"><div class="hd"><b><span class="zh">Claude 网页／手机</span><span class="en">Claude web / mobile</span></b><span class="chip plan"><span class="zh">完整流程未实测</span><span class="en">App flow untested</span></span></div><p class="zh">网页添加自定义连接器，填完整 /mcp，完成 GitHub 登录；手机使用同一账号的连接器。需账号与工作区支持，不承诺所有套餐。</p><p class="en">Add a custom connector on the web, enter /mcp and complete GitHub login; use the connector with the same account on mobile. Account and workspace support is required.</p></article>
+      <article class="host"><div class="hd"><b>Claude Code</b><span class="chip ok"><span class="zh">本机有一次实连</span><span class="en">Local connection recorded</span></span></div><p class="zh">本机配 stdio；远程可显式加 HTTP MCP 并登录。历史本机实连不代表远程、云端和手机流程都已验证。</p><p class="en">Configure local stdio, or explicitly add HTTP MCP and sign in. One historical local connection does not establish remote, cloud or mobile support.</p></article>
+      <article class="host"><div class="hd"><b>ChatGPT</b><span class="chip plan"><span class="zh">完整流程未实测</span><span class="en">App flow untested</span></span></div><p class="zh">在支持自定义 MCP 的账号中添加地址并选择 OAuth。读写权限、工作区与手机支持由宿主决定；只读连接不能完整记录本次要求。</p><p class="en">Add the URL with OAuth in an account that supports custom MCP. Write access, workspace and mobile support depend on the host. Read-only access cannot record the full turn.</p></article>
+      <article class="host"><div class="hd"><b><span class="zh">其他 MCP 宿主</span><span class="en">Other MCP hosts</span></b><span class="chip plan"><span class="zh">逐家待验证</span><span class="en">Host testing pending</span></span></div><p class="zh">需支持远程 Streamable HTTP 与 OAuth，或自定义认证请求头。标准协议实现不等于所有聊天 app 已兼容。</p><p class="en">Requires remote Streamable HTTP with OAuth, or custom authorization headers. A standard server does not establish compatibility with every chat app.</p></article>
+    </div>
+    <div class="callout note"><span class="zh">作者自己的部署：<code>https://159-195-240-39.sslip.io/mcp</code>。2026-11-02 检查时，健康页可达、MCP 要求认证，但 OAuth 发现端点返回 503；仍需完成 GitHub 应用配置。不是开放试用地址。</span><span class="en">Author's deployment: <code>https://159-195-240-39.sslip.io/mcp</code>. On 2026-11-02, health checks passed and MCP required authentication, while OAuth discovery returned 503. GitHub app setup remains necessary. This is not an open trial endpoint.</span></div>
+    <p class="note"><span class="zh">仓内连接指南：<code>docs/CONNECT.md</code>。真实 app 登录、两段接续与回答质量仍需分别验证；远程服务没有旧 /r 结果页后备入口。</span><span class="en">Repository guide: <code>docs/CONNECT.md</code>. App login, continuation between replies and answer quality need separate verification. The remote service does not expose the old /r results page.</span></p>
+  </div>
+</section>
+
+<section id="demo">
+  <div class="wrap">
+    <div class="kicker"><span class="zh">行程展示</span><span class="en">Trip examples</span></div>
+    <h2><span class="zh">展示即将放入。</span><span class="en">Examples are coming.</span></h2>
+    <div class="placeholder"><p><span class="zh">经过隐私处理的行程展示由独立步骤准备，尚未放入本页。当前不展示原始个人行程。</span><span class="en">Trip examples are being prepared in a separate privacy review. No raw personal itinerary is shown here.</span></p><a href="../examples/" data-pending="true"><span class="zh">examples/ · 即将放入</span><span class="en">examples/ · coming soon</span></a></div>
+  </div>
+</section>
+
+<section id="start">
+  <div class="wrap grid2">
+    <div>
+      <div class="kicker"><span class="zh">本地试用</span><span class="en">Try locally</span></div>
+      <h2><span class="zh">先跑虚构示例。</span><span class="en">Start with fictional data.</span></h2>
+      <p class="zh">从代码仓根目录运行，需要 Python 3.11+ 和 uv。demo 用临时库与虚构数据；stdio 命令供本机 MCP 宿主启动。</p><p class="en">From the code repository root, use Python 3.11+ and uv. The demo uses a temporary database and fictional data; the stdio command starts a server for a local MCP host.</p>
+      <div class="placeholder"><pre><code>uv sync --extra dev
+uv run tripwright demo
+uv run tripwright serve --stdio</code></pre></div>
+      <p class="note"><span class="zh">MCP 真实查询需在启动时设置 <code>TRIPWRIGHT_PROVIDERS=live</code>；未设置时是 synthetic。虚构数据不能用于真实出行。</span><span class="en">For real MCP lookups, set <code>TRIPWRIGHT_PROVIDERS=live</code> at startup; otherwise they are synthetic. Fictional data cannot guide real travel.</span></p>
+      <h3><span class="zh">自己部署</span><span class="en">Self-host</span></h3><p class="zh">仓内 <code>deploy/README.md</code> 介绍 Docker、Caddy 与 HTTPS；<code>deploy/REMOTE_AUTH.md</code> 介绍 GitHub 登录、账号名单、私有仓与部署钥匙。</p><p class="en">In the repository, <code>deploy/README.md</code> covers Docker, Caddy and HTTPS. <code>deploy/REMOTE_AUTH.md</code> covers GitHub login, allowed accounts, private repositories and deploy keys.</p>
+    </div>
+    <div>
+      <div class="kicker"><span class="zh">数据与隐私</span><span class="en">Data and privacy</span></div>
+      <h2><span class="zh">自己的记录，明确的边界。</span><span class="en">Your records, explicit boundaries.</span></h2>
+      <p class="zh">仓库模式将行程、账本和版本写回你配置的 Git 仓；服务器保留镜像与运行库。本机也可仅用 SQLite。宿主 app、Git 托管方与部署者各有自己的数据处理范围。</p><p class="en">Repository mode writes trips, records and versions to your configured Git repository; the server retains a mirror and runtime database. Local mode can use SQLite alone. The host app, Git provider and operator each have their own data practices.</p>
+      <p class="zh">不要公开令牌、私钥和未处理的个人行程。当前没有对全部运行日志的正文脱敏保证；部署者需要限制访问与日志内容。</p><p class="en">Keep tokens, private keys and unreviewed personal itineraries out of public files. There is no complete body-redaction guarantee across runtime logs; operators must control access and logging.</p>
+      <p><a href="method.html"><span class="zh">为什么要在每次回答前取出记忆 →</span><span class="en">Why each answer needs to read its memories →</span></a></p>
+    </div>
+  </div>
+</section>
+</main>
+<footer><div class="wrap"><div><b>tripwright</b> · <span class="zh">代码采用 MIT 许可，数据与服务条款另行适用。</span><span class="en">MIT-licensed code; data and service terms apply separately.</span></div><div><span class="zh">本页无外部字体或追踪脚本。接入状态按 2026-11-02 已核到的范围说明。</span><span class="en">No external fonts or tracking scripts. Connection status reflects the evidence available on 2026-11-02.</span></div></div></footer>
+</body>
+</html>

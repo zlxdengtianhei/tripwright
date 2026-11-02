@@ -1,0 +1,39 @@
+always: false
+check: null
+compatible_with:
+- sightseeing_1031
+- save_money_1031
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-360w6c
+interpretations: []
+key: climbing_big_gym_1031
+kind: preference
+long_term: false
+origin: null
+priority: null
+quote: 我明天就是去个大点的岩馆吧 我还是想攀岩
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: '*'
+  end: '2026-10-31'
+  place: '*'
+  start: '2026-10-31'
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-18w7zt
+  nature: user_verbatim
+status: active
+strength: prefer
+subject:
+- me
+text: 10-31 去一家大点的岩馆攀岩（原话 10-30 23:32 CET）
+valid_from: null
+valid_until: null
+value: null

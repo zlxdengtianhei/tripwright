@@ -1,0 +1,37 @@
+always: false
+check: null
+compatible_with: []
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-h2qcuu
+interpretations: []
+key: first_answer_always
+kind: rule
+long_term: true
+origin: null
+priority: null
+quote: 一个是及时快速的查询和决定后先告诉我快速的结果 这个部分一定输出出来
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: conversation
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-4s7x05
+  nature: user_verbatim
+status: active
+strength: must
+subject:
+- me
+text: 第一段（快速结果）一定要先出来（原话 10-30 11:20 CET）
+valid_from: null
+valid_until: null
+value: null

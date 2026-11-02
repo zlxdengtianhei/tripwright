@@ -1,0 +1,957 @@
+{
+ "from": {
+  "name": "Wien Hauptbahnhof",
+  "stopId": "at-Railway-Current-Reference-Data-2026_Pat:49:1349",
+  "lat": 48.185190000000006,
+  "lon": 16.376413,
+  "vertexType": "TRANSIT"
+ },
+ "to": {
+  "name": "Bad Ischl Sueß",
+  "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46546:0:1",
+  "lat": 47.72231711000001,
+  "lon": 13.573570890000001,
+  "vertexType": "TRANSIT"
+ },
+ "direct": [],
+ "itineraries": [
+  {
+   "startTime": "2026-11-04T07:28:00Z",
+   "endTime": "2026-11-04T11:48:00Z",
+   "duration": 15600,
+   "legs": [
+    {
+     "mode": "HIGHSPEED_RAIL",
+     "from": {
+      "name": "Wien Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:49:1349:0:31",
+      "lat": 48.18496,
+      "lon": 16.378479,
+      "track": "7",
+      "scheduledTrack": "7",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Salzburg Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:45:50002:0:6",
+      "lat": 47.813152,
+      "lon": 13.045720999999999,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T07:28:00Z",
+     "endTime": "2026-11-04T09:53:00Z",
+     "duration": 8700,
+     "displayName": "RJX 19962",
+     "routeShortName": "RJX 19962",
+     "tripShortName": "RJX 19962",
+     "headsign": "Bregenz Bahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T07:28:00Z",
+     "scheduledEndTime": "2026-11-04T09:53:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Salzburg Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:45:50002:0:6",
+      "lat": 47.813152,
+      "lon": 13.045720999999999,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Salzburg Hauptbahnhof",
+      "stopId": "at-PTA-Salzburg-Flex-2026_at:45:50002:0:18",
+      "lat": 47.81316354999999,
+      "lon": 13.044040979999998,
+      "track": "F",
+      "scheduledTrack": "F",
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T09:53:00Z",
+     "endTime": "2026-11-04T09:55:00Z",
+     "duration": 120,
+     "realTime": false,
+     "cancelled": false,
+     "scheduledStartTime": "2026-11-04T09:53:00Z",
+     "scheduledEndTime": "2026-11-04T09:55:00Z"
+    },
+    {
+     "mode": "BUS",
+     "from": {
+      "name": "Salzburg Hauptbahnhof",
+      "stopId": "at-PTA-Salzburg-Flex-2026_at:45:50002:0:18",
+      "lat": 47.81316354999999,
+      "lon": 13.044040979999998,
+      "track": "F",
+      "scheduledTrack": "F",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Bad Ischl Haiden B158",
+      "stopId": "at-PTA-Salzburg-Flex-2026_at:44:46547:0:2",
+      "lat": 47.71638841,
+      "lon": 13.57337327,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T10:15:00Z",
+     "endTime": "2026-11-04T11:37:00Z",
+     "duration": 4920,
+     "displayName": "150",
+     "routeShortName": "150",
+     "tripShortName": "",
+     "headsign": "Bad Ischl via Hof - Fuschl - St.Gilgen - Strobl",
+     "agencyName": "Österreichische Postbus AG - N (Salzb)",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T10:15:00Z",
+     "scheduledEndTime": "2026-11-04T11:37:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Bad Ischl Haiden B158",
+      "stopId": "at-PTA-Salzburg-Flex-2026_at:44:46547:0:2",
+      "lat": 47.71638841,
+      "lon": 13.57337327,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Bad Ischl Sueß",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46546:0:1",
+      "lat": 47.72231711000001,
+      "lon": 13.573570890000001,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T11:37:00Z",
+     "endTime": "2026-11-04T11:48:00Z",
+     "duration": 660,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T11:37:00Z",
+     "scheduledEndTime": "2026-11-04T11:48:00Z"
+    }
+   ]
+  },
+  {
+   "startTime": "2026-11-04T07:57:00Z",
+   "endTime": "2026-11-04T11:22:00Z",
+   "duration": 12300,
+   "legs": [
+    {
+     "mode": "LONG_DISTANCE",
+     "from": {
+      "name": "Wien Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:49:1349:0:27",
+      "lat": 48.18487,
+      "lon": 16.378452,
+      "track": "8",
+      "scheduledTrack": "8",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Attnang-Puchheim Bahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:44:47200:0:3",
+      "lat": 48.012330000000006,
+      "lon": 13.720400999999999,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T07:57:00Z",
+     "endTime": "2026-11-04T09:58:00Z",
+     "duration": 7260,
+     "displayName": "IC 546",
+     "routeShortName": "IC 546",
+     "tripShortName": "IC 546",
+     "headsign": "Salzburg Hauptbahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T07:57:00Z",
+     "scheduledEndTime": "2026-11-04T09:58:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Attnang-Puchheim Bahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:44:47200:0:3",
+      "lat": 48.012330000000006,
+      "lon": 13.720400999999999,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Attnang-Puchheim Bahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:44:47200:0:1",
+      "lat": 48.012245,
+      "lon": 13.720597999999999,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T09:58:00Z",
+     "endTime": "2026-11-04T10:00:00Z",
+     "duration": 120,
+     "realTime": false,
+     "cancelled": false,
+     "scheduledStartTime": "2026-11-04T09:58:00Z",
+     "scheduledEndTime": "2026-11-04T10:00:00Z"
+    },
+    {
+     "mode": "REGIONAL_RAIL",
+     "from": {
+      "name": "Attnang-Puchheim Bahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:44:47200:0:1",
+      "lat": 48.012245,
+      "lon": 13.720597999999999,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Bad Ischl Bahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:44:46500:0:1",
+      "lat": 47.712180000000004,
+      "lon": 13.627452,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T10:09:00Z",
+     "endTime": "2026-11-04T11:03:00Z",
+     "duration": 3240,
+     "displayName": "REX 3414",
+     "routeShortName": "REX 3414",
+     "tripShortName": "REX 3414",
+     "headsign": "Selzthal",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T10:09:00Z",
+     "scheduledEndTime": "2026-11-04T11:03:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Bad Ischl Bahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:44:46500:0:1",
+      "lat": 47.712180000000004,
+      "lon": 13.627452,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Bad Ischl Bahnhof",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46500:0:24",
+      "lat": 47.711680019999996,
+      "lon": 13.626993699999998,
+      "track": "D",
+      "scheduledTrack": "D",
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T11:03:00Z",
+     "endTime": "2026-11-04T11:05:00Z",
+     "duration": 120,
+     "realTime": false,
+     "cancelled": false,
+     "scheduledStartTime": "2026-11-04T11:03:00Z",
+     "scheduledEndTime": "2026-11-04T11:05:00Z"
+    },
+    {
+     "mode": "BUS",
+     "from": {
+      "name": "Bad Ischl Bahnhof",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46500:0:24",
+      "lat": 47.711680019999996,
+      "lon": 13.626993699999998,
+      "track": "D",
+      "scheduledTrack": "D",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Bad Ischl Sueß",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46546:0:1",
+      "lat": 47.72231711000001,
+      "lon": 13.573570890000001,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T11:12:00Z",
+     "endTime": "2026-11-04T11:22:00Z",
+     "duration": 600,
+     "displayName": "546",
+     "routeShortName": "546",
+     "tripShortName": "",
+     "headsign": "0",
+     "agencyName": "Österreichische Postbus AG",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T11:12:00Z",
+     "scheduledEndTime": "2026-11-04T11:22:00Z"
+    }
+   ]
+  },
+  {
+   "startTime": "2026-11-04T08:28:00Z",
+   "endTime": "2026-11-04T12:48:00Z",
+   "duration": 15600,
+   "legs": [
+    {
+     "mode": "HIGHSPEED_RAIL",
+     "from": {
+      "name": "Wien Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:49:1349:0:31",
+      "lat": 48.18496,
+      "lon": 16.378479,
+      "track": "7",
+      "scheduledTrack": "7",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Salzburg Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:45:50002:0:7",
+      "lat": 47.813126,
+      "lon": 13.045793,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T08:28:00Z",
+     "endTime": "2026-11-04T10:53:00Z",
+     "duration": 8700,
+     "displayName": "RJX 19952",
+     "routeShortName": "RJX 19952",
+     "tripShortName": "RJX 19952",
+     "headsign": "Innsbruck Hauptbahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T08:28:00Z",
+     "scheduledEndTime": "2026-11-04T10:53:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Salzburg Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:45:50002:0:7",
+      "lat": 47.813126,
+      "lon": 13.045793,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Salzburg Hauptbahnhof",
+      "stopId": "at-PTA-Salzburg-Flex-2026_at:45:50002:0:18",
+      "lat": 47.81316354999999,
+      "lon": 13.044040979999998,
+      "track": "F",
+      "scheduledTrack": "F",
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T10:53:00Z",
+     "endTime": "2026-11-04T10:55:00Z",
+     "duration": 120,
+     "realTime": false,
+     "cancelled": false,
+     "scheduledStartTime": "2026-11-04T10:53:00Z",
+     "scheduledEndTime": "2026-11-04T10:55:00Z"
+    },
+    {
+     "mode": "BUS",
+     "from": {
+      "name": "Salzburg Hauptbahnhof",
+      "stopId": "at-PTA-Salzburg-Flex-2026_at:45:50002:0:18",
+      "lat": 47.81316354999999,
+      "lon": 13.044040979999998,
+      "track": "F",
+      "scheduledTrack": "F",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Bad Ischl Haiden B158",
+      "stopId": "at-PTA-Salzburg-Flex-2026_at:44:46547:0:2",
+      "lat": 47.71638841,
+      "lon": 13.57337327,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T11:15:00Z",
+     "endTime": "2026-11-04T12:37:00Z",
+     "duration": 4920,
+     "displayName": "150",
+     "routeShortName": "150",
+     "tripShortName": "",
+     "headsign": "Bad Ischl via Hof - Fuschl - St.Gilgen - Strobl",
+     "agencyName": "Österreichische Postbus AG - N (Salzb)",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T11:15:00Z",
+     "scheduledEndTime": "2026-11-04T12:37:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Bad Ischl Haiden B158",
+      "stopId": "at-PTA-Salzburg-Flex-2026_at:44:46547:0:2",
+      "lat": 47.71638841,
+      "lon": 13.57337327,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Bad Ischl Sueß",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46546:0:1",
+      "lat": 47.72231711000001,
+      "lon": 13.573570890000001,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T12:37:00Z",
+     "endTime": "2026-11-04T12:48:00Z",
+     "duration": 660,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T12:37:00Z",
+     "scheduledEndTime": "2026-11-04T12:48:00Z"
+    }
+   ]
+  },
+  {
+   "startTime": "2026-11-04T08:28:00Z",
+   "endTime": "2026-11-04T12:37:00Z",
+   "duration": 14940,
+   "legs": [
+    {
+     "mode": "HIGHSPEED_RAIL",
+     "from": {
+      "name": "Wien Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:49:1349:0:31",
+      "lat": 48.18496,
+      "lon": 16.378479,
+      "track": "7",
+      "scheduledTrack": "7",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Salzburg Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:45:50002:0:7",
+      "lat": 47.813126,
+      "lon": 13.045793,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T08:28:00Z",
+     "endTime": "2026-11-04T10:53:00Z",
+     "duration": 8700,
+     "displayName": "RJX 19952",
+     "routeShortName": "RJX 19952",
+     "tripShortName": "RJX 19952",
+     "headsign": "Innsbruck Hauptbahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T08:28:00Z",
+     "scheduledEndTime": "2026-11-04T10:53:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Salzburg Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:45:50002:0:7",
+      "lat": 47.813126,
+      "lon": 13.045793,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Salzburg Hauptbahnhof",
+      "stopId": "at-PTA-Salzburg-Flex-2026_at:45:50002:0:18",
+      "lat": 47.81316354999999,
+      "lon": 13.044040979999998,
+      "track": "F",
+      "scheduledTrack": "F",
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T10:53:00Z",
+     "endTime": "2026-11-04T10:55:00Z",
+     "duration": 120,
+     "realTime": false,
+     "cancelled": false,
+     "scheduledStartTime": "2026-11-04T10:53:00Z",
+     "scheduledEndTime": "2026-11-04T10:55:00Z"
+    },
+    {
+     "mode": "BUS",
+     "from": {
+      "name": "Salzburg Hauptbahnhof",
+      "stopId": "at-PTA-Salzburg-Flex-2026_at:45:50002:0:18",
+      "lat": 47.81316354999999,
+      "lon": 13.044040979999998,
+      "track": "F",
+      "scheduledTrack": "F",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Strobl Busbahnhof",
+      "stopId": "at-PTA-Salzburg-Flex-2026_at:45:50436:0:1",
+      "lat": 47.71619501000001,
+      "lon": 13.487943479999998,
+      "track": "A",
+      "scheduledTrack": "A",
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T11:15:00Z",
+     "endTime": "2026-11-04T12:23:00Z",
+     "duration": 4080,
+     "displayName": "150",
+     "routeShortName": "150",
+     "tripShortName": "",
+     "headsign": "Bad Ischl via Hof - Fuschl - St.Gilgen - Strobl",
+     "agencyName": "Österreichische Postbus AG - N (Salzb)",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T11:15:00Z",
+     "scheduledEndTime": "2026-11-04T12:23:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Strobl Busbahnhof",
+      "stopId": "at-PTA-Salzburg-Flex-2026_at:45:50436:0:1",
+      "lat": 47.71619501000001,
+      "lon": 13.487943479999998,
+      "track": "A",
+      "scheduledTrack": "A",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Strobl Busbahnhof (Bahnstraße)",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:45:50436:0:4",
+      "lat": 47.71615874000001,
+      "lon": 13.48823993,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T12:23:00Z",
+     "endTime": "2026-11-04T12:25:00Z",
+     "duration": 120,
+     "realTime": false,
+     "cancelled": false,
+     "scheduledStartTime": "2026-11-04T12:23:00Z",
+     "scheduledEndTime": "2026-11-04T12:25:00Z"
+    },
+    {
+     "mode": "BUS",
+     "from": {
+      "name": "Strobl Busbahnhof (Bahnstraße)",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:45:50436:0:4",
+      "lat": 47.71615874000001,
+      "lon": 13.48823993,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Bad Ischl Sueß",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46546:0:2",
+      "lat": 47.72225064000001,
+      "lon": 13.57311275,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T12:25:00Z",
+     "endTime": "2026-11-04T12:37:00Z",
+     "duration": 720,
+     "displayName": "546",
+     "routeShortName": "546",
+     "tripShortName": "",
+     "headsign": "0",
+     "agencyName": "Österreichische Postbus AG",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T12:25:00Z",
+     "scheduledEndTime": "2026-11-04T12:37:00Z"
+    }
+   ]
+  },
+  {
+   "startTime": "2026-11-04T08:57:00Z",
+   "endTime": "2026-11-04T13:18:00Z",
+   "duration": 15660,
+   "legs": [
+    {
+     "mode": "LONG_DISTANCE",
+     "from": {
+      "name": "Wien Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:49:1349:0:27",
+      "lat": 48.18487,
+      "lon": 16.378452,
+      "track": "8",
+      "scheduledTrack": "8",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "St. Pölten Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:43:4848:0:16",
+      "lat": 48.208344000000004,
+      "lon": 15.625754,
+      "track": "5",
+      "scheduledTrack": "5",
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T08:57:00Z",
+     "endTime": "2026-11-04T09:30:00Z",
+     "duration": 1980,
+     "displayName": "IC 548",
+     "routeShortName": "IC 548",
+     "tripShortName": "IC 548",
+     "headsign": "Wels Hauptbahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T08:57:00Z",
+     "scheduledEndTime": "2026-11-04T09:30:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "St. Pölten Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:43:4848:0:16",
+      "lat": 48.208344000000004,
+      "lon": 15.625754,
+      "track": "5",
+      "scheduledTrack": "5",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "St.Pölten Hbf",
+      "stopId": "de-DELFI_at:43:4848",
+      "lat": 48.20827500000001,
+      "lon": 15.624683,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T09:30:00Z",
+     "endTime": "2026-11-04T09:35:00Z",
+     "duration": 300,
+     "realTime": false,
+     "cancelled": false,
+     "scheduledStartTime": "2026-11-04T09:30:00Z",
+     "scheduledEndTime": "2026-11-04T09:35:00Z"
+    },
+    {
+     "mode": "REGIONAL_RAIL",
+     "from": {
+      "name": "St.Pölten Hbf",
+      "stopId": "de-DELFI_at:43:4848",
+      "lat": 48.20827500000001,
+      "lon": 15.624683,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Salzburg Hbf",
+      "stopId": "de-DELFI_at:45:50002",
+      "lat": 47.81305,
+      "lon": 13.045819999999999,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T09:36:00Z",
+     "endTime": "2026-11-04T11:38:00Z",
+     "duration": 7320,
+     "displayName": "DRF (964)",
+     "routeShortName": "DRF",
+     "tripShortName": "000964",
+     "headsign": "München Hbf",
+     "agencyName": "WESTbahn",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T09:36:00Z",
+     "scheduledEndTime": "2026-11-04T11:38:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Salzburg Hbf",
+      "stopId": "de-DELFI_at:45:50002",
+      "lat": 47.81305,
+      "lon": 13.045819999999999,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Salzburg Hauptbahnhof",
+      "stopId": "at-PTA-Salzburg-Flex-2026_at:45:50002:0:18",
+      "lat": 47.81316354999999,
+      "lon": 13.044040979999998,
+      "track": "F",
+      "scheduledTrack": "F",
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T11:38:00Z",
+     "endTime": "2026-11-04T11:43:00Z",
+     "duration": 300,
+     "realTime": false,
+     "cancelled": false,
+     "scheduledStartTime": "2026-11-04T11:38:00Z",
+     "scheduledEndTime": "2026-11-04T11:43:00Z"
+    },
+    {
+     "mode": "BUS",
+     "from": {
+      "name": "Salzburg Hauptbahnhof",
+      "stopId": "at-PTA-Salzburg-Flex-2026_at:45:50002:0:18",
+      "lat": 47.81316354999999,
+      "lon": 13.044040979999998,
+      "track": "F",
+      "scheduledTrack": "F",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Bad Ischl Haiden B158",
+      "stopId": "at-PTA-Salzburg-Flex-2026_at:44:46547:0:2",
+      "lat": 47.71638841,
+      "lon": 13.57337327,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T11:45:00Z",
+     "endTime": "2026-11-04T13:07:00Z",
+     "duration": 4920,
+     "displayName": "150",
+     "routeShortName": "150",
+     "tripShortName": "",
+     "headsign": "Bad Ischl via Hof - Fuschl - St.Gilgen - Strobl",
+     "agencyName": "Österreichische Postbus AG - N (Salzb)",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T11:45:00Z",
+     "scheduledEndTime": "2026-11-04T13:07:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Bad Ischl Haiden B158",
+      "stopId": "at-PTA-Salzburg-Flex-2026_at:44:46547:0:2",
+      "lat": 47.71638841,
+      "lon": 13.57337327,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Bad Ischl Sueß",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46546:0:1",
+      "lat": 47.72231711000001,
+      "lon": 13.573570890000001,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T13:07:00Z",
+     "endTime": "2026-11-04T13:18:00Z",
+     "duration": 660,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T13:07:00Z",
+     "scheduledEndTime": "2026-11-04T13:18:00Z"
+    }
+   ]
+  },
+  {
+   "startTime": "2026-11-04T08:57:00Z",
+   "endTime": "2026-11-04T12:22:00Z",
+   "duration": 12300,
+   "legs": [
+    {
+     "mode": "LONG_DISTANCE",
+     "from": {
+      "name": "Wien Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:49:1349:0:27",
+      "lat": 48.18487,
+      "lon": 16.378452,
+      "track": "8",
+      "scheduledTrack": "8",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "St. Pölten Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:43:4848:0:16",
+      "lat": 48.208344000000004,
+      "lon": 15.625754,
+      "track": "5",
+      "scheduledTrack": "5",
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T08:57:00Z",
+     "endTime": "2026-11-04T09:30:00Z",
+     "duration": 1980,
+     "displayName": "IC 548",
+     "routeShortName": "IC 548",
+     "tripShortName": "IC 548",
+     "headsign": "Wels Hauptbahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T08:57:00Z",
+     "scheduledEndTime": "2026-11-04T09:30:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "St. Pölten Hauptbahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:43:4848:0:16",
+      "lat": 48.208344000000004,
+      "lon": 15.625754,
+      "track": "5",
+      "scheduledTrack": "5",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "St.Pölten Hbf",
+      "stopId": "de-DELFI_at:43:4848",
+      "lat": 48.20827500000001,
+      "lon": 15.624683,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T09:30:00Z",
+     "endTime": "2026-11-04T09:35:00Z",
+     "duration": 300,
+     "realTime": false,
+     "cancelled": false,
+     "scheduledStartTime": "2026-11-04T09:30:00Z",
+     "scheduledEndTime": "2026-11-04T09:35:00Z"
+    },
+    {
+     "mode": "REGIONAL_RAIL",
+     "from": {
+      "name": "St.Pölten Hbf",
+      "stopId": "de-DELFI_at:43:4848",
+      "lat": 48.20827500000001,
+      "lon": 15.624683,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Attnang-Puchheim",
+      "stopId": "de-DELFI_at:44:47200",
+      "lat": 48.012802,
+      "lon": 13.720718999999999,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T09:36:00Z",
+     "endTime": "2026-11-04T10:53:00Z",
+     "duration": 4620,
+     "displayName": "DRF (964)",
+     "routeShortName": "DRF",
+     "tripShortName": "000964",
+     "headsign": "München Hbf",
+     "agencyName": "WESTbahn",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T09:36:00Z",
+     "scheduledEndTime": "2026-11-04T10:53:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Attnang-Puchheim",
+      "stopId": "de-DELFI_at:44:47200",
+      "lat": 48.012802,
+      "lon": 13.720718999999999,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Attnang-Puchheim Bahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:44:47200:0:4",
+      "lat": 48.012370000000004,
+      "lon": 13.720301999999998,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T10:53:00Z",
+     "endTime": "2026-11-04T10:58:00Z",
+     "duration": 300,
+     "realTime": false,
+     "cancelled": false,
+     "scheduledStartTime": "2026-11-04T10:53:00Z",
+     "scheduledEndTime": "2026-11-04T10:58:00Z"
+    },
+    {
+     "mode": "REGIONAL_RAIL",
+     "from": {
+      "name": "Attnang-Puchheim Bahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:44:47200:0:4",
+      "lat": 48.012370000000004,
+      "lon": 13.720301999999998,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Bad Ischl Bahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:44:46500:0:1",
+      "lat": 47.712180000000004,
+      "lon": 13.627452,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T11:08:00Z",
+     "endTime": "2026-11-04T12:05:00Z",
+     "duration": 3420,
+     "displayName": "R 3416",
+     "routeShortName": "R 3416",
+     "tripShortName": "R 3416",
+     "headsign": "Obertraun-Dachsteinhöhlen Bahnhof",
+     "agencyName": "OEBB Personenverkehr AG Kundenservice",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T11:08:00Z",
+     "scheduledEndTime": "2026-11-04T12:05:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Bad Ischl Bahnhof",
+      "stopId": "at-Railway-Current-Reference-Data-2026_at:44:46500:0:1",
+      "lat": 47.712180000000004,
+      "lon": 13.627452,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Bad Ischl Bahnhof",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46500:0:24",
+      "lat": 47.711680019999996,
+      "lon": 13.626993699999998,
+      "track": "D",
+      "scheduledTrack": "D",
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T12:05:00Z",
+     "endTime": "2026-11-04T12:07:00Z",
+     "duration": 120,
+     "realTime": false,
+     "cancelled": false,
+     "scheduledStartTime": "2026-11-04T12:05:00Z",
+     "scheduledEndTime": "2026-11-04T12:07:00Z"
+    },
+    {
+     "mode": "BUS",
+     "from": {
+      "name": "Bad Ischl Bahnhof",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46500:0:24",
+      "lat": 47.711680019999996,
+      "lon": 13.626993699999998,
+      "track": "D",
+      "scheduledTrack": "D",
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "Bad Ischl Sueß",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46546:0:1",
+      "lat": 47.72231711000001,
+      "lon": 13.573570890000001,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T12:12:00Z",
+     "endTime": "2026-11-04T12:22:00Z",
+     "duration": 600,
+     "displayName": "546",
+     "routeShortName": "546",
+     "tripShortName": "",
+     "headsign": "0",
+     "agencyName": "Österreichische Postbus AG",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T12:12:00Z",
+     "scheduledEndTime": "2026-11-04T12:22:00Z"
+    }
+   ]
+  }
+ ],
+ "_probe": {
+  "url": "https://api.transitous.org/api/v6/plan?fromPlace=at-Railway-Current-Reference-Data-2026_Pat%3A49%3A1349&toPlace=at-PTA-Upper-Austria-Flex-2026_at%3A44%3A46546%3A0%3A1&time=2026-11-04T08%3A00%3A00%2B01%3A00&transitModes=TRAM%2CSUBWAY%2CFERRY%2CBUS%2CCOACH%2CRAIL%2CHIGHSPEED_RAIL%2CLONG_DISTANCE%2CNIGHT_RAIL%2CREGIONAL_FAST_RAIL%2CREGIONAL_RAIL%2CSUBURBAN%2CFUNICULAR%2CAERIAL_LIFT%2CCABLE_CAR%2COTHER&numItineraries=5&maxPreTransitTime=1200&maxPostTransitTime=1200&detailedTransfers=false",
+  "status": 200,
+  "at": "2026-11-01T20:31:22+0100"
+ }
+}

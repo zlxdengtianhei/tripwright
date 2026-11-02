@@ -1,0 +1,37 @@
+always: false
+check: null
+compatible_with: []
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-fo48nr
+interpretations: []
+key: option_count
+kind: preference
+long_term: true
+origin: null
+priority: null
+quote: 选项不要给太多，每天给两三种组合可能都偏多了，具体程度你可以再把控一下，附上推荐理由即可，避免把过多筛选决策的压力压到我这边。
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: '*'
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-4msg8c
+  nature: user_verbatim
+status: active
+strength: prefer
+subject:
+- me
+text: 选项不要给太多（每天两三种组合可能都偏多），附推荐理由，不把筛选压力压给他（原话 10-20 00:39 CEST）
+valid_from: null
+valid_until: null
+value: null

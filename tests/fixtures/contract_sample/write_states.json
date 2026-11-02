@@ -1,0 +1,55 @@
+{
+  "schema": "tripwright.sample-writes/1",
+  "note": "五个写操作的状态序列。OP-300715-t4a 走完 已收件→待同步→已生效；OP-300715-c9m 走 已收件→待同步→冲突，并通知已取回结果的宿主。heads 是索引认的正本分支头。",
+  "canonical": "origin/main",
+  "heads": [
+    {"commit": "3f2a91c", "from": "2030-07-14T20:20:05+02:00", "external": false},
+    {"commit": "8b1d0e4", "from": "2030-07-15T13:00:24+02:00", "external": false},
+    {"commit": "5d27c3a", "from": "2030-07-15T13:08:45+02:00", "external": false},
+    {"commit": "0a6e9b2", "from": "2030-07-15T13:16:10+02:00", "external": false},
+    {"commit": "e93b5d1", "from": "2030-07-15T13:17:15+02:00", "external": true, "contains_version": "V-300715-x4w"}
+  ],
+  "ops": [
+    {"op_id": "OP-300715-t4a", "kind": "turn", "request": {"tool": "turn", "key": "req-0715-1300"},
+     "event": "E-300715-d04", "records": ["F-300715-s1o", "F-300715-n2l", "I-300715-b8k"],
+     "transitions": [
+       {"state": "received", "at": "2030-07-15T13:00:13+02:00"},
+       {"state": "pending_sync", "at": "2030-07-15T13:00:15+02:00", "commit": "8b1d0e4"},
+       {"state": "effective", "at": "2030-07-15T13:00:24+02:00", "commit": "8b1d0e4"}
+     ]},
+    {"op_id": "OP-300715-k5f", "kind": "turn", "request": {"tool": "turn", "key": "req-0715-1308"},
+     "event": "E-300715-e05", "records": ["F-300715-k6e"],
+     "transitions": [
+       {"state": "received", "at": "2030-07-15T13:08:41+02:00"},
+       {"state": "pending_sync", "at": "2030-07-15T13:08:43+02:00", "commit": "5d27c3a"},
+       {"state": "effective", "at": "2030-07-15T13:08:45+02:00", "commit": "5d27c3a"}
+     ]},
+    {"op_id": "OP-300715-r6g", "kind": "turn", "request": {"tool": "turn", "key": "req-0715-1316"},
+     "event": "E-300715-f06", "records": [],
+     "transitions": [
+       {"state": "received", "at": "2030-07-15T13:16:06+02:00"},
+       {"state": "pending_sync", "at": "2030-07-15T13:16:08+02:00", "commit": "0a6e9b2"},
+       {"state": "effective", "at": "2030-07-15T13:16:10+02:00", "commit": "0a6e9b2"}
+     ]},
+    {"op_id": "OP-300715-c9m", "kind": "commit", "request": {"tool": "commit", "key": "commit-0715-b8d"},
+     "draft_id": "DR-300715-b8d", "version_id": "V-300715-v4l", "records": [],
+     "transitions": [
+       {"state": "received", "at": "2030-07-15T13:17:10+02:00"},
+       {"state": "pending_sync", "at": "2030-07-15T13:17:12+02:00", "commit": "c41a7f2"},
+       {"state": "conflict", "at": "2030-07-15T13:17:15+02:00", "reason": "plan_base_changed", "remote_head": "e93b5d1",
+        "detail": "计划基于 V3（V-300714-q8r）；正本分支已有 V4（V-300715-x4w，外部手改）", "notice_id": "N-300715-n1c"}
+     ]},
+    {"op_id": "OP-300715-u7j", "kind": "turn", "request": {"tool": "turn", "key": "req-0715-1352"},
+     "event": "E-300715-g07", "records": [],
+     "transitions": [
+       {"state": "received", "at": "2030-07-15T13:52:01+02:00"}
+     ]}
+  ],
+  "notices": [
+    {"notice_id": "N-300715-n1c", "kind": "write_conflict", "op_id": "OP-300715-c9m", "created_at": "2030-07-15T13:17:15+02:00",
+     "shown": {"draft_id": "DR-300715-b8d", "job_id": "J-300715-j2c", "retrieved_at": "2030-07-15T13:16:50+02:00"},
+     "reason": "plan_base_changed", "replan": {"dates": ["2030-07-15"], "people": ["u1"]},
+     "user_line": "上次的安排已在别处改动，需要重排。",
+     "until": "a plan commit based on the new head reaches effective"}
+  ]
+}

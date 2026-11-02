@@ -1,0 +1,4 @@
+format: 1
+current_trip: 2026-10-bud-wien
+timezone: Europe/Vienna
+note: Trip repository of tripwright. Canonical records are files; .tripwright/ is a rebuildable index.

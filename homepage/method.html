@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en" data-lang="en"
+  data-title-zh="方法论：为什么偏好会被忘 · tripwright"
+  data-title-en="The method: why preferences get lost · tripwright">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tripwright method</title>
+<meta name="description" content="The requirements method behind tripwright: why preferences get lost, and how the in, store and out stages guard against it. Short bilingual version.">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230e6b66'/%3E%3Cpath d='M8 22 L14 10 L18 18 L21 13 L25 22' stroke='white' stroke-width='2.6' fill='none' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E">
+<script src="assets/site.js"></script>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="currentColor"/><path d="M8 22 L14 10 L18 18 L21 13 L25 22" style="stroke:var(--bg)" stroke-width="2.6" fill="none" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      tripwright
+    </a>
+    <nav class="nav" aria-label="Sections">
+      <a href="index.html"><span class="zh">首页</span><span class="en">Home</span></a>
+      <a href="#why"><span class="zh">为什么会忘</span><span class="en">Why it happens</span></a>
+      <a href="#stages"><span class="zh">进、存、出</span><span class="en">In, store, out</span></a>
+      <a href="#objects"><span class="zh">存什么</span><span class="en">What to store</span></a>
+      <a href="#actions"><span class="zh">做什么</span><span class="en">What to do</span></a>
+    </nav>
+    <span class="spacer"></span>
+    <div class="lang" role="group" aria-label="Language / 语言">
+      <button type="button" data-set-lang="zh" aria-pressed="false">中文</button>
+      <button type="button" data-set-lang="en" aria-pressed="false">EN</button>
+    </div>
+  </div>
+</header>
+
+<main>
+<section class="hero">
+  <div class="wrap prose">
+    <span class="badge"><span class="dot"></span><span class="zh">方法论 v0.2 · 草稿 · 精简版</span><span class="en">Method v0.2 · draft · short version</span></span>
+    <h1><span class="zh">为什么偏好会被忘</span><span class="en">Why preferences get lost</span></h1>
+    <p class="pitch zh">需求处理，是维护一份“此刻谁要什么、管到哪、有多强、从哪来、到何时”的活记录，并且<b>在每次产出之前，把适用的那一部分取出来逐条核</b>。只记不取，等于没记。</p>
+    <p class="pitch en">Handling requirements means keeping a live record of who wants what, where it applies, how strongly, where it came from, and until when. And <b>before every output, pulling out the part that applies and checking it item by item</b>. A record that is never read back might as well not exist.</p>
+    <p class="note zh">本页说明工作法。当前程序在每问返回相关记忆与提问指引，宿主模型仍需实际使用；这不是模型永不遗漏的保证。旅行计划只有用户明确说“必须”的项才保护，其他选择可带理由调整，并在回答中说明。</p>
+    <p class="note en">This page explains the method. The service returns relevant memories and questions each turn; the host model must still use them. It does not guarantee that a model will never omit a condition. Only explicit musts protect trip choices; other choices may change with reasons disclosed in the answer.</p>
+    <p class="zh">这套方法不只用于旅行。凡是“需求由人说、由 agent 执行和整理、说法会多轮变化”的任务都适用：软件建设、生活事务、研究项目。换的是条目的种类和范围的取值，动作不变。</p>
+    <p class="en">The method is not specific to travel. It fits any task where a person states the requirements, agents carry them out, and the wording changes over many rounds: building software, everyday errands, research projects. What changes between tasks is the kinds of items and the values of their scope; the actions stay the same.</p>
+  </div>
+</section>
+
+<section id="why">
+  <div class="wrap prose">
+    <div class="kicker"><span class="zh">为什么会忘</span><span class="en">Why it happens</span></div>
+    <h2><span class="zh">记得很全，用得很少</span><span class="en">Recorded well, used rarely</span></h2>
+    <p class="zh">偏好即使记下了，几天后排计划时仍可能没用上，用户只好重复纠正。问题可能出在“用”：出方案时，没有把已存的偏好取出来。</p>
+    <p class="en">A preference can be recorded and still be ignored when a plan is made days later, leaving the user to repeat it. The failure can be in applying it: nobody retrieved the stored preference before planning.</p>
+    <p class="zh">以前的冲突检查只在新话进来时跑，比的是新话和旧决定有没有矛盾。可这类错不是新旧矛盾，而是排计划时根本没取。所以要把“取出适用的条件”放进出方案的固定步骤，程序负责取出，宿主模型仍需使用。</p>
+    <p class="en">Earlier conflict checks ran only when a new message arrived, comparing it with old decisions. But this kind of error is not a conflict between old and new; the old items were simply never fetched at planning time. So "pull out the applicable conditions" has to be a fixed step of making a plan, the service retrieves the conditions, and the host model must still apply them.</p>
+    <div class="callout"><span class="zh">例（虚构）：米拉第一天说“走路别太多，膝盖受不了”。第三天重排时，模型只看到最近几句话，排了一段 50 分钟的上坡。这句话一直在聊天记录里，只是没人在出方案前把它取出来。</span><span class="en">Example (fictional): on day 1 Mira says "not too much walking, my knee can't take it". On day 3 the model re-plans from the last few messages and adds a 50-minute uphill walk. The sentence was in the chat history all along; nobody pulled it out before planning.</span></div>
+  </div>
+</section>
+
+<section id="stages">
+  <div class="wrap">
+    <div class="mech" style="border-top:0;padding-top:0">
+      <div class="text">
+        <div class="kicker"><span class="zh">三个环节</span><span class="en">Three stages</span></div>
+        <h2><span class="zh">进、存、出</span><span class="en">In, store, out</span></h2>
+        <p class="zh">需求从说出到被用上，要经过三个环节，失败也正好分三类。每个环节都有一个成熟领域解决过同样结构的问题，这套方法借的是它们的做法。</p>
+        <p class="en">A requirement passes three stages between being said and being used, and failures fall into the same three groups. For each stage, a mature field has already solved a problem with the same structure; the method borrows from them.</p>
+        <h3><span class="zh">进：像编译器</span><span class="en">In: like a compiler</span></h3>
+        <p class="zh">原话是源码，条目是中间表示。源码不丢，条目能从原话重拆；每条条目带原话指针，像编译错误带行号。软偏好像警告，可以权衡掉但要报出来；硬约束像错误，不满足的方案无效。语音转写里可疑的词先确认，不一路自信地解释下去。</p>
+        <p class="en">Your words are the source code; items are the intermediate form. The source is never thrown away, so items can be rebuilt from it, and each item points back to the words it came from, like a compiler error points to a line. Soft preferences are like warnings: they can be traded off but must be reported. Hard constraints are like errors: a plan that breaks one is invalid. Suspicious words in a voice transcript are confirmed first, not confidently explained away.</p>
+        <h3><span class="zh">存：像法律裁冲突</span><span class="en">Store: like law resolving conflicts</span></h3>
+        <ul class="zh">
+          <li><b>后法优先：</b>同一对象、同一范围，新的取代旧的。</li>
+          <li><b>特别法优先：</b>范围更窄的，在它的范围里优先；出了范围，旧的照旧有效。“今天我一个人”只改今天，不改“四人同行”。</li>
+          <li><b>上位法优先：</b>手段和仍有效的目的冲突时，目的优先；不悄悄选一边，要写出冲突。</li>
+          <li>先区分对象、主体、范围、时段，相同才谈取代。已付款的决定不被新说法自动撤回，只标“待复核”。agent 对一个词的理解只是推荐，不能当成用户的话。</li>
+        </ul>
+        <ul class="en">
+          <li><b>Later rule wins:</b> for the same object and scope, the newer statement replaces the older one.</li>
+          <li><b>Narrower rule wins:</b> a narrower statement takes priority inside its scope; outside it, the older one still holds. "I'm alone today" changes today only, not "four of us travel together".</li>
+          <li><b>Higher rule wins:</b> when a means conflicts with a goal that still holds, the goal wins; the conflict is written down, not silently resolved.</li>
+          <li>First check whether object, person, scope and time really are the same; only then talk about replacement. Paid decisions are not undone automatically by new words; they are flagged for review. An agent's reading of a word is a suggestion, never the user's words.</li>
+        </ul>
+        <h3><span class="zh">出：像数据库的视图</span><span class="en">Out: like a database view</span></h3>
+        <p class="zh">原话是只追加的事件日志，条目、决定、计划都是从它推出的视图。最要紧的一条：视图建了没人查，等于没建。所以出方案这个动作必须先查视图，取出适用集。</p>
+        <p class="en">Your words form an append-only event log; items, decisions and plans are views derived from it. The key point: a view that nobody reads is useless. So making a plan must start by reading the view and taking out the applicable set.</p>
+      </div>
+      <figure class="diagram">
+        <svg viewBox="0 0 420 440" role="img"
+          data-label-zh="进、存、出三个环节：进借编译器，防丢条件和把推断当原话；存借法律的冲突规则，防新旧关系判错；出借数据库视图，防记了不用。右侧回路：用户第二次说同一要求，就回去修出错的那一步。"
+          data-label-en="Three stages. In borrows from compilers and guards against lost conditions and guesses stored as quotes. Store borrows conflict rules from law and guards against wrong old-versus-new calls. Out borrows from database views and guards against recorded-but-unused items. A loop on the right: when the user repeats a requirement, fix the stage that failed.">
+          <defs>
+            <marker id="b1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="m-fill"/></marker>
+            <marker id="b1c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="m-acc"/></marker>
+          </defs>
+          <!-- IN -->
+          <rect x="16" y="16" width="370" height="92" rx="10" class="s-box"/>
+          <rect x="16" y="16" width="64" height="92" rx="10" class="s-soft"/>
+          <text x="48" y="60" text-anchor="middle" class="s-h" style="font-size:20px"><tspan class="zh">进</tspan><tspan class="en" style="font-size:14px">IN</tspan></text>
+          <text x="48" y="80" text-anchor="middle" class="s-s"><tspan class="zh">收·拆·标</tspan><tspan class="en">record</tspan></text>
+          <text x="92" y="42" class="s-t" style="font-size:12.5px"><tspan class="zh">借编译器：原话不丢，条目带指针</tspan><tspan class="en">From compilers: keep the source</tspan></text>
+          <text x="92" y="66" class="s-bt" style="font-weight:400"><tspan class="zh">防：丢了条件、强度、主体</tspan><tspan class="en">Fails: lost condition or strength</tspan></text>
+          <text x="92" y="88" class="s-bt" style="font-weight:400"><tspan class="zh">防：把 agent 的理解当成原话</tspan><tspan class="en">Fails: a guess stored as your words</tspan></text>
+
+          <line x1="200" y1="108" x2="200" y2="140" class="s-line" marker-end="url(#b1)"/>
+          <text x="210" y="129" class="s-s"><tspan class="zh">条目</tspan><tspan class="en">items</tspan></text>
+
+          <!-- STORE -->
+          <rect x="16" y="142" width="370" height="92" rx="10" class="s-box"/>
+          <rect x="16" y="142" width="64" height="92" rx="10" class="s-soft"/>
+          <text x="48" y="186" text-anchor="middle" class="s-h" style="font-size:20px"><tspan class="zh">存</tspan><tspan class="en" style="font-size:14px">STORE</tspan></text>
+          <text x="48" y="206" text-anchor="middle" class="s-s"><tspan class="zh">连·裁·定</tspan><tspan class="en">resolve</tspan></text>
+          <text x="92" y="168" class="s-t" style="font-size:12.5px"><tspan class="zh">借法律：后法、特别法、上位法</tspan><tspan class="en">From law: later, narrower, higher</tspan></text>
+          <text x="92" y="192" class="s-bt" style="font-weight:400"><tspan class="zh">防：新旧关系判错</tspan><tspan class="en">Fails: wrong old-vs-new call</tspan></text>
+          <text x="92" y="214" class="s-bt" style="font-weight:400"><tspan class="zh">防：过期的还当现行</tspan><tspan class="en">Fails: expired items still active</tspan></text>
+
+          <line x1="200" y1="234" x2="200" y2="266" class="s-line" marker-end="url(#b1)"/>
+          <text x="210" y="255" class="s-s"><tspan class="zh">现行视图</tspan><tspan class="en">active view</tspan></text>
+
+          <!-- OUT -->
+          <rect x="16" y="268" width="370" height="92" rx="10" class="s-acc"/>
+          <rect x="16" y="268" width="64" height="92" rx="10" class="s-soft"/>
+          <text x="48" y="312" text-anchor="middle" class="s-h" style="font-size:20px"><tspan class="zh">出</tspan><tspan class="en" style="font-size:14px">OUT</tspan></text>
+          <text x="48" y="332" text-anchor="middle" class="s-s"><tspan class="zh">用·核·传</tspan><tspan class="en">apply</tspan></text>
+          <text x="92" y="294" class="s-t" style="font-size:12.5px"><tspan class="zh">借数据库：视图建了必须有人查</tspan><tspan class="en">From databases: views must be read</tspan></text>
+          <text x="92" y="318" class="s-at" style="font-weight:400"><tspan class="zh">每次出方案前先取适用集</tspan><tspan class="en">Every plan reads the applicable set</tspan></text>
+          <text x="92" y="340" class="s-bt" style="font-weight:400"><tspan class="zh">防：记了，用的时候没带上</tspan><tspan class="en">Fails: recorded but not used</tspan></text>
+
+          <!-- control loop -->
+          <polyline points="386,314 404,314 404,62 390,62" class="s-line-acc s-dash" marker-end="url(#b1c)"/>
+          <text x="16" y="392" class="s-at"><tspan class="zh">↺ 控制回路：用户第二次说同一要求，就是误差信号。</tspan><tspan class="en">↺ Control loop: a repeated request is an error signal.</tspan></text>
+          <text x="16" y="414" class="s-m"><tspan class="zh">查是哪一步没起作用，在那一步的结构上修，</tspan><tspan class="en">Find the stage that failed and fix its structure,</tspan></text>
+          <text x="16" y="432" class="s-m"><tspan class="zh">不再加一行规矩。</tspan><tspan class="en">rather than adding one more rule.</tspan></text>
+        </svg>
+        <figcaption>
+          <span class="zh">三个环节各借一个领域的做法，各防一类失败。右侧虚线是方法自身的改进回路。</span>
+          <span class="en">Each stage borrows from one field and guards against one kind of failure. The dashed line on the right is how the method improves itself.</span>
+        </figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section id="objects">
+  <div class="wrap prose">
+    <div class="kicker"><span class="zh">存什么</span><span class="en">What to store</span></div>
+    <h2><span class="zh">五种对象，两份账</span><span class="en">Five kinds of record, two logs</span></h2>
+    <ul class="zh">
+      <li><b>原话：</b>逐字，只追加。记谁说的、何时、经哪个通道（打字、语音转写、截图、宿主转述）。</li>
+      <li><b>条目：</b>一条只说一件事。种类按它在推理里的作用分：目标、约束（硬）、偏好（软）、规矩（系统怎样工作）、授权与停令。一次性的查询不建条目，答完就结束。</li>
+      <li><b>实况：</b>已经发生、正在成立的事：已买、已存、已去过、谁和谁在一起。实况不参与权衡，只被新的实况纠正。</li>
+      <li><b>决定：</b>问题、选项、选了哪个、谁定、依赖哪些前提，以及回头条件（“下雨就走室内那一支”）。</li>
+      <li><b>待核：</b>还没核过就先用了的东西。必须有到期时刻：没有到期的待核，等于没有。</li>
+      <li><b>两份账：</b>待定（要用户定的问题，带推荐和默认）；流水（每条原话改了什么，没有冲突也记一行）。</li>
+    </ul>
+    <ul class="en">
+      <li><b>Your words:</b> verbatim, append-only. Who said it, when, through which channel (typed, voice transcript, screenshot, relayed by the host app).</li>
+      <li><b>Items:</b> one thing per item. Kinds follow their role in reasoning: goal, constraint (hard), preference (soft), rule (how the system should work), permission or stop order. One-off questions get no item; they end when answered.</li>
+      <li><b>Facts:</b> things that have happened or are true now: bought, stored, already visited, who is with whom. Facts are never traded off; only newer facts correct them.</li>
+      <li><b>Decisions:</b> the question, the options, the choice, who chose, what it depends on, and when to switch ("if it rains, take the indoor branch").</li>
+      <li><b>Open checks:</b> anything used before it was verified. Each has a due time; an open check without one is as good as none.</li>
+      <li><b>Two logs:</b> open questions for the user (with a recommendation and a default), and a change log (what each message changed; one line even when nothing conflicts).</li>
+    </ul>
+
+    <h3 style="margin-top:1.4em"><span class="zh">每条条目的八个属性</span><span class="en">Eight attributes per item</span></h3>
+    <ol class="attrs zh">
+      <li><b>主体：</b>管谁</li>
+      <li><b>范围：</b>管到哪（某天、某地、某个通道）</li>
+      <li><b>强度：</b>必须、禁止、最好、能去就去</li>
+      <li><b>条件：</b>在什么情形下成立，“除非什么”</li>
+      <li><b>有效期：</b>从何时到何时，或一次性</li>
+      <li><b>来源与把握：</b>原话指针；用户明说还是 agent 推断</li>
+      <li><b>状态：</b>现行、待核、被取代、过期、已满足</li>
+      <li><b>关系：</b>取代谁、细化谁、和谁冲突</li>
+    </ol>
+    <ol class="attrs en">
+      <li><b>Subject:</b> who it is about</li>
+      <li><b>Scope:</b> where it applies (a day, a place, a channel)</li>
+      <li><b>Strength:</b> must, must not, prefer, "if we can"</li>
+      <li><b>Condition:</b> when it holds, "unless what"</li>
+      <li><b>Validity:</b> from when to when, or one-off</li>
+      <li><b>Source and confidence:</b> a pointer to your words; stated by you or inferred by an agent</li>
+      <li><b>Status:</b> active, to check, replaced, expired, met</li>
+      <li><b>Relations:</b> replaces, refines, or conflicts with which items</li>
+    </ol>
+    <div class="callout"><span class="zh"><b>只填原话支持的字段，不替用户编值。</b>理解错了的条目会被包装成“可精确执行”，下游照着执行得更稳。所以软偏好保留原句和理由，不硬换成数字；agent 的理解写成“候选解释”，标明用户确认没有；原话没给的字段写“未知”。</span><span class="en"><b>Fill only the fields your words support; never invent values.</b> A misunderstood item, once structured, looks precise and gets executed faithfully downstream. So soft preferences keep your sentence and reason instead of a made-up number; an agent's reading is stored as a "candidate interpretation" marked confirmed or not; anything you did not say stays "unknown".</span></div>
+  </div>
+</section>
+
+<section id="actions">
+  <div class="wrap prose">
+    <div class="kicker"><span class="zh">做什么</span><span class="en">What to do</span></div>
+    <h2><span class="zh">九个动作，重点是“用”</span><span class="en">Nine actions; the key one is "apply"</span></h2>
+    <ol class="zh">
+      <li><b>收：</b>每条消息逐字入档。</li>
+      <li><b>拆：</b>一条消息里的查询、实况、偏好、规矩分开，各走各的时序：查询现在答，其余记下。</li>
+      <li><b>标：</b>填八个属性；程度词和条件词原样保留。</li>
+      <li><b>连与裁：</b>找同一对象的旧条目，按“存”的规则裁；拿不准的进待定。</li>
+      <li><b>定：</b>写决定和回头条件。</li>
+      <li><b>用（以前缺的一步）：</b>每次产出之前，取出适用集：主体相关、范围覆盖、仍在有效期的现行条目，加上相关实况和未关的待核。逐条标满足、权衡掉（写理由）、不适用。新的一句是加进适用集，不是替换它。</li>
+      <li><b>核：</b>产出对照适用集和原话；事实回第一手来源核，记核的时刻。核验者拿独立的输入，不只核作者列出的项。</li>
+      <li><b>传：</b>条目或决定变了，重算受影响的范围，并重跑全部硬约束；旧版本的结果作废，不覆盖新的。</li>
+      <li><b>学：</b>同一要求被说第二次时，查是哪一步没起作用，在那一步修。</li>
+    </ol>
+    <ol class="en">
+      <li><b>Record:</b> store every message verbatim.</li>
+      <li><b>Split:</b> separate questions, facts, preferences and rules in one message; answer questions now, record the rest.</li>
+      <li><b>Tag:</b> fill the eight attributes; keep degree words and conditions as said.</li>
+      <li><b>Link and resolve:</b> find older items about the same thing and apply the "store" rules; anything unclear becomes an open question.</li>
+      <li><b>Decide:</b> write the decision and when to switch.</li>
+      <li><b>Apply (the step that used to be missing):</b> before every output, take the applicable set: active items whose subject, scope and validity cover this moment, plus relevant facts and open checks. Mark each as met, traded off (with the reason), or not applicable. A new message is added to the set, not swapped in for it.</li>
+      <li><b>Check:</b> compare the output with the applicable set and your words; verify facts at the first-hand source and note when. The checker gets independent inputs, not just the author's list.</li>
+      <li><b>Propagate:</b> when an item or decision changes, recompute what it affects and re-run every hard constraint; results based on an old version are discarded.</li>
+      <li><b>Learn:</b> when the same request is said a second time, find the step that failed and fix it there.</li>
+    </ol>
+
+    <h3 style="margin-top:1.4em"><span class="zh">按情形调深度</span><span class="en">Depth depends on the situation</span></h3>
+    <div class="analog">
+      <div class="card"><h3><span class="zh">一句快问</span><span class="en">A quick question</span></h3><p class="zh" style="margin:0">“这个车在几站台”：只取和这一问相关的人、地点、时刻和对话规矩，直接答。不做全量核验。</p><p class="en" style="margin:0">"Which platform?": take only the conditions for this person, place, time and channel, and answer. No full check.</p></div>
+      <div class="card"><h3><span class="zh">出方案或重排</span><span class="en">A plan or re-plan</span></h3><p class="zh" style="margin:0">完整走“用”和“核”。分两段：先给能照着走的下一步，再逐条核硬节点；网站在回答之后更新。</p><p class="en" style="margin:0">Full "apply" and "check", in two parts: the next step first, then every deadline checked; the website updates after the answer.</p></div>
+      <div class="card"><h3><span class="zh">一大批新要求</span><span class="en">A batch of new requests</span></h3><p class="zh" style="margin:0">派一个 agent 专门拆，逐点标出处、种类、依赖与冲突，不替用户定取舍；收口时从原话重拆一遍对照。</p><p class="en" style="margin:0">One agent splits them, marking source, kind, dependencies and conflicts for each point, without choosing for the user; at the end, re-split from the original words and compare.</p></div>
+    </div>
+
+    <p class="note" style="margin-top:28px"><span class="zh">这是需求处理工作法的精简说明。它说明如何保存来源、区分范围并取回适用条件；具体产品能力与连接限制见首页。</span><span class="en">This is a short explanation of the requirements method: retain sources, distinguish scope and retrieve applicable conditions. See the homepage for implemented features and connection limits.</span></p>
+    <p><a class="btn" href="index.html"><span class="zh">← 回到首页</span><span class="en">← Back to home</span></a></p>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div><b>tripwright</b> · <span class="zh">项目状态：开发中。许可证 MIT。</span><span class="en">Status: in development. MIT license.</span></div>
+    <div><span class="zh">本页不加载外部字体，不做任何追踪。</span><span class="en">This page loads no external fonts and does no tracking.</span></div>
+  </div>
+</footer>
+</body>
+</html>

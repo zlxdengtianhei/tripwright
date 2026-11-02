@@ -1,0 +1,40 @@
+always: false
+check: null
+compatible_with:
+- split_up_allowed
+- plan_detail
+- option_count
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-ty1jxi
+interpretations: []
+key: hiking
+kind: preference
+long_term: true
+origin: null
+priority: null
+quote: 我个人比较喜欢徒步，所以希望有能徒步的地方尽量让我去徒步
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: '*'
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-4msg8c
+  nature: user_verbatim
+status: active
+strength: prefer
+subject:
+- me
+text: 我 喜欢徒步：有能徒步的地方，尽量排他去徒步（原话 10-20 00:39 CEST）
+valid_from: null
+valid_until: null
+value: null

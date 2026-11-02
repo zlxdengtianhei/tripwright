@@ -1,0 +1,45 @@
+always: false
+check: null
+compatible_with:
+- pace_1031
+- save_money_1031
+- transport_1031
+- place_name_translation
+- hard_nodes_latest_time
+- second_round_verify_all
+- whole_picture
+- big_heading_for_plan
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-vwmtvp
+interpretations: []
+key: halloween_bouldering_event_1031
+kind: preference
+long_term: false
+origin: null
+priority: null
+quote: 我也是看到了我们这个严管有一些这个万圣节的活动，那我我还是想要去这个参加一下，稍微的看一看
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: '*'
+  end: '2026-10-31'
+  place: '*'
+  start: '2026-10-31'
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-hvhhc9
+  nature: user_verbatim
+status: active
+strength: prefer
+subject:
+- me
+text: 10-31 晚上想去岩馆的万圣节活动看看、参加一下（原话 10-31 13:48 CET）
+valid_from: null
+valid_until: null
+value: null

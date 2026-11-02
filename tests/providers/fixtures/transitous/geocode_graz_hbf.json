@@ -1,0 +1,267 @@
+[
+ {
+  "type": "STOP",
+  "name": "Graz Hauptbahnhof",
+  "id": "at-Railway-Current-Reference-Data-2026_Pat:46:3040",
+  "lat": 47.072483,
+  "lon": 15.417507,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Steiermark",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Graz",
+    "adminLevel": 6.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   },
+   {
+    "name": "Lend",
+    "adminLevel": 9.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Katastralgemeinde Lend",
+    "adminLevel": 10.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   }
+  ],
+  "modes": [
+   "HIGHSPEED_RAIL",
+   "LONG_DISTANCE",
+   "COACH",
+   "NIGHT_RAIL",
+   "REGIONAL_RAIL",
+   "SUBURBAN",
+   "TRAM",
+   "BUS"
+  ],
+  "importance": 0.004110822919756174
+ },
+ {
+  "type": "STOP",
+  "name": "GRAZ HBF",
+  "id": "it-trenitalia_810003171",
+  "lat": 47.067778000000004,
+  "lon": 15.415556000000002,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Steiermark",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Graz",
+    "adminLevel": 6.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   },
+   {
+    "name": "Gries",
+    "adminLevel": 9.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Katastralgemeinde Gries",
+    "adminLevel": 10.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   }
+  ],
+  "modes": [
+   "NIGHT_RAIL"
+  ],
+  "importance": 3.806497988989577e-05
+ },
+ {
+  "type": "STOP",
+  "name": "Graz Daungasse/Hauptbahnhof",
+  "id": "at-PTA-Styria-Flex-2026_at:46:4172:0:7",
+  "lat": 47.072665459999996,
+  "lon": 15.41342839,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Steiermark",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Graz",
+    "adminLevel": 6.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   },
+   {
+    "name": "Lend",
+    "adminLevel": 9.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Katastralgemeinde Lend",
+    "adminLevel": 10.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   }
+  ],
+  "modes": [
+   "TRAM",
+   "BUS"
+  ],
+  "importance": 3.530690082698129e-05
+ },
+ {
+  "type": "STOP",
+  "name": "Hauptbahnhof Süd",
+  "id": "at-Railway-Current-Reference-Data-2026_de:02000:10950:1:5",
+  "lat": 53.552383,
+  "lon": 10.007493,
+  "country": "DE",
+  "tz": "Europe/Berlin",
+  "areas": [
+   {
+    "name": "Deutschland",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Hamburg",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   },
+   {
+    "name": "Hamburg-Mitte",
+    "adminLevel": 9.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "St. Georg",
+    "adminLevel": 10.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   }
+  ],
+  "modes": [
+   "HIGHSPEED_RAIL",
+   "LONG_DISTANCE",
+   "COACH",
+   "NIGHT_RAIL",
+   "REGIONAL_RAIL",
+   "SUBURBAN",
+   "SUBWAY",
+   "BUS"
+  ],
+  "importance": 0.017726276069879532
+ },
+ {
+  "type": "STOP",
+  "name": "Hauptbahnhof Süd",
+  "id": "at-Railway-Current-Reference-Data-2026_de:09162:100:11:11",
+  "lat": 48.13988,
+  "lon": 11.557491,
+  "country": "DE",
+  "tz": "Europe/Berlin",
+  "areas": [
+   {
+    "name": "Deutschland",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Bayern",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Oberbayern",
+    "adminLevel": 5.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "München",
+    "adminLevel": 6.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   },
+   {
+    "name": "Ludwigsvorstadt-Isarvorstadt",
+    "adminLevel": 9.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   }
+  ],
+  "modes": [
+   "HIGHSPEED_RAIL",
+   "LONG_DISTANCE",
+   "NIGHT_RAIL",
+   "REGIONAL_RAIL",
+   "SUBURBAN",
+   "SUBWAY",
+   "TRAM",
+   "BUS"
+  ],
+  "importance": 0.017612231895327568
+ }
+]

@@ -1,0 +1,31 @@
+{
+  "schema": "tripwright.memory/1",
+  "trip": "2030-07-seenland",
+  "as_of": "2030-07-15T13:08:41+02:00",
+  "entries": [
+    {"id": "I-300512-h4c", "kind": "preference", "text": "u1 想省钱，能走就走", "quote": "这趟想省点钱，能走路就走路。", "subject": ["u1"],
+     "strength": "prefer", "source": {"trip": "2030-05-alpen", "event": "E-300512-a01", "said_at": "2030-05-12T18:00:00+02:00",
+     "speaker": "u1", "nature": "user_verbatim", "path": "profile/items/I-300512-h4c.yaml"},
+     "status": "confirmed", "status_event": "E-300713-a01", "last_used": {"trip": "2030-07-seenland", "date": "2030-07-15", "version_id": "V-300714-q8r"}},
+    {"id": "I-300513-n7w", "kind": "preference", "text": "早上 9 点前不出门", "quote": "早上别排太早，九点前我起不来。", "subject": ["u1"],
+     "strength": "prefer", "source": {"trip": "2030-05-alpen", "event": "E-300513-b02", "said_at": "2030-05-13T21:40:00+02:00",
+     "speaker": "u1", "nature": "user_verbatim", "path": "profile/items/I-300513-n7w.yaml"},
+     "status": "pending", "status_event": null, "last_used": {"trip": "2030-05-alpen", "date": "2030-05-14", "version_id": null}},
+    {"id": "u2", "kind": "companion", "text": "u2：同行；不爬山，喜欢书店", "quote": null, "subject": ["u2"], "strength": null,
+     "source": {"trip": "2030-05-alpen", "event": "E-300512-a01", "said_at": "2030-05-12T18:00:00+02:00", "speaker": "u1",
+     "nature": "host_restatement", "path": "profile/people.yaml"},
+     "status": "confirmed", "status_event": null, "last_used": {"trip": "2030-07-seenland", "date": "2030-07-15", "version_id": "V-300714-q8r"}},
+    {"id": "I-300512-r2t", "kind": "rule", "text": "不列班次表，给链接与搜索词", "quote": "别给我列一大串班次，给链接就行。", "subject": ["u1"],
+     "strength": "must", "source": {"trip": "2030-05-alpen", "event": "E-300512-a01", "said_at": "2030-05-12T18:00:00+02:00",
+     "speaker": "u1", "nature": "user_verbatim", "path": "profile/items/I-300512-r2t.yaml"},
+     "status": "confirmed", "status_event": null, "last_used": {"trip": "2030-07-seenland", "date": "2030-07-15", "version_id": "V-300714-q8r"}},
+    {"id": "I-300514-k9b", "kind": "preference", "text": "每天至少一次湖边或河边散步", "quote": "每天都想在水边走一走。", "subject": ["u1", "u2"],
+     "strength": "prefer", "source": {"trip": "2030-05-alpen", "event": "E-300514-c03", "said_at": "2030-05-14T08:15:00+02:00",
+     "speaker": "u1", "nature": "user_verbatim", "path": "profile/items/I-300514-k9b.yaml"},
+     "status": "not_used", "status_event": "E-300715-d04", "last_used": {"trip": "2030-05-alpen", "date": "2030-05-15", "version_id": null}},
+    {"id": "research/alpen-huetten.md", "kind": "material", "text": "上一趟收集的山间小屋与缆车须知", "quote": null, "subject": [],
+     "strength": null, "source": {"trip": "2030-05-alpen", "event": null, "said_at": null, "speaker": null, "nature": null,
+     "path": "trips/2030-05-alpen/research/alpen-huetten.md"},
+     "status": "not_used", "status_event": null, "last_used": null}
+  ]
+}

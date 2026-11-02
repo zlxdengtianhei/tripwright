@@ -1,0 +1,38 @@
+always: false
+check: null
+compatible_with:
+- option_count
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-w7sr1q
+interpretations: []
+key: plan_detail
+kind: preference
+long_term: true
+origin: null
+priority: null
+quote: 计划本身不需要写得太死板、太详细（比如非要提前定死我和朋友谁去哪、几点在哪碰头），这样看起来很累，执行起来负担也重。
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: '*'
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-4msg8c
+  nature: user_verbatim
+status: active
+strength: prefer
+subject:
+- me
+text: 计划不要写得太死、太细（不必提前定死谁去哪、几点在哪碰头）（原话 10-20 00:39 CEST）
+valid_from: null
+valid_until: null
+value: null

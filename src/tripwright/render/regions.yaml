@@ -1,0 +1,126 @@
+# 地区表：在这个地区找地方用什么、查班次用什么、已核还是推断。
+# 用户说过“这里 Google 查不到车”（实况）或发来某个 App 的截图时，以那条为准，本表只是回落（regions.py 的 choose）。
+# status：verified 已核（source 写依据）；inferred 推断（第一次在那个地区用之前没核）。
+# tools.usage：在这个工具里输入什么、点哪里；回答里的搜索词由 lines.py 按每段生成。
+# usage_checked: false 表示按钮与栏位的叫法没在手机上核过（10-31），只写动作，不引按钮上的字。
+# 链接格式与“未在手机上验证”见 links.py；10-31 用户在手机上点过：Google 地图链接进 App，Scotty 链接进浏览器。
+# M1（D-61 六）：每行另有这一趟“来源与须知”的产品默认值，账本里这一趟或长期的 setting 条目盖过它（consider.py 的 sources）：
+#   match：行程地区（trip.areas、day.area）里出现哪些词就算这一行（不分大小写）；
+#   languages：起草询问用的当地语言（英语总带，不写在这里）；realtime：这一带可选的实时来源（要用户去配，默认不配）；
+#   notes：地区须知，每条标 verified 或 inferred。
+
+# 每趟都有的数据源（默认开）。
+sources:
+  transitous:
+    zh: "Transitous（免费，按时刻表）"
+    en: "Transitous (free, timetable only)"
+
+tools:
+  google-maps:
+    zh: "Google 地图"
+    en: "Google Maps"
+    link: true
+    usage: {zh: "点顶部搜索框，输入地名。再点路线，选公交或步行。", en: "tap the search box at the top and type the place name. Then tap Directions and pick transit or walking."}
+    usage_checked: false
+  apple-maps:
+    zh: "Apple 地图"
+    en: "Apple Maps"
+    link: true
+    usage: {zh: "点搜索框，输入地名。再点路线，选公交或步行。", en: "tap the search box and type the place name. Then tap Directions and pick transit or walking."}
+    usage_checked: false
+  oebb-scotty:
+    zh: "ÖBB App"
+    en: "ÖBB app"
+    link: true
+    usage: {zh: "起点栏填起点站，终点栏填终点站。改好出发时间再搜索。", en: "enter the start stop under from and the end stop under to. Set the departure time, then search."}
+    usage_checked: false
+  wienmobil:
+    zh: "WienMobil App"
+    en: "WienMobil app"
+    link: false
+    usage: {zh: "起点栏填起点，终点栏填目的地，再搜索。", en: "enter the start under from and the destination under to, then search."}
+    usage_checked: false
+  sbb-mobile:
+    zh: "SBB Mobile"
+    en: "SBB Mobile"
+    link: false
+    usage: {zh: "起点栏填起点站，终点栏填终点站。改好出发时间再搜索，结果里看站台。", en: "enter the start station under from and the end station under to. Set the departure time, then search; the results show the platform."}
+    usage_checked: false
+  db-navigator:
+    zh: "DB Navigator"
+    en: "DB Navigator"
+    link: false
+    usage: {zh: "起点栏填起点站，终点栏填终点站。改好出发时间再搜索，结果里看站台。", en: "enter the start station under from and the end station under to. Set the departure time, then search; the results show the platform."}
+    usage_checked: false
+
+regions:
+  - id: at-salzkammergut
+    name: 奥地利湖区（Salzkammergut）
+    places: google-maps
+    timetable: oebb-scotty
+    why: {zh: "这一带 Google 地图查不到巴士", en: "Google Maps does not show the buses here"}
+    status: verified
+    source: 使用者实地反馈：在湖区 Google 地图查不到巴士，改用 ÖBB App 或 Scotty 查班次
+    match: [salzkammergut, hallstatt, bad ischl, gosau, st. wolfgang, obertraun, 湖区]
+    languages: [de]
+    realtime:
+      - {id: vao, zh: "奥地利 VAO（全境实时，要本人签约）", en: "Austria VAO (nationwide real time; needs your own contract)"}
+
+  - id: at-rural
+    name: 奥地利其他乡村与区域巴士
+    places: google-maps
+    timetable: oebb-scotty
+    why: {zh: "乡村巴士以 ÖBB 的班次为准", en: "rural buses are listed in ÖBB's timetable"}
+    status: inferred
+    source: 由湖区的实况类推；ÖBB 称 Scotty 覆盖全奥 Postbus 与各州公交（只见摘要，W12）
+    match: [austria, österreich, oesterreich, 奥地利, salzburg, graz, innsbruck, linz, 萨尔茨堡, 格拉茨]
+    languages: [de]
+    realtime:
+      - {id: vao, zh: "奥地利 VAO（全境实时，要本人签约）", en: "Austria VAO (nationwide real time; needs your own contract)"}
+    notes:
+      - {zh: "奥地利周日多数超市和商店不开门，车站与加油站的店除外", en: "In Austria most supermarkets and shops close on Sundays, except at stations and petrol stations", status: inferred}
+
+  - id: at-vienna
+    name: 维也纳市内
+    places: google-maps
+    timetable: google-maps
+    why: {zh: "市内线路 Google 地图有", en: "Google Maps covers the city lines"}
+    status: inferred
+    source: 旧系统在维也纳用过 Google 地图与 WienMobil；没核覆盖
+    match: [wien, vienna, 维也纳]
+    languages: [de]
+    realtime:
+      - {id: wiener-linien, zh: "维也纳 Wiener Linien 实时", en: "Vienna Wiener Linien real time"}
+      - {id: vao, zh: "奥地利 VAO（全境实时，要本人签约）", en: "Austria VAO (nationwide real time; needs your own contract)"}
+    notes:
+      - {zh: "奥地利周日多数超市和商店不开门，车站与加油站的店除外", en: "In Austria most supermarkets and shops close on Sundays, except at stations and petrol stations", status: inferred}
+
+  - id: ch
+    name: 瑞士
+    places: google-maps
+    timetable: sbb-mobile
+    why: {zh: "瑞士的车以 SBB 的班次为准", en: "Swiss services are listed in SBB's timetable"}
+    status: inferred
+    source: 推断；SBB 查询链接格式只见摘要，不生成链接
+    match: [switzerland, schweiz, suisse, svizzera, 瑞士, zürich, zurich, geneva, genève, bern, luzern, lucerne]
+    languages: [de, fr, it]
+
+  - id: de
+    name: 德国
+    places: google-maps
+    timetable: db-navigator
+    why: {zh: "德国的火车以 DB 的班次为准", en: "German trains are listed in DB's timetable"}
+    status: inferred
+    source: 推断；DB 新版链接格式只见第三方说法，不生成链接
+    match: [germany, deutschland, 德国, münchen, munich, berlin, hamburg]
+    languages: [de]
+
+  - id: default
+    name: 其他地区
+    places: google-maps
+    timetable: google-maps
+    why: {zh: "没有更好的本地工具记录", en: "no better local tool is recorded"}
+    status: inferred
+    source: 回落：没有地区记录时用 Google 地图
+    match: []
+    languages: []

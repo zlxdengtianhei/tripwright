@@ -1,0 +1,47 @@
+always: false
+check: null
+compatible_with:
+- site_more_options_sorted
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-gm2zlj
+interpretations: []
+key: map_app_search
+kind: rule
+long_term: true
+origin:
+  trip: 2026-10-bud-wien
+  event: E-261031-rhpzk9
+  said_at: '2026-10-31T19:37:03.503244+00:00'
+  speaker: me
+  nature: user_verbatim
+  path: trips/2026-10-bud-wien/raw/2026-10-31/20261031T193703Z-me-rhpzk9.md
+  message: 我现在上车了 是晚点了 我们大概是10.31上的车  这样后续行程怎么说 然后我的理解是之前我们的安排是不卡戈绍湖回bad ischl的最后一趟车的对不对 如果是11点就会卡最后一班然后会天黑吗 然后还有一个就是说因为有时候查询是很着急的
+    所以交互应该是你查好了就直接先输出结果在终端，我说不要表格是因为我只能复制完整的表格而不能复制其中的一部分，我要只复制一个地名的话就有点麻烦 然后需要更新网站了再更新 另外就是这个对于网站的更新 可能要有一些更smart的措施 就是有时候我可能着急了解现在情况下的安排
+    然后我需要的是及时回复 然后网站上就可以存稍微多一点的安排方式啥的 按照最有可能最佳的安排来排序。然后还有一个很关键的关于去哪里的跟我交互的方式应该是要告诉我我要在什么地图软件搜什么
+priority: null
+quote: 关于去哪里的跟我交互的方式应该是要告诉我我要在什么地图软件搜什么
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: conversation
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-rhpzk9
+  nature: user_verbatim
+status: active
+strength: must
+subject:
+- me
+text: 说去哪里时，写明在哪个地图 App 搜什么（原话 10-29 10:56 CET）
+valid_from: null
+valid_until: null
+value: null

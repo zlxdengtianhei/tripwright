@@ -1,0 +1,322 @@
+{
+  "schema": "tripwright.pack/1",
+  "pack_id": "CTX-300715-q1m",
+  "kind": "narrow",
+  "scenario": "quick",
+  "header": {
+    "people": [
+      "u1"
+    ],
+    "window": {
+      "date": "2030-07-15",
+      "from": "13:00",
+      "to": "15:00",
+      "timezone": "Europe/Vienna"
+    },
+    "place": "seenland",
+    "channel": "conversation",
+    "compiled_at": "2030-07-15T13:00:13+02:00"
+  },
+  "snapshot": {
+    "taken_at": "2030-07-15T13:00:13+02:00",
+    "plan_version": 3,
+    "plan_version_id": "V-300714-q8r",
+    "ledger_revision": 12,
+    "ledger_digest": "sha256:aa7c44fe4f835a6e",
+    "raw_watermark": {
+      "count": 4,
+      "last_event": "E-300715-d04",
+      "last_received_at": "2030-07-15T13:00:12+02:00"
+    },
+    "repo": {
+      "canonical": "origin/main",
+      "head": "3f2a91c",
+      "head_checked_at": "2030-07-15T12:59:58+02:00",
+      "unsynced_ops": [
+        "OP-300715-t4a"
+      ]
+    }
+  },
+  "required": {
+    "items": {
+      "status": "complete",
+      "ids": [
+        "I-300713-p1n",
+        "I-300713-t2k",
+        "I-300713-s4v",
+        "I-300715-e5y",
+        "I-300713-r7b"
+      ],
+      "reason": null
+    },
+    "facts": {
+      "status": "complete",
+      "ids": [
+        "F-300715-s1o",
+        "F-300715-n2l"
+      ],
+      "reason": null
+    },
+    "decisions": {
+      "status": "complete",
+      "ids": [
+        "D-300714-d3r"
+      ],
+      "reason": null
+    },
+    "hard_nodes": {
+      "status": "complete",
+      "ids": [
+        "hn-dinner"
+      ],
+      "reason": null
+    },
+    "checks_due": {
+      "status": "complete",
+      "ids": [],
+      "reason": null
+    },
+    "questions": {
+      "status": "complete",
+      "ids": [],
+      "reason": null
+    }
+  },
+  "records": {
+    "I-300713-p1n": {
+      "type": "item",
+      "section": "principle",
+      "kind": "constraint",
+      "key": "own_tasks",
+      "strength": "must",
+      "subject": [
+        "u1"
+      ],
+      "scope": {},
+      "quote": "谁的事谁做，别把别人的任务排给我。",
+      "text": "不把别人的任务排给 u1",
+      "reason": null,
+      "basis": "user_explicit",
+      "source_event": "E-300713-a01",
+      "speaker": "u1",
+      "status": "active"
+    },
+    "I-300713-t2k": {
+      "type": "item",
+      "section": "hard",
+      "kind": "constraint",
+      "key": "ticket_operator",
+      "strength": "must",
+      "subject": [
+        "u1",
+        "u2"
+      ],
+      "scope": {},
+      "quote": "我们的票是 ÖBB 的，WB 开头的车不能坐。",
+      "text": "只坐 ÖBB 的车，WB 开头的不能坐",
+      "reason": null,
+      "basis": "user_explicit",
+      "source_event": "E-300713-a01",
+      "speaker": "u1",
+      "status": "active"
+    },
+    "I-300713-s4v": {
+      "type": "item",
+      "section": "preference",
+      "kind": "preference",
+      "key": "budget",
+      "strength": "prefer",
+      "subject": [
+        "u1"
+      ],
+      "scope": {},
+      "quote": "这趟想省点钱，能走路就走路。",
+      "text": "u1 想省钱，能走就走",
+      "reason": null,
+      "basis": "user_explicit",
+      "source_event": "E-300713-a01",
+      "speaker": "u1",
+      "status": "active"
+    },
+    "I-300715-e5y": {
+      "type": "item",
+      "section": "preference",
+      "kind": "preference",
+      "key": "pace",
+      "strength": "prefer",
+      "subject": [
+        "u1"
+      ],
+      "scope": {
+        "start": "2030-07-15",
+        "end": "2030-07-15"
+      },
+      "quote": "我有点累，今天想轻松一点。",
+      "text": "u1 今天想轻松",
+      "reason": "有点累",
+      "basis": "user_explicit",
+      "source_event": "E-300715-c03",
+      "speaker": "u1",
+      "status": "active"
+    },
+    "I-300713-r7b": {
+      "type": "item",
+      "section": "rule",
+      "kind": "rule",
+      "key": "timetable_listing",
+      "strength": "must",
+      "subject": [
+        "u1"
+      ],
+      "scope": {
+        "channel": "conversation"
+      },
+      "quote": "别给我列一大串班次，给链接就行。",
+      "text": "不列班次表，给链接",
+      "reason": null,
+      "basis": "user_explicit",
+      "source_event": "E-300713-a01",
+      "speaker": "u1",
+      "status": "active"
+    },
+    "F-300715-s1o": {
+      "type": "fact",
+      "key": "solo",
+      "value": true,
+      "text": "u1 今天一个人行动",
+      "subject": [
+        "u1"
+      ],
+      "scope": {
+        "start": "2030-07-15",
+        "end": "2030-07-15"
+      },
+      "true_from": "2030-07-15T13:00:12+02:00",
+      "basis": "user_explicit",
+      "source_event": "E-300715-d04",
+      "speaker": "u1",
+      "status": "active"
+    },
+    "F-300715-n2l": {
+      "type": "fact",
+      "key": "luggage",
+      "value": "none",
+      "text": "u1 没有箱子，箱子由 u2 带回 Grauwald",
+      "subject": [
+        "u1"
+      ],
+      "scope": {
+        "start": "2030-07-15",
+        "end": "2030-07-15"
+      },
+      "true_from": "2030-07-15T13:00:12+02:00",
+      "basis": "user_explicit",
+      "source_event": "E-300715-d04",
+      "speaker": "u1",
+      "status": "active"
+    },
+    "D-300714-d3r": {
+      "type": "decision",
+      "question": "15 号晚饭在哪吃",
+      "choice": "Gasthaus Lindengrund",
+      "decided_by": "user",
+      "must": true,
+      "subject": [
+        "u1",
+        "u2"
+      ],
+      "scope": {
+        "start": "2030-07-15",
+        "end": "2030-07-15"
+      },
+      "locked_paths": {
+        "/blocks/d2-dinner/place": "lindengrund"
+      },
+      "basis": "user_explicit",
+      "source_event": "E-300714-b02",
+      "speaker": "u1",
+      "status": "active"
+    },
+    "hn-dinner": {
+      "type": "hard_node",
+      "date": "2030-07-15",
+      "time": "19:30",
+      "text": "Gasthaus Lindengrund 晚饭（已订）",
+      "subject": [
+        "u1",
+        "u2"
+      ],
+      "place": "lindengrund",
+      "buffer_minutes": 15,
+      "travel_minutes": 70,
+      "latest_departure": "18:05",
+      "consequence": "误了就坐 18:50 那班，晚饭迟到约 40 分钟。",
+      "alternative": "先给餐厅打电话。"
+    }
+  },
+  "orders": [
+    {
+      "between": [
+        "I-300713-s4v",
+        "I-300715-e5y"
+      ],
+      "status": "none",
+      "order": null,
+      "source_event": null
+    }
+  ],
+  "omitted": [
+    {
+      "id": "I-300715-b8k",
+      "reason": "out_of_scope:people"
+    },
+    {
+      "id": "I-300714-w9a",
+      "reason": "out_of_scope:time"
+    },
+    {
+      "id": "I-300713-m0u",
+      "reason": "out_of_scope:date"
+    },
+    {
+      "id": "P-300714-w6t",
+      "reason": "over_budget"
+    }
+  ],
+  "details": [
+    {
+      "path": "trips/2030-07-seenland/plan/days/2030-07-15.yaml",
+      "ids": [
+        "hn-dinner",
+        "d2-dinner"
+      ]
+    },
+    {
+      "path": "trips/2030-07-seenland/plan/places.yaml",
+      "ids": [
+        "seeufer-nord",
+        "seeufer-sued"
+      ]
+    }
+  ],
+  "candidate": null,
+  "full_quotes": null,
+  "dispositions": null,
+  "digest": {
+    "sections": [
+      "header",
+      "principles",
+      "hard",
+      "facts",
+      "hard_nodes",
+      "decisions",
+      "preferences",
+      "checks",
+      "rules",
+      "omitted",
+      "details"
+    ],
+    "budget_tokens": 1695,
+    "writing_rules": "zh"
+  }
+}

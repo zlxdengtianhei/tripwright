@@ -1,0 +1,381 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tripwright.invalid/contracts/v1",
+  "title": "tripwright 接缝约定 v1（docs/CONTRACTS.md 的机读部分）",
+  "$defs": {
+    "stamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?([+-][0-9]{2}:[0-9]{2}|Z)$"},
+    "date": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "clock": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"},
+    "suffix": {"type": "string", "pattern": "^([0-9]{6}-[a-z0-9]{3,6}|[0-9a-f]{32})$"},
+    "event_id": {"type": "string", "pattern": "^E-([0-9]{6}-[a-z0-9]{3,6}|[0-9a-f]{32})$"},
+    "op_id": {"type": "string", "pattern": "^OP-([0-9]{6}-[a-z0-9]{3,6}|[0-9a-f]{32})$"},
+    "version_id": {"type": "string", "pattern": "^V-([0-9]{6}-[a-z0-9]{3,6}|[0-9a-f]{32})$"},
+    "ctx_id": {"type": "string", "pattern": "^CTX-([0-9]{6}-[a-z0-9]{3,6}|[0-9a-f]{32})$"},
+    "job_id": {"type": "string", "pattern": "^J-([0-9]{6}-[a-z0-9]{3,6}|[0-9a-f]{32})$"},
+    "draft_id": {"type": "string", "pattern": "^DR-([0-9]{6}-[a-z0-9]{3,6}|[0-9a-f]{32})$"},
+    "notice_id": {"type": "string", "pattern": "^N-([0-9]{6}-[a-z0-9]{3,6}|[0-9a-f]{32})$"},
+    "record_id": {"type": "string", "pattern": "^(I|F|D|P|Q)-([0-9]{6}-[a-z0-9]{3,6}|[0-9a-f]{32})$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{7,40}$"},
+    "people": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
+    "link": {
+      "type": "object", "additionalProperties": false, "required": ["label", "url"],
+      "properties": {"label": {"type": "string", "minLength": 1}, "url": {"type": "string", "pattern": "^https://"}}
+    },
+    "search": {
+      "description": "在哪个 App 搜什么：正文里写出来，不点链接也能用（用户 10-31 新要求）。query 是原文拼写的确切搜索词。",
+      "type": "object", "additionalProperties": false, "required": ["app", "query"],
+      "properties": {"app": {"type": "string", "minLength": 1}, "query": {"type": "string", "minLength": 1}}
+    },
+
+    "snapshot": {
+      "description": "一次读取绑定的有效快照（CONTRACTS 第 1.1 节）。内容键 = plan_version_id + ledger_digest。",
+      "type": "object", "additionalProperties": false,
+      "required": ["taken_at", "plan_version", "plan_version_id", "ledger_revision", "ledger_digest", "raw_watermark", "repo"],
+      "properties": {
+        "taken_at": {"$ref": "#/$defs/stamp"},
+        "plan_version": {"type": "integer", "minimum": 0},
+        "plan_version_id": {"oneOf": [{"$ref": "#/$defs/version_id"}, {"type": "null"}]},
+        "ledger_revision": {"type": "integer", "minimum": 0},
+        "ledger_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{16}$"},
+        "raw_watermark": {
+          "type": "object", "additionalProperties": false, "required": ["count", "last_event", "last_received_at"],
+          "properties": {
+            "count": {"type": "integer", "minimum": 0},
+            "last_event": {"oneOf": [{"$ref": "#/$defs/event_id"}, {"type": "null"}]},
+            "last_received_at": {"oneOf": [{"$ref": "#/$defs/stamp"}, {"type": "null"}]}
+          }
+        },
+        "repo": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "object", "additionalProperties": false, "required": ["canonical", "head", "head_checked_at", "unsynced_ops"],
+             "properties": {
+               "canonical": {"type": "string", "minLength": 1},
+               "head": {"oneOf": [{"$ref": "#/$defs/commit"}, {"type": "null"}]},
+               "head_checked_at": {"oneOf": [{"$ref": "#/$defs/stamp"}, {"type": "null"}]},
+               "unsynced_ops": {"type": "array", "items": {"$ref": "#/$defs/op_id"}, "uniqueItems": true}
+             }}
+          ]
+        }
+      }
+    },
+
+    "group": {
+      "type": "object", "additionalProperties": false, "required": ["status", "ids", "reason"],
+      "properties": {
+        "status": {"enum": ["complete", "partial", "unknown"]},
+        "ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "reason": {"type": ["string", "null"]}
+      },
+      "if": {"properties": {"status": {"const": "unknown"}}},
+      "then": {"properties": {"reason": {"type": "string", "minLength": 1}}}
+    },
+    "pack_record": {
+      "type": "object", "required": ["type"],
+      "properties": {"type": {"enum": ["item", "fact", "decision", "hard_node", "check", "question"]}},
+      "allOf": [
+        {"if": {"properties": {"type": {"const": "item"}}},
+         "then": {"required": ["section", "kind", "strength", "subject", "scope", "quote", "basis", "source_event", "speaker", "status"],
+                  "properties": {"section": {"enum": ["principle", "hard", "preference", "rule", "goal"]},
+                                 "strength": {"enum": ["must", "forbid", "prefer", "optional"]},
+                                 "basis": {"enum": ["user_explicit", "direction_set", "recommended_default", "agent_inference"]},
+                                 "source_event": {"$ref": "#/$defs/event_id"}}}},
+        {"if": {"properties": {"type": {"const": "fact"}}},
+         "then": {"required": ["key", "value", "text", "subject", "scope", "true_from", "basis", "source_event", "speaker", "status"]}},
+        {"if": {"properties": {"type": {"const": "decision"}}},
+         "then": {"required": ["question", "choice", "decided_by", "subject", "scope", "locked_paths", "basis", "source_event", "speaker", "status"]}},
+        {"if": {"properties": {"type": {"const": "hard_node"}}},
+         "then": {"required": ["date", "time", "text", "subject", "buffer_minutes", "travel_minutes", "latest_departure", "consequence", "alternative"]}},
+        {"if": {"properties": {"type": {"const": "check"}}},
+         "then": {"required": ["question", "due_at", "overdue", "consequence", "alternative", "basis", "source_event", "status"]}}
+      ]
+    },
+    "pack": {
+      "description": "一份机读包（CONTRACTS 第 3.1 节）。records 是内容的唯一一处；required 各组只列编号。",
+      "type": "object", "additionalProperties": false,
+      "required": ["schema", "pack_id", "kind", "scenario", "header", "snapshot", "required", "records", "orders", "omitted", "details",
+                   "candidate", "full_quotes", "dispositions", "digest"],
+      "properties": {
+        "schema": {"const": "tripwright.pack/1"},
+        "pack_id": {"$ref": "#/$defs/ctx_id"},
+        "kind": {"enum": ["narrow", "wide"]},
+        "scenario": {"enum": ["quick", "status", "replan", "plan", "compare", "requirements", "system"]},
+        "header": {
+          "type": "object", "additionalProperties": false, "required": ["people", "window", "place", "channel", "compiled_at"],
+          "properties": {
+            "people": {"$ref": "#/$defs/people"},
+            "window": {"type": "object", "additionalProperties": false, "required": ["date", "from", "to", "timezone"],
+                       "properties": {"date": {"$ref": "#/$defs/date"}, "from": {"oneOf": [{"$ref": "#/$defs/clock"}, {"type": "null"}]},
+                                      "to": {"oneOf": [{"$ref": "#/$defs/clock"}, {"type": "null"}]}, "timezone": {"type": "string"}}},
+            "place": {"type": "string"}, "channel": {"type": "string"}, "compiled_at": {"$ref": "#/$defs/stamp"},
+            "now": {"type": "object", "additionalProperties": false, "required": ["at", "date", "time", "weekday", "timezone"], "properties": {"at": {"type": "string"}, "date": {"$ref": "#/$defs/date"}, "time": {"$ref": "#/$defs/clock"}, "weekday": {"type": "integer", "minimum": 1, "maximum": 7}, "timezone": {"type": "string"}}}
+          }
+        },
+        "snapshot": {"$ref": "#/$defs/snapshot"},
+        "required": {
+          "type": "object", "additionalProperties": false,
+          "required": ["items", "facts", "decisions", "hard_nodes", "checks_due", "questions"],
+          "properties": {"items": {"$ref": "#/$defs/group"}, "facts": {"$ref": "#/$defs/group"}, "decisions": {"$ref": "#/$defs/group"},
+                         "hard_nodes": {"$ref": "#/$defs/group"}, "checks_due": {"$ref": "#/$defs/group"}, "questions": {"$ref": "#/$defs/group"}}
+        },
+        "records": {"type": "object", "additionalProperties": {"$ref": "#/$defs/pack_record"}},
+        "orders": {"type": "array", "items": {
+          "type": "object", "additionalProperties": false, "required": ["between", "status", "order", "source_event"],
+          "properties": {"between": {"type": "array", "items": {"$ref": "#/$defs/record_id"}, "minItems": 2},
+                         "status": {"enum": ["user", "none"]},
+                         "order": {"type": ["array", "null"], "items": {"$ref": "#/$defs/record_id"}},
+                         "source_event": {"oneOf": [{"$ref": "#/$defs/event_id"}, {"type": "null"}]}},
+          "if": {"properties": {"status": {"const": "user"}}},
+          "then": {"properties": {"order": {"type": "array"}, "source_event": {"$ref": "#/$defs/event_id"}}}}},
+        "omitted": {"type": "array", "items": {
+          "type": "object", "additionalProperties": false, "required": ["id", "reason"],
+          "properties": {"id": {"type": "string"},
+                         "reason": {"enum": ["out_of_scope:people", "out_of_scope:time", "out_of_scope:date", "out_of_scope:place",
+                                             "out_of_scope:channel", "over_budget"]}}}},
+        "details": {"type": "array", "items": {
+          "type": "object", "additionalProperties": false, "required": ["path", "ids"],
+          "properties": {"path": {"type": "string", "minLength": 1}, "ids": {"type": "array", "items": {"type": "string"}}}}},
+        "candidate": {"oneOf": [{"type": "null"},
+          {"type": "object", "additionalProperties": false, "required": ["draft_id", "budget"],
+           "properties": {"draft_id": {"$ref": "#/$defs/draft_id"}, "budget": {"const": "excluded"}}}]},
+        "full_quotes": {"oneOf": [{"type": "null"},
+          {"type": "object", "propertyNames": {"$ref": "#/$defs/event_id"}, "additionalProperties": {"type": "string", "minLength": 1}}]},
+        "dispositions": {"oneOf": [{"type": "null"}, {"type": "array", "items": {"$ref": "#/$defs/disposition"}}]},
+        "digest": {
+          "type": "object", "additionalProperties": false, "required": ["sections", "budget_tokens", "writing_rules"],
+          "properties": {
+            "sections": {"type": "array", "items": {"enum": ["header", "principles", "hard", "facts", "hard_nodes", "decisions", "preferences",
+                                                              "checks", "rules", "omitted", "details", "full_quotes", "dispositions"]}},
+            "budget_tokens": {"type": "integer", "minimum": 100},
+            "writing_rules": {"enum": ["zh", "en"]}
+          }
+        }
+      },
+      "allOf": [
+        {"if": {"properties": {"kind": {"const": "wide"}}},
+         "then": {"properties": {"full_quotes": {"type": "object"}, "dispositions": {"type": "array"}, "candidate": {"type": "object"}}}},
+        {"if": {"properties": {"kind": {"const": "narrow"}}},
+         "then": {"properties": {"full_quotes": {"type": "null"}, "dispositions": {"type": "null"}}}}
+      ]
+    },
+    "disposition": {
+      "description": "逐条处置。沿用 propose/作业结果里的 usages 格式（usage.py）；包里的初值是 unaddressed。",
+      "type": "object", "required": ["item_id", "status"],
+      "properties": {
+        "item_id": {"$ref": "#/$defs/record_id"},
+        "status": {"enum": ["unaddressed", "used", "host_reported", "traded_off", "not_applicable", "invalid"]},
+        "verification": {"enum": ["server_checked", "unverified", "conflict"]},
+        "block_ids": {"type": "array", "items": {"type": "string"}},
+        "reason": {"type": "string"}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"enum": ["traded_off", "not_applicable"]}}}, "then": {"required": ["reason"]}},
+        {"if": {"properties": {"status": {"enum": ["used", "host_reported"]}}}, "then": {"required": ["block_ids"]}}
+      ]
+    },
+
+    "place_line": {
+      "type": "object", "additionalProperties": false, "required": ["place_id", "name_local", "line", "search", "link"],
+      "properties": {"place_id": {"type": "string"}, "name_local": {"type": "string", "minLength": 1},
+                     "line": {"type": "string", "minLength": 1}, "search": {"$ref": "#/$defs/search"}, "link": {"$ref": "#/$defs/link"}}
+    },
+    "leg": {
+      "type": "object", "additionalProperties": false, "required": ["verb", "from", "to", "timing", "note", "search", "link"],
+      "properties": {"verb": {"type": "string", "minLength": 1}, "from": {"type": "string"}, "to": {"type": "string"},
+                     "timing": {"type": ["string", "null"]}, "note": {"type": ["string", "null"]}, "search": {"$ref": "#/$defs/search"},
+                     "link": {"$ref": "#/$defs/link"}}
+    },
+    "unchecked_line": {
+      "type": "object", "additionalProperties": false, "required": ["item_id", "what", "consequence", "onsite"],
+      "properties": {"item_id": {"type": ["string", "null"]}, "what": {"type": "string", "minLength": 1},
+                     "consequence": {"type": "string", "minLength": 1}, "onsite": {"type": "string", "minLength": 1}}
+    },
+    "hard_line": {
+      "type": "object", "additionalProperties": false, "required": ["hard_node", "line"],
+      "properties": {"hard_node": {"type": ["string", "null"]}, "line": {"type": "string", "minLength": 1}}
+    },
+    "options": {
+      "type": "object", "additionalProperties": false, "required": ["common", "decide_before", "variants", "recommend", "default"],
+      "properties": {
+        "common": {"type": "array", "items": {"type": "string"}},
+        "decide_before": {"type": ["string", "null"]},
+        "variants": {"type": "array", "minItems": 2, "maxItems": 3, "items": {
+          "type": "object", "additionalProperties": false, "required": ["label", "diff", "how", "item_ids", "plan"],
+          "properties": {"label": {"type": "string", "minLength": 1}, "diff": {"type": ["string", "null"]}, "how": {"type": "string", "minLength": 1},
+                         "item_ids": {"type": "array", "items": {"$ref": "#/$defs/record_id"}}, "plan": {"type": ["string", "null"]}}}},
+        "recommend": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["label", "reason"],
+                      "properties": {"label": {"type": "string"}, "reason": {"type": "string", "minLength": 1}}}]},
+        "default": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["label", "reason"],
+                    "properties": {"label": {"type": "string"}, "reason": {"type": "string", "minLength": 1}}}]}
+      }
+    },
+    "write_ref": {
+      "type": "object", "additionalProperties": false, "required": ["op_id", "state", "unsynced"],
+      "properties": {"op_id": {"$ref": "#/$defs/op_id"}, "state": {"enum": ["received", "pending_sync", "effective", "conflict"]},
+                     "unsynced": {"type": "integer", "minimum": 0},
+                     "blocked": {"type": "object", "additionalProperties": false, "required": ["kind", "since", "hint"],
+                                 "properties": {"kind": {"enum": ["auth", "protected", "network", "behind", "other", "commit"]},
+                                                "since": {"type": "string"}, "hint": {"type": "string", "minLength": 1}}}}
+    },
+    "answer_common": {
+      "type": "object",
+      "required": ["schema", "skeleton", "pack_id", "at", "language", "notices"],
+      "properties": {
+        "schema": {"const": "tripwright.answer/1"},
+        "pack_id": {"$ref": "#/$defs/ctx_id"},
+        "at": {"$ref": "#/$defs/stamp"},
+        "language": {"enum": ["zh", "en"]},
+        "notices": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["notice_id", "line"],
+                    "properties": {"notice_id": {"$ref": "#/$defs/notice_id"}, "line": {"type": "string", "minLength": 1}}}}
+      }
+    },
+    "answer": {
+      "description": "回答数据（CONTRACTS 第 3.4 节）。三种骨架；栏与上限照设计第 9.2 节。",
+      "oneOf": [
+        {"allOf": [{"$ref": "#/$defs/answer_common"}, {
+          "type": "object",
+          "required": ["skeleton", "answer", "places", "legs", "hard_node", "check"],
+          "properties": {
+            "schema": true, "pack_id": true, "at": true, "language": true, "notices": true,
+            "skeleton": {"const": "quick"},
+            "answer": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 2},
+            "places": {"type": "array", "items": {"$ref": "#/$defs/place_line"}},
+            "legs": {"type": "array", "items": {"$ref": "#/$defs/leg"}},
+            "hard_node": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/hard_line"}]},
+            "check": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/unchecked_line"}]}
+          },
+          "additionalProperties": false}]},
+        {"allOf": [{"$ref": "#/$defs/answer_common"}, {
+          "type": "object",
+          "required": ["skeleton", "heading_time", "now", "latest", "options", "places", "legs", "tool_hint", "checks"],
+          "properties": {
+            "schema": true, "pack_id": true, "at": true, "language": true, "notices": true,
+            "skeleton": {"const": "first"},
+            "heading_time": {"$ref": "#/$defs/clock"},
+            "now": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 3},
+            "latest": {"type": "array", "items": {"$ref": "#/$defs/hard_line"}, "maxItems": 3},
+            "options": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/options"}]},
+            "places": {"type": "array", "items": {"$ref": "#/$defs/place_line"}},
+            "legs": {"type": "array", "items": {"$ref": "#/$defs/leg"}},
+            "tool_hint": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["tool", "line"],
+                          "properties": {"tool": {"type": "string"}, "line": {"type": "string", "minLength": 1}}}]},
+            "checks": {"type": "array", "items": {"$ref": "#/$defs/unchecked_line"}, "maxItems": 2}
+          },
+          "additionalProperties": false}]},
+        {"allOf": [{"$ref": "#/$defs/answer_common"}, {
+          "type": "object",
+          "required": ["skeleton", "result", "commit", "write", "differences", "hard_nodes", "schedule_from", "schedule", "options",
+                       "todo", "unchecked", "conditions"],
+          "properties": {
+            "schema": true, "pack_id": true, "at": true, "language": true, "notices": true,
+            "skeleton": {"const": "second"},
+            "result": {"type": "object", "additionalProperties": false, "required": ["job_id", "status", "verdict"],
+                       "properties": {"job_id": {"$ref": "#/$defs/job_id"}, "status": {"const": "completed"},
+                                      "verdict": {"enum": ["passed", "conflict", "incomplete"]}}},
+            "commit": {"type": "object", "additionalProperties": false, "required": ["accepted", "draft_id", "version_id"],
+                       "properties": {"accepted": {"type": "boolean"}, "draft_id": {"$ref": "#/$defs/draft_id"},
+                                      "version_id": {"oneOf": [{"$ref": "#/$defs/version_id"}, {"type": "null"}]}}},
+            "write": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/write_ref"}]},
+            "differences": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 3},
+            "hard_nodes": {"type": "array", "items": {"$ref": "#/$defs/hard_line"}, "maxItems": 4},
+            "schedule_from": {"$ref": "#/$defs/clock"},
+            "schedule": {"type": "array", "minItems": 1, "items": {
+              "type": "object", "additionalProperties": false, "required": ["time", "blocks"],
+              "properties": {"time": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9](—([01][0-9]|2[0-3]):[0-5][0-9])?$"},
+                             "blocks": {"type": "array", "items": {"type": "string"}},
+                             "text": {"type": "string", "minLength": 1}, "leg": {"$ref": "#/$defs/leg"}},
+              "oneOf": [{"required": ["text"]}, {"required": ["leg"]}]}},
+            "options": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/options"}]},
+            "todo": {"type": "array", "items": {"type": "string"}, "maxItems": 4},
+            "unchecked": {"type": "array", "items": {"$ref": "#/$defs/unchecked_line"}, "maxItems": 3},
+            "conditions": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 2}
+          },
+          "additionalProperties": false}]}
+      ]
+    },
+
+    "transition": {
+      "type": "object", "additionalProperties": false, "required": ["state", "at"],
+      "properties": {
+        "state": {"enum": ["received", "pending_sync", "effective", "conflict"]},
+        "at": {"$ref": "#/$defs/stamp"},
+        "commit": {"$ref": "#/$defs/commit"},
+        "reason": {"enum": ["plan_base_changed", "record_status_race", "replay_refused"]},
+        "remote_head": {"$ref": "#/$defs/commit"},
+        "detail": {"type": "string"},
+        "notice_id": {"$ref": "#/$defs/notice_id"},
+        "question_id": {"type": "string"}
+      },
+      "allOf": [
+        {"if": {"properties": {"state": {"enum": ["pending_sync", "effective"]}}}, "then": {"required": ["commit"]}},
+        {"if": {"properties": {"state": {"const": "conflict"}}}, "then": {"required": ["reason", "detail", "notice_id"]}}
+      ]
+    },
+    "write_op": {
+      "description": "一个写操作与它的状态序列（CONTRACTS 第 2 节）。",
+      "type": "object", "required": ["op_id", "kind", "request", "records", "transitions"],
+      "properties": {
+        "op_id": {"$ref": "#/$defs/op_id"},
+        "kind": {"enum": ["turn", "commit", "job"]},
+        "request": {"type": "object", "additionalProperties": false, "required": ["tool", "key"],
+                    "properties": {"tool": {"enum": ["turn", "commit", "job"]}, "key": {"type": "string", "minLength": 1}}},
+        "event": {"$ref": "#/$defs/event_id"},
+        "draft_id": {"$ref": "#/$defs/draft_id"},
+        "version_id": {"$ref": "#/$defs/version_id"},
+        "records": {"type": "array", "items": {"$ref": "#/$defs/record_id"}},
+        "transitions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/transition"}}
+      }
+    },
+    "notice": {
+      "type": "object", "additionalProperties": false,
+      "required": ["notice_id", "kind", "op_id", "created_at", "shown", "reason", "replan", "user_line", "until"],
+      "properties": {
+        "notice_id": {"$ref": "#/$defs/notice_id"},
+        "kind": {"const": "write_conflict"},
+        "op_id": {"$ref": "#/$defs/op_id"},
+        "created_at": {"$ref": "#/$defs/stamp"},
+        "shown": {"type": "object", "additionalProperties": false, "required": ["draft_id", "job_id", "retrieved_at"],
+                  "properties": {"draft_id": {"oneOf": [{"$ref": "#/$defs/draft_id"}, {"type": "null"}]},
+                                 "job_id": {"oneOf": [{"$ref": "#/$defs/job_id"}, {"type": "null"}]},
+                                 "retrieved_at": {"oneOf": [{"$ref": "#/$defs/stamp"}, {"type": "null"}]}}},
+        "reason": {"enum": ["plan_base_changed", "record_status_race", "replay_refused"]},
+        "replan": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["dates", "people"],
+                   "properties": {"dates": {"type": "array", "items": {"$ref": "#/$defs/date"}}, "people": {"type": "array", "items": {"type": "string"}}}}]},
+        "user_line": {"type": "string", "minLength": 1},
+        "until": {"type": "string", "minLength": 1}
+      }
+    },
+    "write_states": {
+      "type": "object", "required": ["schema", "canonical", "heads", "ops", "notices"],
+      "properties": {
+        "schema": {"const": "tripwright.sample-writes/1"},
+        "canonical": {"type": "string"},
+        "heads": {"type": "array", "items": {"type": "object", "required": ["commit", "from", "external"],
+                  "properties": {"commit": {"$ref": "#/$defs/commit"}, "from": {"$ref": "#/$defs/stamp"}, "external": {"type": "boolean"}}}},
+        "ops": {"type": "array", "items": {"$ref": "#/$defs/write_op"}},
+        "notices": {"type": "array", "items": {"$ref": "#/$defs/notice"}}
+      }
+    },
+
+    "result_response": {
+      "description": "result 的回复（CONTRACTS 第 1.4 节）。只有 completed 带结果。",
+      "type": "object", "additionalProperties": false, "required": ["job_id", "status", "changed", "unsettled_events", "result", "notice"],
+      "properties": {
+        "job_id": {"$ref": "#/$defs/job_id"},
+        "status": {"enum": ["queued", "running", "failed", "cancelled", "stale", "unsettled", "completed"]},
+        "changed": {"type": "array", "items": {"enum": ["plan", "ledger"]}, "uniqueItems": true},
+        "unsettled_events": {"type": "array", "items": {"$ref": "#/$defs/event_id"}},
+        "result": {"oneOf": [{"type": "null"}, {"type": "object", "required": ["draft_id", "verdict", "usages"],
+                   "properties": {"draft_id": {"$ref": "#/$defs/draft_id"}, "verdict": {"enum": ["passed", "conflict", "incomplete"]},
+                                  "usages": {"type": "array", "items": {"$ref": "#/$defs/disposition"}}}}]},
+        "notice": {"type": ["string", "null"]}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "completed"}}}, "then": {"properties": {"result": {"type": "object"}}},
+         "else": {"properties": {"result": {"type": "null"}}}},
+        {"if": {"properties": {"status": {"const": "stale"}}}, "then": {"properties": {"changed": {"minItems": 1}, "notice": {"const": "已过期，需重算"}}}},
+        {"if": {"properties": {"status": {"const": "unsettled"}}}, "then": {"properties": {"unsettled_events": {"minItems": 1}}}}
+      ]
+    }
+  }
+}

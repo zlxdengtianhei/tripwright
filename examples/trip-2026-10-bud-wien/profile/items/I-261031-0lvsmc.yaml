@@ -1,0 +1,44 @@
+always: false
+check: null
+compatible_with: []
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-0lvsmc
+interpretations: []
+key: answer_first
+kind: rule
+long_term: true
+origin:
+  trip: 2026-10-bud-wien
+  event: E-261031-r21xo2
+  said_at: '2026-10-31T19:37:03.482077+00:00'
+  speaker: me
+  nature: user_verbatim
+  path: trips/2026-10-bud-wien/raw/2026-10-31/20261031T193703Z-me-r21xo2.md
+  message: 别 以后的交互应该是你先给我终端输出我现在的走法 然后再去更新网站 现在直接告诉我我们怎么走 要不行就打车先去另外一个站
+priority: null
+quote: 以后的交互应该是你先给我终端输出我现在的走法 然后再去更新网站
+reason: 10-29 10:56 又说：因为有时候查询是很着急的 所以交互应该是你查好了就直接先输出结果在终端
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: conversation
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-r21xo2
+  nature: user_verbatim
+status: active
+strength: must
+subject:
+- me
+text: 先在对话里给现在怎么走，再去更新网站（原话 10-29 10:28 CET）
+valid_from: null
+valid_until: null
+value: null

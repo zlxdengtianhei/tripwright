@@ -1,0 +1,16 @@
+- id: me
+  name: 我
+  trips:
+  - 2026-10-bud-wien
+- id: mate-1
+  name: 同行人 A
+  trips:
+  - 2026-10-bud-wien
+- id: mate-2
+  name: 同行人 B
+  trips:
+  - 2026-10-bud-wien
+- id: mate-3
+  name: 同行人 C
+  trips:
+  - 2026-10-bud-wien

@@ -1,0 +1,29 @@
+# The site address comes from TRIPWRIGHT_DOMAIN (compose passes it from deploy/.env), e.g. trip.example.org.
+{$TRIPWRIGHT_DOMAIN} {
+	tls {
+		issuer acme {
+			dir https://acme-v02.api.letsencrypt.org/directory
+		}
+	}
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+	}
+
+	# The application's own liveness (/healthz) and readiness (/readyz: every tenant opened, its remote answered,
+	# no write blocked). Connection failures remain 502.
+	handle /healthz {
+		reverse_proxy tripwright:8000
+	}
+	handle /readyz {
+		reverse_proxy tripwright:8000
+	}
+
+	handle {
+		reverse_proxy tripwright:8000 {
+			flush_interval -1
+		}
+	}
+}

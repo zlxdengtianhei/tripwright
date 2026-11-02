@@ -1,0 +1,71 @@
+anchors:
+- alternative: 05:45 前到 Ryanair 柜台
+  app: Ryanair app 网上值机、做护照验证
+  booking: bk-1101-flight
+  buffer_minutes: 0
+  consequence: 05:45 后只能柜台值机、另交钱；需要盖章却没盖，不能登机、不退钱
+  destination: null
+  evidence_ids: []
+  id: a1101-checkin
+  line: null
+  place: vie-airport
+  subject:
+  - me
+  text: Ryanair 网上值机截止（起飞前 2 小时）；拿非欧盟/EEA 护照的，这时前排到 Visa/Document check 柜台盖章
+  time: 05:45
+  travel_minutes: null
+- alternative: 05:45 前去排队最稳
+  app: null
+  booking: bk-1101-flight
+  buffer_minutes: 0
+  consequence: 没盖章不能登机、不退钱
+  destination: null
+  evidence_ids: []
+  id: a1101-document-check
+  line: null
+  place: vie-airport
+  subject:
+  - me
+  text: Ryanair Visa/Document check 柜台关（起飞前 40 分钟）
+  time: 07:05
+  travel_minutes: null
+- alternative: 按登机牌时间提早到登机口
+  app: null
+  booking: bk-1101-flight
+  buffer_minutes: 0
+  consequence: 登机口关了不能登机
+  destination: null
+  evidence_ids: []
+  id: a1101-gate
+  line: null
+  place: vie-airport
+  subject:
+  - me
+  text: 登机口关（旧记录，没重核）；航站楼以 Ryanair app 登机牌为准
+  time: 07:15
+  travel_minutes: null
+- alternative: 以 Ryanair app 的通知为准
+  app: null
+  booking: bk-1101-flight
+  buffer_minutes: 0
+  consequence: 误机要另买票
+  destination: null
+  evidence_ids: []
+  id: a1101-flight
+  line: null
+  place: vie-airport
+  subject:
+  - me
+  text: 航班号略 从维也纳机场起飞，10:05 到斯德哥尔摩 ARN
+  time: 07:45
+  travel_minutes: null
+area: Wien
+base: null
+candidates: {}
+date: '2026-11-01'
+notes: 前一晚在维也纳机场过夜，07:45 直接登机，这天没有地面交通要买票；只带随身包。机票已订已付，不算在交通花费里。
+pace: relaxed
+plans: []
+rain_plan: null
+sunset: null
+title: 回程：07:45 航班号略 维也纳 → 斯德哥尔摩（前一晚在机场过夜）

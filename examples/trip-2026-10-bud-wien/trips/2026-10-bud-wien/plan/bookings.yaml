@@ -1,0 +1,134 @@
+- contact: null
+  date: '2026-10-31'
+  due: null
+  fares:
+  - alternative: false
+    amount_per_person: 9.7
+    currency: EUR
+    date: '2026-10-31'
+    estimated: false
+    id: f-1031-wl24
+    included_in: null
+    segment: 10-31 下午起维也纳市内的车（13A、U4、U1、U3、5 路和 12 路电车），盖到去机场火车的市内段
+    subject:
+    - me
+    ticket: 24 Stunden Wien 数字票
+  id: bk-1031-wl24
+  if_missed: null
+  kind: ticket
+  place: null
+  status: bought
+  subject:
+  - me
+  what: Wiener Linien 24 Stunden Wien 数字票（维也纳市内 24 小时票）：10-31 约 13:50 买，到 11-01 约 13:50
+  where:
+  - WienMobil app（Wiener Linien 官方）；数字票绑定本人，带护照
+  why_now: null
+- contact: null
+  date: '2026-10-31'
+  due: null
+  fares:
+  - alternative: false
+    amount_per_person: 2.3
+    currency: EUR
+    date: '2026-10-31'
+    estimated: true
+    id: f-1031-airport
+    included_in: null
+    segment: Wien Hbf → 维也纳机场（市内段由 24 小时票管）
+    subject:
+    - me
+    ticket: ÖBB 机场段补票
+  - alternative: true
+    amount_per_person: 5.5
+    currency: EUR
+    date: '2026-10-31'
+    estimated: true
+    id: f-1031-airport-full
+    included_in: null
+    segment: 补票买不到时：Wien Hbf → Flughafen Wien 全程票
+    subject:
+    - me
+    ticket: ÖBB / VOR 全程票
+  id: bk-1031-airport
+  if_missed: 现场买的票不绑车次：错过 22:42、22:53 就坐末班 23:53 REX → 00:15。火车都误了：Wien Hauptbahnhof Süd 坐 VAB 1 机场大巴，23:15 → 23:40，或 11-01
+    03:15 → 03:40、03:45 → 04:10（Transitous 10-31 13:50 查）；大巴不认维也纳市内票，单程约 €11（第三方）。周六夜里 U1 通宵开。
+  kind: ticket
+  place: wien-hbf
+  status: on_site
+  subject:
+  - me
+  what: 去机场：机场段补票（有 24 小时票只补“机场 → 维也纳市界”一段），22:42 Railjet 或 22:53 REX
+  where:
+  - ÖBB Tickets app：查 Wien Hbf → Flughafen Wien，找只补市界到机场那段（约 €2.30）；app 里怎么选没核到
+  - 找不到就用 Hbf 站内 ÖBB 售票机或窗口，说有 24 小时票、只买到机场那一段
+  why_now: null
+- contact: null
+  date: '2026-10-31'
+  due: null
+  fares:
+  - alternative: false
+    amount_per_person: 11.0
+    currency: EUR
+    date: '2026-10-31'
+    estimated: true
+    id: f-1031-blockfabrik
+    included_in: null
+    segment: Blockfabrik 单次入场（减价）
+    subject:
+    - me
+    ticket: Einzeleintritt 减价
+  id: bk-1031-blockfabrik
+  if_missed: null
+  kind: entry
+  place: blockfabrik
+  status: on_site
+  subject:
+  - me
+  what: Blockfabrik 抱石门票（10-31 下午）；攀岩鞋自带，不租
+  where:
+  - 前台现场买，带学生证问减价
+  - https://www.blockfabrik.at/preise/
+  why_now: null
+- contact: null
+  date: '2026-10-31'
+  due: null
+  fares:
+  - alternative: false
+    amount_per_person: 13.1
+    currency: EUR
+    date: '2026-10-31'
+    estimated: false
+    id: f-1031-hannovergasse
+    included_in: null
+    segment: boulderbar 日票（学生 18–26 岁，带学生证）
+    subject:
+    - me
+    ticket: 学生日票
+  id: bk-1031-hannovergasse
+  if_missed: null
+  kind: entry
+  place: boulderbar-hannovergasse
+  status: on_site
+  subject:
+  - me
+  what: boulderbar Hannovergasse 门票＋Team Spirit 万圣节团队赛（17:30–17:45 前台报名，18:00 开始）；攀岩鞋自带，不租
+  where:
+  - 前台现场报名、买门票
+  - https://boulderbar.net/events/team-spirit-halloween-edition-2026/
+  why_now: null
+- contact: null
+  date: '2026-11-01'
+  due: null
+  fares: []
+  id: bk-1101-flight
+  if_missed: null
+  kind: flight
+  place: vie-airport
+  status: booked
+  subject:
+  - me
+  what: 航班号略 维也纳 → 斯德哥尔摩 ARN，07:45 起飞、10:05 到；只带随身包（personal item）
+  where:
+  - Kiwi 订单（已订已付）；网上值机用户自己做
+  why_now: null

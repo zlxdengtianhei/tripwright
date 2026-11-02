@@ -1,0 +1,36 @@
+{
+  "schema": "tripwright.answer/1",
+  "skeleton": "first",
+  "pack_id": "CTX-300715-n4k",
+  "at": "2030-07-15T13:00:13+02:00",
+  "language": "zh",
+  "notices": [],
+  "heading_time": "13:00",
+  "now": ["坐 13:24 的 471 路去北湖岸。错过就等 14:24。"],
+  "latest": [{"hard_node": "hn-dinner", "line": "18:05 从 Altmoor 坐车回 Grauwald，赶 19:30 的晚饭。"}],
+  "options": {
+    "common": ["先在 471 车上买往返票，每人 €8.20。两种走法都要这张票。"],
+    "decide_before": "到北湖岸之前定",
+    "variants": [
+      {"label": "A 省钱", "diff": null, "how": "两湖之间走湖边路 50 分钟，不再花钱。", "item_ids": ["I-300713-s4v"], "plan": "A 省钱"},
+      {"label": "B 轻松", "diff": "比 A 少走 40 分钟，每人多花 €3.20。", "how": "两湖之间坐 472 路 12 分钟，车上买单程。", "item_ids": ["I-300715-e5y"], "plan": "B 轻松"}
+    ],
+    "recommend": null,
+    "default": null
+  },
+  "places": [
+    {
+      "place_id": "seeufer-nord",
+      "name_local": "Seeufer Nord",
+      "line": "北湖岸车站 · 第一个湖",
+      "search": {"app": "ÖBB App", "query": "Altmoor Bahnhof → Seeufer Nord"},
+      "link": {
+        "label": "ÖBB / Scotty",
+        "url": "https://fahrplan.oebb.at/bin/query.exe/dn?S=Altmoor+Bahnhof&Z=Seeufer+Nord&date=15.07.2030&time=13:24&timesel=depart&start=1"
+      }
+    }
+  ],
+  "legs": [],
+  "tool_hint": {"tool": "oebb-scotty", "line": "ÖBB App（这一带 Google 地图查不到巴士）：起点栏填起点站，终点栏填终点站。改好出发时间再搜索。"},
+  "checks": [{"item_id": "P-300714-w6t", "what": "南湖岸步道今天开不开", "consequence": "封了就走不了 A", "onsite": "到北湖岸看路口告示牌，封了就选 B"}]
+}

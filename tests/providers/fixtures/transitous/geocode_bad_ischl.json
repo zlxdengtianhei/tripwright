@@ -1,0 +1,220 @@
+[
+ {
+  "type": "STOP",
+  "name": "Bad Ischl Sueß",
+  "id": "at-PTA-Upper-Austria-Flex-2026_at:44:46546:0:1",
+  "lat": 47.72231711000001,
+  "lon": 13.573570890000001,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Oberösterreich",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Bezirk Gmunden",
+    "adminLevel": 6.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Bad Ischl",
+    "adminLevel": 8.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   }
+  ],
+  "modes": [
+   "BUS"
+  ],
+  "importance": 2.4115070118568838e-06
+ },
+ {
+  "type": "STOP",
+  "name": "Bad Ischl Bahnhof",
+  "id": "at-Railway-Current-Reference-Data-2026_Pat:44:46500",
+  "lat": 47.712017,
+  "lon": 13.627191999999999,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Oberösterreich",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Bezirk Gmunden",
+    "adminLevel": 6.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Bad Ischl",
+    "adminLevel": 8.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   }
+  ],
+  "modes": [
+   "LONG_DISTANCE",
+   "REGIONAL_RAIL",
+   "SUBURBAN",
+   "BUS"
+  ],
+  "importance": 0.0002553572994656861
+ },
+ {
+  "type": "STOP",
+  "name": "Bad Ischl Lindau",
+  "id": "at-PTA-Upper-Austria-Flex-2026_at:44:46548:0:2",
+  "lat": 47.71473841,
+  "lon": 13.587674439999999,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Oberösterreich",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Bezirk Gmunden",
+    "adminLevel": 6.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Bad Ischl",
+    "adminLevel": 8.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   }
+  ],
+  "modes": [
+   "BUS"
+  ],
+  "importance": 3.2627124824102793e-07
+ },
+ {
+  "type": "STOP",
+  "name": "Bad Ischl Hörhager",
+  "id": "at-PTA-Upper-Austria-Flex-2026_at:44:46552:0:2",
+  "lat": 47.71132944,
+  "lon": 13.564991979999999,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Oberösterreich",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Bezirk Gmunden",
+    "adminLevel": 6.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Bad Ischl",
+    "adminLevel": 8.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   }
+  ],
+  "modes": [
+   "BUS"
+  ],
+  "importance": 3.2627124824102793e-07
+ },
+ {
+  "type": "STOP",
+  "name": "Bad Ischl Holzplatz",
+  "id": "at-PTA-Upper-Austria-Flex-2026_at:44:46512:0:1",
+  "lat": 47.71589281000001,
+  "lon": 13.631853589999999,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Oberösterreich",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Bezirk Gmunden",
+    "adminLevel": 6.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Bad Ischl",
+    "adminLevel": 8.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   }
+  ],
+  "modes": [
+   "BUS"
+  ],
+  "importance": 1.7328628700852278e-06
+ }
+]

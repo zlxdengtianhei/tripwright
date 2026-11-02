@@ -1,0 +1,22 @@
+alternative: 用 Hbf 站内 ÖBB 售票机或窗口，说有 24 小时票、只买到机场那一段；实在不行买 €5.50 全程票
+consequence: 找不到补票就要买约 €5.50 的全程票，多花约 €3.20
+due_at: '2026-10-31T22:40:00+01:00'
+evidence_ids: []
+id: P-261031-msfmr1
+question: 机场段补票（有 24 小时票只补“机场 → 维也纳市界”一段，约 €2.30）在 ÖBB Tickets app 里怎么选，没核到
+responsible: 我 现场确认
+result: null
+scope:
+  channel: '*'
+  end: '2026-10-31'
+  place: '*'
+  start: '2026-10-31'
+  time_from: null
+  time_to: null
+source:
+  basis: agent_inference
+  event: E-261031-gzqkvu
+  nature: host_restatement
+status: open
+subject:
+- me

@@ -1,0 +1,41 @@
+always: true
+check: null
+compatible_with:
+- big_heading_for_plan
+- pace_1031
+- save_money_1031
+- transport_1031
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-6zutco
+interpretations: []
+key: whole_picture
+kind: rule
+long_term: true
+origin: null
+priority: null
+quote: 你不能因为现在用户说了一点新的要求之后呢，你就去这个只以新的要求去考虑，而是说一定要去回报我们的这个整个的这个用户的这种 preference 呀、啊，还有包括这个整整体性的一些安排怎么来去做
+reason: null
+relations: {}
+repetitions: 1
+same_object_as: []
+scope:
+  channel: '*'
+  end: null
+  place: '*'
+  start: null
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-hvhhc9
+  nature: user_verbatim
+status: active
+strength: must
+subject:
+- me
+text: 排计划要顾及他全部的偏好和以前说的事，整体来排，不只按最新的要求（“回报”是顾及的转写）（原话 10-31 13:48 CET）
+valid_from: null
+valid_until: null
+value: null

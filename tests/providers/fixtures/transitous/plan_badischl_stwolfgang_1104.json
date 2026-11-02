@@ -1,0 +1,318 @@
+{
+ "from": {
+  "name": "Bad Ischl Sueß",
+  "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46546:0:1",
+  "lat": 47.72231711000001,
+  "lon": 13.573570890000001,
+  "vertexType": "TRANSIT"
+ },
+ "to": {
+  "name": "END",
+  "lat": 47.7393,
+  "lon": 13.4478,
+  "vertexType": "NORMAL"
+ },
+ "direct": [],
+ "itineraries": [
+  {
+   "startTime": "2026-11-04T09:22:00Z",
+   "endTime": "2026-11-04T09:42:00Z",
+   "duration": 1200,
+   "legs": [
+    {
+     "mode": "BUS",
+     "from": {
+      "name": "Bad Ischl Sueß",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46546:0:1",
+      "lat": 47.72231711000001,
+      "lon": 13.573570890000001,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "St.Wolfgang im Salzk. Markt (M.-Pacher-Haus)",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46730:0:1",
+      "lat": 47.739730660000006,
+      "lon": 13.44519266,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T09:22:00Z",
+     "endTime": "2026-11-04T09:38:00Z",
+     "duration": 960,
+     "displayName": "546",
+     "routeShortName": "546",
+     "tripShortName": "",
+     "headsign": "0",
+     "agencyName": "Österreichische Postbus AG",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T09:22:00Z",
+     "scheduledEndTime": "2026-11-04T09:38:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "St.Wolfgang im Salzk. Markt (M.-Pacher-Haus)",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46730:0:1",
+      "lat": 47.739730660000006,
+      "lon": 13.44519266,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "END",
+      "lat": 47.7393,
+      "lon": 13.4478,
+      "vertexType": "NORMAL"
+     },
+     "startTime": "2026-11-04T09:38:00Z",
+     "endTime": "2026-11-04T09:42:00Z",
+     "duration": 240,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T09:38:00Z",
+     "scheduledEndTime": "2026-11-04T09:42:00Z"
+    }
+   ]
+  },
+  {
+   "startTime": "2026-11-04T10:22:00Z",
+   "endTime": "2026-11-04T10:50:00Z",
+   "duration": 1680,
+   "legs": [
+    {
+     "mode": "BUS",
+     "from": {
+      "name": "Bad Ischl Sueß",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46546:0:1",
+      "lat": 47.72231711000001,
+      "lon": 13.573570890000001,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "St.Wolfgang im Salzk. Markt (M.-Pacher-Haus)",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46730:0:1",
+      "lat": 47.739730660000006,
+      "lon": 13.44519266,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T10:22:00Z",
+     "endTime": "2026-11-04T10:46:00Z",
+     "duration": 1440,
+     "displayName": "546",
+     "routeShortName": "546",
+     "tripShortName": "",
+     "headsign": "0",
+     "agencyName": "Österreichische Postbus AG",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T10:22:00Z",
+     "scheduledEndTime": "2026-11-04T10:46:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "St.Wolfgang im Salzk. Markt (M.-Pacher-Haus)",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46730:0:1",
+      "lat": 47.739730660000006,
+      "lon": 13.44519266,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "END",
+      "lat": 47.7393,
+      "lon": 13.4478,
+      "vertexType": "NORMAL"
+     },
+     "startTime": "2026-11-04T10:46:00Z",
+     "endTime": "2026-11-04T10:50:00Z",
+     "duration": 240,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T10:46:00Z",
+     "scheduledEndTime": "2026-11-04T10:50:00Z"
+    }
+   ]
+  },
+  {
+   "startTime": "2026-11-04T11:22:00Z",
+   "endTime": "2026-11-04T11:50:00Z",
+   "duration": 1680,
+   "legs": [
+    {
+     "mode": "BUS",
+     "from": {
+      "name": "Bad Ischl Sueß",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46546:0:1",
+      "lat": 47.72231711000001,
+      "lon": 13.573570890000001,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "St.Wolfgang im Salzk. Markt (M.-Pacher-Haus)",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46730:0:1",
+      "lat": 47.739730660000006,
+      "lon": 13.44519266,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T11:22:00Z",
+     "endTime": "2026-11-04T11:46:00Z",
+     "duration": 1440,
+     "displayName": "546",
+     "routeShortName": "546",
+     "tripShortName": "",
+     "headsign": "0",
+     "agencyName": "Österreichische Postbus AG",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T11:22:00Z",
+     "scheduledEndTime": "2026-11-04T11:46:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "St.Wolfgang im Salzk. Markt (M.-Pacher-Haus)",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46730:0:1",
+      "lat": 47.739730660000006,
+      "lon": 13.44519266,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "END",
+      "lat": 47.7393,
+      "lon": 13.4478,
+      "vertexType": "NORMAL"
+     },
+     "startTime": "2026-11-04T11:46:00Z",
+     "endTime": "2026-11-04T11:50:00Z",
+     "duration": 240,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T11:46:00Z",
+     "scheduledEndTime": "2026-11-04T11:50:00Z"
+    }
+   ]
+  },
+  {
+   "startTime": "2026-11-04T12:22:00Z",
+   "endTime": "2026-11-04T12:50:00Z",
+   "duration": 1680,
+   "legs": [
+    {
+     "mode": "BUS",
+     "from": {
+      "name": "Bad Ischl Sueß",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46546:0:1",
+      "lat": 47.72231711000001,
+      "lon": 13.573570890000001,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "St.Wolfgang im Salzk. Markt (M.-Pacher-Haus)",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46730:0:1",
+      "lat": 47.739730660000006,
+      "lon": 13.44519266,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T12:22:00Z",
+     "endTime": "2026-11-04T12:46:00Z",
+     "duration": 1440,
+     "displayName": "546",
+     "routeShortName": "546",
+     "tripShortName": "",
+     "headsign": "0",
+     "agencyName": "Österreichische Postbus AG",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T12:22:00Z",
+     "scheduledEndTime": "2026-11-04T12:46:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "St.Wolfgang im Salzk. Markt (M.-Pacher-Haus)",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46730:0:1",
+      "lat": 47.739730660000006,
+      "lon": 13.44519266,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "END",
+      "lat": 47.7393,
+      "lon": 13.4478,
+      "vertexType": "NORMAL"
+     },
+     "startTime": "2026-11-04T12:46:00Z",
+     "endTime": "2026-11-04T12:50:00Z",
+     "duration": 240,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T12:46:00Z",
+     "scheduledEndTime": "2026-11-04T12:50:00Z"
+    }
+   ]
+  },
+  {
+   "startTime": "2026-11-04T12:42:00Z",
+   "endTime": "2026-11-04T13:02:00Z",
+   "duration": 1200,
+   "legs": [
+    {
+     "mode": "BUS",
+     "from": {
+      "name": "Bad Ischl Sueß",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46546:0:1",
+      "lat": 47.72231711000001,
+      "lon": 13.573570890000001,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "St.Wolfgang im Salzk. Markt (M.-Pacher-Haus)",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46730:0:1",
+      "lat": 47.739730660000006,
+      "lon": 13.44519266,
+      "vertexType": "TRANSIT"
+     },
+     "startTime": "2026-11-04T12:42:00Z",
+     "endTime": "2026-11-04T12:58:00Z",
+     "duration": 960,
+     "displayName": "546",
+     "routeShortName": "546",
+     "tripShortName": "",
+     "headsign": "0",
+     "agencyName": "Österreichische Postbus AG",
+     "realTime": false,
+     "cancelled": false,
+     "reservation": "NONE",
+     "scheduledStartTime": "2026-11-04T12:42:00Z",
+     "scheduledEndTime": "2026-11-04T12:58:00Z"
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "St.Wolfgang im Salzk. Markt (M.-Pacher-Haus)",
+      "stopId": "at-PTA-Upper-Austria-Flex-2026_at:44:46730:0:1",
+      "lat": 47.739730660000006,
+      "lon": 13.44519266,
+      "vertexType": "TRANSIT"
+     },
+     "to": {
+      "name": "END",
+      "lat": 47.7393,
+      "lon": 13.4478,
+      "vertexType": "NORMAL"
+     },
+     "startTime": "2026-11-04T12:58:00Z",
+     "endTime": "2026-11-04T13:02:00Z",
+     "duration": 240,
+     "realTime": false,
+     "scheduledStartTime": "2026-11-04T12:58:00Z",
+     "scheduledEndTime": "2026-11-04T13:02:00Z"
+    }
+   ]
+  }
+ ],
+ "_probe": {
+  "url": "https://api.transitous.org/api/v6/plan?fromPlace=at-PTA-Upper-Austria-Flex-2026_at%3A44%3A46546%3A0%3A1&toPlace=47.7393%2C13.4478&time=2026-11-04T10%3A00%3A00%2B01%3A00&transitModes=TRAM%2CSUBWAY%2CFERRY%2CBUS%2CCOACH%2CRAIL%2CHIGHSPEED_RAIL%2CLONG_DISTANCE%2CNIGHT_RAIL%2CREGIONAL_FAST_RAIL%2CREGIONAL_RAIL%2CSUBURBAN%2CFUNICULAR%2CAERIAL_LIFT%2CCABLE_CAR%2COTHER&numItineraries=5&maxPreTransitTime=1200&maxPostTransitTime=1200&detailedTransfers=false",
+  "status": 200,
+  "at": "2026-11-01T20:31:24+0100"
+ }
+}

@@ -1,0 +1,776 @@
+anchors:
+- alternative: 坐 23:53 末班 REX → 00:15；火车都误了在 Wien Hauptbahnhof Süd 坐 VAB 1 机场大巴：23:15 → 23:40，11-01 03:15 → 03:40、03:45 →
+    04:10（Transitous 10-31 13:50 查；不认市内票，约 €11，第三方）
+  app: ÖBB Tickets app 搜 Wien Hbf → Flughafen Wien，买机场段补票
+  booking: bk-1031-airport
+  buffer_minutes: 0
+  consequence: 误了 22:42 和 22:53，只剩 23:53 末班 REX（00:15 到）
+  destination: vie-airport
+  evidence_ids: []
+  id: a1031-railjet
+  line: RJX 19959
+  place: wien-hbf
+  subject:
+  - me
+  text: Wien Hbf 坐 Railjet（ÖBB 快车）去机场，22:57 到；或 22:53 REX → 23:15。从 boulderbar Hannovergasse 最晚 21:50 出门（22:00 关门），12 路 +
+    U4 + U1，22:13 到 Hbf
+  time: '22:42'
+  travel_minutes: null
+area: Wien
+base: vie-airport
+candidates:
+  下午·第一家岩馆:
+  - blockfabrik
+  傍晚·顺路的免费教堂:
+  - stephansdom
+  - peterskirche
+  夜里:
+  - wien-hbf
+  - vie-airport
+  晚上·岩馆:
+  - boulderbar-hannovergasse
+  - boulderbar-hbf
+date: '2026-10-31'
+notes: 17:30–17:45 在 boulderbar Hannovergasse 前台报名万圣节团队赛，18:00 开始；错过了也没关系，照常爬或在旁边看，所以不算硬节点。今晚去机场的末班火车是 23:53 REX → 00:15，是误了
+  22:42、22:53 时的后备。分头：中午在 Hbf 一起吃 Som Kitchen，吃完分开，队友坐车去机场；之后不再会合。行李：我 只有随身包，一整天背着，两家岩馆都有储物柜；攀岩鞋自带，不租。不想在机场睡的备选：城里睡一张床（要自己订，价没查），11-01
+  03:15 或 03:45 坐 VAB 1（Wien Hauptbahnhof Süd → 03:40 / 04:10），或 04:22 REX Wien Hbf → 04:45（Transitous 10-30 19:4x 查）；代价是多一晚床钱、凌晨
+  3 点多起。
+pace: relaxed
+plans:
+- id: P1
+  name: 推荐：Blockfabrik 歇着爬 → 坐地铁到圣斯蒂芬、圣伯多禄 → 晚上 boulderbar Hannovergasse 万圣节团队赛 → 22:42 Railjet 去机场过夜
+  note: 用户 10-31 13:48 说两家岩馆离得远、不能让他在中间走那么多，最后一天要轻松，在岩馆主要是歇着；还是想去万圣节活动看看；13:51 说已买 24 小时票。所以每段都坐车，教堂只留出地铁口就到的圣斯蒂芬和走 3 分钟的圣伯多禄。车次
+    Transitous 10-31 13:49–13:52 查（另注明的除外）。
+  tracks:
+  - blocks:
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: null
+      end: '13:30'
+      equipment: []
+      evidence_ids: []
+      fare: null
+      id: b1031-lunch
+      kind: meal
+      line: null
+      mode: null
+      note: 实际几点吃完没记；随身包一直背着，不回青旅
+      options: []
+      origin: null
+      place: som-kitchen-hbf
+      source: null
+      start: '11:40'
+      text: 和队友在 Hbf 吃 Som Kitchen（泰国菜，打包）
+      transfer_minutes: null
+      walk_minutes: null
+    subject:
+    - me
+    - mate-1
+    - mate-2
+    - mate-3
+  - blocks:
+    - app: ÖBB Tickets app 搜 Wien Hbf → Flughafen Wien
+      baggage_holder: null
+      booking: null
+      certainty: unknown
+      critical_facts: []
+      destination: vie-airport
+      end: '14:00'
+      equipment: []
+      evidence_ids: []
+      fare: null
+      id: b1031-mates-airport
+      kind: reserve
+      line: null
+      mode: null
+      note: null
+      options: []
+      origin: wien-hbf
+      place: null
+      source: null
+      start: '13:30'
+      text: 队友 Wien Hbf → 维也纳机场（REX 7 或 Railjet，按航班挑车；队友航班用户说不用管）
+      transfer_minutes: null
+      walk_minutes: null
+    subject:
+    - mate-1
+    - mate-2
+    - mate-3
+  - blocks:
+    - app: Google 地图搜 Blockfabrik, Schloßgasse 10-12, 1050 Wien
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: blockfabrik
+      end: '14:07'
+      equipment: []
+      evidence_ids: []
+      fare: f-1031-wl24
+      id: b1031-to-blockfabrik
+      kind: travel
+      line: 13A
+      mode: 13A 公交（往 Skodagasse）→ Leibenfrostgasse 14:00，步行 7′；之后每几分钟一班
+      note: null
+      options: []
+      origin: wien-hbf
+      place: null
+      source: Transitous 10-31 13:49 查
+      start: '13:51'
+      text: Wien Hbf（中央火车站） → Blockfabrik
+      transfer_minutes: null
+      walk_minutes: 7
+    - app: null
+      baggage_holder: null
+      booking: bk-1031-blockfabrik
+      certainty: estimated
+      critical_facts: []
+      destination: null
+      end: '15:40'
+      equipment:
+      - 攀岩鞋
+      evidence_ids: []
+      fare: null
+      id: b1031-blockfabrik
+      kind: visit
+      line: null
+      mode: null
+      note: 攀岩鞋自带，不租；前台带学生证问减价；储物柜放随身包
+      options: []
+      origin: null
+      place: blockfabrik
+      source: null
+      start: '14:07'
+      text: Blockfabrik（5 区的大型抱石馆）爬一会儿、歇一会儿
+      transfer_minutes: null
+      walk_minutes: null
+    - app: Google 地图搜 Stephansdom
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: stephansdom
+      end: '16:05'
+      equipment: []
+      evidence_ids: []
+      fare: f-1031-wl24
+      id: b1031-to-stephansplatz
+      kind: travel
+      line: null
+      mode: 步行 5′ 到 U4 Pilgramgasse，U4（往 Heiligenstadt）→ Karlsplatz，换 U1（往 Leopoldau）1 站 → Stephansplatz
+      note: null
+      options: []
+      origin: blockfabrik
+      place: null
+      source: 这一段没单独查班次，U4、U1 白天几分钟一班
+      start: '15:40'
+      text: Blockfabrik → Stephansplatz（圣斯蒂芬广场）
+      transfer_minutes: null
+      walk_minutes: 5
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: null
+      end: '16:25'
+      equipment: []
+      evidence_ids: []
+      fare: null
+      id: b1031-stephansdom
+      kind: visit
+      line: null
+      mode: null
+      note: 周六 06:00–22:00 开（wien.info）；进门那一段免费，往里走、上塔楼要买票，可以不买
+      options: []
+      origin: null
+      place: stephansdom
+      source: null
+      start: '16:05'
+      text: Stephansdom（圣斯蒂芬大教堂），出地铁口就是
+      transfer_minutes: null
+      walk_minutes: null
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: null
+      end: '16:45'
+      equipment: []
+      evidence_ids: []
+      fare: null
+      id: b1031-peterskirche
+      kind: visit
+      line: null
+      mode: null
+      note: 官网写周六 09:00–19:00；官网没写门票，第三方都说免费进
+      options: []
+      origin: null
+      place: peterskirche
+      source: null
+      start: '16:28'
+      text: Peterskirche（圣伯多禄教堂，巴洛克式），从圣斯蒂芬走 3′
+      transfer_minutes: 3
+      walk_minutes: 3
+    - app: Google 地图搜 boulderbar Hannovergasse, Hannovergasse 21, 1200 Wien
+      baggage_holder: null
+      booking: null
+      certainty: fixed
+      critical_facts: []
+      destination: boulderbar-hannovergasse
+      end: '17:14'
+      equipment: []
+      evidence_ids: []
+      fare: f-1031-wl24
+      id: b1031-to-hannovergasse
+      kind: travel
+      line: null
+      mode: 16:50 U3（往 Simmering）→ Wien Mitte-Landstraße 16:52，16:54 U4（往 Heiligenstadt）→ Friedensbrücke 17:00，17:05 12 路电车（或
+        17:10 5 路）坐 2 站 → Wallensteinplatz，步行 7′
+      note: null
+      options: []
+      origin: peterskirche
+      place: null
+      source: Transitous 10-31 13:52 查
+      start: '16:48'
+      text: Peterskirche（圣伯多禄教堂） → boulderbar Hannovergasse
+      transfer_minutes: null
+      walk_minutes: 7
+    - app: null
+      baggage_holder: null
+      booking: bk-1031-hannovergasse
+      certainty: estimated
+      critical_facts: []
+      destination: null
+      end: '17:30'
+      equipment: []
+      evidence_ids: []
+      fare: null
+      id: b1031-hannovergasse-arrive
+      kind: visit
+      line: null
+      mode: null
+      note: null
+      options: []
+      origin: null
+      place: boulderbar-hannovergasse
+      source: null
+      start: '17:15'
+      text: 到 boulderbar Hannovergasse，买门票；17:30–17:45 前台报名万圣节团队赛（错过了照常爬或在旁边看）
+      transfer_minutes: null
+      walk_minutes: null
+    - app: null
+      baggage_holder: null
+      booking: bk-1031-hannovergasse
+      certainty: estimated
+      critical_facts: []
+      destination: null
+      end: '21:45'
+      equipment:
+      - 攀岩鞋
+      evidence_ids: []
+      fare: null
+      id: b1031-hannovergasse
+      kind: visit
+      line: null
+      mode: null
+      note: 17:30–17:45 前台报名，18:00 开始；随机分队，每队最多 5 人；难度 5 档自己挑。报名要不要另交钱、不参赛能不能照常爬，官网活动页没写，前台问。学生门票 €13.10，攀岩鞋自带，不租。今天是换线日，部分墙会封；22:00
+        关门
+      options: []
+      origin: null
+      place: boulderbar-hannovergasse
+      source: null
+      start: '17:30'
+      text: boulderbar Hannovergasse（boulderbar 第一家店）看万圣节团队赛（18:00 开始）、随便爬
+      transfer_minutes: null
+      walk_minutes: null
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: fixed
+      critical_facts: []
+      destination: wien-hbf
+      end: '22:13'
+      equipment: []
+      evidence_ids: []
+      fare: f-1031-wl24
+      id: b1031-to-hbf
+      kind: travel
+      line: null
+      mode: 步行 6′ 到 Klosterneuburger Straße/Wallensteinstraße，21:51 12 路 → Friedensbrücke 21:53，21:56 U4（往 Hütteldorf）→ Schwedenplatz
+        22:00，22:07 U1（往 Oberlaa）→ Hbf 22:13；晚一班：21:51 出门步行 13′ 到 Friedensbrücke，22:04 U4，22:14 U1 → 22:21
+      note: null
+      options: []
+      origin: boulderbar-hannovergasse
+      place: null
+      source: Transitous 10-31 11:39 查
+      start: '21:45'
+      text: boulderbar Hannovergasse → Wien Hbf（中央火车站）
+      transfer_minutes: null
+      walk_minutes: 6
+    - app: ÖBB Tickets app 搜 Wien Hbf → Flughafen Wien，买机场段补票
+      baggage_holder: null
+      booking: bk-1031-airport
+      certainty: estimated
+      critical_facts: []
+      destination: null
+      end: '22:40'
+      equipment: []
+      evidence_ids: []
+      fare: null
+      id: b1031-hbf
+      kind: flex
+      line: null
+      mode: null
+      note: app 里找不到 €2.30 那一档，就用站内 ÖBB 售票机或窗口，说有 24 小时票、只买到机场那一段；实在买不到就买 €5.50 全程票。INTERSPAR-pronto 每天 06:00–23:00（第三方）
+      options: []
+      origin: null
+      place: wien-hbf
+      source: null
+      start: '22:13'
+      text: Hbf 补机场段票；在站内 INTERSPAR-pronto（Spar 超市小店）买晚饭、水和明早吃的
+      transfer_minutes: null
+      walk_minutes: null
+    - app: ÖBB Tickets app 搜 Wien Hbf → Flughafen Wien
+      baggage_holder: null
+      booking: null
+      certainty: fixed
+      critical_facts: []
+      destination: vie-airport
+      end: '22:57'
+      equipment: []
+      evidence_ids: []
+      fare: f-1031-airport
+      id: b1031-to-airport
+      kind: travel
+      line: RJX 19959
+      mode: Railjet RJX 19959（往 Flughafen Wien）→ 22:57；或 22:53 REX 22779 → 23:15；末班 23:53 REX → 00:15
+      note: null
+      options: []
+      origin: wien-hbf
+      place: null
+      source: Transitous 10-31 13:50 查
+      start: '22:42'
+      text: Wien Hbf（中央火车站） → 维也纳机场
+      transfer_minutes: null
+      walk_minutes: null
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: unknown
+      critical_facts: []
+      destination: null
+      end: '23:59'
+      equipment: []
+      evidence_ids: []
+      fare: null
+      id: b1031-airport-night
+      kind: reserve
+      line: null
+      mode: null
+      note: 公共区域 24 小时开、过夜一般不被赶（第三方）；T3 安检外 2 楼 Zzzleepandgo 睡眠舱 €9/小时、整晚 €48 起（机场新闻稿 2021–2022，现价没查到）；不花钱就在 T3 到达大厅找长椅。明早
+        05:45 前做完网上值机和证件检查
+      options: []
+      origin: null
+      place: vie-airport
+      source: null
+      start: '23:00'
+      text: 在维也纳机场找地方过夜（接到 11-01 早上）
+      transfer_minutes: null
+      walk_minutes: null
+    subject:
+    - me
+- id: P2
+  name: 不去教堂：Blockfabrik 待到 16:35，U4 直达和平桥站，换电车到 Hannovergasse
+  note: 累了、只想在岩馆歇着就选这套。从 Blockfabrik 到 Hannovergasse 坐 U4 一趟不用换车，再坐 5 路电车 2 站。Transitous 10-31 13:50–13:52 查。
+  tracks:
+  - blocks:
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: blockfabrik
+      end: '14:07'
+      equipment: []
+      evidence_ids: []
+      fare: f-1031-wl24
+      id: b1031b-to-blockfabrik
+      kind: travel
+      line: 13A
+      mode: 13A（往 Skodagasse）→ Leibenfrostgasse，步行 7′
+      note: null
+      options: []
+      origin: wien-hbf
+      place: null
+      source: Transitous 10-31 13:49 查
+      start: '13:51'
+      text: Wien Hbf（中央火车站） → Blockfabrik
+      transfer_minutes: null
+      walk_minutes: 7
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: null
+      end: '16:35'
+      equipment:
+      - 攀岩鞋
+      evidence_ids: []
+      fare: null
+      id: b1031b-blockfabrik
+      kind: visit
+      line: null
+      mode: null
+      note: 攀岩鞋自带，不租
+      options: []
+      origin: null
+      place: blockfabrik
+      source: null
+      start: '14:07'
+      text: Blockfabrik（5 区的大型抱石馆）多待一会儿
+      transfer_minutes: null
+      walk_minutes: null
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: fixed
+      critical_facts: []
+      destination: boulderbar-hannovergasse
+      end: '17:09'
+      equipment: []
+      evidence_ids: []
+      fare: f-1031-wl24
+      id: b1031b-to-hannovergasse
+      kind: travel
+      line: null
+      mode: 步行 5′ 到 U4 Pilgramgasse，16:43 U4（往 Heiligenstadt）→ Friedensbrücke 16:55，17:00 5 路电车 → Wallensteinplatz 17:02，步行
+        7′；晚一班 16:48 U4 → 17:00
+      note: null
+      options: []
+      origin: blockfabrik
+      place: null
+      source: Transitous 10-31 13:50、13:52 查
+      start: '16:38'
+      text: Blockfabrik → boulderbar Hannovergasse
+      transfer_minutes: null
+      walk_minutes: 12
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: null
+      end: '17:30'
+      equipment: []
+      evidence_ids: []
+      fare: null
+      id: b1031b-hannovergasse-arrive
+      kind: visit
+      line: null
+      mode: null
+      note: null
+      options: []
+      origin: null
+      place: boulderbar-hannovergasse
+      source: null
+      start: '17:10'
+      text: 到馆买门票；17:30–17:45 前台报名团队赛
+      transfer_minutes: null
+      walk_minutes: null
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: null
+      end: '21:45'
+      equipment:
+      - 攀岩鞋
+      evidence_ids: []
+      fare: null
+      id: b1031b-hannovergasse
+      kind: visit
+      line: null
+      mode: null
+      note: 同推荐那套
+      options: []
+      origin: null
+      place: boulderbar-hannovergasse
+      source: null
+      start: '17:30'
+      text: 看万圣节团队赛、随便爬
+      transfer_minutes: null
+      walk_minutes: null
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: fixed
+      critical_facts: []
+      destination: wien-hbf
+      end: '22:13'
+      equipment: []
+      evidence_ids: []
+      fare: f-1031-wl24
+      id: b1031b-to-hbf
+      kind: travel
+      line: null
+      mode: 同推荐那套（12 路 + U4 + U1）
+      note: null
+      options: []
+      origin: boulderbar-hannovergasse
+      place: null
+      source: Transitous 10-31 11:39 查
+      start: '21:45'
+      text: boulderbar Hannovergasse → Wien Hbf（中央火车站）
+      transfer_minutes: null
+      walk_minutes: 6
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: fixed
+      critical_facts: []
+      destination: vie-airport
+      end: '22:57'
+      equipment: []
+      evidence_ids: []
+      fare: f-1031-airport
+      id: b1031b-to-airport
+      kind: travel
+      line: RJX 19959
+      mode: Railjet RJX 19959；或 22:53 REX → 23:15；末班 23:53
+      note: null
+      options: []
+      origin: wien-hbf
+      place: null
+      source: Transitous 10-31 13:50 查
+      start: '22:42'
+      text: Wien Hbf（中央火车站） → 维也纳机场
+      transfer_minutes: null
+      walk_minutes: null
+    subject:
+    - me
+- id: P3
+  name: 晚上换 boulderbar Hbf：不参加团队赛，离 Hbf 近
+  note: 不想参加团队赛、或累了选这套。下午同推荐（到圣伯多禄为止）；然后坐 U1 回 Hbf 一带，boulderbar Hbf（中央车站店）今天没有活动，周六 09:00–22:00，学生 €13.10；爬完步行约 10′ 到 Hbf，去机场最省事。
+  tracks:
+  - blocks:
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: blockfabrik
+      end: '14:07'
+      equipment: []
+      evidence_ids: []
+      fare: f-1031-wl24
+      id: b1031c-to-blockfabrik
+      kind: travel
+      line: 13A
+      mode: 13A → Leibenfrostgasse，步行 7′
+      note: null
+      options: []
+      origin: wien-hbf
+      place: null
+      source: Transitous 10-31 13:49 查
+      start: '13:51'
+      text: Wien Hbf（中央火车站） → Blockfabrik
+      transfer_minutes: null
+      walk_minutes: 7
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: null
+      end: '15:40'
+      equipment:
+      - 攀岩鞋
+      evidence_ids: []
+      fare: null
+      id: b1031c-blockfabrik
+      kind: visit
+      line: null
+      mode: null
+      note: 攀岩鞋自带，不租
+      options: []
+      origin: null
+      place: blockfabrik
+      source: null
+      start: '14:07'
+      text: null
+      transfer_minutes: null
+      walk_minutes: null
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: stephansdom
+      end: '16:05'
+      equipment: []
+      evidence_ids: []
+      fare: f-1031-wl24
+      id: b1031c-to-stephansplatz
+      kind: travel
+      line: null
+      mode: 步行 5′，U4 → Karlsplatz，换 U1 → Stephansplatz
+      note: null
+      options: []
+      origin: blockfabrik
+      place: null
+      source: null
+      start: '15:40'
+      text: Blockfabrik → Stephansplatz（圣斯蒂芬广场）
+      transfer_minutes: null
+      walk_minutes: 5
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: null
+      end: '16:25'
+      equipment: []
+      evidence_ids: []
+      fare: null
+      id: b1031c-stephansdom
+      kind: visit
+      line: null
+      mode: null
+      note: null
+      options: []
+      origin: null
+      place: stephansdom
+      source: null
+      start: '16:05'
+      text: null
+      transfer_minutes: null
+      walk_minutes: null
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: null
+      end: '16:45'
+      equipment: []
+      evidence_ids: []
+      fare: null
+      id: b1031c-peterskirche
+      kind: visit
+      line: null
+      mode: null
+      note: null
+      options: []
+      origin: null
+      place: peterskirche
+      source: null
+      start: '16:28'
+      text: null
+      transfer_minutes: 3
+      walk_minutes: 3
+    - app: Google 地图搜 boulderbar Hauptbahnhof, Maria-Lassnig-Straße 18, 1100 Wien
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: boulderbar-hbf
+      end: '17:15'
+      equipment: []
+      evidence_ids: []
+      fare: f-1031-wl24
+      id: b1031c-to-boulderbar-hbf
+      kind: travel
+      line: null
+      mode: U1（往 Oberlaa）→ Keplerplatz，步行 14′
+      note: null
+      options: []
+      origin: peterskirche
+      place: null
+      source: Transitous 10-31 11:42 查的是上一站 Schwedenplatz 17:06、17:11 那两班，Stephansplatz 是下一站
+      start: '16:48'
+      text: Peterskirche（圣伯多禄教堂） → boulderbar Hbf（中央车站店）
+      transfer_minutes: null
+      walk_minutes: 14
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: null
+      end: '21:50'
+      equipment:
+      - 攀岩鞋
+      evidence_ids: []
+      fare: null
+      id: b1031c-boulderbar-hbf
+      kind: visit
+      line: null
+      mode: null
+      note: 今天没有活动；学生 €13.10；攀岩鞋自带，不租
+      options: []
+      origin: null
+      place: boulderbar-hbf
+      source: null
+      start: '17:15'
+      text: boulderbar Hbf（中央车站店）抱石、歇着
+      transfer_minutes: null
+      walk_minutes: null
+    - app: null
+      baggage_holder: null
+      booking: null
+      certainty: estimated
+      critical_facts: []
+      destination: wien-hbf
+      end: '22:02'
+      equipment: []
+      evidence_ids: []
+      fare: null
+      id: b1031c-to-hbf
+      kind: travel
+      line: null
+      mode: 步行约 10′
+      note: null
+      options: []
+      origin: boulderbar-hbf
+      place: null
+      source: null
+      start: '21:50'
+      text: boulderbar Hbf（中央车站店） → Wien Hbf（中央火车站）
+      transfer_minutes: null
+      walk_minutes: 10
+    - app: ÖBB Tickets app 搜 Wien Hbf → Flughafen Wien，买机场段补票
+      baggage_holder: null
+      booking: null
+      certainty: fixed
+      critical_facts: []
+      destination: vie-airport
+      end: '22:57'
+      equipment: []
+      evidence_ids: []
+      fare: f-1031-airport
+      id: b1031c-to-airport
+      kind: travel
+      line: RJX 19959
+      mode: Railjet RJX 19959；或 22:53 REX → 23:15；末班 23:53
+      note: null
+      options: []
+      origin: wien-hbf
+      place: null
+      source: Transitous 10-31 13:50 查
+      start: '22:42'
+      text: Wien Hbf（中央火车站） → 维也纳机场
+      transfer_minutes: null
+      walk_minutes: null
+    subject:
+    - me
+rain_plan: Open-Meteo 10-31 13:5x 查：14–18 点降雨概率 70–88%，每小时雨量 0–0.1 mm，最多毛毛雨；19 点后降到 45% 以下；10–11 °C。每段都坐车，步行最长约 7′，岩馆和教堂都在室内，不用改。
+sunset: '16:39'
+title: 维也纳 · 最后一天要轻松：下午 Blockfabrik 抱石，顺路两座免费教堂，晚上 boulderbar Hannovergasse 万圣节团队赛，22:42 去机场过夜

@@ -1,0 +1,40 @@
+always: false
+check: null
+compatible_with:
+- transport_1031
+condition: null
+exclusive_with: []
+expires_on_event: null
+id: I-261031-4blwt0
+interpretations: []
+key: save_money_1031
+kind: preference
+long_term: false
+origin: null
+priority: null
+quote: 我就是想省钱，尽量省钱。
+reason: 同一条里也说：那你如果只考虑这个省钱，那我觉得是不对的。
+relations:
+  supersedes:
+  - I-261031-vm13tx
+repetitions: 1
+same_object_as: []
+scope:
+  channel: '*'
+  end: '2026-10-31'
+  place: '*'
+  start: '2026-10-31'
+  time_from: null
+  time_to: null
+source:
+  basis: user_explicit
+  event: E-261031-hvhhc9
+  nature: user_verbatim
+status: active
+strength: prefer
+subject:
+- me
+text: 10-31 尽量省钱（原话 10-31 13:48 CET）
+valid_from: null
+valid_until: null
+value: null

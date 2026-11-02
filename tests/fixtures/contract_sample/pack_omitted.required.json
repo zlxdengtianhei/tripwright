@@ -1,0 +1,49 @@
+{
+  "note": "render_pack 返回的 required 与 token 估算（估算不冻结，改估算法时一起重生成）；省掉 P-300714-w6t 之前整包约 1700 token，超过预算 1695。",
+  "tokens": 1690,
+  "required": {
+    "items": {
+      "status": "complete",
+      "ids": [
+        "I-300713-p1n",
+        "I-300713-t2k",
+        "I-300713-s4v",
+        "I-300715-e5y",
+        "I-300713-r7b"
+      ],
+      "reason": null
+    },
+    "facts": {
+      "status": "complete",
+      "ids": [
+        "F-300715-s1o",
+        "F-300715-n2l"
+      ],
+      "reason": null
+    },
+    "decisions": {
+      "status": "complete",
+      "ids": [
+        "D-300714-d3r"
+      ],
+      "reason": null
+    },
+    "hard_nodes": {
+      "status": "complete",
+      "ids": [
+        "hn-dinner"
+      ],
+      "reason": null
+    },
+    "checks_due": {
+      "status": "complete",
+      "ids": [],
+      "reason": null
+    },
+    "questions": {
+      "status": "complete",
+      "ids": [],
+      "reason": null
+    }
+  }
+}

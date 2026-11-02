@@ -1,0 +1,218 @@
+[
+ {
+  "type": "STOP",
+  "name": "Hallstatt Nord",
+  "id": "at-PTA-Upper-Austria-Flex-2026_at:44:40457:0:1",
+  "lat": 47.56836976,
+  "lon": 13.649819899999999,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Oberösterreich",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Bezirk Gmunden",
+    "adminLevel": 6.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Hallstatt",
+    "adminLevel": 8.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   }
+  ],
+  "modes": [
+   "BUS"
+  ],
+  "importance": 2.982844307553023e-06
+ },
+ {
+  "type": "STOP",
+  "name": "Hallstatt Bahnhst",
+  "id": "at-Railway-Current-Reference-Data-2026_Pat:44:46631",
+  "lat": 47.56765,
+  "lon": 13.661857999999999,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Oberösterreich",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Bezirk Gmunden",
+    "adminLevel": 6.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Obertraun",
+    "adminLevel": 8.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   }
+  ],
+  "modes": [
+   "LONG_DISTANCE",
+   "REGIONAL_RAIL"
+  ],
+  "importance": 0.00016850097745191306
+ },
+ {
+  "type": "STOP",
+  "name": "Hallstatt Gosaumühle",
+  "id": "at-PTA-Upper-Austria-Flex-2026_at:44:46660:0:1",
+  "lat": 47.593177710000006,
+  "lon": 13.651499750000001,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Oberösterreich",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Bezirk Gmunden",
+    "adminLevel": 6.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Hallstatt",
+    "adminLevel": 8.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   }
+  ],
+  "modes": [
+   "BUS"
+  ],
+  "importance": 8.625162081443705e-06
+ },
+ {
+  "type": "STOP",
+  "name": "Hallstatt Demelgasse",
+  "id": "at-PTA-Upper-Austria-Flex-2026_at:44:47345:0:1",
+  "lat": 47.55502169,
+  "lon": 13.647295629999999,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Oberösterreich",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Bezirk Gmunden",
+    "adminLevel": 6.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Hallstatt",
+    "adminLevel": 8.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   }
+  ],
+  "modes": [
+   "BUS"
+  ],
+  "importance": 2.6826748467101424e-07
+ },
+ {
+  "type": "STOP",
+  "name": "Hallstatt Lahn (Busterminal)",
+  "id": "at-PTA-Upper-Austria-Flex-2026_at:44:46643:0:1",
+  "lat": 47.55693136,
+  "lon": 13.647565119999998,
+  "country": "AT",
+  "tz": "Europe/Vienna",
+  "areas": [
+   {
+    "name": "Österreich",
+    "adminLevel": 2.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Oberösterreich",
+    "adminLevel": 4.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Bezirk Gmunden",
+    "adminLevel": 6.0,
+    "matched": false,
+    "unique": false,
+    "default": false
+   },
+   {
+    "name": "Hallstatt",
+    "adminLevel": 8.0,
+    "matched": false,
+    "unique": true,
+    "default": true
+   }
+  ],
+  "modes": [
+   "BUS"
+  ],
+  "importance": 3.0451983548118733e-06
+ }
+]

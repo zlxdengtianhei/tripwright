@@ -1,0 +1,50 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__tripwright__*",
+      "WebSearch",
+      "WebFetch",
+      "Agent",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(cd:*)",
+      "Bash(date:*)",
+      "Bash(git log:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(uvx --from ./tools/{{wheel}} tripwright --repo . query:*)"
+    ]
+  },
+  "env": {
+    "MCP_TIMEOUT": "60000"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Agent|Task|WebSearch|WebFetch|Bash|mcp__tripwright__query",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "uvx --from \"$CLAUDE_PROJECT_DIR/tools/{{wheel}}\" tripwright --repo \"$CLAUDE_PROJECT_DIR\" hook first-part"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "uvx --from \"$CLAUDE_PROJECT_DIR/tools/{{wheel}}\" tripwright --repo \"$CLAUDE_PROJECT_DIR\" hook stop"
+          }
+        ]
+      }
+    ]
+  }
+}
