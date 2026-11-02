@@ -19,7 +19,7 @@ import json
 import re
 import sys
 from datetime import datetime, tzinfo
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, unquote, unquote_plus, urlsplit
 
 LIMITS = {"quick": 5, "first": 10, "second": 16}
 STEP_VERBS = ("坐", "换", "走", "下车", "买", "出示", "搜")
@@ -375,7 +375,9 @@ def tag_problems(text: str) -> list[dict]:
 INTERNAL_TERMS = ("外部截止", "计划目标")
 # A11 replay: the server's own sentences carried how it searched and a note to the host, and the answer copied both:
 # “（4 次查询，每页接着上一页查）”, “（交通那段说一次就够，不用每条都写）”
-PROCESS_NOTES = re.compile(r"\d+\s*次查询|每页接着上一页|查了\s*\d+\s*页|\b\d+ searches\b|each from the last departure found", re.I)
+# A16 (quality judge 8, 3 of 3 runs): the lookup's own words “连续查全，24 班”, “在这次的查询结果里”
+PROCESS_NOTES = re.compile(r"\d+\s*次查询|每页接着上一页|查了\s*\d+\s*页|\b\d+ searches\b|each from the last departure found|"
+                           r"连续查全|在这次的查询结果里|in this lookup's results", re.I)
 WRITING_NOTES = re.compile(r"说一次就够|不用每条都写|每条都写|\bsay it once\b|\bnot on every line\b", re.I)
 
 
@@ -1145,7 +1147,9 @@ def archived_problems(text: str, record: dict | None) -> list[dict]:
         times = {clock_minutes(match) for match in CLOCK.finditer(line)}
         node = next((entry for entry in record.get("archived", []) if clock_minutes(CLOCK.search(entry["time"])) in times
                      and shares_words(line, [entry["text"]], size=3)), None)
-        fare = next((amount for amount in record.get("fares", []) if amount in line), None)
+        # an estimate said as one (A16: “约 €2.30”) is marked
+        fare = next((amount for amount in record.get("fares", []) if amount in line
+                     and not re.search(r"(?:约|about)\s*€?\s*" + re.escape(amount), line, re.I)), None)
         if node or fare:
             what = f"{node['time']} {node['text']}" if node else fare
             found.append(problem("archived_marked", number, line, f"“{what}”是存的、没核过，这行没标",
@@ -1159,7 +1163,7 @@ MISSING = re.compile(r"没查到|查不到|没找到|没有这班|这班没了")
 INSTEAD = re.compile(r"以下面的?(?:班次|车次)?为准")
 SPAN_AFTER = re.compile(r"\s*(?:那班|这班)?\s*(?:之后|以后|后|之前|以前|前)")  # “误了 22:53 那班之后…没查到”: later ones, not that one
 PIECES = re.compile(r"[，,。；;！？!?]")
-MISSING_FIX = ("照 latest_departure 的句子写：在结果里的写“计划里的 HH:MM 线路 在这次的查询结果里”；不在的写“不在这次的查询结果里，"
+MISSING_FIX = ("照 latest_departure 的句子写：在结果里的写“计划里的 HH:MM 线路 赶得上：…”；不在的写“这次没在时刻表数据里找到，"
                "要坐它先在 App 核一下”，不说以下面的为准")
 
 
@@ -1198,28 +1202,122 @@ SEARCH_TIME = re.compile(r"(?:出发时间填|时间填|departure time|time=)\s*
 MISSED = ("误了主选", "If you miss the first choice")
 
 
+# A16 (quality judge 8, 3 of 3 runs): the user ate at the station and “怎么查” searched the bus stop by the gym at 22:28; the
+# search is the first choice's first ride, its stop and its time (the frame's `main_first`).
+SEARCHED = re.compile(r"搜\s*(?P<zh>[^→，,。；]+?)\s*→[^，,。；]*?[，,]\s*出发时间填\s*(?P<zh_time>(?:[01]?\d|2[0-3])[:：][0-5]\d)|"
+                      r"search (?P<en>[^→,;]+?) → [^,;]*?, departure time (?P<en_time>(?:[01]?\d|2[0-3]):[0-5]\d)|"
+                      r"[?&]S=(?P<url>[^&\s)]+)[^\s)]*?[?&]time=(?P<url_time>(?:[01]?\d|2[0-3]):[0-5]\d)", re.I)
+
+
+def stop_key(name: str) -> str:
+    return re.sub(r"\s+", " ", unquote_plus(name)).strip().casefold()
+
+
 def search_problems(text: str, lookups: list[dict]) -> list[dict]:
-    """The “怎么查” section searches the first choice the server's frame names (its train's time), not only the last one;
-    a “误了主选，查末班” line is the second search and does not count (search_matches_main)."""
+    """The “怎么查” section searches the first choice the server's frame names: from the stop of its first ride at that
+    ride's time (A16; older frames: one of its times, A14). A “误了主选，查末班” line is the second search and does not
+    count (search_matches_main)."""
     framed = [lookup for lookup in lookups or [] if lookup.get("frame") and lookup["frame"].get("main") and lookup.get("fetched") is not None]
     if not framed:
         return []
     frame = max(framed, key=lambda lookup: lookup["fetched"])["frame"]
-    if frame["main"] <= frame["last"]:  # the first choice is the last one: nothing else to search
+    first = frame.get("main_first")
+    if not first and frame["main"] <= frame["last"]:  # the first choice is the last one: nothing else to search
         return []
     section, searched = False, []
     for number, line in numbered(text):
         if line.startswith("#"):
             section = bool(HOW_HEADING.match(line))
             continue
-        if section and not line.startswith(MISSED):
-            searched += [(number, line, clock_minutes(CLOCK.search(match.group(1)))) for match in SEARCH_TIME.finditer(line)]
-    if not searched or any(minute in frame["main"] for _, _, minute in searched):
+        if not section or line.startswith(MISSED):
+            continue
+        for match in SEARCHED.finditer(line):
+            stop = match.group("zh") or match.group("en") or match.group("url")
+            said = match.group("zh_time") or match.group("en_time") or match.group("url_time")
+            searched.append((number, line, stop_key(stop), clock_minutes(CLOCK.search(said))))
+        if not SEARCHED.search(line):
+            searched += [(number, line, None, clock_minutes(CLOCK.search(match.group(1)))) for match in SEARCH_TIME.finditer(line)]
+    if not searched:
         return []
-    number, line, minute = searched[0]
+    if first:
+        wrong = [(number, line, stop, minute) for number, line, stop, minute in searched
+                 if minute != first["depart"] or (stop is not None and stop != stop_key(first["stop"]))]
+        if not wrong:
+            return []
+        number, line, stop, minute = wrong[0]
+        stop = next((unquote_plus(match.group("zh") or match.group("en") or match.group("url")).strip() for match in SEARCHED.finditer(line)), None)
+        return [problem("search_matches_main", number, line, f"“怎么查”搜的是 {hhmm(minute)}" + (f" 从 {stop} 上车" if stop else "")
+                        + f"，这一问的主选第一程是 {hhmm(first['depart'])} 从 {first['stop']} 上车",
+                        f"搜 {first['stop']} → 终点，出发时间填 {hhmm(first['depart'])}；末班另起一行“误了主选，查末班：……”"
+                        "（照 latest_departure 的 how_to_check）")]
+    if any(minute in frame["main"] for _, _, _, minute in searched):
+        return []
+    number, line, _, minute = searched[0]
     train = hhmm(max(frame["main"]))
     return [problem("search_matches_main", number, line, f"“怎么查”搜的是 {hhmm(minute)}，这一问的主选是 {train} 那班",
                     f"出发时间填主选 {train}；末班另起一行“误了主选，查末班：……”（照 latest_departure 的 how_to_check）")]
+
+
+# A16 (quality judge 8, 3 of 3 runs): “核过：<岩馆> 周六 22:00 关门” and “<计划的车>（22:11 出门）” in one answer.
+LEAVE_AT = re.compile(r"((?:[01]?\d|2[0-3])[:：][0-5]\d)\s*出门|\bleave (?:by |at )?((?:[01]?\d|2[0-3]):[0-5]\d)", re.I)
+
+
+def closing_problems(text: str, lookups: list[dict]) -> list[dict]:
+    """A time to leave the origin that this question's lookups found from it, later than the origin closes (the frame's
+    `closes`, from its stored hours, kept when the lookup started while it was open): leave_before_closing."""
+    framed = [lookup["frame"] for lookup in lookups or [] if (lookup.get("frame") or {}).get("closes") is not None]
+    found = []
+    for number, line in numbered(text):
+        if line.startswith("#"):
+            continue
+        for match in LEAVE_AT.finditer(line):
+            minute = clock_minutes(CLOCK.search(match.group(1) or match.group(2)))
+            late = next((frame for frame in framed if minute in frame["leaves"]
+                         and ahead(minute, frame["start"]) > ahead(frame["closes"], frame["start"])), None)
+            if late:
+                found.append(problem("leave_before_closing", number, line, f"写 {hhmm(minute)} 出门，起点 {hhmm(late['closes'])} 就关门",
+                                     f"照 latest_departure 的句子写“{hhmm(late['closes'])} 关门出来，走到 … 坐 HH:MM 的车”，"
+                                     "或写从关门时刻起算的那班"))
+                break
+    return found
+
+
+# A16 (quality judge 8): “€9.70/人” for someone travelling alone.
+PER_PERSON = re.compile(r"/人|每人|一人\s*€|\bper person\b|\beach\b(?= ?€)", re.I)
+
+
+def party_problems(text: str, lookups: list[dict], points: dict | None) -> list[dict]:
+    """A price per person when the stored fares are each for one person (the turn's points, else this question's
+    lookups): per_person_alone."""
+    sizes = [(points or {}).get("party")] + [(lookup.get("frame") or {}).get("party") for lookup in lookups or []]
+    sizes = [size for size in sizes if size]
+    if not sizes or max(sizes) != 1:
+        return []
+    return [problem("per_person_alone", number, line, "一个人出行，价钱后面写了“/人”", "去掉“/人”，照 tickets 的句子写")
+            for number, line in numbered(text) if not line.startswith("#") and PER_PERSON.search(line)][:1]
+
+
+# A16 (quality judge 8, off_r1): without the tools the host's first part opened with the plan's “最晚 21:50 … 出门” and
+# “最后一班是 23:53 REX”; the lookup later found the last train at 00:53. Before this question's lookup a first part
+# quotes no last or latest time, unless from an earlier lookup it marks “HH:MM 查过”.
+LATEST_WORD = re.compile(r"最晚|末班|最后一班|最后一趟|\blast (?:train|bus|connection|one)\b|\blatest\b", re.I)
+LOOKED = re.compile(r"(?:[01]?\d|2[0-3])[:：][0-5]\d\s*查过|checked at", re.I)
+
+
+def unlooked_latest_problems(text: str) -> list[dict]:
+    """A first part's line with a last/latest word next to a time (within ADJACENT characters either side) and no
+    “查过” of an earlier lookup: latest_needs_lookup."""
+    found = []
+    for number, line in numbered(text):
+        if LOOKED.search(line):
+            continue
+        for word in LATEST_WORD.finditer(line):
+            near = line[max(0, word.start() - ADJACENT):word.end() + ADJACENT + 2]
+            if CLOCK.search(near):
+                found.append(problem("latest_needs_lookup", number, line, f"第一段写了“{word.group(0)}”和时刻：这一问还没查过",
+                                     "只给存档的车并标“存档，没核”（照 turn 的 first_part）；最晚、末班第二段查完再给"))
+                break
+    return found
 
 
 # A14 (quality judge 7, on_r2): “火车最后一班 00:53” on the first line and “没核：01:00 之后的火车没查，不能说 00:53 之后没有
@@ -1272,11 +1370,12 @@ def second_length_problems(text: str) -> list[dict]:
 
 
 FIRST_CHECKS = ("clock_in_first_part", "no_tags", "internal_words", "no_process_notes", "first_part_lines", "answers_each_point",
-                "place_in_first_lines", "archived_marked", "assumed_place_matches_plan")
+                "place_in_first_lines", "archived_marked", "assumed_place_matches_plan", "latest_needs_lookup", "per_person_alone")
 SECOND_CHECKS = ("second_heading", "frame_matches_server", "checked_has_evidence", "only_inside_window", "direct_needs_one_ride",
                  "unreachable_needs_lookup", "denied_needs_coverage", "count_needs_continuous",
                  "fallback_later", "plan_heading", "meals_named", "title_time_not_later", "no_tags", "internal_words",
-                 "no_process_notes", "second_part_lines", "missing_ride_found", "search_matches_main", "coverage_said_short")
+                 "no_process_notes", "second_part_lines", "missing_ride_found", "search_matches_main", "coverage_said_short",
+                 "leave_before_closing", "per_person_alone")
 
 
 def check_draft(text: str, part: str, clock: int, found: dict | None = None, *, question: str | None = None,
@@ -1288,7 +1387,8 @@ def check_draft(text: str, part: str, clock: int, found: dict | None = None, *, 
     found = dict(NO_EVIDENCE, **(found or {}))
     if part == "first":
         return (clock_problems(text, clock) + tag_problems(text) + internal_problems(text) + note_problems(text) + first_length_problems(text)
-                + point_problems(text, points) + archived_problems(text, points) + plan_place_problems(text, here))
+                + point_problems(text, points) + archived_problems(text, points) + plan_place_problems(text, here)
+                + unlooked_latest_problems(text) + party_problems(text, [], points))
     return (second_heading_problems(text) + frame_problems(text, clock, found["lookups"]) + evidence_problems(text, found)
             + window_problems(text, clock, found["windows"], found["lookups"])
             + direct_problems(text, found["lookups"]) + unreachable_problems(text, found)
@@ -1296,7 +1396,8 @@ def check_draft(text: str, part: str, clock: int, found: dict | None = None, *, 
             + fallback_problems(text) + heading_problems(text) + meal_problems(text, question, found, places)
             + title_problems(text, clock) + tag_problems(text) + internal_problems(text) + note_problems(text)
             + second_length_problems(text) + missing_ride_problems(text, found["lookups"]) + search_problems(text, found["lookups"])
-            + short_coverage_problems(text, clock, found["lookups"]))
+            + short_coverage_problems(text, clock, found["lookups"]) + closing_problems(text, found["lookups"])
+            + party_problems(text, found["lookups"], points))
 
 
 # --- A7: what was sent is what was checked (the Stop hook) ----------------------------------------------------------------
@@ -1512,10 +1613,14 @@ def latest_lookup(value: dict, zone: tzinfo) -> dict:
     frame = value.get("frame")
     last = {time for time in (in_time[-1]["leave"], in_time[-1]["board"]) if time is not None} if in_time else set()
     if frame:
+        first = frame.get("main_first")
         frame = dict(frame, times={minute(time, zone) for time in frame.get("times", [])} - {None},
                      targets={minute(time, zone) for time in frame.get("targets", [])} - {None},
                      last={minute(time, zone) for time in frame.get("last", [])} - {None},
-                     main={minute(time, zone) for time in frame.get("main", [])} - {None})
+                     main={minute(time, zone) for time in frame.get("main", [])} - {None},
+                     main_first=dict(first, depart=minute(first["depart"], zone)) if first else None,
+                     closes=minute(frame.get("closes"), zone), start=minute(frame.get("start"), zone),
+                     leaves={minute(time, zone) for time in frame.get("leaves", [])} - {None})
         if frame["kind"] == "last_connection":
             last = frame["last"]  # tonight's last connection(s), as the server framed them (A10)
     return dict(kind="latest_departure", connections=connections, start=minute(window.get("from"), zone),
@@ -1534,12 +1639,12 @@ if __name__ == "__main__":
 DISPATCH_TOOLS = {"Agent", "Task"}
 LOOKUP_TOOLS = DISPATCH_TOOLS | {"WebSearch", "WebFetch"}
 LOOKUP_COMMAND = re.compile(r"\btripwright\b[^\n|;&]*\bquery\b")
-FIRST_REASON = "先把第一段发给用户（现在怎么走、最晚几点），再查"
+FIRST_REASON = "先把第一段发给用户（现在怎么走；没查过的最晚、末班不写），再查"
 # D-46: the order that kept both parts (v2e, 16 questions) dispatches the researcher in the background, then writes the
 # first part as the turn's last text; the reason points there (it replaces 11-01's "dispatch in the same reply").
 IN_BACKGROUND = "核查请在后台派 researcher（Agent 加 run_in_background: true）"
 FIRST_DENIALS = 3  # after this many denials for one question the hook lets lookups through, so it cannot lock the host out
-STOP_FIRST_REASON = "把第一段写成回复文字再结束（现在怎么走、最晚几点）"
+STOP_FIRST_REASON = "把第一段写成回复文字再结束（现在怎么走；没查过的最晚、末班不写）"
 PUSH_REASON = "在后台派 researcher 核查，再写第二段（先过 check_answer）"
 STOP_BLOCKS = 3  # per question, all of the Stop hook's reasons together; then it lets the turn end (D-48)
 # A first part that says a second part follows (skeleton: "没核：……，第二段核完再发", "第二段确认"; "the second part follows")

@@ -37,7 +37,7 @@ RULE = dict(url="https://ferry.example.org/rules", quote="The ferry counter clos
 SNIPPET = dict(url="https://cafe.example.org/", quote="Harbour cafe open until 23:00", claim="The harbour cafe is open until 23:00",
                type="opening_hours", read_from="search_snippet")
 
-GOOD_FIRST = """最晚 21:30 出门，坐 21:35 的车去码头。
+GOOD_FIRST = """计划里 21:30 出门，坐 21:35 的车去码头（存档，没核）。
 按现在 20:45 算，你在 Nordkai 附近。不在就告诉我在哪。
 
 Fergeterminal
@@ -214,7 +214,11 @@ def test_the_title_time_is_not_later_than_now(trip):
     ("最晚 21:30 出门。\n按现在 19:40 算。", "写的现在 19:40 和钟 20:45 差超过 5 分钟"),  # r9: "now" from the plan
     ("最晚 21:30 出门。\n按现在 20:45 算（latest_departure 没跑）。", "证据号或字段名：latest_departure"),
     (GOOD_FIRST, None),
-    ("不用现在就走，最晚 21:30 出门。\n按现在 20:47 算。", None),  # "现在" as a word is not a clock claim
+    ("不用现在就走，计划里 21:30 出门（存档，没核）。\n按现在 20:47 算。", None),  # "现在" as a word is not a clock claim
+    # A16 (quality judge 8, off_r1): a last or latest time before this question's lookup, unless an earlier one is quoted
+    ("最晚 21:30 出门。\n按现在 20:45 算。", "第一段写了“最晚”和时刻：这一问还没查过"),
+    ("计划里存的最后一班是 23:53 REX。\n按现在 20:45 算。", "第一段写了“最后一班”和时刻：这一问还没查过"),
+    ("去码头：今晚最后一班 23:05 REX 7，Nordkai 开（20:30 查过）\n按现在 20:45 算。", None),
 ])
 def test_the_first_part_names_the_clock_and_no_internal_words(trip, head, problem):
     result = check(trip, head, "first")

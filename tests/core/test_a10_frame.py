@@ -213,13 +213,15 @@ def test_without_a_deadline_the_answer_is_tonights_last_connection_and_the_next_
     assert window["covered"] and window["continuous"] and window["from"][11:16] == "21:01" and window["until"].startswith(f"{NEXT_DAY}T03:00")
     first = found["first_line"]
     assert first == ("今晚最后一班：最晚 00:30 出门，换 1 次车：00:33 D Wien Matzleinsdorfer Platz → Wien Hauptbahnhof 00:45，换 00:53 REX 7 "
-                     "Wien Hauptbahnhof → Flughafen Wien Bahnhof 01:15；01:15 到；下一班 明早 04:02 D 开")
-    assert found["sentences"][:2] == [first, window["text"]] and "连续查全" in window["text"]
+                     "Wien Hauptbahnhof → Flughafen Wien Bahnhof 01:15；01:15 到；下一班 凌晨 03:59 出门")
+    # A16: a covered search is said by the lines (“下一班 …”), not by its own “连续查全，N 班” line
+    assert found["sentences"][0] == first and window["text"] not in found["sentences"] and "连续查全" not in window["text"]
     node = found["hard_node"]
     assert (node["anchor_id"], node["deadline"], node["external"]["anchor_id"], node["external"]["time"]) == ("hn-queue", "plan", "hn-desk", "07:05")
     # a12b: the plan's own train, found among this lookup's departures
-    assert found["sentences"][2] == "计划里的 22:53 REX 7 在这次的查询结果里（22:30 出门）"
-    assert found["sentences"][3] == "之后要守的时间：你计划明早 05:45 前到（留的余量）：到证件柜台排队；明早 07:05 证件柜台关（存档，没核）"
+    assert found["sentences"][1] == "计划里的 22:53 REX 7 赶得上：22:30 出门"
+    # A16: the counter's time and the plan's margin, a line each
+    assert found["sentences"][2:4] == ["之后要守：明早 07:05 证件柜台关（存档，没核）", "你计划留的余量：明早 05:45 前，到证件柜台排队"]
     # A14: the plan's margin (05:45) gets no latest departure of its own; this line is for the counter behind it (07:05).
     # The fixture has no train after 04:52: its own search does not reach 07:05, so it says “可以坐”, not “最晚”
     assert node["latest"]["leave"] == "04:29" and found["sentences"][4].startswith("明早直接从 起点 去：要 07:05 前到，可以坐：04:29 出门")
@@ -256,7 +258,7 @@ def test_without_a_hard_node_no_deadline_is_made_up(make):
     assert not any("前到" in sentence or "要守的时间：" in sentence for sentence in found["sentences"])
     # control: the same lookup with the node stored names it
     named = query(make(tomorrow=[QUEUE]), "latest_departure", origin=STREET, destination="airport")
-    assert named["hard_node"]["anchor_id"] == "hn-queue" and named["sentences"][2].startswith("之后要守的时间：你计划明早 05:45 前")
+    assert named["hard_node"]["anchor_id"] == "hn-queue" and named["sentences"][1] == "你计划留的余量：明早 05:45 前，到证件柜台排队"
 
 
 def test_a_last_coach_comes_with_the_last_one_without_an_extra_ticket(make):
@@ -279,14 +281,14 @@ def test_buses_all_night_are_said_and_the_last_train_is_named(make):
     # 02:20: S1 to Praterstern, then the VAB 5 bus — one ride is rail, the one that reaches the airport is not
     service = make(Evening(trains=NIGHT[:5], buses=buses, mixed=("02:20",)), tomorrow=[QUEUE, DESK])
     found = query(service, "latest_departure", origin="hbf", destination="airport")
-    assert found["first_line"] == ("今晚不用赶：夜里一直有车到 Flughafen Wien；火车最后一班 00:53 REX 7（最晚 00:53 出门）；"
-                                   "之后要守的时间：你计划明早 05:45 前到（留的余量）：到证件柜台排队")
+    assert found["first_line"] == "今晚不用赶：夜里一直有车到 Flughafen Wien；火车最后一班 00:53 REX 7（最晚 00:53 出门）"
     assert not found["first_line"].startswith("03:00 前最后开的是")  # the replay's first line
-    # A12: the first line named the last train and the next time to keep; the lines below do not say them again
+    # A12: the first line named the last train; the lines below do not say it again. A16: the next time to keep and
+    # the plan's margin are lines of their own, each once
     assert found["sentences"][1] == ("这班火车怎么坐：00:53 出门，不用换车：00:53 REX 7 Wien Hauptbahnhof → Flughafen Wien "
                                      "Bahnhof 01:15；01:15 到")
-    assert sum("你计划明早 05:45 前" in sentence for sentence in found["sentences"]) == 1
-    assert "另外要守：明早 07:05 证件柜台关（存档，没核）" in found["sentences"]
+    assert sum("05:45" in sentence for sentence in found["sentences"]) == 1
+    assert found["sentences"][3:5] == ["之后要守：明早 07:05 证件柜台关（存档，没核）", "你计划留的余量：明早 05:45 前，到证件柜台排队"]
     assert found["sentences"][2].startswith("03:00 前最后开的是：02:45 出门") and "也有车" in found["sentences"][2]
     # the 02:20 train-then-bus is no “last train” (the replay's mislabel); the 00:53 REX is
     assert found["tonight_ends_after_last"] is False and found["last_train"]["boards"]["time"] == "00:53"
@@ -304,7 +306,7 @@ def test_buses_all_night_are_said_and_the_last_train_is_named(make):
 def test_a_search_that_stops_before_tonights_end_never_says_the_last_one(make):
     trains = tuple(f"21:{minute:02d}" for minute in range(10, 60, 5)) + NIGHT
     found = query(make(Evening(trains), budget=1), "latest_departure", origin="hbf", destination="airport")
-    assert not found["window"]["covered"] and "额度" in found["window"]["text"]
+    assert not found["window"]["covered"] and "查询次数到上限" in found["window"]["text"] and found["window"]["limited"]
     assert found["first_line"].startswith("查到的班次里最后开的是：")
     assert not any(word in sentence for sentence in found["sentences"] for word in ("最后一班", "末班", "最晚"))
     assert found["reason"] == found["window"]["text"]
@@ -319,12 +321,12 @@ def test_turn_drafts_the_first_part_from_stored_data_and_next_says_send_it_first
     turn = service.turn("local", "今晚到明天 最晚几点出发机场 怎么走", "q1", scenario="quick")
     first = turn["first_part"]
     assert first["asks_latest"] and first["lines"] == [
-        "按现在 21:01 算：真正最晚要查，第二段给。",
+        "按现在 21:01 算：几点出发要查，第二段给。",
         "计划里写过：22:53 在 Wien Hauptbahnhof 坐 REX 7 去 Flughafen Wien（存档，没核）",
-        "你计划明早 05:45 前到（留的余量）：到证件柜台排队",
+        "你计划留的余量：明早 05:45 前，到证件柜台排队",
         "明早 07:05 证件柜台关（存档，没核）",  # A11: no source checked the operator's time
         "计划里存的班次说法没核，第二段给。",
-        "没核：今晚最后一班、最晚几点出门和要守的时间，第二段核完再发。"]
+        "没核：今晚还有哪些车、几点必须出门和要守的时间，第二段核完再发。"]
     assert first["text"] == "\n".join(first["lines"]) and len(first["lines"]) <= 8
     # D-64 two (A10 replay): the stored “只剩 23:53 末班” sentence and its “这条作废” never enter the first part
     assert "23:53" not in first["text"] and "作废" not in first["text"] and "只剩" not in first["text"]
@@ -392,7 +394,7 @@ def test_an_english_first_part_keeps_a_clock_the_first_part_check_reads():
     anchors = [dict(QUEUE, date=NEXT_DAY, passed=False), dict(DESK, date=NEXT_DAY, passed=False)]
     plan = airport_plan()
     draft = first_part.draft("What is the latest I can leave for the airport?", dict(date=DAY, time="21:01"), anchors, plan, "en")
-    assert draft["lines"][0] == "As of 21:01, the real latest departure needs checking; part 2 follows."
+    assert draft["lines"][0] == "As of 21:01, when to leave needs checking; part 2 follows."
     assert check_draft(draft["text"], "first", 21 * 60 + 1) == []
     bad = draft["text"].replace("As of 21:01,", "As of 21:01:")
     assert [entry["check"] for entry in check_draft(bad, "first", 21 * 60 + 1)] == ["clock_in_first_part"]

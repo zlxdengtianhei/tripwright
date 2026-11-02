@@ -259,7 +259,8 @@ def test_a_change_is_not_summarized_as_the_first_line_to_the_last_stop(make):
     service = make(Bus13A(), at="21:52")
     found = query(service, "transit", origin=STREET, destination="48.2085,16.3731", when=local("21:52").isoformat(), limit=1)
     summary = found["summary"]
-    assert "22:00 13A Wien Leibenfrostgasse → Wien Kolschitzkygasse 22:05，换 22:07 1 Wien Kolschitzkygasse → Wien Stephansplatz 22:13" in summary
+    # A16: a tram's number is a route (“1 路”)
+    assert "22:00 13A Wien Leibenfrostgasse → Wien Kolschitzkygasse 22:05，换 22:07 1 路 Wien Kolschitzkygasse → Wien Stephansplatz 22:13" in summary
     assert "13A Wien Leibenfrostgasse → Wien Stephansplatz" not in summary
     told = found["sentences"][0]
     assert told == ("21:55 出门，换 1 次车：22:00 13A Wien Leibenfrostgasse → Wien Kolschitzkygasse 22:05，换 22:07 1 "

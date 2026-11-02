@@ -117,9 +117,11 @@ PROMISES = (
     Promise("lookups-from-the-tools", ALL_MAIN + RESEARCHER, must=(r"latest_departure", r"web_evidence")),
     # v2d replays: the main agent that read the command in its own skill ran it before the first part, which was then lost.
     Promise("command-line-only-in-the-researcher", RESEARCHER, must=(r"tripwright --repo \. query", r"starts with `uvx --from \./tools/<wheel> tripwright --repo \. query`")),
-    # The main agent's one command line is the second part's check_answer (D-43); lookups stay with the researcher.
+    # The main agent's one command line is the second part's check_answer (D-43); lookups stay with the researcher. A16:
+    # and the first part's draft (`first-part`, no lookup) when the tools are down.
     Promise("main-agent-never-runs-the-command-line", ALL_MAIN, must=(r"(?:主 agent 只跑第二段的 `check_answer`|the main agent runs only the second part's `check_answer`)",),
-            must_not=(r"uvx --from (?![^\n]*?query check_answer)",), bad_sample="Without the MCP tools run `uvx --from ./tools/x.whl tripwright --repo . query transit`."),
+            must_not=(r"uvx --from (?![^\n]*?(?:query check_answer|tripwright --repo \. first-part))",),
+            bad_sample="Without the MCP tools run `uvx --from ./tools/x.whl tripwright --repo . query transit`."),
     # Third quality verdict (D-44): the tools' words leaked into answers; a way not looked up was called impossible.
     Promise("tool-words-stay-out", ALL_MAIN, must=(r"(?:工具里的说法不进回答|The tools' words stay out of the answer)", r"(?:不写证据号|never the evidence ID)"),
             must_not=(r"(?:写明|标成)过了计划目标", r"say \"past the plan's target\""), bad_sample="`later` 标成过了计划目标。"),
@@ -160,7 +162,7 @@ PROMISES = (
     Promise("final-check-and-inquiry-section", ALL_MAIN + (SERVER,),
             must=(r"怎么查、怎么问", r"我可以帮你起草询问内容", r"英语", r"当地语言")),
     Promise("unchecked-latest-example-defers-answer", ("skills/tripwright-main/references/examples.md", MCP_MAIN, L0_MAIN),
-            must=(r"Good first part, before lookups:\n```text\n按现在 \d\d:\d\d 算：真正最晚要查，第二段给。",)),
+            must=(r"Good first part, before lookups:\n```text\n按现在 \d\d:\d\d 算：几点出发要查，第二段给。",)),
     # A10 (D-67): the service drafts the first part and frames “最晚几点出发去 X”; part 2 goes once, after check_answer.
     Promise("first-part-from-turn", MAIN_TEXTS + (SERVER,), must=(r"first_part",)),
     Promise("last-connection-from-the-server", MAIN_TEXTS + (SERVER,) + RESEARCHER,

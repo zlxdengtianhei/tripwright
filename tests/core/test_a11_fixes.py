@@ -114,7 +114,7 @@ def test_the_last_train_names_the_train_ride_not_the_tram_to_the_station(make):
     assert not {"tram", "subway", "bus", "coach"} & RAIL
     station = query(make(Evening(trains=NIGHT[:5], buses=BUSES), tomorrow=[QUEUE, DESK]), "latest_departure", origin="hbf",
                     destination="airport")
-    assert "；火车最后一班 00:53 REX 7（最晚 00:53 出门）；" in station["first_line"]
+    assert station["first_line"].endswith("；火车最后一班 00:53 REX 7（最晚 00:53 出门）")
 
 
 # --- C. an online deadline is no time to be there ------------------------------------------------------------------------
@@ -131,7 +131,7 @@ def test_an_online_deadline_is_no_time_to_be_at_the_airport(make):
     with pytest.raises(ValueError, match="'hn-checkin' is done online .*has no latest departure"):
         query(service, "latest_departure", origin=STREET, destination="airport", anchor_id="hn-checkin")
     turn = service.turn("local", "最晚几点出发去机场？", "q1", scenario="quick")
-    assert "明早 05:45 网上值机截止（起飞前 2 小时）（在手机上做，不用到场；存档，没核）" in turn["first_part"]["lines"]
+    assert "明早 05:45 网上值机截止（起飞前 2 小时；在手机上做，不用到场；存档，没核）" in turn["first_part"]["lines"]
     record = next(node for node in turn["hard_nodes"] if node["id"] == "hn-checkin")
     assert record["where"] == "online" and record["latest_departure"] is None
     # the plan check asks nobody to reach the airport for it; the counter still is a place to reach
@@ -196,7 +196,7 @@ def test_a_failed_lookup_writes_no_stored_last_train(make, monkeypatch):
     monkeypatch.setattr(QueryRouter, "_pages", down)
     found = query(service, "latest_departure", origin=STREET, destination="airport")
     assert found["hard_node"]["latest"]["status"] == "unverified"
-    assert found["sentences"][2] == "之后要守的时间：你计划明早 05:45 前到（留的余量）：到证件柜台排队；明早 07:05 证件柜台关（存档，没核）"
+    assert found["sentences"][1:3] == ["之后要守：明早 07:05 证件柜台关（存档，没核）", "你计划留的余量：明早 05:45 前，到证件柜台排队"]
     assert not any(re.search("末班|只剩", sentence) for sentence in found["sentences"])  # was “计划里写过“…只剩 23:53 末班”…”
     # the night's search fails: one sentence says nothing was checked, and no host is told to keep the plan
     monkeypatch.setattr(QueryRouter, "_window", down)
@@ -235,7 +235,7 @@ def test_a_node_no_source_checked_is_quoted_as_archive():
     checked = dict(node, checked=dict(source="www.example.at", at="2026-11-04T18:00:00+00:00"))
     assert "明早 07:05 证件柜台关" in draft("明早怎么去机场？", now, [checked], plan)["lines"]
     target = dict(QUEUE, date=NEXT_DAY, passed=False, checked=None)
-    assert "你计划明早 05:45 前到（留的余量）：到证件柜台排队" in draft("明早怎么去机场？", now, [target], plan)["lines"]
+    assert "你计划留的余量：明早 05:45 前，到证件柜台排队" in draft("明早怎么去机场？", now, [target], plan)["lines"]
 
 
 # --- no process talk or writing notes ---------------------------------------------------------------------------------------
@@ -244,10 +244,12 @@ def test_process_talk_and_writing_notes_stay_out_of_the_answer(make):
     service = make(Evening(trains=NIGHT[:5], buses=BUSES))
     found = query(service, "latest_departure", origin="hbf", destination="airport")
     window = found["window"]["text"]
-    assert window.startswith("从 21:01 到 03:00 连续查全，") and found["note"] == "以上交通时刻按时刻表，不是实时。"
+    # A16: the window in the user's words, and not a line of its own when the search covered tonight
+    assert window == "21:01 到 03:00 之间出发的车都在这里；03:00 之后的没查" and found["note"] == "以上交通时刻按时刻表，不是实时。"
+    assert window not in found["sentences"]
     assert not any(PROCESS_NOTES.search(text) or WRITING_NOTES.search(text) for text in [*found["sentences"], found["note"]])
     # bad samples: the replay's two lines
-    process = window.replace("连续查全，", "连续查全（4 次查询，每页接着上一页查），")
+    process = "从 21:01 到 03:00 连续查（4 次查询，每页接着上一页查），12 班；03:00 之后出发的没查"
     writing = "以上交通时刻按时刻表，不是实时（交通那段说一次就够，不用每条都写）。"
     bad = problems(service, second_part(found["first_line"], process, writing))
     assert list(bad) == ["no_process_notes"] and len(bad["no_process_notes"]) == 2

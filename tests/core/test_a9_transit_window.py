@@ -105,7 +105,7 @@ def test_until_pages_until_the_window_is_covered_and_tells_every_departure(make)
     summary = found["summary"]
     assert "Wien Hauptbahnhof → Flughafen Wien Bahnhof" in summary and "00:53 REX 7" in summary
     assert "再下一班 04:22 REX 7 开" in summary and "04:52" not in summary.split("再下一班")[1]
-    assert "连续查全" in summary and "01:00 之后出发的没查" in summary
+    assert "之间出发的车都在这里" in summary and "01:00 之后的没查" in summary  # A16: the user's words, not “连续查全”
     # 总结句自己过 check_answer；坏样本（少写 23:23、数错）被拦
     assert problems(service, second(found["summary"], at="21:01")) == {}
     assert problems(service, second(COUNT_GOOD, at="21:01")) == {}
@@ -123,8 +123,8 @@ def test_until_stops_at_the_daily_budget_and_says_how_far_it_got(make):
     service = make(tight, at="21:01", budget=1)  # 一页 8 班车不够用一页装下：第二页时额度到限
     found = query(service, "transit", origin=HBF, destination=AIRPORT, when=local("21:00").isoformat(), until="01:00")
     window = found["window"]
-    assert not window["covered"] and window["limited"] and "额度" in window["text"] and "查到" in window["text"]
-    assert "之后出发的没查" in window["text"]
+    assert not window["covered"] and window["limited"] and "查询次数到上限" in window["text"] and "查到" in window["text"]
+    assert "之后的没查" in window["text"]
 
 
 def test_until_needs_transit_and_a_later_time(make):

@@ -96,6 +96,37 @@ def run_query(arguments) -> int:
     return 0
 
 
+def run_first_part(arguments) -> int:
+    """turn's first part for a host whose Tripwright tools are down (A16): the draft from the stored trip as JSON on
+    stdout (`first_part.text` is what to send, `next` what to do), its text on stderr. Records nothing."""
+    try:
+        text = sys.stdin.read() if arguments.text_file == "-" else Path(arguments.text_file).read_text(encoding="utf-8") \
+            if arguments.text_file else arguments.text
+        if not str(text or "").strip():
+            raise ValueError("first-part needs the user's message: --text or --text-file")
+        try:
+            points = json.loads(arguments.points) if arguments.points else None
+        except json.JSONDecodeError as error:
+            raise ValueError(f"--points must be a JSON list: {error}") from None
+        store, service = open_service(arguments, providers="synthetic")
+    except (ValueError, OSError, GitError) as error:
+        print(f"tripwright: {error}", file=sys.stderr)
+        return 1
+    try:
+        result = service.draft_first_part(arguments.local_user, text, points=points, speaker=arguments.speaker)
+    except (ValueError, KeyError, TypeError) as error:
+        print(f"tripwright: {error}", file=sys.stderr)
+        return 1
+    finally:
+        service.jobs.stop()
+        if service.committer is not None:
+            service.committer.stop()
+        store.close()
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(result["first_part"]["text"], file=sys.stderr)
+    return 0
+
+
 def serve_stdio(arguments) -> int:
     """The stdio server answers the host's handshake first and opens the trip repository behind it (A2): a new clone
     rebuilds its index from every file, and a repository that cannot be opened must still let the host connect and
@@ -275,6 +306,13 @@ def main(argv: list[str] | None = None) -> int:
                        "as the user sent them; without it or --request-id, the latest user message of the last 30 minutes")
     query.add_argument("--providers", choices=["live", "synthetic"], default=os.environ.get("TRIPWRIGHT_PROVIDERS", "live"),
                        help="live data (default) or the fictional demo data")
+    first = commands.add_parser("first-part", help="Without the MCP tools: turn's first part from the stored trip (JSON on stdout; "
+                                                    "first_part.text is what to send). Records nothing")
+    first.add_argument("--text", help="The user's message")
+    first.add_argument("--text-file", help="A file with the user's message (- for standard input), instead of --text")
+    first.add_argument("--points", help="This question's points as a JSON list, as turn takes them: "
+                                        "[{\"kind\": \"at|go|eat|do|ticket|other\", \"said\": …, \"place\": …}]")
+    first.add_argument("--speaker", help="The writer's person ID")
     init = commands.add_parser("init", help="Create a trip repository (Git): profile/, trips/<trip>/, agent files")
     init.add_argument("folder")
     init.add_argument("--trip", help="First trip folder name, e.g. 2031-05-wien")
@@ -338,6 +376,8 @@ def main(argv: list[str] | None = None) -> int:
         return serve_stdio(arguments)
     if arguments.command == "query":
         return run_query(arguments)
+    if arguments.command == "first-part":
+        return run_first_part(arguments)
     if arguments.command == "serve" and arguments.http:
         server_logging()
     if arguments.command == "serve" and arguments.http and (arguments.remote_config or environment_config()):

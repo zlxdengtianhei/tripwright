@@ -8,8 +8,8 @@ the text in the tool result (harness neutral, R-62, R-69).
 The draft uses stored data only: the clock of the read on the first line and the plan's next hard nodes. A stored
 “末班、只剩、最晚” never enters it (D-64 two; the A10 replay quoted one, with “这轮查到更晚的 04:07，这条作废”): at most
 one line says the plan's stored service claims are not checked and part 2 gives them (A11: that line names no “末班”
-either). A question about the latest departure, the last service or making it in time opens with “真正最晚要查，第二段给”
-and lists the known hard nodes; the real latest comes from the lookup in the second part. A node's time that no source
+either). A question about the latest departure, the last service or making it in time opens with “几点出发要查，第二段给”
+(A16: no “最晚” before a lookup) and lists the known hard nodes; the real latest comes from the lookup in the second part. A node's time that no source
 checked (`checked` empty) says “（存档，没核）”, unless it is the plan's own target (A11: “07:05 证件柜台关” read as a
 fact); a node done online says nobody has to be there (A11 C). At most 8 lines; the first part checks of check_answer
 pass on it.
@@ -17,6 +17,10 @@ pass on it.
 A12 (quality judge 6, A): that draft reads the plan, not the question. With the question's points (`turn(points=…)`, the
 host's reading of it) the draft answers each point from what the trip stores (point_draft), says on line 2 where the
 user is, and says “第二段给” for what is not stored; without them it is the plan's draft above.
+
+A16 (quality judge 8): a go point's first line gives the plan's own way to its stored train when the plan has one from
+where the user is (packs.planned_way: when to leave, from where, the way on the line below, archived); a host without
+the tools gets this same draft from `tripwright first-part` (Tripwright.draft_first_part).
 """
 from __future__ import annotations
 
@@ -34,23 +38,23 @@ NODES = 3  # hard nodes the draft names
 # a stored claim as packs.archived_claims rewrote it inside a node's text: left out of the draft
 ARCHIVED = re.compile(r"计划里写过“[^”]*”（存档[^）]*）。?|the plan stored \"[^\"]*\" \(archived[^)]*\)\.?")
 WORDS = {
-    "zh": dict(latest="按现在 {clock} 算：真正最晚要查，第二段给。", plain="按现在 {clock} 算：先按存的计划说，要核的第二段给。",
+    "zh": dict(latest="按现在 {clock} 算：几点出发要查，第二段给。", plain="按现在 {clock} 算：先按存的计划说，要核的第二段给。",
                empty="按现在 {clock} 算：这趟还没有存的计划，第二段给。",
                board="计划里写过：{when}{time} 在 {stop} 坐 {line}{toward}（存档，没核）", toward=" 去 {place}", vehicle="车",
-               plan="你计划{when}{time} 前到（留的余量）：{text}", external="{when}{time} {text}", unmarked="{when}{time} {text}",
+               external="{when}{time} {text}", unmarked="{when}{time} {text}",
                unchecked="（存档，没核）", online="（在手机上做，不用到场）", online_unchecked="（在手机上做，不用到场；存档，没核）",
                claims="计划里存的班次说法没核，第二段给。",
-               check_latest="没核：今晚最后一班、最晚几点出门{nodes}，第二段核完再发。", nodes="和要守的时间",
+               check_latest="没核：今晚还有哪些车、几点必须出门{nodes}，第二段核完再发。", nodes="和要守的时间",
                check_plain="没核：上面的时刻是存的计划，第二段核完再发。", morning="明早 ", tomorrow="明天 "),
-    "en": dict(latest="As of {clock}, the real latest departure needs checking; part 2 follows.",
+    "en": dict(latest="As of {clock}, when to leave needs checking; part 2 follows.",
                plain="As of {clock}, from the stored plan; what needs checking follows in part 2.",
                empty="As of {clock}, this trip has no stored plan yet; part 2 follows.",
                board="The plan stored: {when}{time} {line} from {stop}{toward} (archived, not checked)", toward=" to {place}",
-               vehicle="service", plan="By {when}{time} (your plan's margin) — {text}", external="{when}{time} {text}",
+               vehicle="service", external="{when}{time} {text}",
                unmarked="{when}{time} {text}", unchecked=" (archived, not checked)", online=" (done online, no need to be there)",
                online_unchecked=" (done online, no need to be there; archived, not checked)",
                claims="The plan's stored service claims are not checked; part 2 gives them.",
-               check_latest="Not checked: tonight's last connection, when to leave{nodes}; part 2 follows.", nodes=" and the times to keep",
+               check_latest="Not checked: tonight's services, when you must leave{nodes}; part 2 follows.", nodes=" and the times to keep",
                check_plain="Not checked: the times above are the stored plan's; part 2 follows.", morning="tomorrow morning ",
                tomorrow="tomorrow "),
 }
@@ -108,8 +112,9 @@ POINT_WORDS = {
                nowhere="按现在 {clock} 算，你没说在哪，先按计划说",
                go="去{place}：", night="今晚不用赶，夜里一直有车", train="；火车最后一班 {time} {line}，{stop} 开",
                last="今晚最后一班 {time} {line}，{stop} 开", leave="，最晚 {leave} 出门", looked="（{fetched} 查过）",
-               go_check="真正最晚要查，第二段给。", go_planned="计划里是{when}{time} 在 {stop} 坐 {line}（存档，没核）；真正最晚的第二段核完给。",
-               tonight="今晚 ",
+               go_check="几点出发要查，第二段给。", go_planned="计划里是{when}{time} 在 {stop} 坐 {line}（存档，没核）；几点出门、怎么走，第二段核完给。",
+               go_way="计划里是 {leave} 从 {origin} 出门{arrive}，坐{when}{time} {line}（存档，没核）；还有没有更晚的车，第二段核完给。",
+               arrive="，{arrive} 到 {stop}", way="怎么走（存档，没核）：{how}", tonight="今晚 ",
                eat_open="吃：{places}（存的营业时间，最近的离你约 {km} 公里）", eat_place="{name}开到 {closes}", more="等 {count} 处",
                eat_closed="吃：附近存的吃饭地点现在都关着，第二段给。", eat_none="吃：附近没存吃饭地点，第二段给。",
                eat_nowhere="吃：不知道你在哪，第二段给。",
@@ -122,9 +127,11 @@ POINT_WORDS = {
                nowhere="As of {clock}; you did not say where you are, so this follows the plan",
                go="To {place}: ", night="no need to hurry tonight, services run all night",
                train="; the last train {time} {line} leaves {stop}", last="tonight's last one {time} {line} leaves {stop}",
-               leave=", leave by {leave}", looked=" (checked at {fetched})", go_check="the real latest departure needs checking; part 2 follows.",
-               go_planned="the plan stores the {time} {line} from {stop}{when} (archived, not checked); the real latest follows in part 2.",
-               tonight=" tonight",
+               leave=", leave by {leave}", looked=" (checked at {fetched})", go_check="when to leave needs checking; part 2 follows.",
+               go_planned="the plan stores the {time} {line} from {stop}{when} (archived, not checked); when to leave and how follow in part 2.",
+               go_way="the plan has you leave {origin} at {leave}{arrive} for the {time} {line}{when} (archived, not checked); "
+                      "whether a later one runs follows in part 2.",
+               arrive=", at {stop} by {arrive}", way="How (archived, not checked): {how}", tonight=" tonight",
                eat_open="Food: {places} (stored hours; the nearest about {km} km from you)", eat_place="{name}until {closes}",
                more="and {count} more", eat_closed="Food: the stored places nearby are closed now; part 2 follows.",
                eat_none="Food: no stored place to eat nearby; part 2 follows.", eat_nowhere="Food: where you are is not known; part 2 follows.",
@@ -142,10 +149,17 @@ def go_line(point: dict, where: dict | None, said: dict) -> str:
     else that the real latest needs checking. A place the trip does not store gets no name: never the user's words
     (a12b replay: “去最晚几点出发机场 怎么走：真正最晚要查”)."""
     head = said["go"].format(place=point["name"]) if point["name"] else ""
-    frame, train = point["facts"].get("frame"), point["facts"].get("train")
+    frame, train, way = point["facts"].get("frame"), point["facts"].get("train"), point["facts"].get("way")
     if not frame:
-        # A14 (quality judge 7): “真正最晚要查” alone did not answer; the plan's stored train to that place comes first
-        text = re.sub(r"\s+(?=[ (（])|  +", " ", said["go_planned"].format(**train)) if train else said["go_check"]
+        # A14 (quality judge 7): “真正最晚要查” alone did not answer; the plan's stored train to that place comes first. A16
+        # (quality judge 8): with the plan's way there, when to leave and from where; never a “最晚” no lookup said
+        if train and way:
+            arrive = said["arrive"].format(arrive=way["arrive"], stop=train["stop"]) if way.get("arrive") else ""
+            text = re.sub(r"(?<=[\u4e00-\u9fff]) (?=[\u4e00-\u9fff])", "",
+                          said["go_way"].format(**dict(train, leave=way["leave"], origin=way["origin"], arrive=arrive)))
+        else:
+            text = said["go_planned"].format(**train) if train else said["go_check"]
+        text = re.sub(r"\s+(?=[ (（])|  +", " ", text)
         return head + (text if head else text[:1].upper() + text[1:])
     ride = frame["ride"]
     leave = said["leave"].format(leave=ride["leave"]) if where and frame["origin"] and frame["origin"] == where.get("place") and ride.get("leave") else ""
@@ -202,7 +216,10 @@ def point_draft(question: str, now: dict, anchors: list[dict], plan: dict | None
     points = sorted(told["points"], key=lambda point: point["kind"] != "go")
     answers = [point_line(point, where, said) for point in points]
     head = place_head(where, now["time"], said)
-    lines = [answers[0], head, *answers[1:]] if answers else [said["plain"], head]
+    # the plan's way to its train goes under where the user is (A16): line 1 says when, this one how
+    ways = [said["way"].format(how=point["facts"]["way"]["how"]) for point in points[:1] if point["kind"] == "go"
+            and not point["facts"].get("frame") and point["facts"].get("train") and (point["facts"].get("way") or {}).get("how")]
+    lines = [answers[0], head, *ways, *answers[1:]] if answers else [said["plain"], head]
     from tripwright.query import anchor_meaning
 
     going = {point["place"] for point in points if point["kind"] == "go"}
@@ -238,11 +255,23 @@ def node_line(anchor: dict, plan: dict | None, today: str, said: dict) -> str:
         toward = said["toward"].format(place=place_label(plan, anchor["destination"])) if anchor.get("destination") else ""
         return said["board"].format(when=when, time=anchor["time"], stop=place_label(plan, anchor["place"]),
                                     line=anchor.get("line") or said["vehicle"], toward=toward)
+    from tripwright.query import margin_text
+
     kind = {"plan": "plan", "external": "external"}.get(anchor.get("deadline"), "unmarked")
     text = re.sub(r"（\s*）|\(\s*\)", "", ARCHIVED.sub("", anchor["text"])).strip()
+    if kind == "plan":  # the plan's margin, said once (A16)
+        return margin_text(text, when, anchor["time"], "zh" if said is WORDS["zh"] else "en")
     mark = ("online" if anchor_meaning(anchor) == "online_deadline" else "") + \
-        ("_unchecked" if kind != "plan" and not anchor.get("checked") else "")
-    return said[kind].format(when=when, time=anchor["time"], text=text) + (said[mark.strip("_")] if mark else "")
+        ("_unchecked" if not anchor.get("checked") else "")
+    return bracketed(said[kind].format(when=when, time=anchor["time"], text=text), said[mark.strip("_")] if mark else "")
+
+
+def bracketed(text: str, mark: str) -> str:
+    """A mark in brackets after text that ends in its own bracket, as one bracket (A16: “（起飞前 40 分钟；存档，没核）”)."""
+    for opening, closing, joint in (("（", "）", "；"), (" (", ")", "; ")):
+        if mark.startswith(opening) and text.endswith(closing):
+            return text[:-1] + joint + mark[len(opening):]
+    return text + mark
 
 
 def draft(question: str, now: dict, anchors: list[dict], plan: dict | None, language: str = "zh", told: dict | None = None) -> dict:

@@ -101,7 +101,7 @@ def test_the_plans_margin_and_an_online_deadline_get_no_latest_departure(make):
     service = make(tomorrow=(dict(CHECKIN, where="online"), QUEUE, DESK))
     found = query(service, "latest_departure", origin=STREET, destination="airport")
     said = "\n".join(found["sentences"])
-    assert "你计划明早 05:45 前到（留的余量）：到证件柜台排队" in said
+    assert "你计划留的余量：明早 05:45 前，到证件柜台排队" in said
     assert "要 05:45 前到" not in said and "直接从 起点 去：要 07:05 前到" in said
     assert found["hard_node"]["anchor_id"] == "hn-queue" and found["hard_node"]["latest"]["target"]["time"] == "07:05"
     # bad sample (the replay's data): the online check-in stored without `where: online` is a time to be at the airport
@@ -125,7 +125,7 @@ def test_how_to_check_searches_the_first_choice_and_the_last_one_apart(make):
     assert problems(service, second_part(found["first_line"], *ending, *text.splitlines())) == {}
     # bad sample (3 of 3 runs): the first choice is the plan's 22:53, the search is the last train's
     bad = problems(service, second_part(found["first_line"], *ending, "出发前在 ÖBB App 搜 Wien Hauptbahnhof → Flughafen Wien Bahnhof，出发时间填 00:53。"))
-    assert bad["search_matches_main"][0].startswith("“怎么查”搜的是 00:53，这一问的主选是 22:53 那班")
+    assert bad["search_matches_main"][0].startswith("“怎么查”搜的是 00:53 从 Wien Hauptbahnhof 上车，这一问的主选第一程是 22:53 从 Wien Hauptbahnhof 上车")
     # control: without a train in the plan the first choice is the last train, and searching it is right
     plain = make(today=())
     last = query(plain, "latest_departure", origin="hbf", destination="airport")
@@ -138,13 +138,14 @@ def test_how_to_check_searches_the_first_choice_and_the_last_one_apart(make):
 def test_the_first_part_gives_the_stored_train_first_and_one_hard_node(make):
     service = make(tomorrow=(dict(CHECKIN, where="online"), QUEUE, DESK, dict(DESK, id="hn-gate", time="07:15", text="登机口关")))
     lines = service.turn("local", "最晚几点出发去机场", "q4", scenario="quick", points=GO)["first_part"]["lines"]
-    assert lines[0] == "去维也纳机场：计划里是今晚 22:53 在 Wien Hauptbahnhof 坐 REX 7（存档，没核）；真正最晚的第二段核完给。"
+    # A16: the plan's own way from the user's block to that train says when to leave
+    assert lines[0] == "去维也纳机场：计划里是 21:45 从北边的岩馆出门，22:13 到 Wien Hauptbahnhof，坐今晚 22:53 REX 7（存档，没核）；还有没有更晚的车，第二段核完给。"
     # bad sample (the replay's first part): the check-in, the margin, the counter and the gate, four lines of tomorrow
     assert [line for line in lines if line.startswith("明早")] == ["明早 07:05 证件柜台关（存档，没核）"]
     assert "05:45" not in "\n".join(lines) and "07:15" not in "\n".join(lines)
     # control: without a train to the place the first line still says the latest follows in part 2
     bare = make(today=()).turn("local", "最晚几点出发去机场", "q5", scenario="quick", points=GO)["first_part"]["lines"]
-    assert bare[0] == "去维也纳机场：真正最晚要查，第二段给。"
+    assert bare[0] == "去维也纳机场：几点出发要查，第二段给。"
 
 
 # --- 5. a coverage note that contradicts the search of tonight ----------------------------------------------------------------

@@ -20,7 +20,7 @@ The user acts on your answer on a phone and sees two messages only: the first pa
 - 第一段照抄 `turn.first_part.text`（只可改称呼和语言），在任何查询前发，它按 `points` 逐件答。没有它时逐件答，先答最急的：问最晚先给存的车（存档，没核），真正最晚第二段给；硬节点只列下一个要到场的。正文最多 8 行，地名与链接不计；末行列待核。第一段不核。
 - 第二段前 run `date`；都核过才用“# 第二段 · 核过了（HH:MM）”，否则“# 第二段 · 没核完：原因（HH:MM）”；正文最多 12 行，地名、链接与完整安排各项不计。问最晚、末班时正文首行照抄 `latest_departure` 的 `first_line`，再写“和第一段不同”或“和第一段一样”，逐个确认／更正首行时刻。“## 完整安排”从现在到最后硬节点逐行写；改动说明放末尾求助前。
 - 交通照抄本问 `sentences`，保留每程、换乘、站名、时刻和范围；不拼“首程线路 → 终点”。空结果或 `fallback: null` 不等于没车。窗口外、缺覆盖或换季照抄 `window.text`、`coverage`；“唯一、最后、最晚”只用有覆盖支持的原句。交通段照 `note` 说一次“按时刻表，不是实时”；票照 `tickets`（存的票）说；实时程的标记保留。
-- 问最晚、末班：`latest_departure` 只给 `origin`、`destination`（服务端查到今晚最后一班和之后要守的时间）；有期限才另给 `by`（到达终点）、`board_at`（赶某班，`destination` 填上车站）或 `anchor_id` 之一。主选、后备、`later`、`candidates`（含 `via_station`）按原句用途给；后备要比主选晚开。没查的走法写“这次只查了 X”。起终点用地点编号或存的名字，不用街道地址。工具里的说法不进回答：余量写“你计划 HH:MM 前到”，截止写“柜台 HH:MM 关”。
+- 问最晚、末班：`latest_departure` 只给 `origin`、`destination`（服务端查到今晚最后一班和之后要守的时间）；有期限才另给 `by`（到达终点）、`board_at`（赶某班，`destination` 填上车站）或 `anchor_id` 之一。主选、后备、`later`、`candidates`（含 `via_station`）按原句用途给；后备要比主选晚开。没查的走法写“这次只查了 X”。起终点用地点编号或存的名字，不用街道地址。工具里的说法不进回答：余量写“你计划留的余量”，截止写“柜台 HH:MM 关”。
 - 地名单独一行原文，下一行中文名与是什么、链接。换乘站、上车站在句中第一次出现时写“原文（中文名，是什么）”；服务端交通原句保留，用旁边的地名行解释，不往原句里塞字。
 - 能查到且不常变的事实先查好写准，包括目的地、按时刻表的车次与换乘、营业规则；不给用户重复核查任务。“核过”只用于 Tripwright 真实工具证据，网页写“网上说法（来源）”，摘要写“搜索摘要”。没核写“什么 → 后果”，操作放在最后。
 - 吃的给 2—3 处到时开着且有来源的店，含麦当劳、超市等常见选择；营业时间不明或已关的不推荐。先 `query(kind="open_places", arguments={"near": 地点编号, "at": 到达时刻, "text": "food"})`，不够两处就读店家、车站或机场官网，用 `web_evidence`（`type: "opening_hours"`）记原句；查不到就明说，不编开门时间。规则与活动也用 `web_evidence` 记原句；只有 `counts_as_checked` 才算工具核过。
@@ -39,7 +39,7 @@ The user acts on your answer on a phone and sees two messages only: the first pa
 
 ## Every message
 
-If the Tripwright tools are not there yet, run `date` and read `trips/<trip>/views/packs/<date>.md` and the day file, then look for `turn` again, silently.
+Without the Tripwright tools, step 5's `first_part` comes from `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>`.
 
 1. Call `turn` first for every user message, before you answer: the text as received, its source nature (`user_verbatim` only with a native message reference, else `host_restatement`), a stable `request_id`, the scenario (`quick` on the road) and `points`, each thing it names in the user's words. Put what it states in its `record` with `source.event: "this"` and `true_from` an ISO time with offset, never "this". Pass `speaker`, the writer's person ID. Subagents never call `turn`.
 2. Take the clock: the `now` that `turn` returns, else run `TZ=<timezone in tripwright.yaml> date`. Answer for that time, not the plan.

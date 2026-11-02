@@ -7,18 +7,18 @@ Fictional times; public station names. Each transport line below is supplied ver
 
 The first part is `turn.first_part.text`, sent as it is (the plan stores the 22:53 REX 7 at Wien Hauptbahnhof and a 05:45 queue at the airport). Good first part, before lookups:
 ```text
-按现在 22:14 算：真正最晚要查，第二段给。
+按现在 22:14 算：几点出发要查，第二段给。
 计划里写过：22:53 在 Wien Hauptbahnhof 坐 REX 7 去 Flughafen Wien（存档，没核）
-你计划明早 05:45 前：到证件柜台排队
-没核：今晚最后一班、最晚几点出门和要守的时间，第二段核完再发。
+你计划留的余量：明早 05:45 前，到证件柜台排队
+没核：今晚还有哪些车、几点必须出门和要守的时间，第二段核完再发。
 ```
 Good second part, after `latest_departure` with only `origin` (Wien Hauptbahnhof) and `destination` (Flughafen Wien), then running `date`. The stored 22:53 node has a line and a place: it is a boarding time at Wien Hauptbahnhof (to catch it, `anchor_id` alone or `board_at="22:53"` with that station as destination), never the airport's deadline; only a real arrival deadline goes in `by`. A hard-node archive is cited only as “计划里写过‘只剩末班’（存档，没核）”, never as tonight's fact.
 ```text
 # 第二段 · 核过了（22:16）
-今晚最后一班：最晚 00:53 出门，不用换车：00:53 REX 7 Wien Hauptbahnhof → Flughafen Wien Bahnhof 01:15；01:15 到；下一班 明早 04:22 REX 7 开
+今晚最后一班：最晚 00:53 出门，不用换车：00:53 REX 7 Wien Hauptbahnhof → Flughafen Wien Bahnhof 01:15；01:15 到；下一班 明早 04:22 出门
 和第一段不同：最晚已查到，计划里的 22:53 不是最后一班。
-从 22:14 到 03:00 连续查全，12 班；03:00 之后出发的没查
-之后要守的时间：你计划明早 05:45 前：到证件柜台排队；明早 07:05 证件柜台关（存档，没核）
+之后要守：明早 07:05 证件柜台关（存档，没核）
+你计划留的余量：明早 05:45 前，到证件柜台排队
 以上交通时刻按时刻表，不是实时。
 ## 完整安排
 22:53 在 Wien Hauptbahnhof 上 REX 7，23:15 到 Flughafen Wien Bahnhof，在机场过夜

@@ -76,6 +76,6 @@ Wiener Linien 与 VAO 的额外实时适配器尚未接入。VAO 如需接入，
 
 ## 展示、开发与许可
 
-[examples/trip-2026-10-bud-wien/](examples/trip-2026-10-bud-wien/) 是一趟真实走过的行程（2026-10 布达佩斯—维也纳），人名都换成了代号；这趟给朋友看的网页在 <https://zlxdengtianhei.github.io/trip-map-2026/>（目前只有中文）。行程仓里的页面：每一天的安排、要去的地方、偏好与记忆、计划为什么改，都是 tripwright 生成的页面。也可以运行 `tripwright demo` 看虚构行程的程序输出。
+[examples/trip-2026-10-bud-wien/](examples/trip-2026-10-bud-wien/) 是一趟真实走过的行程（2026-10 布达佩斯—维也纳），人名都换成了代号；这趟给朋友看的网页在 <https://zlxdengtianhei.github.io/trip-map-2026/>（默认英文，可切中文）。行程仓里的页面：每一天的安排、要去的地方、偏好与记忆、计划为什么改，都是 tripwright 生成的页面。也可以运行 `tripwright demo` 看虚构行程的程序输出。
 
 本地核验：`uv run pytest -q`。MCP 冒烟：`uv run python scripts/smoke_mcp.py`。本项目代码采用 [MIT 许可](LICENSE)；上游数据与服务条款单独适用，MIT 不会授予 Transitous 公共 API 的商业使用权。

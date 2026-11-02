@@ -227,22 +227,7 @@ class Tripwright:
             considered = consider.build(self.store, owner, pack=shown["pack"], plan=plan or None, scenario=scenario, at=at, language=self.language)
             context.update(pack=shown["pack"], asked=[dict(id=question["id"], scope=question.get("scope", {})) for question in asked])
             self.store.put("contexts", owner, context)
-            anchors = [dict(date=day["date"], **anchor) for day in plan.get("days", []) for anchor in day.get("anchors", [])
-                       if (not subject or "*" in subject or set(subject) & set(anchor["subject"]))
-                       and (not scope or (not scope.get("start") or day["date"] >= scope["start"]) and (not scope.get("end") or day["date"] <= scope["end"]))]
-            versions = packs.committed(self.store.all("versions", owner))
-            for anchor in anchors:
-                anchor["latest_departure"] = departure_clock(anchor["time"], anchor["buffer_minutes"], anchor["travel_minutes"], day=anchor["date"], zone=plan["timezone"])
-                # Where the time comes from and whether it is already behind us (A2): a passed node's consequence
-                # ("only the 23:53 is left") is history, not tonight's options.
-                anchor.update(packs.node_timing(self.store, owner, versions, anchor["date"], anchor, at))
-                # A9 (D-64): a stored "末班 / 只剩 / 最晚" sentence is marked as archive (when written, source), never a
-                # current fact; a later departure found this session voids it.
-                anchor.update(packs.archived_claims(self.store, owner, plan or None, anchor["date"], anchor, anchor, at,
-                                                    language=self.language))
-                instant = local_instant(anchor["date"], anchor["time"], plan["timezone"])
-                anchor["passed"] = instant is not None and instant <= aware(at)
-            anchors.sort(key=lambda anchor: anchor["passed"])
+            anchors = self._hard_nodes(owner, plan, subject, scope, at)
             write = self.write_ref(owner, op)
             pending = memory.pending_entries(self.store, owner)
             response = dict(now=self.clock(owner, at), receipt=receipt, ctx_id=context_id, base_version=current["number"], snapshot=context["snapshot"],
@@ -277,6 +262,57 @@ class Tripwright:
             self.committer.poke()
         return response
 
+    def _hard_nodes(self, owner: str, plan: dict, subject: list[str] | None, scope: dict | None, at: str) -> list[dict]:
+        """turn's hard nodes: the plan's anchors for the subject and scope, each with its latest departure clock, where
+        its time comes from, its archived claims and whether it has passed (passed ones last)."""
+        anchors = [dict(date=day["date"], **anchor) for day in plan.get("days", []) for anchor in day.get("anchors", [])
+                   if (not subject or "*" in subject or set(subject) & set(anchor["subject"]))
+                   and (not scope or (not scope.get("start") or day["date"] >= scope["start"]) and (not scope.get("end") or day["date"] <= scope["end"]))]
+        versions = packs.committed(self.store.all("versions", owner))
+        for anchor in anchors:
+            anchor["latest_departure"] = departure_clock(anchor["time"], anchor["buffer_minutes"], anchor["travel_minutes"], day=anchor["date"], zone=plan["timezone"])
+            # Where the time comes from and whether it is already behind us (A2): a passed node's consequence
+            # ("only the 23:53 is left") is history, not tonight's options.
+            anchor.update(packs.node_timing(self.store, owner, versions, anchor["date"], anchor, at))
+            # A9 (D-64): a stored "末班 / 只剩 / 最晚" sentence is marked as archive (when written, source), never a
+            # current fact; a later departure found this session voids it.
+            anchor.update(packs.archived_claims(self.store, owner, plan or None, anchor["date"], anchor, anchor, at,
+                                                language=self.language))
+            instant = local_instant(anchor["date"], anchor["time"], plan["timezone"])
+            anchor["passed"] = instant is not None and instant <= aware(at)
+        anchors.sort(key=lambda anchor: anchor["passed"])
+        return anchors
+
+    def draft_first_part(self, owner: str, text: str, *, points: list | None = None, speaker: str | None = None,
+                         subject: list[str] | None = None) -> dict:
+        """turn's first part without turn, for a host whose Tripwright tools are down (A16, quality judge 8, off_r1: the
+        host wrote its own from the plan's files, with the stored “最晚 21:50 出门” and “23:53 末班” on its first line). It
+        reads the trip and records nothing: the message is not received, no context is kept. Returns the clock, the
+        draft (`first_part`, as turn's) and what to do with it (`next`)."""
+        self.bound(owner)
+        points = first_part.checked_points(points)
+        plan = self.versions.current(owner)["plan"] or {}
+        at = now()
+        anchors = self._hard_nodes(owner, plan, subject, None, at) if plan else []
+        told = packs.point_facts(self.store, owner, plan, points, anchors, at, self.language,
+                                 person=packs.asker(plan, speaker, subject)) if points is not None and plan else None
+        clock = self.clock(owner, at)
+        first = first_part.draft(text, clock, anchors, plan or None, self.language, told)
+        en = self.language == "en"
+        return dict(now=clock, first_part=first, **(dict(points=told) if told is not None else {}),
+                    next=(" " if en else "").join(self._send_first(en)))
+
+    def _send_first(self, en: bool) -> list[str]:
+        """What `next` says of the first part (A10, A14, A16), for turn and for the command line's first part."""
+        return ["Send first_part.text to the user as it is (only the form of address and the language may change), then "
+                "look things up." if en else "先把 first_part.text 原样发给用户（只可改称呼和语言），再去查。",
+                # A10 replay: “Following instructions: …” before the first part, “还在核…马上发第二段” between the two
+                "The user sees two messages only, the first and the second part: send no status line before the first "
+                "or between the two." if en else "用户只看到第一段和第二段两条消息：第一段之前、两段之间不发任何状态句。",
+                # A14 (quality judge 7): “第一部分已经在上面了”, “上面这段是按存的计划写的” sent while nothing was above
+                "The user sees no tool result: the first part is there only once you send it; never write that something is "
+                "above." if en else "用户看不到工具结果：第一段要你发出来才算，不写“上面已经……”。"]
+
     def _asked(self, owner: str, event_id: str) -> list[dict]:
         """What the previous turn asked (the latest context of another message): must-go places, real-time data."""
         earlier = [context for context in self.store.all("contexts", owner) if context.get("source_event") != event_id]
@@ -300,14 +336,7 @@ class Tripwright:
                                    "that result." if en else
                                    "这一问没给 points：first_part 只按存的计划写，不回应这一问点名的事。先把这一问点名的每件事"
                                    "（人在哪、去哪、吃、活动、票，用用户的话）写进 points，用同一个 request_id 再调一次 turn，再照它做。"]
-        parts += ["Send first_part.text to the user as it is (only the form of address and the language may change), then "
-                 "look things up." if en else "先把 first_part.text 原样发给用户（只可改称呼和语言），再去查。",
-                 # A10 replay: “Following instructions: …” before the first part, “还在核…马上发第二段” between the two
-                 "The user sees two messages only, the first and the second part: send no status line before the first "
-                 "or between the two." if en else "用户只看到第一段和第二段两条消息：第一段之前、两段之间不发任何状态句。",
-                 # A14 (quality judge 7): “第一部分已经在上面了”, “上面这段是按存的计划写的” sent while nothing was above
-                 "The user sees no tool result: the first part is there only once you send it; never write that something is "
-                 "above." if en else "用户看不到工具结果：第一段要你发出来才算，不写“上面已经……”。"]
+        parts += self._send_first(en)
         if latest:
             parts.append("For the latest departure or the last service: query latest_departure with origin and destination "
                          "only (no anchor_id, by or board_at); the service searches tonight's last connection and the next "

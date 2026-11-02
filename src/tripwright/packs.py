@@ -16,6 +16,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import re
+from difflib import SequenceMatcher
 from datetime import date as Date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -723,6 +724,49 @@ def plan_here(plan: dict | None, local: datetime, person: str | None, language: 
     return dict(id=place["id"], name=short_name(place, language, plan), names=[name for name in dict.fromkeys(names) if name])
 
 
+# A16 (quality judge 8): one run passed its own English rendering of the stored gym's name as the place and its first part
+# said “还不确定你在哪”; the other passed the ID. The service resolves the host's place or the user's words against the
+# stored names.
+NAME_LIKE = 0.68  # how alike (difflib ratio of the letters) typed words and a stored name must be to be taken as it
+NAME_AHEAD = 0.15  # and how far ahead of the next place's name
+LATIN_RUN = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿß][A-Za-zÀ-ÖØ-öø-ÿß'’.\- ]*[A-Za-zÀ-ÖØ-öø-ÿß]")
+
+
+def letters(text: str) -> str:
+    return re.sub(r"[^0-9a-zà-öø-ÿß]+", "", text.casefold())
+
+
+def stored_names(place: dict) -> list[str]:
+    """A place's names as a user may say them: its Chinese name before any “（…）”, its local name before the address."""
+    from tripwright.query import name_head
+
+    return [name for name in dict.fromkeys([re.split(r"[（(]", place.get("name") or "")[0].strip(),
+                                            name_head(place.get("name_local") or "")]) if name]
+
+
+def resolve_place(plan: dict | None, place: str | None, said: str | None = None) -> dict | None:
+    """The trip's place a point names: its `place` as an ID or stored name (match_place); else the one place whose stored
+    name the place or the words contain, or whose name their Latin words come close to (NAME_LIKE, NAME_AHEAD over the
+    next: “Boulder Hall South” for “Boulderhalle Süd”). None when none or several fit: a guess is never taken."""
+    from tripwright.query import match_place
+
+    found = match_place(plan, place) if place else None
+    if found:
+        return found
+    places = [entry for entry in (plan or {}).get("places", []) if entry.get("transit_id") or entry.get("coords")]
+    texts = [text for text in (place, said) if text]
+    held = {entry["id"]: entry for entry in places for name in stored_names(entry) for text in texts
+            if (len(letters(name)) >= 4 and letters(name) in letters(text)) or (not name.isascii() and len(name) >= 3 and name in text)}
+    if held:
+        return next(iter(held.values())) if len(held) == 1 else None
+    runs = [letters(run) for text in texts for run in LATIN_RUN.findall(text) if len(letters(run)) >= 5]
+    scored = sorted(((max((SequenceMatcher(None, run, letters(name)).ratio() for run in runs for name in stored_names(entry)
+                           if letters(name)), default=0), entry["id"]) for entry in places), reverse=True)
+    if scored and scored[0][0] >= NAME_LIKE and (len(scored) == 1 or scored[0][0] - scored[1][0] >= NAME_AHEAD):
+        return next(entry for entry in places if entry["id"] == scored[0][1])
+    return None
+
+
 def stored_destination(plan: dict | None, anchors: list[dict], word: str | None) -> dict | None:
     """The place a go point names when its `place` is no place of the trip (a12b replay: “机场”): the one place the
     upcoming hard nodes go to or are at whose stored name holds that word; None when there is none or several."""
@@ -736,7 +780,7 @@ def stored_destination(plan: dict | None, anchors: list[dict], word: str | None)
 
 def planned_train(plan: dict | None, anchors: list[dict], place: dict, now: dict, language: str) -> dict | None:
     """The plan's next stored train to `place` (a boarding node with a line), as the first part quotes it, archived (A14:
-    the first line gives what the archive can give before “真正最晚的第二段核完给”)."""
+    the first line gives what the archive can give before part 2's lookup; A16: with the stop and date, for planned_way)."""
     from tripwright.render.first_part import POINT_WORDS, WORDS, day_word
 
     found = min((anchor for anchor in anchors if anchor.get("line") and anchor.get("destination") == place["id"]),
@@ -747,7 +791,29 @@ def planned_train(plan: dict | None, anchors: list[dict], place: dict, now: dict
     said = POINT_WORDS.get(language, POINT_WORDS["en"])
     when = said["tonight"] if found["date"] == now["date"] and found["time"] >= "17:00" else \
         day_word(found["date"], found["time"], now["date"], WORDS.get(language, WORDS["en"]))
-    return dict(when=when, time=found["time"], line=found["line"], stop=(stop or {}).get("name_local") or found.get("place") or "")
+    return dict(when=when, time=found["time"], line=found["line"], stop=(stop or {}).get("name_local") or found.get("place") or "",
+                place=found.get("place"), date=found["date"])
+
+
+def planned_way(plan: dict | None, train: dict | None, where: dict | None, now: dict, person: str | None,
+                language: str) -> dict | None:
+    """The plan's own way to the stored train (A16, quality judge 8: “计划里是今晚 HH:MM … 坐 <车次>” gave no time to
+    leave and no way to the station, against the user's rule “先在对话里给现在怎么走”): the asker's travel block on the
+    train's day that ends at its stop, starts where the user is (said or assumed) and has not begun; when it starts and
+    ends, from where, and how (its line, else its stored way up to the first “；”). None when the plan stores none."""
+    if not train or not where or not where.get("place"):
+        return None
+    entry = next((day for day in (plan or {}).get("days", []) if str(day["date"]) == train["date"]), None)
+    blocks = [block for option in (entry or {}).get("plans", [])[:1] for track in option.get("tracks", [])
+              if not person or person in track.get("subject", []) for block in track.get("blocks", [])]
+    found = [block for block in blocks if block.get("kind") == "travel" and block.get("destination") == train["place"]
+             and block.get("origin") == where["place"] and block.get("start")
+             and (train["date"] != now["date"] or block["start"] >= now["time"])]
+    if not found:
+        return None
+    block = min(found, key=lambda block: block["start"])
+    how = block.get("line") or re.split(r"[；;]", block.get("mode") or "")[0].strip() or None
+    return dict(leave=block["start"], arrive=block.get("end"), origin=where.get("name") or where["place"], how=how)
 
 
 def stored_frame(store: Store, owner: str, destination: str, at: str, zone: str) -> dict | None:
@@ -787,9 +853,10 @@ def point_facts(store: Store, owner: str, plan: dict | None, points: list[dict],
     now, local = clock(at, zone), aware(at).astimezone(ZoneInfo(zone))
     said_at = next((point for point in points if point["kind"] == "at"), None)
     if said_at is not None:
-        place = match_place(plan, said_at["place"]) if said_at.get("place") else None
+        place = resolve_place(plan, said_at.get("place"), said_at["said"])  # A16: the stored names, not only the host's place
         where = dict(said=said_at["said"], place=(place or {}).get("id"), name=short_name(place, language, plan) if place else None,
-                     coords=coordinates(plan, said_at["place"]) if said_at.get("place") else None, assumed=False)
+                     coords=(tuple(place["coords"]) if place and place.get("coords") else
+                             coordinates(plan, said_at["place"]) if said_at.get("place") else None), assumed=False)
     else:
         planned = plan_place(plan, now["date"], now["time"], person or asker(plan))
         planned = match_place(plan, planned) if planned else None
@@ -801,16 +868,17 @@ def point_facts(store: Store, owner: str, plan: dict | None, points: list[dict],
     for point in points:
         if point["kind"] == "at":
             continue
-        place = match_place(plan, point["place"]) if point.get("place") else None
+        place = resolve_place(plan, point.get("place"), point["said"] if point["kind"] in ("go", "do") else None)
         if place is None and point["kind"] == "go":  # never the user's words as the place's name (a12b)
             place = stored_destination(plan, upcoming, point.get("place"))
         entry = dict(kind=point["kind"], said=point["said"], place=(place or {}).get("id") or point.get("place"),
                      name=short_name(place, language, plan) if place else None)
         keys = [point["said"]] + ([entry["name"], place.get("name_local") or ""] if place else [])
         if point["kind"] == "go":
+            train = planned_train(plan, upcoming, place, now, language) if place else None
             facts = dict(frame=stored_frame(store, owner, place["id"], at, zone) if place else None, tickets=tickets,
                          nodes=[anchor["id"] for anchor in upcoming if place and place["id"] in (anchor.get("place"), anchor.get("destination"))],
-                         train=planned_train(plan, upcoming, place, now, language) if place else None)
+                         train=train, way=planned_way(plan, train, where, now, person or asker(plan), language))
         elif point["kind"] == "eat":
             here = (coordinates(plan, point["place"]) if point.get("place") else None) or (where or {}).get("coords")
             rows = [row for row in place_rows(plan, here, local, POINT_KM, [], language)
@@ -825,7 +893,48 @@ def point_facts(store: Store, owner: str, plan: dict | None, points: list[dict],
         else:
             facts = {}
         told.append(dict(entry, facts=facts, keys=[key for key in dict.fromkeys(keys) if key]))
-    return dict(at=where, points=told)
+    return dict(at=where, points=told, next=next_place(plan, where, told, language), party=(tickets or {}).get("party"))
+
+
+def next_place(plan: dict | None, where: dict | None, told: list[dict], language: str) -> dict | None:
+    """Where this question has the user go before the place it goes to (A16, quality judge 8: “先去 Hbf 吃饭” and the
+    lookups still left from the gym): of the eat and do points in the host's order, the last with a place of the trip
+    other than where the user is; a meal without one is at the first open place the first part names. None without."""
+    here = (where or {}).get("place")
+    steps = []
+    for point in told:
+        place = point["place"] if point["kind"] in ("eat", "do") and point.get("name") else None
+        if point["kind"] == "eat" and (place is None or place == here) and point["facts"].get("open"):
+            place = point["facts"]["open"][0]["id"]
+        if place and place != here:
+            steps.append(dict(kind=point["kind"], said=point["said"], place=place))
+    if not steps:
+        return None
+    step = steps[-1]
+    found = next((entry for entry in (plan or {}).get("places", []) if entry["id"] == step["place"]), None)
+    return dict(step, name=short_name(found, language, plan) if found else step["place"])
+
+
+STEP_MINUTES = 30  # a question's next step holds for lookups this long after its turn
+
+
+def next_step(store: Store, owner: str, plan: dict | None, origin: str, destination: str, at: datetime) -> dict | None:
+    """The next place of the latest question (its turn's context, at most STEP_MINUTES old, next_place) for a lookup
+    from where that question has the user to a place it goes to; None otherwise, or when the latest turn gave no
+    points (A16)."""
+    from tripwright.query import match_place
+
+    kept = [context for context in store.all("contexts", owner) if "points" in context and aware(context["created_at"]) <= at + timedelta(minutes=1)]
+    latest = max(kept, key=lambda context: aware(context["created_at"]), default=None)
+    if latest is None or aware(latest["created_at"]) < at - timedelta(minutes=STEP_MINUTES):
+        return None
+    record = latest["points"]
+    step, start, end = record.get("next"), match_place(plan, origin), match_place(plan, destination)
+    goes = {point.get("place") for point in record.get("points", []) if point["kind"] == "go"}
+    if not step or not start or not end or start["id"] != (record.get("at") or {}).get("place") or end["id"] not in goes \
+            or step["place"] == start["id"]:
+        return None
+    return step
 
 
 def point_record(told: dict | None, anchors: list[dict]) -> dict:
@@ -839,5 +948,5 @@ def point_record(told: dict | None, anchors: list[dict]) -> dict:
     fares = {f"{fare['amount_per_person']:.2f}" for point in told["points"] for item in (point["facts"].get("tickets") or {}).get("items", [])
              for fare in item["fares"] if fare.get("estimated") and fare.get("amount_per_person") is not None}
     return dict(given=True, at={key: value for key, value in (told["at"] or {}).items() if key != "coords"} or None,
-                points=[dict(kind=point["kind"], said=point["said"], keys=point["keys"]) for point in told["points"]],
-                archived=archived, fares=sorted(fares))
+                points=[dict(kind=point["kind"], said=point["said"], keys=point["keys"], place=point.get("place")) for point in told["points"]],
+                archived=archived, fares=sorted(fares), next=told.get("next"), party=told.get("party"))

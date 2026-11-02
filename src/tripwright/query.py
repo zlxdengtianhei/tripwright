@@ -496,12 +496,13 @@ def line_key(line: str | None) -> tuple[str, str]:
 
 
 def plan_rides(plan: dict | None, destination: str, found: list[Itinerary], start: datetime, until: datetime, tz: ZoneInfo,
-               language: str, app: str | None) -> list[dict]:
+               language: str, app: str | None, closes: datetime | None = None) -> list[dict]:
     """The plan's own trains to this destination (boarding nodes with a line) that leave inside the searched span, and
     whether this lookup found each (a12b replay: the 22:42 RJX was among the departures, the compact result did not show
     it, and the answer said “这次没查到，以下面的班次为准”). A ride at that minute with the same line, or the same kind of
-    train under another number (“数据源写作 …”), is found; else the sentence says it is not in these results and where
-    to check it, never that it is gone."""
+    train under another number (“时刻表里叫 …”), is found, with when to set off (leave_words: from an origin that
+    closes first, out at closing, A16); else the sentence says the timetable data did not have it and where to check
+    it, never that it is gone."""
     said, place = LAST_SAY.get(language, LAST_SAY["en"]), match_place(plan, destination)
     told = []
     for _, anchor, instant in anchors(plan):
@@ -519,8 +520,9 @@ def plan_rides(plan: dict | None, destination: str, found: list[Itinerary], star
             sentence = said["plan_missing"].format(time=time, line=anchor["line"], app=named)
         else:
             itinerary, leg = match
+            leave = leave_words(views.connection_view(itinerary, tz, language), closes, tz, language, ride=True)
             sentence = said["plan_found" if line_key(leg.line) == want else "plan_found_as"].format(
-                time=time, line=anchor["line"], found=leg.line, leave=views.clock(itinerary.depart, tz))
+                time=time, line=anchor["line"], found=leg.line, leave=leave)
         told.append(dict(anchor_id=anchor["id"], time=time, line=anchor["line"], found=match is not None,
                          found_line=match[1].line if match else None, sentence=sentence, itinerary=match[0] if match else None))
     return told
@@ -546,10 +548,14 @@ def ticket(view: dict, language: str, stored: bool = False) -> dict:
 # --- the trip's stored tickets (A12) ------------------------------------------------------------------------------------------
 TICKET_KINDS = ("ticket", "pass")
 TICKET_DAYS = 1  # a ticket bought the day before still counts (a 24-hour ticket bought in the afternoon)
-TICKET_SAY = {"zh": dict(head="这趟存的票：", bought="已买", booked="已订", on_site="现场买", to_buy="要买", join="；", fares="，",
-                         instead="买不到时：", estimated="（估的）", each="/人", gap=""),
-              "en": dict(head="The trip's stored tickets: ", bought="bought", booked="booked", on_site="to buy on site", to_buy="to buy",
-                         join="; ", fares=", ", instead="if that cannot be bought, ", estimated=" (estimated)", each=" per person", gap=" ")}
+# A16 (quality judge 8): the line was the record (“已买：24 Stunden Wien 数字票（10-31 下午起维也纳市内的车（13A、U4、…），盖到
+# 去机场火车的市内段）€9.70/人；现场买：…（Wien Hbf → 维也纳机场（市内段由 24 小时票管））€2.30/人（估的），买不到时：…”):
+# now one sentence, each ticket with the head of what it covers, a price only for what is still to buy, “约” for an
+# estimate, “/人” only when a fare is for more than one person.
+TICKET_SAY = {"zh": dict(head="票：", bought="已买", booked="已订", on_site="现场买", to_buy="要买", join="；", instead="，买不到就买",
+                         covers="（{segment}）", about="约 ", each="/人", price="，{price}"),
+              "en": dict(head="Tickets: ", bought="bought", booked="booked", on_site="to buy on site", to_buy="to buy", join="; ",
+                         instead=", if that cannot be bought, ", covers=" ({segment})", about="about ", each=" per person", price=", {price}")}
 
 
 def price(fare: dict, said: dict) -> str:
@@ -557,13 +563,22 @@ def price(fare: dict, said: dict) -> str:
     if amount is None:
         return ""
     money = f"€{amount:.2f}" if (fare.get("currency") or "EUR") == "EUR" else f"{amount:.2f} {fare['currency']}"
-    return said["gap"] + money + said["each"] + (said["estimated"] if fare.get("estimated") else "")
+    return said["price"].format(price=(said["about"] if fare.get("estimated") else "") + money + (said["each"] if len(fare.get("subject") or []) > 1 else ""))
+
+
+def fare_covers(fare: dict) -> str:
+    """What a fare covers, as the head of its stored words: no brackets, up to the first comma (“10-31 下午起维也纳市内的车”)."""
+    bare = re.sub(r"（[^（）]*）|\([^()]*\)", "", re.sub(r"（[^（）]*）|\([^()]*\)", "", fare.get("segment") or ""))
+    return re.split(r"[，,；;：:]", bare)[0].strip()
 
 
 def stored_tickets(plan: dict | None, day: str, language: str) -> dict | None:
     """The tickets the trip stores for `day` (or bought up to TICKET_DAYS before): each with what it is, its status and
     its fares (ticket, the segment it covers, the price; an estimated price says so). One sentence says them once; no
-    stored ticket gives None. The service does not judge which ticket a route needs: it says what is stored."""
+    stored ticket gives None. `party` is how many people one fare is for at most (a fare for one: no “/人”). The service
+    does not judge which ticket a route needs: it says what is stored."""
+    from tripwright.render.first_part import spaced
+
     said = TICKET_SAY.get(language, TICKET_SAY["en"])
     first = Date.fromisoformat(day) - timedelta(days=TICKET_DAYS)
     found = [booking for booking in (plan or {}).get("bookings", []) if str(booking.get("kind", "")).casefold() in TICKET_KINDS
@@ -574,14 +589,21 @@ def stored_tickets(plan: dict | None, day: str, language: str) -> dict | None:
     parts = []
     for booking in found:
         fares = sorted(booking.get("fares") or [], key=lambda fare: bool(fare.get("alternative")))
-        told = said["fares"].join((said["instead"] if fare.get("alternative") else "") + fare["ticket"]
-                                  + (f"（{fare['segment']}）" if language == "zh" else f" ({fare['segment']})") + price(fare, said)
-                                  for fare in fares) if fares else booking["what"]
-        parts.append(f"{said[booking['status']]}：{told}" if language == "zh" else f"{said[booking['status']]}: {told}")
+        paid = booking["status"] in ("bought", "booked")
+        if not fares:
+            parts.append(spaced(said[booking["status"]], " " if language != "zh" else "", re.split(r"[：:（(]", booking["what"])[0].strip()))
+            continue
+        told = []
+        for fare in fares:
+            head = fare_covers(fare) if not fare.get("alternative") else ""
+            named = fare["ticket"] + (said["covers"].format(segment=head) if head and head != fare["ticket"] else "")
+            told.append(spaced(said["instead"] if fare.get("alternative") else "", named) + ("" if paid else price(fare, said)))
+        parts.append(spaced(said[booking["status"]], " " if language != "zh" else "", told[0]) + "".join(told[1:]))
     items = [dict(id=booking["id"], status=booking["status"], what=booking["what"],
                   fares=[{key: fare.get(key) for key in ("ticket", "segment", "amount_per_person", "currency", "estimated", "alternative")}
                          for fare in booking.get("fares") or []]) for booking in found]
-    return dict(text=said["head"] + said["join"].join(parts), items=items)
+    party = max((len(fare.get("subject") or booking.get("subject") or []) for booking in found for fare in booking.get("fares") or []), default=None)
+    return dict(text=said["head"] + said["join"].join(parts), items=items, party=party or None)
 
 
 def anchors(plan: dict | None):
@@ -714,7 +736,7 @@ def external_after(plan, arguments, instant, anchor, tz) -> tuple[datetime | Non
 def ride_text(view: dict, language: str) -> str:
     """Every ride of a connection in order, each with its own line, from and to stop and times (A8: the first ride's
     line with the last ride's stop read as a direct ride)."""
-    rides = [leg for leg in view["legs"] if not leg["walk"]]
+    rides = [leg for leg in named_lines(view, language)["legs"] if not leg["walk"]]
     if not rides:
         return views.leg_line(view["legs"][0], language)
     return views.words(language)["then"].join(views.leg_line(leg, language) for leg in rides)
@@ -726,14 +748,14 @@ FEED_REGIONS = {"at": "at-rural", "ch": "ch", "de": "de"}
 SAY = {"zh": dict(target="要 {plan_by} 前到，最晚 ", partial="要 {plan_by} 前到，可以坐：", after="误了 {board} 那班，之后还有 {count} 班赶得上 {bound}；最早的：",
                   none_after="误了 {board} 那班，之后没有赶得上 {bound} 的班次{basis}",
                   miss="要是误了 {board} 那班，就赶不上 {plan_by}{basis}", unknown_after="误了 {board} 那班之后还有没有赶得上的，没查到",
-                  last="赶得上 {bound} 的最后一班是 {board} {line}（{leave} 出门）", next="；再下一班 {board} 开，{reach} 到，过了 {bound}",
+                  last="赶得上 {bound} 的最后一班是 {board} {line}（{leave}）", next="；再下一班 {board} 开，{reach} 到，过了 {bound}",
                   basis="{basis}", none_reach="要 {plan_by} 前到，查到的班次都赶不上{basis}",
                   only_limit="要是 {limit} 前到也行，还能坐：", reached="查到 {reached} 为止；之后的没查",
                   empty="{start} 起没查到班次；不能说没车，也不能说“最后一班”"),
        "en": dict(target="To arrive by {plan_by}, at the latest: ", partial="To arrive by {plan_by}, you can take: ", after="If you miss the {board}, {count} more arrive by {bound}; the first: ",
                   none_after="If you miss the {board}, nothing after it arrives by {bound}{basis}",
                   miss="If you miss the {board}, you will not make {plan_by}{basis}", unknown_after="Whether anything after the {board} arrives in time was not found",
-                  last="The last one that arrives by {bound} is the {board} {line} (leave {leave})", next="; the next leaves {board} and arrives {reach}, after {bound}",
+                  last="The last one that arrives by {bound} is the {board} {line} ({leave})", next="; the next leaves {board} and arrives {reach}, after {bound}",
                   basis="{basis}", none_reach="To arrive by {plan_by}: none of the connections found makes it{basis}",
                   only_limit="If {limit} is late enough: ", reached="Searched up to {reached}; nothing after it was searched",
                   empty="No departures found from {start}: do not say there is none, or \"the last one\""),
@@ -839,7 +861,7 @@ def head_sentences(meta: dict, notes: list[dict], language: str) -> list[str]:
 
 
 def latest_sentences(result: dict, target: dict, connections: list[Itinerary], start: datetime, tz: ZoneInfo, language: str,
-                     stop: str | None = None) -> list[str]:
+                     stop: str | None = None, closes: datetime | None = None) -> list[str]:
     """latest_departure as sentences a host copies: the first choice, what is left after it (how many, the first),
     the last one that still arrives in time with the next one, or how far the search reached. A boarding target says
     where the vehicle is caught (`stop`; A10: “要 22:42 前到” read as reaching the airport by then)."""
@@ -857,7 +879,7 @@ def latest_sentences(result: dict, target: dict, connections: list[Itinerary], s
     covered, primary, fallback = result["window"]["covers_target"], result["primary"], result["fallback"]
 
     def told(view):
-        return views.sentence(view, language)
+        return connection_sentence(view, language, closes, tz)
 
     def kind(view):
         """The per-connection real-time suffix: empty when every ride is timetable-only (the result's `note` says that
@@ -888,7 +910,8 @@ def latest_sentences(result: dict, target: dict, connections: list[Itinerary], s
         last = views.connection_view(max(in_time, key=lambda itinerary: itinerary.depart), tz, language)
         following = next((itinerary for itinerary in usable if itinerary.depart > aware(last["leave_at"])), None)
         text = said["last"].format(bound=bound, board=(last["boards"] or {}).get("time") or last["leave"],
-                                   line=(last["boards"] or {}).get("line") or "", leave=last["leave"]).replace("  ", " ").replace(" （", "（")
+                                   line=(last["boards"] or {}).get("line") or "",
+                                   leave=leave_words(last, closes, tz, language)).replace("  ", " ").replace(" （", "（")
         if following is not None:
             nxt = views.connection_view(following, tz, language)
             text += said["next"].format(board=(nxt["boards"] or {}).get("time") or nxt["leave"], reach=nxt["reach"], bound=bound)
@@ -1109,26 +1132,26 @@ def window_until(itineraries: list[Itinerary], start: datetime, until: datetime,
     last = max((itinerary.depart for itinerary in itineraries), default=None)
     to = until if covered else last
     begin, end = views.clock(start, tz), views.clock(until, tz)
+    # A16 (quality judge 8): said in the user's words, not the lookup's (“连续查全，24 班”); the reason a search stopped
+    # early stays in `limited`
     if language == "zh":
         if not itineraries:
-            text = f"{begin} 起没查到班次；不能说没车，也不能说“最后一班”"
+            text = f"{begin} 起时刻表里没找到车，不等于没有车"
         elif covered:
-            text = f"从 {begin} 到 {end} 连续查全，{len(itineraries)} 班；{end} 之后出发的没查"
+            text = f"{begin} 到 {end} 之间出发的车都在这里；{end} 之后的没查"
         elif limited:
-            text = f"从 {begin} 连续查到 {views.clock(last, tz)} 为止（查询额度到限：{limited}）；之后出发的没查"
+            text = f"只查到 {views.clock(last, tz)} 出发的车（查询次数到上限），之后的没查"
         else:
-            text = f"从 {begin} 连续查到 {views.clock(last, tz)} 为止，之后没再查到；不能说“没有更晚的”"
+            text = f"{views.clock(last, tz)} 之后时刻表里没再找到车，不等于没有更晚的"
     else:
         if not itineraries:
-            text = f"No departures found from {begin}: do not say there is none or \"the last one\""
+            text = f"Nothing found in the timetable from {begin}; that does not mean there is none"
         elif covered:
-            text = f"Searched continuously from {begin} to {end}, {len(itineraries)} found; nothing searched after {end}"
+            text = f"These are all the departures from {begin} to {end}; nothing after {end} was searched"
         elif limited:
-            text = (f"Searched continuously from {begin} up to {views.clock(last, tz)} (the daily search budget said stop: "
-                    f"{limited}); nothing searched after that")
+            text = f"Searched only up to the {views.clock(last, tz)} departure (the search limit was reached); nothing after it"
         else:
-            text = (f"Searched continuously from {begin} up to {views.clock(last, tz)}, then nothing more; do not say "
-                    f"\"nothing later\"")
+            text = f"Nothing more found in the timetable after {views.clock(last, tz)}; that does not mean there is nothing later"
     return {"from": views.stamp(start, tz), "to": views.stamp(to, tz) if to else None, "by": "departure",
             "count": len(itineraries), "text": text, "continuous": bool(itineraries) and not limited, "covered": covered,
             "until": views.stamp(until, tz), "pages": pages, **({"limited": limited} if limited else {})}
@@ -1191,40 +1214,50 @@ LAST_SPAN = timedelta(hours=6)  # the continuous search starts at most this long
 LAST_PAGES = 8  # route searches (of the daily budget) one last-connection answer may use
 NIGHT_GAP = timedelta(hours=2)  # "the last one tonight" only when the next departure is at least this much later
 NODE_HOURS = 36  # the destination's hard node that still binds lies within this after now
-LAST_SAY = {"zh": dict(last="今晚最后一班：最晚 {sentence}", regular="不用另买票的最后一班：最晚 {sentence}",
-                       rail="火车最后一班 {board}：最晚 {sentence}", rail_how="这班火车怎么坐：{sentence}",
-                       through="{until} 前最后开的是：{sentence}；{until} 之后也有车，下一班 {next} 开",
-                       all_night="今晚不用赶：夜里一直有车到 {destination}", all_night_rail="；火车最后一班 {board}（最晚 {leave} 出门）",
-                       all_night_node="；之后要守的时间：{node}", node="之后要守的时间：{node}", node_more="另外要守：{node}",
-                       partial="查到的班次里最后开的是：{sentence}", next="；下一班 {next} 开",
-                       node_plan="你计划{when}{time} 前到（留的余量）：{text}", node_external="{when}{time} {text}",
-                       node_unmarked="{when}{time} {text}", external="；{when}{time} {text}", unchecked="（存档，没核）",
+# A16 (quality judge 8, 3 of 3 runs): one line said one thing at most once. The first line no longer carries the next
+# time to keep (“…（最晚 00:13 出门）；之后要守的时间：你计划明早 05:45 前到（留的余量）：…05:45 前到…（计划留的余量；…）”):
+# the deadline and the plan's margin get a line each; the next connection is named by when to leave, never by its first
+# ride (“下一班 凌晨 03:16 U6 开”, a line that does not reach the airport); “在这次的查询结果里” and “连续查全，N 班” are
+# the lookup's words, not the user's.
+LAST_SAY = {"zh": dict(last="今晚最后一班：{sentence}", regular="不用另买票的最后一班：{sentence}",
+                       rail="火车最后一班 {board}：{sentence}", rail_how="这班火车怎么坐：{sentence}",
+                       through="{until} 前最后开的是：{sentence}；{until} 之后也有车，下一班 {next}",
+                       all_night="今晚不用赶：夜里一直有车到 {destination}", all_night_rail="；火车最后一班 {board}（{leave}）",
+                       node="之后要守：{node}", margin="你计划留的余量：{text}", margin_time="{when}{time} 前，{text}",
+                       partial="查到的班次里最后开的是：{sentence}", next="；下一班 {next}",
+                       node_external="{when}{time} {text}", node_unmarked="{when}{time} {text}", unchecked="存档，没核",
                        failed="这次没查到班次（{why}）：还有没有车、几点走都没核，出发前在交通 App 里查",
                        timeout="查询超时", unavailable="数据源没回应",
                        node_latest="{when}直接从 {origin} 去：{sentence}（今晚就到 {destination} 的话用不上）",
                        no_node="计划里没有到 {destination} 之后要守的时间", night="凌晨 ", morning="明早 ", tomorrow="明天 ",
-                       plan_found="计划里的 {time} {line} 在这次的查询结果里（{leave} 出门）",
-                       plan_found_as="计划里的 {time} {line} 在这次的查询结果里（数据源写作 {found}，{leave} 出门）",
-                       plan_missing="计划里的 {time} {line} 不在这次的查询结果里（可能数据源没收，或车次号不同）：要坐它，先在 {app}核一下",
-                       app="交通 App"),
+                       plan_found="计划里的 {time} {line} 赶得上：{leave}",
+                       plan_found_as="计划里的 {time} {line} 赶得上（时刻表里叫 {found}）：{leave}",
+                       plan_missing="计划里的 {time} {line} 这次没在时刻表数据里找到（可能没收录，或车次号不同）：要坐它，先在 {app}核一下",
+                       app="交通 App", step="按你先去{name}算（你说的“{said}”）",
+                       leave="{leave} 出门", latest="最晚 {leave} 出门", closing="{closes} 关门出来，走到 {stop}",
+                       closing_ride="{closes} 关门出来，走到 {stop} 坐 {board} 的 {line}", board="{board} 在 {stop} 上车",
+                       latest_board="最晚 {board} 在 {stop} 上车", reach="，{reach} 到"),
             "en": dict(last="Tonight's last connection: {sentence}", regular="The last one without an extra ticket: {sentence}",
                        rail="The last train, {board}: {sentence}", rail_how="How to take that train: {sentence}",
-                       through="The last one before {until} is — {sentence}; services go on after {until}, the next leaves {next}",
+                       through="The last one before {until} is — {sentence}; services go on after {until}, the next: {next}",
                        all_night="No need to hurry tonight: services run all night to {destination}",
-                       all_night_rail="; the last train {board} (leave by {leave})", all_night_node="; then keep: {node}", node="Then keep: {node}",
-                       node_more="Also keep: {node}",
-                       partial="The latest found: {sentence}", next="; the next leaves {next}",
-                       node_plan="by {when}{time} (your plan's margin) — {text}", node_external="{when}{time} {text}",
-                       node_unmarked="{when}{time} {text}", external="; {when}{time} {text}", unchecked=" (archived, not checked)",
+                       all_night_rail="; the last train {board} ({leave})", node="Then keep: {node}",
+                       margin="Your plan's margin: {text}", margin_time="by {when}{time}, {text}",
+                       partial="The latest found: {sentence}", next="; the next: {next}",
+                       node_external="{when}{time} {text}", node_unmarked="{when}{time} {text}", unchecked="archived, not checked",
                        failed="The departures could not be looked up ({why}): whether anything runs and when to leave are not "
                               "checked; check the transit app before leaving",
                        timeout="the lookup timed out", unavailable="the data source did not answer",
                        node_latest="Straight from {origin} {when}: {sentence} (not needed if you reach {destination} tonight)",
                        no_node="The plan keeps no time after reaching {destination}", night="tonight ", morning="tomorrow morning ",
-                       tomorrow="tomorrow ", plan_found="The plan's {time} {line} is in this lookup's results (leave at {leave})",
-                       plan_found_as="The plan's {time} {line} is in this lookup's results (the data calls it {found}; leave at {leave})",
-                       plan_missing="The plan's {time} {line} is not in this lookup's results (the data may lack it, or its number "
-                                    "differs): to take it, check it in {app} first", app="the transit app")}
+                       tomorrow="tomorrow ", plan_found="The plan's {time} {line} can be caught: {leave}",
+                       plan_found_as="The plan's {time} {line} can be caught (the timetable calls it {found}): {leave}",
+                       plan_missing="The plan's {time} {line} was not found in the timetable data this time (it may be missing, or "
+                                    "numbered differently): to take it, check it in {app} first", app="the transit app",
+                       step="Counted from {name}, where you go next (you said “{said}”)",
+                       leave="leave {leave}", latest="leave by {leave}", closing="out at closing, {closes}, walk to {stop}",
+                       closing_ride="out at closing, {closes}, walk to {stop} for the {board} {line}", board="board at {stop} at {board}",
+                       latest_board="board at {stop} by {board}", reach=", arrive {reach}")}
 
 
 def tonight_end(arguments: dict, start: datetime, tz: ZoneInfo) -> datetime:
@@ -1264,6 +1297,102 @@ def own_words(text: str | None, language: str) -> str:
     marked = claim_parts(text or "")
     kept = re.sub(r"（\s*）|\(\s*\)", "", "".join(part for part in split_claims(text or "") if part not in marked)).strip(" ；;，,")
     return kept or ("计划里存的时刻" if language == "zh" else "a time stored in the plan")
+
+
+def marked(text: str, mark: str, language: str) -> str:
+    """`text` with a mark said once: inside its own closing bracket when it ends with one (A16: “（起飞前 40 分钟；存档，
+    没核）”, never “（起飞前 40 分钟）（存档，没核）”), else in a bracket of its own."""
+    if language == "zh":
+        return f"{text[:-1]}；{mark}）" if text.endswith("）") else f"{text}（{mark}）"
+    return f"{text[:-1]}; {mark})" if text.endswith(")") else f"{text} ({mark})"
+
+
+MARGIN_WORDS = re.compile(r"余量|margin|buffer", re.I)
+BRACKETED = re.compile(r"（([^（）]*)）|\(([^()]*)\)")
+
+
+def margin_text(text: str | None, when: str, time: str, language: str) -> str:
+    """A plan target (deadline: plan) as the answer says it, once (A16, quality judge 8: “你计划明早 05:45 前到（留的余量）：
+    …05:45 前到…（计划留的余量；…）”): “你计划留的余量：” and the node's own words with the day word at their time; a
+    bracketed “计划留的余量” of the stored words is left out (the field says it); the time comes first when the words
+    have none."""
+    said = LAST_SAY.get(language, LAST_SAY["en"])
+
+    def kept(match):
+        zh = match.group(1) is not None
+        parts = [part.strip() for part in re.split(r"[；;]", match.group(1) if zh else match.group(2))
+                 if part.strip() and not MARGIN_WORDS.search(part)]
+        return "" if not parts else f"（{'；'.join(parts)}）" if zh else f" ({'; '.join(parts)})"
+
+    words = re.sub(r"  +", " ", BRACKETED.sub(kept, own_words(text, language))).strip()
+    if time not in words:
+        words = said["margin_time"].format(when=when, time=time, text=words)
+    elif when and f"{when.strip()} {time}" not in words:
+        words = words.replace(time, f"{when}{time}", 1)
+    return said["margin"].format(text=words)
+
+
+# A16 (quality judge 8): “00:47 18 <站名>” read as a time and a number; a tram's number is a route.
+NAMED_MODES = ("tram",)
+# A16 (quality judge 8, 3 of 3 runs): “22:00 关门” beside “22:11 出门”. From an origin that closes before a connection
+# leaves, the user walks out at closing; up to this wait for the first ride that is how it is said, longer the boarding.
+CLOSE_WAIT = timedelta(minutes=30)
+
+
+def named_lines(view: dict, language: str) -> dict:
+    """A connection whose tram lines read as routes in Chinese (“18 路”), for its sentence only; the view keeps the
+    provider's line."""
+    if language != "zh":
+        return view
+    return dict(view, legs=[dict(leg, line=f"{leg['line']} 路") if not leg["walk"] and leg.get("mode") in NAMED_MODES
+                            and re.fullmatch(r"\d{1,3}", str(leg.get("line") or "")) else leg for leg in view["legs"]])
+
+
+def first_ride(view: dict) -> dict | None:
+    return next((leg for leg in view["legs"] if not leg["walk"]), None)
+
+
+def origin_closes(plan: dict | None, origin: str, start: datetime, tz: ZoneInfo) -> datetime | None:
+    """When the lookup's origin closes, from its stored opening_hours, if it is open at `start` (the user may be inside
+    until then); None when it stores no hours, is closed already or is no place of the trip. Its `hours` sentence is not
+    read (A11: the service does not guess from words)."""
+    place = match_place(plan, origin)
+    if not place or not place.get("opening_hours"):
+        return None
+    local = start.astimezone(tz)
+    is_open, closes = opening_at(place["opening_hours"], local.weekday(), local.hour * 60 + local.minute)
+    if not is_open or closes is None:
+        return None
+    return local.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(minutes=closes)
+
+
+def leave_words(view: dict, closes: datetime | None, tz: ZoneInfo, language: str, *, latest: bool = False,
+                ride: bool = False) -> str:
+    """When to set off on a connection: “{leave} 出门” (“最晚 …” with `latest`). From an origin closing before that (A16):
+    out at closing and walk to the first stop when its ride leaves within CLOSE_WAIT of the closing (`ride`: naming that
+    ride), else the first ride's boarding alone."""
+    said = LAST_SAY.get(language, LAST_SAY["en"])
+    board = first_ride(view)
+    if closes is None or board is None or aware(view["leave_at"]) <= closes:
+        return said["latest" if latest else "leave"].format(leave=view["leave"])
+    if aware(board["depart_at"]) - closes <= CLOSE_WAIT:
+        line = named_lines(dict(view, legs=[board]), language)["legs"][0]["line"] or ""
+        return said["closing_ride" if ride and line else "closing"].format(closes=views.clock(closes, tz), stop=board["from"],
+                                                                            board=board["depart"], line=line)
+    return said["latest_board" if latest else "board"].format(board=board["depart"], stop=board["from"])
+
+
+def connection_sentence(view: dict, language: str, closes: datetime | None = None, tz: ZoneInfo | None = None, *,
+                        latest: bool = False) -> str:
+    """views.sentence with tram lines named, and the time to set off as leave_words says it (A16; “最晚 …” with
+    `latest`)."""
+    text = views.sentence(named_lines(view, language), language)
+    lead = views.words(language)["leave"].split("{changes}")[0].format(leave=view["leave"])  # “22:11 出门，”
+    late = closes is not None and aware(view["leave_at"]) > closes
+    if first_ride(view) is None or not text.startswith(lead) or not (late or latest):
+        return text
+    head = leave_words(view, closes, tz, language, latest=latest)
+    return (head if language == "zh" else head[:1].upper() + head[1:]) + lead[-1 if language == "zh" else -2:] + text[len(lead):]
 
 
 def lookup_failed(why: str, language: str) -> dict:
@@ -1380,7 +1509,8 @@ class QueryRouter:
         result["coverage"] = notes
         stop = shown_target.get("board_place") or (end_name(plan, arguments["destination"], meta.get("destination"))
                                                    if target["meaning"] == "boarding_time" else None)
-        told = latest_sentences(result, target, found, start, tz, language, stop=stop)
+        told = latest_sentences(result, target, found, start, tz, language, stop=stop,
+                                closes=origin_closes(plan, arguments["origin"], start, tz))
         result["sentences"] = head_sentences(meta, notes, language) + told + ([tickets["text"]] if tickets else [])
         result["tickets"] = tickets
         result["first_line"] = told[0] if told else None
@@ -1424,9 +1554,19 @@ class QueryRouter:
         host's. Every departure from now (at most LAST_SPAN before tonight's end) up to tonight's end (`until`, default
         the next SERVICE_END) is searched continuously, paged as transit's until (A9) within the daily budget. Returns
         tonight's last connection with when to leave the origin (changes included), how far the search went, and the
-        plan's next hard node at the destination with its own latest departure; with none, no deadline is made up."""
+        plan's next hard node at the destination with its own latest departure; with none, no deadline is made up.
+
+        A16 (quality judge 8): from this question's next step when its turn names one (packs.next_step: the user goes
+        to eat or to an event first, and asked from where they are to where the question goes), and never a time to
+        leave an origin later than it closes (leave_words)."""
+        from tripwright.packs import next_step
+
         said, name = LAST_SAY.get(language, LAST_SAY["en"]), tz.key
         now_at = aware(at) if at else clock()
+        asked = arguments["origin"]
+        step = next_step(self.store, owner, plan, asked, arguments["destination"], now_at)
+        if step:
+            arguments = dict(arguments, origin=step["place"])
         after = moment(arguments["after"], arguments.get("date"), tz, "after") if arguments.get("after") else None
         until = tonight_end(arguments, after or now_at, tz)
         start = after or max(now_at, until - LAST_SPAN)
@@ -1436,6 +1576,8 @@ class QueryRouter:
         origin, destination = await self._where(plan, arguments, "origin"), await self._where(plan, arguments, "destination")
         resolved = {end: dict(said=arguments[end], place=(match_place(plan, arguments[end]) or {}).get("id"), looked_up=where)
                     for end, where in (("origin", origin), ("destination", destination))}
+        if step:
+            resolved["origin"].update(said=asked, next_step=step)
         extra = {"timezone_name": name} if isinstance(self.transit, TransitousProvider) else {}
         try:
             found, sources, limited = await self._window(origin, destination, start, until, extra, pages=LAST_PAGES)
@@ -1446,9 +1588,8 @@ class QueryRouter:
         span = window_until(found, start, until, limited, len(sources), tz, language)
         if not span["covered"] and not limited and found and len(sources) >= LAST_PAGES:
             reached = views.clock(max(itinerary.depart for itinerary in found), tz)
-            span["text"] = (f"从 {views.clock(start, tz)} 连续查到 {reached} 为止；{reached} 之后出发的没查"
-                            if language == "zh" else f"Searched continuously from {views.clock(start, tz)} up to {reached}; "
-                                                    f"nothing searched after {reached}")
+            span["text"] = (f"只查到 {reached} 出发的车，之后的没查" if language == "zh"
+                            else f"Searched only up to the {reached} departure; nothing after it")
         usable = sorted((itinerary for itinerary in found if not cancelled(itinerary)), key=lambda itinerary: itinerary.depart)
         tonight = [itinerary for itinerary in usable if itinerary.depart <= until]
         latest = max(tonight, key=lambda itinerary: (itinerary.depart, -itinerary.arrive.timestamp()), default=None)
@@ -1456,6 +1597,7 @@ class QueryRouter:
         night_break = bool(span["covered"] and latest and following and following.depart - latest.depart >= NIGHT_GAP)
         all_night = bool(latest and span["covered"] and following and not night_break)
         tickets = stored_tickets(plan, start.astimezone(tz).date().isoformat(), language)
+        closes = origin_closes(plan, arguments["origin"], start, tz)
 
         def view(itinerary):
             shown = views.connection_view(itinerary, tz, language)
@@ -1480,11 +1622,11 @@ class QueryRouter:
             main = rail or (view(tonight[0]) if tonight else last)
         else:
             main = regular or last
-        next_text = (f"{day_word(aware((nxt['boards'] or {}).get('at') or nxt['leave_at']), start, tz, language)}{(nxt['boards'] or {}).get('time') or nxt['leave']} "
-                     f"{(nxt['boards'] or {}).get('line') or ''}").strip() if nxt else None
+        # the next one after tonight's end by when to leave, not by its first ride (A16: “下一班 凌晨 03:16 U6 开”)
+        next_text = day_word(aware(nxt["leave_at"]), start, tz, language) + leave_words(nxt, closes, tz, language) if nxt else None
 
-        def told(entry):
-            text = views.sentence(entry, language)
+        def told(entry, latest_words=False):
+            text = connection_sentence(entry, language, closes, tz, latest=latest_words)
             return text + (f"（{entry['ticket']['why']}）" if language == "zh" else f" ({entry['ticket']['why']})") \
                 if entry["ticket"]["need"] == "extra" else text
 
@@ -1493,12 +1635,14 @@ class QueryRouter:
         region = feed_region(self._feeds(meta))
         if not found and any(note["kind"] in ("not_yet", "too_old") for note in notes):
             span["text"] = next(note["text"] for note in notes if note["kind"] in ("not_yet", "too_old"))
-        hard = await self._node_latest(owner, arguments, plan, node_after(plan, arguments["destination"], start), tz, start, at, language)
+        # nobody stays the night where a meal or an event is: no “明早直接从 X 去” from a next step (A16)
+        hard = await self._node_latest(owner, arguments, plan, node_after(plan, arguments["destination"], start), tz, start, at, language,
+                                       morning=not step)
         rail_board = f"{train_ride(rail)['depart']} {train_ride(rail)['line'] or ''}".strip() if rail else None
         reports, offer = trip_sources(self.store, owner, plan, region, language)
         ends = (end_name(plan, arguments["origin"], meta.get("origin")), end_name(plan, arguments["destination"], meta.get("destination")))
         checking = how_to_check(main, ends, region, notes, language, reports)
-        rides = plan_rides(plan, arguments["destination"], found, start, until, tz, language, (checking or {}).get("app"))
+        rides = plan_rides(plan, arguments["destination"], found, start, until, tz, language, (checking or {}).get("app"), closes)
         # A14 (quality judge 7, 3 of 3 runs): “怎么查” searched the night's last train while the answer's first choice was the
         # plan's 22:42. The plan's own train, when this lookup has it, is the one to check; the last one gets its own line.
         planned = next((ride["itinerary"] for ride in rides if ride["itinerary"] is not None and ride["itinerary"].depart >= start), None)
@@ -1514,42 +1658,47 @@ class QueryRouter:
         rides = [{key: value for key, value in ride.items() if key != "itinerary"} for ride in rides]
         lines = []
         if last and night_break:
-            lines.append(said["last"].format(sentence=told(last)) + said["next"].format(next=next_text))
+            lines.append(said["last"].format(sentence=told(last, True)) + said["next"].format(next=next_text))
             if regular:
-                lines.append(said["regular"].format(sentence=told(regular)))
+                lines.append(said["regular"].format(sentence=told(regular, True)))
         elif last and span["covered"] and nxt:
-            # services run on past tonight's end (A10 replay): no hurry is the answer; then the last train and the next
-            # time to keep, never “03:00 前最后开的是 02:43” as the first line
+            # services run on past tonight's end (A10 replay): no hurry is the answer, with the last train; the next time
+            # to keep has a line of its own (A16), never “03:00 前最后开的是 02:43” as the first line
             lines.append(said["all_night"].format(destination=arrival_name(plan, arguments["destination"], meta.get("destination"), last, language))
-                         + (said["all_night_rail"].format(board=rail_board, leave=rail["leave"]) if rail else "")
-                         + (said["all_night_node"].format(node=hard["core"]) if hard else ""))
+                         + (said["all_night_rail"].format(board=rail_board, leave=leave_words(rail, closes, tz, language, latest=True))
+                            if rail else ""))
         if rail and span["covered"]:
             # all night, the first line named the last train already: this line says how to take it (A12, said once)
-            lines.append(said["rail_how" if all_night else "rail"].format(board=rail_board, sentence=told(rail)))
+            lines.append(said["rail_how"].format(sentence=told(rail)) if all_night else
+                         said["rail"].format(board=rail_board, sentence=told(rail, True)))
         if last and span["covered"] and nxt and not night_break:
             lines.append(said["through"].format(until=views.clock(until, tz), sentence=told(last), next=next_text))
         if last and not span["covered"]:
             lines.append(said["partial"].format(sentence=told(last)))
-        lines.append(span["text"])
+        if step and lines:
+            lines.insert(1, said["step"].format(name=step["name"], said=step["said"]))
+        # a search that covered tonight is said by the lines above (“夜里一直有车”, “03:00 前最后开的是”); only a limit is
+        # its own line (A16: “从 21:53 到 03:00 连续查全，24 班” was the lookup's words)
+        shown_span = not span["covered"] or not lines
+        if shown_span:
+            lines.append(span["text"])
         lines += [ride["sentence"] for ride in rides]  # the plan's own train: in these results or not (a12b)
         node_line = []
         if hard:
-            node_lines, more = hard.pop("lines"), hard.pop("more")
-            if all_night:  # the first line said the next time to keep: only what it left out (A12, said once)
-                node_lines = ([said["node_more"].format(node=more)] if more else []) + node_lines[1:]
-            node_line = node_lines[:1] if not all_night or more else []
+            node_lines = hard.pop("lines")
+            node_line = node_lines[:1]
             lines += node_lines
-            hard.pop("core")
         elif match_place(plan, arguments["destination"]):
             lines.append(said["no_node"].format(destination=end_name(plan, arguments["destination"], None)))
         connections = [view(itinerary) for itinerary in sorted(found, key=lambda itinerary: itinerary.depart)]
         result = dict(kind="latest_departure", timezone=name, target=shown_target, resolved=resolved,
                       first_line=lines[0], sentences=head_sentences(meta, notes, language) + lines + ([tickets["text"]] if tickets else []),
-                      summary=("；" if language == "zh" else "; ").join(dict.fromkeys(lines[:1] + [span["text"]] + node_line)),
+                      summary=("；" if language == "zh" else "; ").join(dict.fromkeys(lines[:1] + ([span["text"]] if shown_span else []) + node_line)),
                       last=last, last_without_extra_ticket=regular, last_train=rail, next_after=nxt, tonight_ends_after_last=night_break,
                       window=dict(span, covers_target=span["covered"], target=views.stamp(until, tz)), hard_node=hard,
                       coverage=notes, offer=offer, searched=searched(meta), note=views.result_note(connections, language),
-                      tickets=tickets, plan_rides=rides, how_to_check=checking, connections=connections)
+                      tickets=tickets, plan_rides=rides, how_to_check=checking, connections=connections,
+                      origin_closes=views.clock(closes, tz) if closes else None)
         source = sources[0].source if sources else "unknown"
         synthetic_data, stale = source.startswith("demo:"), any(sourced.stale for sourced in sources)
         if synthetic_data:
@@ -1560,11 +1709,18 @@ class QueryRouter:
                          last=[time for entry in backed for time in (entry["leave"], (entry["boards"] or {}).get("time")) if time]
                          + ([train_ride(rail)["depart"]] if rail else []))
         # what a later turn may quote from this lookup (A12: the first part of the next question, marked “查过”)
-        # the connection “怎么查” searches (A14): check_answer holds the answer's search to it
+        # the connection “怎么查” searches (A14): check_answer holds the answer's search to it; A16: its first ride's stop
+        # and time, the origin's closing with the times to leave it, the party the stored fares are for
         frame["main"] = sorted({time for time in [main["leave"], *(leg["depart"] for leg in main["legs"] if not leg["walk"])] if time}) if main else []
+        frame["main_first"] = dict(stop=first_ride(main)["from"], depart=first_ride(main)["depart"]) if main and first_ride(main) else None
+        frame["closes"] = views.clock(closes, tz) if closes else None
+        frame["leaves"] = sorted({views.clock(itinerary.depart, tz) for itinerary in found if itinerary.depart <= until})  # tonight's
+        frame["start"] = views.clock(start, tz)
+        frame["party"] = (tickets or {}).get("party")
+        late = bool(closes and rail and aware(rail["leave_at"]) > closes)
         frame["told"] = dict(all_night=all_night, night_break=night_break, until=views.stamp(until, tz),
                              origin=resolved["origin"]["place"], destination=resolved["destination"]["place"],
-                             rail=dict(train_ride(rail), leave=rail["leave"]) if rail else None,
+                             rail=dict(train_ride(rail), leave=None if late else rail["leave"]) if rail else None,
                              last=dict(last["boards"], leave=last["leave"]) if last and night_break and last.get("boards") else None)
         expiring = [sourced.valid_until for sourced in sources if sourced.valid_until is not None]
         rows = departure_rows(found, tz, until)
@@ -1576,7 +1732,7 @@ class QueryRouter:
                         notes=list(dict.fromkeys(note for sourced in sources for note in sourced.notes)),
                         date=shown_target["date"], place_id=None, facts=[], synthetic=synthetic_data,
                         question=dict(origin=arguments["origin"], destination=arguments["destination"], frame="last_connection",
-                                      until=views.stamp(until, tz)),
+                                      until=views.stamp(until, tz), **(dict(asked_origin=asked, next_step=step) if step else {})),
                         value=dict(target=shown_target, primary=last, later=[], fallback=None, fallback_note=None,
                                    window=result["window"], departures=rows,
                                    candidates=[entry for position, entry in enumerate((regular, rail, main))
@@ -1603,10 +1759,11 @@ class QueryRouter:
         return shown
 
     async def _node_latest(self, owner: str, arguments: dict, plan: dict | None, node, tz: ZoneInfo, now_at: datetime,
-                           at: str | None, language: str) -> dict | None:
+                           at: str | None, language: str, *, morning: bool = True) -> dict | None:
         """The destination's next hard node (node_after) behind a last-connection answer: what it is, the external
         deadline behind a plan target, its own latest departure from the origin (a latest_departure lookup of its own,
-        without routes to compare) and the sentences that say them."""
+        without routes to compare; not with `morning` false) and the sentences that say them, one thing a line (A16):
+        the time to be there, the plan's own margin apart, then the morning's latest departure."""
         if node is None:
             return None
         from tripwright.packs import last_check
@@ -1623,7 +1780,7 @@ class QueryRouter:
         try:
             found = await self._latest(owner, dict(origin=arguments["origin"], destination=arguments["destination"],
                                                    anchor_id=keep[0], date=keep[1], detail="full"), plan, tz.key, at, language,
-                                       compare=False) if keep else {}
+                                       compare=False) if keep and morning else {}
         except ValueError:
             found = {}
         target = found.get("target") or {}
@@ -1631,16 +1788,17 @@ class QueryRouter:
         checked = last_check(self.store, owner, anchor.get("evidence_ids", []))
         deadline = anchor.get("deadline") or ("external" if checked else "unmarked")
         when, time, text = day_word(instant, now_at, tz, language), views.clock(instant, tz), own_words(anchor.get("text"), language)
-        core = said[{"plan": "node_plan", "external": "node_external"}.get(deadline, "node_unmarked")].format(when=when, time=time, text=text) \
-            + (said["unchecked"] if deadline != "plan" and not checked else "")
-        line = core
-        if external:
-            entry, moment_at = external
-            line += said["external"].format(when=day_word(moment_at, now_at, tz, language), time=views.clock(moment_at, tz),
-                                            text=own_words(entry.get("text"), language)) \
-                + ("" if last_check(self.store, owner, entry.get("evidence_ids", [])) else said["unchecked"])
-        lines = [said["node"].format(node=line)]
-        more = line[len(core):].lstrip("；; ") or None  # the external deadline behind a plan target, said apart when the core was
+
+        def keep_line(entry: dict, moment_at: datetime, sourced) -> str:
+            words = said["node_external"].format(when=day_word(moment_at, now_at, tz, language), time=views.clock(moment_at, tz),
+                                                 text=own_words(entry.get("text"), language))
+            return said["node"].format(node=words if sourced else marked(words, said["unchecked"], language))
+
+        if deadline == "plan":
+            lines = ([keep_line(external[0], external[1], last_check(self.store, owner, external[0].get("evidence_ids", [])))]
+                     if external else []) + [margin_text(anchor.get("text"), when, time, language)]
+        else:
+            lines = [keep_line(anchor, instant, checked)]
         first = found.get("first_line")
         if first and found.get("primary"):
             origin = end_name(plan, arguments["origin"], None) or ("起点" if language == "zh" else "the start")
@@ -1657,7 +1815,7 @@ class QueryRouter:
                                 covers_target=bool((found.get("window") or {}).get("covers_target")),
                                 target={key: target.get(key) for key in ("time", "plan_by", "limit")},
                                 connection=compact_connection(found["primary"]) if found.get("primary") else None) if found else None,
-                    core=core, more=more, lines=lines)
+                    lines=lines)
 
     async def _where(self, plan: dict | None, arguments: dict, end: str) -> str:
         """Where to look up a lookup's end: a trip place by its stored stop or coordinates (place_location), never by its
