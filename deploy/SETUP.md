@@ -186,7 +186,7 @@ gh repo deploy-key add ./tripwright-deploy-key.pub --allow-write -t tripwright -
 
 - **试用**：新账号先进入试用：一次性给 $5 额度，30 天有效，**不用绑卡**。之后转为 Free 计划，每月 $1 额度，用不完不结转。出处：[Railway 定价页](https://railway.com/pricing)（“Can I try Railway without a credit card? Yes.”）、[Free Trial 文档](https://docs.railway.com/pricing/free-trial)。
 - **Free 计划的限制**：每个服务最多 0.5 GB 内存，卷 0.5 GB（同见定价页）。Tripwright 空闲时内存约 70 MB，够用。
-- **空闲时每月大约花多少、能撑几天**：〔主会话实测后填〕。本机估算见 [RAILWAY.md](RAILWAY.md#免费额度能撑多久估算待实测)。
+- **空闲时每月大约花多少、能撑几天**：在 Railway 上实测空闲每月约 $0.95，Free 计划的 $1 约撑 31 天；用得多时会少，保守估约 17 天。细节见 [RAILWAY.md](RAILWAY.md#免费额度能撑多久)。
 - **要提醒用户的两点**（出处：Free Trial 文档）：
   - **没验证的账号是“受限试用”，出站网络受限**。Tripwright 要上网查交通、推 GitHub，可能因此失败。注册时连上 GitHub 账号可以申请验证；没通过的，可以到 [railway.com/verify](https://railway.com/verify) 再试，或升级套餐。
   - **试用账号建的卷，在额度到期 30 天后会被删除**；要保留数据得升级。所以用 Railway 又不升级的话，更应该把行程存到 GitHub（第 7 节），或定期导出备份。

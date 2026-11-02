@@ -39,13 +39,32 @@ def replay(service, scratch, owner: str, op: dict) -> dict | None:
     if op["kind"] == "commit":
         return _commit(scratch, owner, op, data)
     if op["kind"] == "manual":
-        result = Versions(scratch, Jobs(scratch)).adopt(owner, data["plan"], author=data["author"], base_version_id=data["base_version_id"],
-                                                         version_id=data["version_id"])
-        if result["adopted"]:
-            return None
-        reason = "plan_base_changed" if any(conflict.startswith("based on") for conflict in result["conflicts"]) else "replay_refused"
-        return dict(reason=reason, detail="The hand-edited plan does not apply on the new head: " + "; ".join(result["conflicts"]))
+        return _manual(scratch, owner, data)
     return dict(reason="replay_refused", detail=f"Unknown operation kind {op['kind']}")
+
+
+def _manual(scratch, owner: str, data: dict) -> dict | None:
+    """A hand edit taken in here, on a head whose plan changed elsewhere: redone on the new plan like a plan commit (A15,
+    D-75), so it is not lost; a field both changed differently, or a failed check, is a conflict that names it."""
+    versions = Versions(scratch, Jobs(scratch))
+    current, plan = versions.current(owner), data["plan"]
+    if current["id"] != data["base_version_id"]:
+        try:
+            base = scratch.get("versions", owner, data["base_version_id"])["plan"]
+        except ValueError:
+            base = None
+        if base is None or current.get("plan") is None:
+            return dict(reason="plan_base_changed", detail=f"The hand-edited plan was based on {data['base_version_id']}; "
+                                                           f"the canonical branch has {current['id']} and no earlier plan to redo it on")
+        plan, conflicts = rebase.onto(base, plan, current["plan"])
+        if conflicts:
+            named = "; ".join("/".join(part if isinstance(part, str) else part[1] for part in conflict["path"]) for conflict in conflicts)
+            return dict(reason="plan_base_changed", detail=f"The hand-edited plan and the canonical branch both changed {named} differently",
+                        user_line="手改的计划和别处的改动冲突：" + rebase.user_line(conflicts, current["plan"]))
+    result = versions.adopt(owner, plan, author=data["author"], base_version_id=current["id"], version_id=data["version_id"])
+    if result["adopted"]:
+        return None
+    return dict(reason="replay_refused", detail="The hand-edited plan does not apply on the new head: " + "; ".join(result["conflicts"]))
 
 
 def _turn(scratch, owner: str, data: dict) -> dict | None:

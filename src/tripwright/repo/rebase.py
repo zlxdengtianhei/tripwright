@@ -39,6 +39,25 @@ def three_way(base: dict, ours: dict, theirs: dict) -> tuple[dict, list[dict]]:
     return merged, conflicts
 
 
+def onto(base: dict, mine: dict, newer: dict) -> tuple[dict, list[dict]]:
+    """`mine` changed `base`; the same change on `newer`. Each is first read as a trip document (defaults filled, so a
+    field a file leaves out equals the same field stored empty) and given plan IDs, so objects line up by identity."""
+    from tripwright.locks import identify
+
+    base = identify(normal(base))
+    return three_way(base, identify(normal(mine), base), identify(normal(newer), base))
+
+
+def normal(plan: dict) -> dict:
+    """The plan as the trip model writes it; one that does not validate is compared as it is (its commit refuses it)."""
+    from tripwright.trip import Trip
+
+    try:
+        return Trip.model_validate(plan).model_dump(mode="json")
+    except ValueError:
+        return deepcopy(plan)
+
+
 def _merge(base, ours, theirs, path: list, conflicts: list):
     if _same(ours, base):
         return _copy(theirs)

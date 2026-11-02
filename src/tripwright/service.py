@@ -153,6 +153,12 @@ class Tripwright:
 
         return manual.adopt(self) if self.committer is not None else None
 
+    def take_in(self):
+        """Before a write: plan files edited without the tool become a version first (A15), so this write builds on
+        them and the commit that follows does not write the previous version's plan over them."""
+        if self.committer is not None:
+            self.committer.adopt()
+
     def _has(self, table: str, owner: str, record_id: str) -> bool:
         try:
             self.store.get(table, owner, record_id)
@@ -176,6 +182,7 @@ class Tripwright:
         prior = self.outbox.find(owner, "turn", request_id)
         if prior is not None and encode(prior["replay"].get("input")) != encode(record_input):
             raise ValueError("request_id was reused with different content")
+        self.take_in()
         if new_trip and prior is None:
             memory.prepare_new_trip(self, owner, new_trip)
         with self.store.transaction():
@@ -498,6 +505,7 @@ class Tripwright:
         rejected push can replay it."""
         if self.committer is None:
             return
+        self.take_in()
         with self.store.transaction():
             added = [record for record in self.store.all("evidence", owner) if record["id"] not in before]
             if added:
@@ -537,6 +545,7 @@ class Tripwright:
         trip = self.current_trip(owner)
         if self.repository is not None and arguments.get("plan") is not None and trip and arguments["plan"].get("id") != trip:
             raise ValueError(f"plan.id must be the current trip {trip!r}; open another trip with turn(new_trip=...)")
+        self.take_in()
         draft = self.versions.propose(owner, **arguments)
         if "verify" not in draft:
             with self.store.transaction():

@@ -4,7 +4,8 @@
 plan stays in history), with `Tripwright-Op` and `Tripwright-Request` trailers, then pushes without force. A rejected
 push or a newer head seen by `sync` builds the head's generation beside the live index, replays the operations that
 are not in it (never a text merge), and swaps the result in at once; a replayed plan commit whose base changed becomes
-a conflict with a notice. A remote that cannot be reached leaves operations pending and retries with backoff; answers
+redone on the new plan (D-75). Plan files edited without the tool, in the working copy or in a commit, are taken in
+when the index attaches, after a new head and before each write and commit (A15). A remote that cannot be reached leaves operations pending and retries with backoff; answers
 never wait for it.
 """
 from __future__ import annotations
@@ -93,7 +94,7 @@ class Committer:
             head = self.repo.git.rev("HEAD")
             record = self.head_record()
             if record is not None and record.get("commit") == head:
-                return dict(rebuilt=False, problems=[])
+                return dict(rebuilt=False, problems=[], adopted=self.service.adopt_manual_edits())
             with self.store.transaction():
                 previous = index.tables_of(self.store, self.owner)
                 in_head = {op for commit in self.repo.git.log(head) for op in commit["trailers"].get("Tripwright-Op", [])} if head else set()
@@ -108,8 +109,11 @@ class Committer:
                 self.set_head(head, trip=generation["trip"], checked_at=now())
                 self._recover(head)
                 self.service.jobs.invalidate(self.owner)
+            # A plan edit HEAD brought without the tool (A15) is taken in now, before any write regenerates its files.
+            adopted = self.service.adopt_manual_edits()
             return dict(rebuilt=True, problems=generation["problems"], manual_plan=generation["manual_plan"] is not None,
-                        replayed=[op["id"] for op in outcome["replayed"]], conflicts=[op["id"] for op, _ in outcome["conflicts"]])
+                        replayed=[op["id"] for op in outcome["replayed"]], conflicts=[op["id"] for op, _ in outcome["conflicts"]],
+                        adopted=adopted)
 
     def _replayed(self, tables: dict, ops: list[dict], head: str) -> dict:
         """One generation: `tables` plus the operations replayed on it, built beside the live index."""
@@ -349,9 +353,17 @@ class Committer:
             self._conflicts(outcome["conflicts"], canonical)
             self.set_head(canonical, trip=generation["trip"] or trip, checked_at=now())
             self.service.jobs.invalidate(self.owner)
-        return dict(replayed=[op["id"] for op in outcome["replayed"]], conflicts=[op["id"] for op, _ in outcome["conflicts"]])
+        # The new head may carry a plan edit made on the Git host or by another agent (A15): taken in before we recommit.
+        adopted = self.service.adopt_manual_edits()
+        return dict(replayed=[op["id"] for op in outcome["replayed"]], conflicts=[op["id"] for op, _ in outcome["conflicts"]],
+                    adopted=adopted)
 
     # --- waiting and background -------------------------------------------------------
+
+    def adopt(self) -> dict | None:
+        """Take in edits made to the files without the tool now (A15), so the write that follows builds on them."""
+        with self.lock:
+            return self.service.adopt_manual_edits()
 
     def wait(self, op_id: str, timeout: float) -> str:
         """Flush now and wait up to `timeout` seconds for the operation to become effective (CONTRACTS 2.4)."""

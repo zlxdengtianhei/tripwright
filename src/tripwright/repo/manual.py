@@ -1,16 +1,24 @@
-"""Edits made in the working copy without the tool (design 5.6), looked at before every commit.
+"""Edits made to the trip's files without the tool (design 5.6), taken in before the tool writes over them.
 
-- A changed plan (`trip.yaml`, `plan/**`) is a proposal: if every check passes and no user-decided part moved, it
-  becomes a new version recorded as an external edit; otherwise the version stays, the edit stays in the working copy
-  (not overwritten) and the front screen says "有未入版的手改：冲突 Y".
+They are looked at when a tenant opens, after a sync brings a new head, before every write and before every commit.
+- A changed plan (`trip.yaml`, `plan/**`) is a proposal. It is found by comparing the plan files with the version the
+  files last recorded (the last line of `plan/versions.jsonl` in the working copy), so an edit that is already in a
+  commit (made on the Git host's web page, by another agent, or committed by hand) counts as well as one only in the
+  working copy (A15). If every check passes and no user-decided part moved, it becomes a new version recorded as an
+  external edit; when the tool made a newer version meanwhile, the edit is redone on it object by object (repo.rebase),
+  and a field both changed differently is not taken in. Otherwise the version stays, the edit stays in the files (not
+  overwritten) and the front screen says "有未入版的手改：…".
 - A changed generated file is overwritten by the next commit, which says so once.
 - A changed message file is restored (messages never change) and said once; a record file that no longer parses keeps
   its previous content in the index, stays as the user left it, and is reported until fixed.
 """
 from __future__ import annotations
 
-from tripwright.repo import index, layout, notices
+from tripwright.repo import layout, notices, rebase
 from tripwright.repo.git import GitError
+
+
+KEPT = "版本没变，手改留在文件里；改好或撤掉后，下次写入时收进来。"
 
 
 def adopt(service) -> dict:
@@ -33,10 +41,7 @@ def adopt(service) -> dict:
                      and path not in messages and not path.startswith(f"{folder}/research/") and path != "profile/materials.yaml")
     outcome = dict(plan=None, generated=generated, messages=messages, records=[])
     with store.transaction():
-        if plan_paths:
-            outcome["plan"] = _plan(service, owner, trip, folder, plan_paths)
-        else:
-            notices.close(store, owner, key="manual:plan")
+        outcome["plan"] = _plan(service, owner, trip, folder)
         if generated:
             notices.manual(store, owner, key="generated:" + ",".join(generated), user_line="生成的文件被手改过，这次提交已按记录重新生成。",
                            detail="Generated files are rewritten from the records; edit the records through the tool.", paths=generated, once=True)
@@ -62,37 +67,114 @@ def adopt(service) -> dict:
     return outcome
 
 
-def _plan(service, owner: str, trip: str, folder: str, paths: list[str]) -> dict:
-    store, versions = service.store, service.versions
-    files = index.trip_part(service.repository.working(folder + "/"), trip)
-    try:
-        plan = layout.plan_from(files)
-    except ValueError as error:
-        service.held_paths.update(paths)
-        notices.manual(store, owner, key="manual:plan", user_line="有未入版的手改：计划文件格式坏了，版本没变。",
-                       detail=str(error), paths=paths)
-        return dict(adopted=False, reason=str(error))
+def _plan(service, owner: str, trip: str, folder: str) -> dict:
+    store, versions, repository = service.store, service.versions, service.repository
+    files = {path[len(folder) + 1:]: text for path, text in repository.working(folder + "/plan/").items()}
+    if (repository.root / folder / "trip.yaml").is_file():
+        files["trip.yaml"] = (repository.root / folder / "trip.yaml").read_text(encoding="utf-8")
     current = versions.current(owner)
-    if plan is None or (current["plan"] is not None and layout.plan_digest(plan) == layout.plan_digest(current["plan"])):
+    base = _base(store, owner, files, current)
+    expected = layout.plan_files(base["plan"] if base else None, trip)
+    paths = sorted(f"{folder}/{path}" for path in set(files) | set(expected)
+                   if path != "plan/versions.jsonl" and files.get(path) != expected.get(path))
+    if not paths:
         notices.close(store, owner, key="manual:plan")
         return dict(adopted=False, reason="no change")
     try:
-        author = service.repository.git.run("config", "user.name").strip() or "external"
+        plan = layout.plan_from(files)
+    except ValueError as error:
+        return _held(service, owner, paths, base, f"有未入版的手改：计划文件格式坏了（{_names(paths, folder)}）。{KEPT}", str(error))
+    if plan is None:
+        notices.close(store, owner, key="manual:plan")
+        return dict(adopted=False, reason="no change")
+    candidate = plan
+    if base and base["id"] != current["id"] and base["plan"] is not None and current["plan"] is not None:
+        # The tool made a newer version after the files were written: the hand edit is redone on it (D-75).
+        merged, clashes = rebase.onto(base["plan"], plan, current["plan"])
+        if clashes:
+            return _held(service, owner, paths, base, "有未入版的手改：" + rebase.user_line(clashes, current["plan"]) + KEPT,
+                         "The hand edit and a later version changed the same item differently; the version is unchanged "
+                         "and the edit stays in the files.")
+        candidate = merged
+    if current["plan"] is not None and layout.plan_digest(rebase.normal(candidate)) == layout.plan_digest(current["plan"]):
+        notices.close(store, owner, key="manual:plan")
+        return dict(adopted=False, reason="no change")
+    try:
+        author = repository.git.run("config", "user.name").strip() or "external"
     except GitError:
         author = "external"
     try:
-        result = versions.adopt(owner, plan, author=f"external edit ({author})", base_version_id=current["id"])
+        result = versions.adopt(owner, candidate, author=f"external edit ({author})", base_version_id=current["id"])
     except ValueError as error:
-        result = dict(adopted=False, conflicts=[str(error)])
+        return _held(service, owner, paths, base, f"有未入版的手改：{_names(paths, folder)} 不合计划的格式：{_reasons(error, candidate)}。{KEPT}",
+                     "The edited plan is not a valid trip document; the version is unchanged and the edit stays in the files.")
     if not result["adopted"]:
-        service.held_paths.update(paths)
-        notices.close(store, owner, key="manual:plan")
-        notices.manual(store, owner, key="manual:plan", user_line="有未入版的手改：冲突 " + "；".join(result["conflicts"]),
-                       detail="The edited plan failed the checks; the version is unchanged and the edit stays in the working copy.",
-                       paths=paths)
-        return result
+        return _held(service, owner, paths, base, f"有未入版的手改：冲突 {'；'.join(result['conflicts'])}（{_names(paths, folder)}）。{KEPT}",
+                     "The edited plan failed the checks; the version is unchanged and the edit stays in the files.")
     notices.close(store, owner, key="manual:plan")
     version = result["version"]
     service.outbox.add(owner, kind="manual", tool="manual", key=version["id"], version_id=version["id"],
-                       replay=dict(plan=plan, base_version_id=current["id"], author=version["submitted_by"], version_id=version["id"]))
+                       replay=dict(plan=candidate, base_version_id=current["id"], author=version["submitted_by"], version_id=version["id"]))
     return dict(adopted=True, version_id=version["id"], number=version["number"])
+
+
+def _base(store, owner: str, files: dict, current: dict) -> dict | None:
+    """The version the plan files were edited from: the one a held edit was first seen on, else the last version the
+    files recorded (the tool may hold newer ones it has not written yet), else none when no version was written."""
+    for notice in store.all("notices", owner):
+        if notice.get("key") == "manual:plan" and notice["status"] == "open" and notice.get("base_version_id"):
+            try:
+                return store.get("versions", owner, notice["base_version_id"])
+            except ValueError:
+                break
+    try:
+        lines = layout.parse("plan/versions.jsonl", files["plan/versions.jsonl"]) if "plan/versions.jsonl" in files else []
+    except ValueError:
+        return current
+    if not lines:
+        return None
+    last = max(lines, key=lambda line: line["number"])
+    try:
+        return store.get("versions", owner, last["id"])
+    except ValueError:
+        return current
+
+
+def _held(service, owner: str, paths: list[str], base: dict | None, user_line: str, detail: str) -> dict:
+    """The edit is not taken in: its files are not overwritten, and an open notice says so until it is fixed or undone."""
+    store = service.store
+    service.held_paths.update(paths)
+    open_notice = next((notice for notice in store.all("notices", owner)
+                        if notice.get("key") == "manual:plan" and notice["status"] == "open"), None)
+    if open_notice is None or open_notice["user_line"] != user_line:
+        notices.close(store, owner, key="manual:plan")
+        notice = notices.manual(store, owner, key="manual:plan", user_line=user_line, detail=detail, paths=paths)
+        notice["base_version_id"] = (open_notice or {}).get("base_version_id") or (base or {}).get("id")
+        store.put("notices", owner, notice)
+    return dict(adopted=False, conflicts=[user_line])
+
+
+def _names(paths: list[str], folder: str) -> str:
+    names = [path[len(folder) + 1:] for path in paths]
+    return "、".join(names[:3]) + (f" 等 {len(names)} 个文件" if len(names) > 3 else "")
+
+
+def _reasons(error: ValueError, plan: dict) -> str:
+    """A model error in a line: which day and object of the plan, and why, without the input it echoes."""
+    errors = getattr(error, "errors", None)
+    if not callable(errors):
+        return str(error).splitlines()[0][:200]
+    lines = []
+    for item in errors()[:3]:
+        where, node = [], plan
+        for part in item.get("loc", ()):
+            try:
+                node = node[part]
+            except (KeyError, IndexError, TypeError):
+                node = None
+            if isinstance(node, dict) and (node.get("date") or node.get("id")):
+                where.append(str(node.get("date") or node.get("id")))
+            elif isinstance(part, str) and not isinstance(node, (dict, list)):
+                where.append(part)
+        lines.append(f"{' '.join(where) or 'trip.yaml'}：{str(item.get('msg', '')).removeprefix('Value error, ')}")
+    return "；".join(lines)
