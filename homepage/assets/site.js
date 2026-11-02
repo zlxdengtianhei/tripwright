@@ -9,16 +9,6 @@
   function store(v) {
     try { localStorage.setItem(KEY, v); } catch (e) { /* private mode or blocked storage */ }
   }
-  function browserLang() {
-    var list = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || "en"];
-    for (var i = 0; i < list.length; i++) {
-      var l = String(list[i]).toLowerCase();
-      if (l.indexOf("zh") === 0) return "zh";
-      if (l.indexOf("en") === 0) return "en";
-    }
-    return "en";
-  }
-
   function apply(lang) {
     root.setAttribute("data-lang", lang);
     root.setAttribute("lang", lang === "zh" ? "zh-CN" : "en");
@@ -39,7 +29,8 @@
   var fromUrl = null;
   try { fromUrl = new URLSearchParams(location.search).get("lang"); } catch (e) { /* old browser */ }
   var initial = (fromUrl === "zh" || fromUrl === "en") ? fromUrl : stored();
-  if (initial !== "zh" && initial !== "en") initial = browserLang();
+  // English by default; a choice the reader made is remembered.
+  if (initial !== "zh" && initial !== "en") initial = "en";
   apply(initial);
 
   document.addEventListener("DOMContentLoaded", function () {
