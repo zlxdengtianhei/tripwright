@@ -156,7 +156,7 @@ def test_latest_departure_compares_the_coach_with_the_train_from_the_trips_stati
     # the evidence keeps every route, so check_answer knows the 21:35 train can be caught
     stored = service.store.get("evidence", "local", result["evidence"]["id"])
     assert {tuple(entry["route"]) for entry in stored["value"]["candidates"]} == {("first_choice", "fastest"), ("via_station",)}
-    draft = "# 第二段（20:45）\n从 Kletterhalle Nord 赶不上 21:35 的火车，只能坐大巴。\n## 完整安排\n21:36 出门"
+    draft = "# 第二段（20:45）\n从 Kletterhalle Nord 赶不上 21:35 的火车，只能坐大巴。\n## 完整安排\n21:36 出门（按时刻表，不是实时）"
     refused = query(service, "check_answer", text=draft, part="second")
     assert [entry["check"] for entry in refused["problems"]] == ["unreachable_needs_lookup"]
 

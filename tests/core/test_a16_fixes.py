@@ -164,7 +164,8 @@ def test_no_time_to_leave_is_later_than_the_origin_closes(make):
     assert found["origin_closes"] == "22:10"
     # the plan's train leaves 23 minutes after closing: out at closing, then to the stop; the last train an hour later
     # is its boarding alone (the replay: “22:00 关门” beside “22:11 出门”)
-    assert "计划里的 22:53 REX 7 赶得上：22:10 关门出来（按存的营业时间），走到 Wien Matzleinsdorfer Platz 坐 22:33 的 D" in said
+    # S4h2: the plan's own way from the gym (21:45, the plan's tracks) is said beside it
+    assert "计划里的 22:53 REX 7 赶得上：22:10 关门出来（按存的营业时间），走到 Wien Matzleinsdorfer Platz 坐 22:33 的 D；计划的 21:45 出门那条（存的走法）这次没在结果里，照这条走" in said
     assert said[0].endswith("火车最后一班 00:53 REX 7（最晚 00:33 在 Wien Matzleinsdorfer Platz 上车）")
     assert said[1].startswith("这班火车怎么坐：00:33 在 Wien Matzleinsdorfer Platz 上车，换 1 次车：00:33 D")
     assert not any(re.search(r"2[2-3]:[1-5]\d 出门|0\d:\d\d 出门", line) for line in said[:3])
@@ -176,7 +177,7 @@ def test_no_time_to_leave_is_later_than_the_origin_closes(make):
     # control: no stored hours, nothing to hold the time to
     open_late = make()
     plain = query(open_late, "latest_departure", origin="gym-north", destination="airport")
-    assert "计划里的 22:53 REX 7 赶得上：22:30 出门" in plain["sentences"] and plain["origin_closes"] is None
+    assert "计划里的 22:53 REX 7 赶得上：22:30 出门；计划的 21:45 出门那条（存的走法）这次没在结果里，照这条走" in plain["sentences"] and plain["origin_closes"] is None
     assert "leave_before_closing" not in problems(open_late, second_part(plain["first_line"], "计划里的 22:53 REX 7 赶得上：22:30 出门"))
 
 

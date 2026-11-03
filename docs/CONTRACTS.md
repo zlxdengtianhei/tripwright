@@ -179,9 +179,13 @@ A（仓、状态与快照）、B（渲染与输出）、C（角色、步骤与�
   - 带 `second_part_due` 的那一轮，上下文的 `points` 与 `frame` 照抄被续的那一问；之后的 `latest_departure` 按那一问的下一步（A16 起点跟下一步）与框算。
   - 交通句：起点关门时的出门写“HH:MM 关门出来（按存的营业时间），走到 …”（英文 “out at closing, HH:MM (stored opening hours), …”）。`check_answer` 的 `checked_has_evidence` 不要求带标的时刻有证据：时刻之后、下一个时刻或分句结束之前（括号到右括号）有“存的”“存档”“没核”（stored、archived、not checked）之一。没带标、又是这一问查询起点存的关门时刻（证据 `frame.closes`）的，照样拦，修法给带标的原句。
   - 共享的交通答案（s4b）在钉住的钟（`TRIPWRIGHT_NOW`）上：钉住之前（`TRIPWRIGHT_NOW_SET_AT`，否则进程第一次读钟）抓的，`fetched_at` 记这次查询的时刻；钉住之后抓的照旧按年龄倒推。没钉钟时不变。
+- **两段走法对上、时刻表一句（S4h2；见 `docs/DECISIONS-impl.md` 的 S4h2 节）：**
+  - `latest_departure`（今晚最后一班）计划车的句子（`plan_rides[].sentence`）：计划里存了从查询起点到那班车上车站、还没开始的交通块，出门时刻又和查到的不同时，句末接“；计划的 HH:MM 出门那条（存的走法）也赶得上，想早走就照它”（查到的连接里有那时出门、坐这班车的）或“；计划的 HH:MM 出门那条（存的走法）这次没在结果里，照这条走”。
+  - `check_answer` 第二段加 `first_times_followed`：带 `request_id` 时，那一问 `turn` 存的第一段首行的第一个时刻（不算钟点与“HH:MM 查过”），第二段没再写、也没有一行说改了（“第一段”“改成”“换成”“改为”），报出。
+  - `check_answer` 第二段加 `timetable_said`：一行带交通词、写了这一趟 `transit` 或 `latest_departure` 查到的时刻，全文却没有“按时刻表”“不是实时”“非实时”“是实时的”（英文 timetable, not real time、not live 一类），报出，修法给 `note` 的原句。MCP 与命令行同一检查。
 - **命令行少拦人、分享页住处段只说先后（S4h-b；判词前提 C、机制 4 与 6）：**
   - 命令行 `first-part --points`：常见 kind 近义词照收（deadline、route、time、latest_departure、transit、departure → go；food、meal → eat；event、activity → do；place、where → at；大小写、空白与 `place: ""` 照收），stderr 出一行说明收成了什么（stdout 仍只有 JSON）；认不出的 kind 仍退出 1，报错里除示例外再给一条改好的完整命令（未知 kind 换 other）。
-  - 命令行 `query check_answer`：没带 `--request-id` 也没带 `--question` 时，取同一会话最近一次 turn 的 request_id（非 system 消息里最近收到的；同时刻取后录的），stderr 写明用的是哪一条；一条 turn 都没有时报错退出 1，报错里给带 `--request-id` 的命令例子。带了 `--question` 时不自动取。服务端行为不变。
+  - 命令行 `query check_answer`：没带 `--request-id` 也没带 `--question` 时，取同一会话最近一次 turn 的 request_id（非 system 消息里最近收到的、在最近 30 分钟内的，与服务自己的回退同一个窗口 `RECENT_QUESTION_MINUTES`；同时刻取后录的），stderr 写明用的是哪一条；一条 turn 都没有时报错退出 1，报错里给带 `--request-id` 的命令例子。带了 `--question` 时不自动取。服务端行为不变。
   - 分享页：时间线里起点或终点是住处的那一段，不出分钟级时刻（HH:MM）、步行分钟、到站时刻和 “from your door”“N minute walk”“门口/楼下” 类说法（中英两语、含标题/正文/怎么走/备注，两语言任一带即整句不出现），线路保留，只说先后（“回住处 / Back to the lodging”“从住处出发 / From the lodging”）；判“贴着住处”看块的 place、相邻移动块与文字里提到的住处（重写后的“住处/our stay”），带公共 place 的参观/吃饭块不算。公共地点之间的时刻照留。无形状变化，机读件与样本不动。
   - `agents/core.yaml` 第 1 步末尾加一句（工具还在连时隔几秒再找、至多约 30 秒才用命令行；无论哪种都不写关于连接的话），生成物随之重出；服务端 instructions ≤3,600 字节不变，主 SKILL 的字节钉升到 12,225。
 

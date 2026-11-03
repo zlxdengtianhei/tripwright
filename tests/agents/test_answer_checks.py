@@ -62,7 +62,7 @@ def results(run: Path) -> dict:
 def test_a_good_answer_passes_every_check(tmp_path):
     run = stream(tmp_path, "good", [("2026-10-31T23:12:40Z", GOOD_FIRST), ("2026-10-31T23:14:30Z", GOOD_SECOND)])
     assert {name: result["ok"] for name, result in results(run).items()} == dict.fromkeys(
-        ["two_parts", "clock_in_first_part", "title_time_not_later", "no_tags", "first_line_times_checked",
+        ["two_parts", "no_extra_text", "later_when_no_subagents", "clock_in_first_part", "title_time_not_later", "no_tags", "first_line_times_checked",
          "plan_heading", "checked_needs_tool", "fallback_later", "only_inside_window", "denied_needs_coverage", "count_needs_continuous", "direct_needs_one_ride", "checked_has_evidence"], True)
     assert checks.main([str(run)]) == 0 and (run / "answer_checks.json").is_file()
 
@@ -74,6 +74,16 @@ def test_a_stray_status_line_and_a_tag_are_caught(tmp_path):
     found = results(run)
     assert not found["two_parts"]["ok"] and not found["no_tags"]["ok"]
     assert found["clock_in_first_part"]["ok"], "the first part is the answer before the second part, not the stray line"
+    assert not found["no_extra_text"]["ok"] and "Let me invoke it" in found["no_extra_text"]["detail"]
+
+
+def test_a_host_without_subagents_must_send_the_second_part_after_go_on(tmp_path):
+    # Stage 4 judge, codex_r1: Codex sent both parts in one reply, with no later line (D-93 wants the reply to “继续”)
+    run = stream(tmp_path, "codex", [("2026-10-31T23:12:40Z", GOOD_FIRST), ("2026-10-31T23:14:30Z", GOOD_SECOND)])
+    (run / "run.json").write_text(json.dumps({"host": "codex", "no_subagents": False}), encoding="utf-8")
+    assert not results(run)["later_when_no_subagents"]["ok"]
+    (run / "run.json").write_text(json.dumps({"host": "claude", "no_subagents": False}), encoding="utf-8")
+    assert results(run)["later_when_no_subagents"]["ok"], "a host with background subagents may send both in one reply"
 
 
 @pytest.mark.parametrize("head", [

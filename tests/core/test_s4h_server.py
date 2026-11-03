@@ -207,7 +207,7 @@ def test_the_stored_closing_time_may_stand_on_a_checked_line_when_it_says_so(mak
         "“核过”对不上证据：时刻 22:10 是起点存的关门时刻，不是查到的车 | 照 latest_departure 的句子写“22:10 关门出来（按存的营业时间）”，时刻留着"]
     # the service's sentence says the closing is stored, and a checked line may carry it
     planned = next(line for line in found["sentences"] if line.startswith("计划里的 22:53 REX 7 赶得上"))
-    assert planned == "计划里的 22:53 REX 7 赶得上：22:10 关门出来（按存的营业时间），走到 Wien Matzleinsdorfer Platz 坐 22:33 的 D"
+    assert planned == "计划里的 22:53 REX 7 赶得上：22:10 关门出来（按存的营业时间），走到 Wien Matzleinsdorfer Platz 坐 22:33 的 D；计划的 21:45 出门那条（存的走法）这次没在结果里，照这条走"
     assert "checked_has_evidence" not in problems(service, second_part(found["first_line"], f"主选（核过，时刻表）：{planned}。"))
     # the closing said as checked without its mark is refused, with the sentence that keeps it
     bare = problems(service, second_part(found["first_line"], "主选：22:10 出门，走到 Wien Matzleinsdorfer Platz 坐 22:33 的 D，赶计划里的 22:53 REX 7（核过）。"))

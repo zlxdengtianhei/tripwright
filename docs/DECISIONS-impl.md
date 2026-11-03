@@ -1360,3 +1360,42 @@ Field table (one row per model field; `tests/core/test_b3f_field_table.py` keeps
   - 第 1 步末尾加一句：“While Tripwright's tools are still connecting, retry every few seconds (up to about 30) before using the command line; never write about connections.”。生成物重出（instructions 3,585/3,600 字节、steps.json、主 SKILL、MCP prompt、AGENTS.init），`build --check` 过。主 SKILL 的字节钉因这句从 12,171/12,130/12,119 提到 12,225（三处守护测试各注一句 S4h-b 后改钉）。
   - 测试：`tests/agents/test_s4hb_core.py`（2 例，改前红）。
 - **契约：** `docs/CONTRACTS.md` 3 节加一组 S4h-b（命令行两条与分享页一条；无形状变化，机读件与样本不动）。
+
+## S4h2：第 1 问两段走法对上；“按时刻表”一句由检查要求（2026-11-03，S4h 自重放，任务 D-97）
+
+依据：主会话 S4h 自重放（`evidence/s4h_selfreplay_20261103.md`）“还在出现的四类”第 2、3 类；坏样本 `s4h_mcponly_r1/turn1.reply.md`（sub_on、ns_on、维也纳 codex 同形）与 `s4h_ns_off_r1/turn1.reply.md`、`turn2.reply.md`。每条有坏样本与对照（`tests/core/test_s4h2_server.py`）；源码退回 3f24c99 后 3 条都在坏样本处不过。
+
+- **一、计划那班车的句子说计划的走法还用不用（`query.plan_rides`、`planned_leave`；`LAST_SAY` 的 `plan_way`、`plan_way_missing`）。**
+  - 来源：第一段照计划写“21:45 从岩馆出门，22:13 到总站，坐 22:42 RJX”（`packs.planned_way`，存档没核）；第二段的主选是 `latest_departure` 的“计划里的 22:42 RJX 19959 赶得上：22:00 关门出来（按存的营业时间），走到 Brigittaplatz 坐 22:16 的 5B”。两条都赶得上，可句子没交代第一段那条。两边各取各的：第一段取计划存的交通块，第二段取查到的最晚一条。
+  - 改：`plan_rides` 拿到查询起点。计划里有从这个起点到那班车上车站、当天的交通块（取最晚开始的那块），它的出门时刻还没过、又和查到的最晚出门差 5 分钟以上时，句子后面接一句：
+    - 查到的连接里有在它前后 5 分钟出门、也坐这班车的：“；计划的 21:45 出门那条（存的走法）也赶得上，想早走就照它”；
+    - 没有：“；计划的 21:45 出门那条（存的走法）这次没在结果里，照这条走”。
+  - 为什么接在这句上：这句就是第二段的主选句，宿主照抄；关系写在同一句里，宿主删不掉一半。主选仍是最晚那条，用户问的是“最晚几点出发”。
+  - 为什么标“存的走法”：21:45 是计划存的出门时刻，查到的连接出门时刻可能差一两分钟；带标后，宿主把这句放进标“核过”的行，`checked_has_evidence` 不要求 21:45 有证据（S4h-a 的 `stored_times`）。
+- **二、`check_answer` 第二段加 `first_times_followed`（`render.check_answer.followed_problems`；`first_line_times` 从回放检查的 `first_line_problems` 抽出共用）。**
+  - 带 `request_id` 时，取那一问 `turn` 存的第一段原文（`first_text`；“继续”那一轮取被续那一问的）。第一行里第一个时刻（不算钟点和“HH:MM 查过”）是这一段要用户照着做的时刻，比如出门、上车。第二段既没再写它，也没有一行说改了（“第一段”“改成”“换成”“改为”），就报，修法给“照 latest_departure 的句子写第一段那条还用不用”或“和第一段不同：…”。
+  - 没有那一问的第一段（不带 `request_id`、只走命令行 `first-part`）时不核。
+  - 为什么只看第一个时刻、不照回放检查要每个时刻都再写：回放检查的那一项在自重放里误报和真错混在一起（自核记录“没核到的”）；到站时刻 22:13 不再写不算错，出门时刻没交代才是两套走法。
+- **三、`check_answer` 第二段加 `timetable_said`（`timetable_problems`）。**
+  - 来源：只走命令行的一轮，宿主自己写第二段，没写“按时刻表，不是实时”，`check_answer --question` 照样放行；走 MCP 的几轮是照抄了服务的 `note` 才有。
+  - 改：第二段有一行（不是标题）带交通词、又写了这一趟查询（`transit`、`latest_departure`）里的时刻，而全文没有“按时刻表”“不是实时”“非实时”“是实时的”（英文 timetable, not real time、not live 一类）时，报出，修法给 `note` 的原句。MCP 与命令行走同一个 `check_answer`。
+  - 只认这几种说法，不认单独的“实时”“时刻表”：服务的“怎么查”一句里就有“实时晚点、站台…时刻表里没有”“看实时时刻”，不能算说了。
+- **测试。** `tests/core/test_s4h2_server.py`：
+  - `test_the_plans_train_sentence_says_whether_the_plans_own_way_still_holds`
+  - `test_a_second_part_that_drops_the_first_parts_time_without_saying_so_is_refused`
+  - `test_a_second_part_with_looked_up_rides_says_they_are_the_timetables`
+  - 改了的旧测试：
+    - 第二段样本补上时刻表一句：`test_a10_frame.second_part`、`test_a8_transit_facts.second` 末尾加一行；`test_a6_check_answer.GOOD_SECOND` 和两处现写的样本（`test_a6` 的窗口一条、`test_a7_candidates_places` 的大巴一条）并进原有一行，不加行，免得改动后面行号；
+    - 计划那班车的句子后面多了“；计划的 21:45 出门那条（存的走法）这次没在结果里，照这条走”：`test_a16_fixes` 第 3 条两处、`test_s4h_server` 第 4 条。这些行程的计划里有 21:45 从岩馆去总站的块，假数据里只有一条接驳。
+- **限制。**
+  - 第一条只在计划存了从查询起点出发的交通块时说；第一段若写的是别的（只有“计划里是今晚 22:42 在 X 坐 Y”），句子不变，第二条照样核第一个时刻。
+  - 第二条只核第一行第一个时刻；宿主把它写进别的意思（例如“21:45 之前别走”）也算提到了。
+  - 第三条不核说的是否和数据一致（数据是实时的却写“按时刻表”）。
+
+## S4h3：命令行取最近一次 turn 只认最近 30 分钟（2026-11-03，主会话 191cd345）
+
+依据：S4h2 自重放 s4h2_ns_off_r1。只走命令行那一轮，这一问没有 turn（宿主用的是命令行的 first-part，它不记），命令行的 `query check_answer` 不带 `--request-id`、`--question`，S4h-b 的“取最近一次 turn”取到了评测仓里 10-31 导入时的 turn，于是拿一个没人问过的问题核这份草稿：吃的检查没跑，宿主发出了没有具名吃饭地点的第二段。
+
+- **改（`cli.py` 的 `latest_turn`）：** 只取最近 `RECENT_QUESTION_MINUTES`（30 分钟，服务自己的“最近一条用户消息”回退用的同一个窗口）内收到的非 system 消息；没有就照旧报错，报错里给带 `--request-id` 的命令与 `--question`。
+- **测试：** `tests/core/test_s4hb_cli.py::test_check_answer_never_takes_a_turn_of_another_hour`（只有 21:01 的 seed turn、钟到 23:30：退出 1；旧代码上这条红）。
+

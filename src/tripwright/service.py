@@ -623,7 +623,7 @@ class Tripwright:
         # messages only: the change records a turn writes share the events table and carry no receipt (D-47)
         events = received_events(self.store, owner)
         question = arguments.get("question") if str(arguments.get("question") or "").strip() else None
-        points, speaker = None, None
+        points, speaker, first = None, None, None
         if arguments.get("request_id"):
             event = next((event for event in events if event.get("request_id") == arguments["request_id"]), None)
             if event is None:
@@ -632,8 +632,14 @@ class Tripwright:
             question = event["receipt"]["received_text"] if question is None else question
             speaker = event["received"].get("speaker")
             # A12: the points this question's turn kept (its latest context, a retried turn's included)
-            kept = [context for context in self.store.all("contexts", owner) if context.get("source_event") == event["id"] and "points" in context]
-            points = sorted(kept, key=lambda context: aware(context["created_at"]))[-1]["points"] if kept else None
+            contexts = self.store.all("contexts", owner)
+            kept = [context for context in contexts if context.get("source_event") == event["id"] and "points" in context]
+            latest = sorted(kept, key=lambda context: aware(context["created_at"]))[-1] if kept else {}
+            points = latest.get("points")
+            # S4h2: the first part this question's turn drafted (a “继续” turn's is the continued question's)
+            first = latest.get("first_text") or next((context.get("first_text") for context in reversed(contexts)
+                                                      if latest.get("continues") and context.get("request_id") == latest["continues"]
+                                                      and context.get("first_text")), None)
         elif question is None:  # the latest user message of the last minutes (the later recorded of two at one moment)
             recent = [event for event in events if event["received"].get("channel") != "system"
                       and aware(event["receipt"]["received_at"]) >= at - timedelta(minutes=RECENT_QUESTION_MINUTES)]
@@ -643,7 +649,7 @@ class Tripwright:
         found = checks.evidence_found(self.store.all("evidence", owner), ZoneInfo(name), since, at + timedelta(minutes=1))
         problems = checks.check_draft(arguments["text"], arguments["part"], local.hour * 60 + local.minute, found,
                                       question=question, places=(plan or {}).get("places", []), points=points,
-                                      here=packs.plan_here(plan, local, packs.asker(plan, speaker), self.language))
+                                      here=packs.plan_here(plan, local, packs.asker(plan, speaker), self.language), first=first)
         count = len(problems)
         summary = ("草稿可以发。" if not problems else f"要改 {count} 处再发：" + "；".join(
             f"第 {entry['line']} 行 {entry['why']}" if entry["line"] else entry["why"] for entry in problems))

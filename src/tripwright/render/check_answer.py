@@ -923,6 +923,59 @@ def evidence_problems(text: str, found: dict) -> list[dict]:
     return problems
 
 
+def first_line_times(line_one: str, clock: int) -> list[int]:
+    """The times a first part's first line states, in its order: not the clock and not a check stamp ("HH:MM 查的",
+    "（21:02 查过）", "MM-DD HH:MM 在 … 查的")."""
+    def stamp(match: re.Match) -> bool:
+        clause = re.split(r"[，。；,;）)]", line_one[match.end():], maxsplit=1)[0]
+        return "查" in line_one[match.end():match.end() + 3] or (bool(re.search(r"\d{1,2}-\d{1,2}\s*$", line_one[:match.start()])) and "查" in clause)
+
+    return [clock_minutes(match) for match in CLOCK.finditer(line_one) if abs(ahead(clock_minutes(match), clock)) > CLOCK_SLACK and not stamp(match)]
+
+
+# S4h2 (self replay of S4h, 4 of 6 runs): the first part's first line said “计划里是 21:45 从 <岩馆> 出门，22:13 到 <总站>，坐
+# 22:42 RJX”, the second part's main choice was “22:00 关门出来 … 坐 22:16 的 5B”, and nothing said whether the 21:45 way still
+# held. The second part says the time the first line acts on again, or says what changed.
+CHANGED = re.compile(r"第一段|改成|换成|改为|instead of|first part|part 1", re.I)
+
+
+def followed_problems(text: str, first: str | None, clock: int) -> list[dict]:
+    """The first time this question's first part states on its first line (the time to leave, else to board) appears
+    in the second part, or a line of it says what changed (“和第一段不同：…”, “改成”): first_times_followed. Without
+    the turn's first part (no request_id, the command line's first-part) nothing is checked."""
+    lines = numbered(first or "")
+    times = first_line_times(lines[0][1], clock) if lines else []
+    if not times:
+        return []
+    said = {clock_minutes(match) for _, line in numbered(text) for match in CLOCK.finditer(line)}
+    if times[0] in said or any(CHANGED.search(line) for _, line in numbered(text)):
+        return []
+    told = hhmm(times[0])
+    return [problem("first_times_followed", None, "", f"第一段首行说了 {told}，第二段没再提，也没说改了",
+                    f"照 latest_departure 的句子写第一段那条还用不用（“计划的 {told} 出门那条也赶得上…”），"
+                    f"或加一行“和第一段不同：{told} 那条……”")]
+
+
+# S4h2 (self replay of S4h, ns_off both questions): a host with the command line only wrote its own second part and never
+# said the times were the timetable's; the MCP runs had the sentence because they copied the service's note.
+TIMETABLE_SAID = re.compile(r"按时刻表|不是实时|非实时|并非实时|是实时的|timetable, not real|not real[- ]?time|not live|are real[- ]?time"
+                            r"|\btimetable times\b", re.I)
+
+
+def timetable_problems(text: str, found: dict) -> list[dict]:
+    """A second part that gives the times of rides this conversation's lookups found (transit, latest_departure) says
+    once whether they are the timetable's or real time, as latest_departure's `note` does: timetable_said."""
+    if TIMETABLE_SAID.search(text):
+        return []
+    rides = [(number, line) for number, line in numbered(text)
+             if not line.startswith("#") and TRAVEL.search(line) and acted_times(line) & found["times"]]
+    if not rides:
+        return []
+    number, line = rides[0]
+    return [problem("timetable_said", number, line, "写了这一趟查到的车次时刻，没说是按时刻表还是实时",
+                    "加一行照 latest_departure 的 note 写，例如“以上交通时刻按时刻表，不是实时。”")]
+
+
 def first_line_problems(first: str, second: str, clock: int) -> list[dict]:
     """Every time in the first part's first line, except the clock and a check stamp ("HH:MM 查的", "MM-DD HH:MM 在 …
     查的"), appears again in the second part on a line that says 核过, 网上说法, 没核, 和第一段不同 or 不变, or under such a
@@ -931,12 +984,7 @@ def first_line_problems(first: str, second: str, clock: int) -> list[dict]:
     if not lines:
         return []
     number, line_one = lines[0]
-
-    def stamp(match: re.Match) -> bool:
-        clause = re.split(r"[，。；,;）)]", line_one[match.end():], maxsplit=1)[0]
-        return "查" in line_one[match.end():match.end() + 3] or (bool(re.search(r"\d{1,2}-\d{1,2}\s*$", line_one[:match.start()])) and "查" in clause)
-
-    wanted = {clock_minutes(match) for match in CLOCK.finditer(line_one) if abs(ahead(clock_minutes(match), clock)) > CLOCK_SLACK and not stamp(match)}
+    wanted = set(first_line_times(line_one, clock))
     marked, section = [], None
     for _, line in numbered(second):
         bare = line.strip("#*- ")
@@ -1411,15 +1459,16 @@ SECOND_CHECKS = ("second_heading", "frame_matches_server", "checked_has_evidence
                  "unreachable_needs_lookup", "denied_needs_coverage", "count_needs_continuous",
                  "fallback_later", "plan_heading", "meals_named", "title_time_not_later", "no_tags", "internal_words",
                  "no_process_notes", "second_part_lines", "missing_ride_found", "search_matches_main", "coverage_said_short",
-                 "leave_before_closing", "per_person_alone")
+                 "leave_before_closing", "per_person_alone", "first_times_followed", "timetable_said")
 
 
 def check_draft(text: str, part: str, clock: int, found: dict | None = None, *, question: str | None = None,
-                places: list[dict] = (), points: dict | None = None, here: dict | None = None) -> list[dict]:
+                places: list[dict] = (), points: dict | None = None, here: dict | None = None, first: str | None = None) -> list[dict]:
     """The problems of a first or second part drafted at `clock` (minutes after local midnight), against `found`: the
     times, search windows (their ends), evidence IDs, counted web claims and quotes, reachable departures and web
     sources of this conversation's evidence; `question` is what the user asked, `places` the trip's places, `points`
-    what the turn kept of this question's points (A12), `here` where the plan has the user now (A14)."""
+    what the turn kept of this question's points (A12), `here` where the plan has the user now (A14), `first` the first
+    part the turn drafted for this question (S4h2)."""
     found = dict(NO_EVIDENCE, **(found or {}))
     if part == "first":
         return (clock_problems(text, clock) + tag_problems(text) + internal_problems(text) + note_problems(text) + first_length_problems(text)
@@ -1433,7 +1482,7 @@ def check_draft(text: str, part: str, clock: int, found: dict | None = None, *, 
             + title_problems(text, clock) + tag_problems(text) + internal_problems(text) + note_problems(text)
             + second_length_problems(text) + missing_ride_problems(text, found["lookups"]) + search_problems(text, found["lookups"])
             + short_coverage_problems(text, clock, found["lookups"]) + closing_problems(text, found["lookups"])
-            + party_problems(text, found["lookups"], points))
+            + party_problems(text, found["lookups"], points) + followed_problems(text, first, clock) + timetable_problems(text, found))
 
 
 # --- A7: what was sent is what was checked (the Stop hook) ----------------------------------------------------------------

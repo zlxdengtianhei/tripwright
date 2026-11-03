@@ -51,7 +51,7 @@ GOOD_SECOND = """# 第二段 · 核过了（20:45）
 核过：柜台开船前 40 分钟关（原句：“The ferry counter closes 40 minutes before departure.”）。
 网上说法：码头咖啡开到 23:00（搜索摘要）。
 ## 完整安排
-21:30 出门 · 走 5 分钟到 Nordkai · Google 地图搜 Nordkai"""
+21:30 出门 · 走 5 分钟到 Nordkai · Google 地图搜 Nordkai（交通时刻按时刻表，不是实时）"""
 
 
 def fixed(monkeypatch, moment: datetime = NOW):
@@ -163,7 +163,7 @@ def test_only_or_last_needs_a_window_that_reaches_the_time(tmp_path, monkeypatch
     try:
         # judgment 2, on_r1: "05:15 前只有这一班" from a lookup that stopped at 04:45
         asyncio.run(service.query("local", "transit", dict(origin=ORIGIN, destination=DESTINATION, when=z(NOW + timedelta(minutes=15)), limit=2)))
-        plain = "# 第二段 · 核过了（20:45）\n和第一段不同：没有不同。\n## 完整安排\n21:00 出门 · 走 5 分钟到 Nordkai"
+        plain = "# 第二段 · 核过了（20:45）\n和第一段不同：没有不同。\n## 完整安排\n21:00 出门 · 走 5 分钟到 Nordkai（按时刻表，不是实时）"
         bad = check(service, plain + "\n23:00 前只有这一班。")
         assert failing(bad) == {"only_inside_window": [5]} and "查询窗口只到 21:30" in bad["problems"][0]["why"]
         assert check(service, plain + "\n21:05 那班是 21:30 前最后一班。")["ok"]

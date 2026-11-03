@@ -496,16 +496,19 @@ def line_key(line: str | None) -> tuple[str, str]:
 
 
 def plan_rides(plan: dict | None, destination: str, found: list[Itinerary], start: datetime, until: datetime, tz: ZoneInfo,
-               language: str, app: str | None, closes: datetime | None = None) -> list[dict]:
+               language: str, app: str | None, closes: datetime | None = None, origin: str | None = None) -> list[dict]:
     """The plan's own trains to this destination (boarding nodes with a line) that leave inside the searched span, and
     whether this lookup found each (a12b replay: the 22:42 RJX was among the departures, the compact result did not show
     it, and the answer said “这次没查到，以下面的班次为准”). A ride at that minute with the same line, or the same kind of
     train under another number (“时刻表里叫 …”), is found, with when to set off (leave_words: from an origin that
     closes first, out at closing, A16); else the sentence says the timetable data did not have it and where to check
-    it, never that it is gone."""
+    it, never that it is gone. S4h2: when the plan stores its own way from `origin` to that train (the first part's
+    “计划里是 21:45 … 出门”), leaving at another time than the one found, the sentence says whether a connection leaving
+    then is in these results too (`way`), so the two parts do not give two ways unexplained; its time is the stored one,
+    marked so."""
     said, place = LAST_SAY.get(language, LAST_SAY["en"]), match_place(plan, destination)
     told = []
-    for _, anchor, instant in anchors(plan):
+    for day, anchor, instant in anchors(plan):
         if not place or not anchor.get("line") or anchor.get("destination") != place["id"] or instant is None or not start <= instant <= until:
             continue
         want = line_key(anchor["line"])
@@ -523,9 +526,31 @@ def plan_rides(plan: dict | None, destination: str, found: list[Itinerary], star
             leave = leave_words(views.connection_view(itinerary, tz, language), closes, tz, language, ride=True)
             sentence = said["plan_found" if line_key(leg.line) == want else "plan_found_as"].format(
                 time=time, line=anchor["line"], found=leg.line, leave=leave)
+        way = planned_leave(plan, day, anchor, origin, tz) if match is not None else None
+        kept = None
+        if way is not None and start <= way and abs(way - match[0].depart) > WAY_SLACK:
+            kept = min((itinerary for itinerary, _ in rides if abs(itinerary.depart - way) <= WAY_SLACK),
+                       key=lambda itinerary: abs(itinerary.depart - way), default=None)
+            sentence += said["plan_way" if kept else "plan_way_missing"].format(leave=views.clock(way, tz))
         told.append(dict(anchor_id=anchor["id"], time=time, line=anchor["line"], found=match is not None,
-                         found_line=match[1].line if match else None, sentence=sentence, itinerary=match[0] if match else None))
+                         found_line=match[1].line if match else None, sentence=sentence, itinerary=match[0] if match else None,
+                         way=kept))
     return told
+
+
+WAY_SLACK = timedelta(minutes=5)  # S4h2: a connection leaving this close to the plan's own time to leave is the plan's way
+
+
+def planned_leave(plan: dict | None, day: str, anchor: dict, origin: str | None, tz: ZoneInfo) -> datetime | None:
+    """When the plan has someone set off from `origin` on its own way to a boarding node's stop: the latest start of a
+    travel block of the followed plan on `day` from that place to that stop; None when it stores none."""
+    start, day = match_place(plan, origin) if origin else None, str(day)
+    entry = next((entry for entry in (plan or {}).get("days", []) if str(entry["date"]) == day), None) if start else None
+    leaves = [local_instant(day, block["start"], tz.key) for option in (entry or {}).get("plans", [])[:1]
+              for track in option.get("tracks", []) for block in track.get("blocks", [])
+              if block.get("kind") == "travel" and block.get("origin") == start["id"] and block.get("destination") == anchor.get("place")
+              and block.get("start")]
+    return max((leave for leave in leaves if leave is not None), default=None)
 
 
 def cancelled(itinerary: Itinerary) -> bool:
@@ -1231,6 +1256,8 @@ LAST_SAY = {"zh": dict(last="今晚最后一班：{sentence}", regular="不用�
                        node_latest="{when}直接从 {origin} 去：{sentence}（今晚就到 {destination} 的话用不上）",
                        no_node="计划里没有到 {destination} 之后要守的时间", night="凌晨 ", morning="明早 ", tomorrow="明天 ",
                        plan_found="计划里的 {time} {line} 赶得上：{leave}",
+                       plan_way="；计划的 {leave} 出门那条（存的走法）也赶得上，想早走就照它",
+                       plan_way_missing="；计划的 {leave} 出门那条（存的走法）这次没在结果里，照这条走",
                        plan_found_as="计划里的 {time} {line} 赶得上（时刻表里叫 {found}）：{leave}",
                        plan_missing="计划里的 {time} {line} 这次没在时刻表数据里找到（可能没收录，或车次号不同）：要坐它，先在 {app}核一下",
                        app="交通 App", step="按你先去{name}算（你说的“{said}”）",
@@ -1251,6 +1278,8 @@ LAST_SAY = {"zh": dict(last="今晚最后一班：{sentence}", regular="不用�
                        node_latest="Straight from {origin} {when}: {sentence} (not needed if you reach {destination} tonight)",
                        no_node="The plan keeps no time after reaching {destination}", night="tonight ", morning="tomorrow morning ",
                        tomorrow="tomorrow ", plan_found="The plan's {time} {line} can be caught: {leave}",
+                       plan_way="; the plan's own way, leaving at {leave} (stored), catches it too: take it to leave earlier",
+                       plan_way_missing="; the plan's own way, leaving at {leave} (stored), is not in these results: take this one",
                        plan_found_as="The plan's {time} {line} can be caught (the timetable calls it {found}): {leave}",
                        plan_missing="The plan's {time} {line} was not found in the timetable data this time (it may be missing, or "
                                     "numbered differently): to take it, check it in {app} first", app="the transit app",
@@ -1644,7 +1673,8 @@ class QueryRouter:
         reports, offer = trip_sources(self.store, owner, plan, region, language)
         ends = (end_name(plan, arguments["origin"], meta.get("origin")), end_name(plan, arguments["destination"], meta.get("destination")))
         checking = how_to_check(main, ends, region, notes, language, reports)
-        rides = plan_rides(plan, arguments["destination"], found, start, until, tz, language, (checking or {}).get("app"), closes)
+        rides = plan_rides(plan, arguments["destination"], found, start, until, tz, language, (checking or {}).get("app"), closes,
+                           origin=arguments["origin"])
         # A14 (quality judge 7, 3 of 3 runs): “怎么查” searched the night's last train while the answer's first choice was the
         # plan's 22:42. The plan's own train, when this lookup has it, is the one to check; the last one gets its own line.
         planned = next((ride["itinerary"] for ride in rides if ride["itinerary"] is not None and ride["itinerary"].depart >= start), None)
@@ -1657,7 +1687,7 @@ class QueryRouter:
                 checking = dict(checking, text=checking["text"] + "\n" + HOW.get(language, HOW["en"])["missed"].format(
                     app=missed["app"] + (" " if language == "zh" and missed["app"][-1].isascii() else ""), query=missed["search"],
                     clock=missed["clock"]), last=dict(search=missed["search"], clock=missed["clock"], link=missed["link"]))
-        rides = [{key: value for key, value in ride.items() if key != "itinerary"} for ride in rides]
+        rides = [{key: value for key, value in ride.items() if key not in ("itinerary", "way")} for ride in rides]
         lines = []
         if last and night_break:
             lines.append(said["last"].format(sentence=told(last, True)) + said["next"].format(next=next_text))

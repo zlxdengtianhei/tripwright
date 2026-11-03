@@ -18,7 +18,7 @@ import shlex
 import pytest
 
 from test_a12_first_part import FIRST
-from test_a16_fixes import WAYS, make  # noqa: F401 (make is a fixture)
+from test_a16_fixes import WAYS, fixed, local, make  # noqa: F401 (make is a fixture)
 from tripwright import cli
 
 # the replay's first try at --points: the host's own words for the kinds, an empty place for the time
@@ -102,5 +102,14 @@ def test_check_answer_with_no_turn_at_all_refuses_with_an_example(tmp_path, caps
     code = cli.main(["--db", str(tmp_path / "s4hb-none.sqlite3"), "query", "check_answer", "--part", "second", "--text", DRAFT])
     captured = capsys.readouterr()
     assert code == 1 and captured.out == ""
-    assert "no recorded turn" in captured.err
+    assert "no turn of the last minutes" in captured.err
     assert "tripwright" in captured.err and "--request-id" in captured.err and "check_answer" in captured.err
+
+def test_check_answer_never_takes_a_turn_of_another_hour(make, capsys, monkeypatch):
+    # S4h2 replay (off_r1): this question had no turn (the host used the command line's first-part), so the CLI took the
+    # trip's import turn of another day and held the draft to a question nobody had asked; the food check never ran
+    service = make(tracks=WAYS)  # its only turn is the seed one, at 21:01
+    fixed(monkeypatch, local("23:30"))
+    code, out, err = check_answer(service, capsys)
+    assert code == 1 and out == ""
+    assert "no turn of the last minutes" in err and "--request-id" in err and "--question" in err

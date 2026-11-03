@@ -181,7 +181,8 @@ def query(service, kind, **arguments):
 
 
 def second(*lines: str, at: str = "22:30") -> str:
-    return "\n".join([f"# 第二段 · 核过了（{at}）", "和第一段不同：没有不同。", *lines, "## 完整安排", "22:30 出门 · 走到 Wien Hbf"])
+    return "\n".join([f"# 第二段 · 核过了（{at}）", "和第一段不同：没有不同。", *lines, "## 完整安排", "22:30 出门 · 走到 Wien Hbf",
+                      "以上交通时刻按时刻表，不是实时。"])  # S4h2: the timetable said once
 
 
 def problems(service, text) -> dict[str, list[str]]:

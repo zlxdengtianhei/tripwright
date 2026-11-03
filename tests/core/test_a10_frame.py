@@ -152,7 +152,8 @@ def query(service, kind, **arguments):
 
 
 def second_part(first: str, *rest: str, at: str = "21:01") -> str:
-    return "\n".join([f"# 第二段 · 核过了（{at}）", first, "和第一段不同：最晚已查到。", *rest, "## 完整安排", "21:10 出门 · 去 Wien Hbf"])
+    return "\n".join([f"# 第二段 · 核过了（{at}）", first, "和第一段不同：最晚已查到。", *rest, "## 完整安排", "21:10 出门 · 去 Wien Hbf",
+                      "以上交通时刻按时刻表，不是实时。"])  # S4h2: the timetable said once
 
 
 def problems(service, text: str) -> dict[str, list[str]]:

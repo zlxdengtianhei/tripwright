@@ -539,7 +539,7 @@ def test_the_replay_script_runs_the_a7_checks_apart(tmp_path):
     (run / "turn1.stream.jsonl").write_text("\n".join(json.dumps(event, ensure_ascii=False) for event in events) + "\n", encoding="utf-8")
     (run / "turn1.json").write_text(json.dumps({"message": "我饿了，最晚几点去码头？"}, ensure_ascii=False), encoding="utf-8")
     report = script.run_checks(run)
-    assert set(report["turns"]["turn1"]) == {"two_parts", "clock_in_first_part", "title_time_not_later", "no_tags", "first_line_times_checked",
+    assert set(report["turns"]["turn1"]) == {"two_parts", "no_extra_text", "later_when_no_subagents", "clock_in_first_part", "title_time_not_later", "no_tags", "first_line_times_checked",
                                              "plan_heading", "checked_needs_tool", "fallback_later", "only_inside_window", "denied_needs_coverage", "count_needs_continuous", "direct_needs_one_ride", "checked_has_evidence"}
     # A10 adds frame_matches_server and first_part_copied; this stream has no framed lookup and no turn call
     assert {name: result["ok"] for name, result in report["more"]["turn1"].items()} == dict(
@@ -609,7 +609,7 @@ def test_check_answer_without_any_message_reads_no_question(tmp_path, monkeypatc
     code = main(["--db", str(database), "query", "check_answer", "--part", "second", "--text", draft, "--providers", "synthetic"])
     captured = capsys.readouterr()
     assert code == 1 and captured.out == ""
-    assert "no recorded turn" in captured.err and "--request-id" in captured.err and "tripwright" in captured.err
+    assert "no turn of the last minutes" in captured.err and "--request-id" in captured.err and "tripwright" in captured.err
     # the service itself still answers with no question (no meal check), as over MCP
     result = over_mcp(database, monkeypatch, text=draft)
     assert "meals_named" not in {entry["check"] for entry in result["problems"]}
@@ -796,10 +796,14 @@ def over_mcp(database: Path, monkeypatch, **arguments) -> dict:
 
 
 def test_without_question_or_request_id_check_answer_reads_only_a_recent_users_message(asked_db, tmp_path, monkeypatch, capsys):
-    # S4h-b: the command line takes the session's latest turn itself (the setup message is system-channel, so the
-    # hungry one 40 minutes old is still this session's question); the MCP path still reads only a recent message
-    hungry_early = answer_check(asked_db, PLAIN_SECOND, tmp_path, monkeypatch, capsys)
-    assert failing(hungry_early) == {"meals_named": [None]} and UNKNOWN not in hungry_early["summary"]
+    # S4h3 (replay s4h2_ns_off_r1): the command line takes the session's latest turn only when it came in the last
+    # RECENT_QUESTION_MINUTES, as the MCP path does; the hungry one 40 minutes old is not taken, the CLI refuses and names
+    # --request-id and --question (it once took a turn of another hour and checked the draft against it)
+    draft = tmp_path / "draft.md"
+    draft.write_text(PLAIN_SECOND, encoding="utf-8")
+    code = main(["--db", str(asked_db), "query", "check_answer", "--part", "second", "--text-file", str(draft), "--providers", "synthetic"])
+    refused = capsys.readouterr()
+    assert code == 1 and refused.out == "" and "no turn of the last minutes" in refused.err and "--question" in refused.err
     unknown = over_mcp(asked_db, monkeypatch, text=PLAIN_SECOND)
     assert unknown["ok"] and unknown["summary"] == "草稿可以发。" + UNKNOWN
     # the user asks again 10 minutes ago: that message is this question

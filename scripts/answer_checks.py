@@ -2,7 +2,9 @@
 """Mechanical checks on the answers of one host replay: a regression signal, not a judge.
 
 Reads `turn<N>.stream.jsonl` in a run directory written by `host_replay.py` and checks what the user saw:
-- two_parts: the turn shows exactly two texts, a first part and a second part titled "# 第二段".
+- two_parts: the turn shows exactly two texts, a first part and a second part titled "# 第二段". A first part that ends
+  with turn's first_part.later (4a) is the two-reply shape: the replay sent “继续” and the second part is in that reply
+  (host_replay's `{"type": "user", "replay": "continue"}` line); the later line is left out of the first-part checks.
 - clock_in_first_part: the first two lines of the first part name a time within 5 minutes of the clock when it was sent.
 - title_time_not_later: no time in the second part's title, and no "HH:MM 查", is later than the moment it was sent.
 - no_tags: no text contains markup tags such as `<thinking>` or `<br>`, or internal wording.
@@ -68,6 +70,12 @@ except ImportError:  # run from a checkout without the package installed: use it
         os.execvp("uv", ["uv", "run", "--project", str(ROOT), "python", str(Path(__file__).resolve()), *sys.argv[1:]])
 
 TIME, CHECKED_WORD, ahead, clock_times = checks.CLOCK, checks.CHECKED_WORD, checks.ahead, checks.clock_times
+# turn's first_part.later (4a, D-88): a first part may end with it, and the second part then comes in the reply to “继续”
+try:
+    from tripwright.service import LATER
+except ImportError:
+    LATER = {}
+LATER = dict({"zh": "要核过的第二段，回我一句“继续”。", "en": "Reply “go on” for the checked second part."}, **LATER)
 LOOKUP_COMMAND = re.compile(r"\btripwright\b[^\n|;&]*\bquery\b")
 EVIDENCE_ID = checks.EVIDENCE_ID
 # first_part_copied: what may differ between turn's first_part.text and the first part sent
@@ -106,6 +114,20 @@ def pinned_moments(run: Path, turn: int) -> list[datetime] | None:
     pinned = min(turn, len(moments))
     sent = moments[pinned - 1] + timedelta(seconds=sum(turns.get(n, {}).get("seconds") or 0 for n in range(pinned, turn)))
     return [sent + timedelta(seconds=at) for at in turns[turn].get("text_at") or []]
+
+
+def continued_at(stream: Path) -> int | None:
+    """How many of the main agent's texts came before the replay's “继续” line (host_replay), or None."""
+    count = 0
+    for line in stream.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("{"):
+            continue
+        event = json.loads(line)
+        if event.get("type") == "user" and event.get("replay") == "continue":
+            return count
+        if event.get("type") == "assistant" and not event.get("parent_tool_use_id"):
+            count += sum(1 for block in event["message"].get("content", []) if block.get("type") == "text" and block["text"].strip())
+    return None
 
 
 def lookup_ran(stream: Path) -> bool:
@@ -294,6 +316,41 @@ def lines_of(text: str) -> list[str]:
     return [line for _, line in checks.numbered(text)]
 
 
+def loose_end(text: str) -> str:
+    # quote marks do not count: a host may copy “继续” as "继续" (S4e, dry_cc_ns_synth)
+    return "".join(text.split()).translate(str.maketrans("", "", "“”\"「」『』'‘’")).rstrip("。.!！")
+
+
+def without_later(text: str) -> tuple[str, bool]:
+    """The first part without a last line that is turn's first_part.later, and whether it had one."""
+    lines = text.rstrip().splitlines()
+    if lines and any(loose_end(lines[-1]).endswith(loose_end(sentence)) for sentence in LATER.values()):
+        return "\n".join(lines[:-1]).rstrip(), True
+    return text, False
+
+
+def parts(shown: list[tuple[int, str]], draft: str | None = None):
+    """split_parts, with the first part's `later` line left out of the checks on the first part (its 8 lines, its clock,
+    first_part_copied: turn's first_part.text does not carry it)."""
+    first, second = split_parts([(minute, without_later(text)[0]) for minute, text in shown], draft)
+    return first, second
+
+
+def continued_shape(shown: list[tuple[int, str]], continued_at: int | None, draft: str | None = None) -> str | None:
+    """What is wrong with a two-reply turn (4a): a first part that ends with first_part.later needs the replay's “继续”
+    and the second part after it; a second part before it, or none after it, is wrong. None when right or not this shape."""
+    first, second = parts(shown, draft)
+    asked = any(without_later(text)[1] for _, text in (shown[:continued_at] if continued_at is not None else shown))
+    if not asked:
+        return None if continued_at is None else "“继续” was sent but no first part ended with first_part.later"
+    if continued_at is None:
+        return "the first part asks for “继续”, but the replay did not send it"
+    if second is None:
+        return "no second part in the reply to “继续”"
+    index = [text for _, text in shown].index(second[1])
+    return None if index >= continued_at else "the second part came before “继续”, in the same reply as the first part"
+
+
 def split_parts(shown: list[tuple[int, str]], draft: str | None = None):
     second = next((item for item in shown if checks.SECOND_TITLE.match(lines_of(item[1])[0])), None)
     # The first part is the last answer-sized text before the second part; a stray status line is not it. With turn's
@@ -311,32 +368,51 @@ def outcome(problems: list[dict]) -> dict:
                                                                 for entry in problems)) or "none")
 
 
-def check_turn(shown: list[tuple[int, str]], lookup: bool = False, found: dict | None = None, draft: str | None = None) -> dict[str, dict]:
+def check_turn(shown: list[tuple[int, str]], lookup: bool = False, found: dict | None = None, draft: str | None = None,
+               continued_at: int | None = None, needs_continue: bool = False) -> dict[str, dict]:
     """The checks on one turn: what the user saw (texts with the local minute they were sent), whether a Tripwright
-    lookup ran, what this conversation's lookups found so far, and turn's first_part."""
+    lookup ran, what this conversation's lookups found so far, and turn's first_part. `continued_at`: how many of the
+    texts came before the replay's “继续” (a turn answered in two replies, 4a), None for one reply. `needs_continue`: the
+    host cannot run background subagents (Codex, Claude Code without them), so its first part must end with the later
+    line and its second part come after “继续” (D-93; S4h, stage 4 judge: codex_r1 sent both parts in one reply)."""
     found = found or dict(windows=[], times=set(), ids=set(), counted=[])
     results = {}
-    first, second = split_parts(shown, draft)
-    results["two_parts"] = dict(ok=len(shown) == 2 and first is not None and second is not None,
-                                detail=f"{len(shown)} texts; first part {'found' if first else 'missing'}, second part {'found' if second else 'missing'}")
+    first, second = parts(shown, draft)
+    shape = continued_shape(shown, continued_at, draft)
+    # The later line is the service's own sentence (“要核过的第二段，回我一句‘继续’”): its 核过 is not a claim (S4h,
+    # stage 4 judge: checked_has_evidence flagged it in ns_on, ns_off, mcponly)
+    bare = [(minute, without_later(text)[0]) for minute, text in shown]
+    kept = split_parts(bare, draft)
+    extra = [text for item in bare for text in [item[1]] if item is not kept[0] and item is not kept[1] and text.strip()]
+    results["no_extra_text"] = dict(ok=not extra, detail=(f"{len(extra)} other texts: " + " | ".join(text.strip().splitlines()[0][:50] for text in extra))
+                                    if extra else "only the first and the second part")
+    asked = any(without_later(text)[1] for _, text in shown)
+    results["later_when_no_subagents"] = (dict(ok=asked and continued_at is not None and shape is None,
+                                               detail="first part ends with the later line; second part after “继续”" if asked and continued_at is not None and shape is None
+                                               else (shape or "the first part does not end with the later line; both parts came in one reply"))
+                                          if needs_continue else dict(ok=True, detail="host can run background subagents; either shape"))
+    two = "; two replies: first part, then the second part after “继续”" if continued_at is not None and shape is None else ""
+    results["two_parts"] = dict(ok=len(shown) == 2 and first is not None and second is not None and shape is None,
+                                detail=f"{len(shown)} texts; first part {'found' if first else 'missing'}, second part {'found' if second else 'missing'}"
+                                       + two + (f"; {shape}" if shape else ""))
     results["clock_in_first_part"] = outcome(checks.clock_problems(first[1], first[0])) if first else dict(ok=False, detail="no first part")
     results["title_time_not_later"] = outcome(checks.title_problems(second[1], second[0])) if second else dict(ok=False, detail="no second part")
-    results["no_tags"] = outcome([entry for _, text in shown for entry in checks.tag_problems(text)])
+    results["no_tags"] = outcome([entry for _, text in bare for entry in checks.tag_problems(text)])
     results["first_line_times_checked"] = (outcome(checks.first_line_problems(first[1], second[1], first[0])) if first and second
                                            else dict(ok=False, detail="a part is missing"))
     results["plan_heading"] = outcome(checks.heading_problems(second[1])) if second else dict(ok=False, detail="no second part")
-    claimed = [line for _, text in shown for line in lines_of(text) if CHECKED_WORD.search(line)]
+    claimed = [line for _, text in bare for line in lines_of(text) if CHECKED_WORD.search(line)]
     results["checked_needs_tool"] = dict(ok=lookup or not claimed,
                                          detail=("a Tripwright lookup ran" if lookup else f"no Tripwright lookup; 核过 on {len(claimed)} lines")
                                                 + ("" if lookup or not claimed else f": {claimed[0][:60]}"))
-    results["fallback_later"] = outcome([entry for _, text in shown for entry in checks.fallback_problems(text)])
+    results["fallback_later"] = outcome([entry for _, text in bare for entry in checks.fallback_problems(text)])
     clock = first[0] if first else (shown[0][0] if shown else 0)
-    results["only_inside_window"] = outcome([entry for _, text in shown for entry in checks.window_problems(text, clock, found["windows"], found.get("lookups") or None)])
-    coverage = [entry for _, text in shown for entry in checks.coverage_problems(text, clock, found.get("lookups", []))]
+    results["only_inside_window"] = outcome([entry for _, text in bare for entry in checks.window_problems(text, clock, found["windows"], found.get("lookups") or None)])
+    coverage = [entry for _, text in bare for entry in checks.coverage_problems(text, clock, found.get("lookups", []))]
     for name in ("denied_needs_coverage", "count_needs_continuous"):
         results[name] = outcome([entry for entry in coverage if entry["check"] == name])
-    results["direct_needs_one_ride"] = outcome([entry for _, text in shown for entry in checks.direct_problems(text, found.get("lookups", []))])
-    results["checked_has_evidence"] = outcome([entry for _, text in shown for entry in checks.evidence_problems(text, found)])
+    results["direct_needs_one_ride"] = outcome([entry for _, text in bare for entry in checks.direct_problems(text, found.get("lookups", []))])
+    results["checked_has_evidence"] = outcome([entry for _, text in bare for entry in checks.evidence_problems(text, found)])
     return results
 
 
@@ -345,10 +421,10 @@ def more_checks(shown: list[tuple[int, str]], found: dict, question: str | None,
     no internal words in either part, a cannot-reach sentence backed by latest_departure, two named places to eat with
     the source of their hours when the question is hungry. A10: the second part's first line keeps the service's frame,
     and the first part is turn's first_part sent as it is."""
-    first, second = split_parts(shown, draft)
+    first, second = parts(shown, draft)
     found = dict(checks.NO_EVIDENCE, **found)
     results = {"first_part_lines": outcome(checks.first_length_problems(first[1])) if first else dict(ok=False, detail="no first part"),
-               "internal_words": outcome([entry for _, text in shown for entry in checks.internal_problems(text)])}
+               "internal_words": outcome([entry for _, text in shown for entry in checks.internal_problems(without_later(text)[0])])}
     results["unreachable_needs_lookup"] = outcome(checks.unreachable_problems(second[1], found)) if second else dict(ok=False, detail="no second part")
     results["meals_named"] = outcome(checks.meal_problems(second[1], question, found, places)) if second else dict(ok=False, detail="no second part")
     results["frame_matches_server"] = (outcome(checks.frame_problems(second[1], second[0], found["lookups"])) if second
@@ -385,6 +461,9 @@ def run_checks(run: Path) -> dict:
     zone = ZoneInfo(zone_name)
     report = {"run": str(run), "timezone": zone_name, "turns": {}, "more": {}}
     places = trip_places(run / "ws")
+    settings = json.loads((run / "run.json").read_text(encoding="utf-8")) if (run / "run.json").is_file() else {}
+    # D-93: only a host that can run background subagents may send the second part without “继续”
+    needs_continue = settings.get("host") == "codex" or bool(settings.get("no_subagents"))
     # Evidence from an earlier turn of the same conversation still backs a later answer.
     seen = dict(windows=[], times=set(), ids=set(), counted=[], reachable=set(), latest=0, sources=[], lookups=[])
     for stream in sorted(run.glob("turn*.stream.jsonl"), key=lambda path: int(re.sub(r"\D", "", path.name.split(".")[0]) or 0)):
@@ -396,7 +475,7 @@ def run_checks(run: Path) -> dict:
                     lookups=seen["lookups"] + found["lookups"])
         shown = texts(stream, zone, pinned_moments(run, int(re.sub(r"\D", "", turn) or 0)))
         draft = turn_draft(stream)
-        report["turns"][turn] = check_turn(shown, lookup_ran(stream), seen, draft)
+        report["turns"][turn] = check_turn(shown, lookup_ran(stream), seen, draft, continued_at(stream), needs_continue)
         summary = run / f"{turn}.json"
         question = json.loads(summary.read_text(encoding="utf-8")).get("message") if summary.is_file() else None
         report["more"][turn] = more_checks(shown, seen, question, places, draft)

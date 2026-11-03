@@ -108,7 +108,7 @@ def run_query(arguments) -> int:
         if arguments.kind == "check_answer" and not given.get("request_id") and not given.get("question"):
             event = latest_turn(store, arguments.local_user)
             if event is None:
-                raise ValueError("check_answer: this session has no recorded turn to take a request_id from; pass this "
+                raise ValueError("check_answer: this session has no turn of the last minutes to take a request_id from; pass this "
                                  f"question's turn: {check_answer_command(arguments, given)} "
                                  "(or its words with --question <file>)")
             given["request_id"] = event["request_id"]
@@ -145,13 +145,20 @@ VALID_KINDS = ("at", "go", "eat", "do", "ticket", "other")
 
 def latest_turn(store: Store, owner: str) -> dict | None:
     """The latest turn this session recorded (its event record), or None when there is none (S4h-b). System-channel
-    messages are not questions, as in the service's own recent-question fallback."""
-    from datetime import datetime
+    messages are not questions, and only a message of the last RECENT_QUESTION_MINUTES counts, as in the service's own
+    recent-question fallback (S4h2 replay, off_r1: with no turn for this question the CLI took one recorded on another
+    day, so the check held the draft to a question nobody had asked)."""
+    from datetime import timedelta
 
     from tripwright.repo.snapshot import received_events
+    from tripwright.service import RECENT_QUESTION_MINUTES
+    from tripwright.storage import now
+    from tripwright.trip import aware
 
-    events = [event for event in received_events(store, owner) if event["received"].get("channel") != "system"]
-    return max(reversed(events), key=lambda event: datetime.fromisoformat(event["receipt"]["received_at"]), default=None)
+    since = aware(now()) - timedelta(minutes=RECENT_QUESTION_MINUTES)
+    events = [event for event in received_events(store, owner) if event["received"].get("channel") != "system"
+              and aware(event["receipt"]["received_at"]) >= since]
+    return max(reversed(events), key=lambda event: aware(event["receipt"]["received_at"]), default=None)
 
 
 def check_answer_command(arguments, given: dict) -> str:
