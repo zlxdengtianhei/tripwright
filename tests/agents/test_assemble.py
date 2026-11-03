@@ -1,5 +1,6 @@
 """The generator: one set of sources, deterministic outputs, committed outputs equal a fresh build (CONTRACTS 4)."""
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -27,7 +28,7 @@ def test_a_hand_edit_an_orphan_and_a_moved_fragment_are_reported(checkout):
     assert f"{MAIN}: differs from a fresh build; run python -m tripwright.agents build" in problems
     assert any(problem.startswith(f"{GENERATED}/claude/old-role.md: not produced by the build") for problem in problems)
     sources = load_sources(checkout)
-    moved = Sources(sources.roles, sources.steps, dict(sources.fragments, **{"triggers.zh.md": "触发：新写的。\n"}))
+    moved = replace(sources, fragments=dict(sources.fragments, **{"triggers.zh.md": "触发：新写的。\n"}))
     assert fragments_changed(checkout, moved) == ["triggers.zh.md"]
 
 
@@ -203,8 +204,9 @@ def test_main_skill_stays_within_its_pre_latest_byte_budget(outputs):
 
 
 def test_a9_instructions_and_examples_are_generated_for_every_host(outputs):
-    for path in (MAIN, f"{GENERATED}/mcp/tripwright-main.md", f"{GENERATED}/l0/tripwright-main.md",
-                 f"{GENERATED}/server/instructions.md"):
+    # S4a: the server instructions are the core steps; these rules reach an MCP-only host through turn's next and
+    # the prompt the instructions point to
+    for path in (MAIN, f"{GENERATED}/mcp/tripwright-main.md", f"{GENERATED}/l0/tripwright-main.md"):
         text = outputs[path]
         assert "until" in text and "03:00" in text and "01:00" not in text  # A14: tonight ends where latest_departure's does
         assert "note" in text and "board_at" in text

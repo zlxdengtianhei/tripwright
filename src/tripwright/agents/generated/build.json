@@ -1,5 +1,5 @@
 {
-  "_generated": "由 python -m tripwright.agents build 生成，源：src/tripwright/agents/roles/*.md、src/tripwright/agents/steps/*.md、src/tripwright/render/fragments/*.md；不要手改",
+  "_generated": "由 python -m tripwright.agents build 生成，源：src/tripwright/agents/roles/*.md、src/tripwright/agents/steps/*.md、src/tripwright/agents/core.yaml、src/tripwright/render/fragments/*.md；不要手改",
   "fragments": {
     "rules.en.md": "sha256:fb83948c8ebfadd0",
     "rules.zh.md": "sha256:90438cbcc2c7064c",

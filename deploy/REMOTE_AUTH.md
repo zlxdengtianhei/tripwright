@@ -1,6 +1,8 @@
 # 远程 GitHub 登录与用户仓写回
 
-这份说明用于已有维也纳 Docker＋Caddy 部署。公网入口仍是 `https://159-195-240-39.sslip.io/mcp`。开启本模式后，Claude 等宿主使用标准 OAuth 登录；现有 `TRIPWRIGHT_TOKENS` 请求头令牌也能连接同一个用户仓。应用内部仍使用现有七个工具和 Git 发件箱、提交器、操作重放。
+> **Not recommended for a personal deployment.** The default and recommended sign-in is the key in the connector address ([SETUP.md](SETUP.md)). This page documents the optional GitHub sign-in (OAuth) and header tokens that the code keeps, off by default. It has not been translated yet.
+
+这份说明用于已有的 Docker＋Caddy 部署（见 [README.md](README.md#a-server-with-a-domain-docker-and-caddy)）。公网入口是 `https://<你的域名>/mcp`。开启本模式后，Claude 等宿主使用标准 OAuth 登录；现有 `TRIPWRIGHT_TOKENS` 请求头令牌也能连接同一个用户仓。应用内部仍使用现有七个工具和 Git 发件箱、提交器、操作重放。
 
 远程模式已部署在作者自己的维也纳服务器，请求头令牌路已验证可用。GitHub App 待用户创建；用户在场时通过 `deploy/setup_github_app.py` 生成设置链接，完成应用登记后启用 OAuth。
 
@@ -105,7 +107,7 @@ GitHub 回调到 `/setup/github-app/callback`。服务器核对一次性 state�
 
 保存成功后下一次请求自动启用 OAuth，无需再重启容器。设置链接过期后重新生成；已有应用凭据时不再开放登记。失败时页面只给出状态，不显示 GitHub 的凭据响应。
 
-默认回调地址：`https://159-195-240-39.sslip.io/auth/callback`。GitHub App 的用户令牌应保持默认的到期与刷新功能；代理签发的访问令牌有效期为一小时，刷新令牌上限为三十天并随刷新轮换，GitHub 上游的有效性仍是约束。
+默认回调地址：`https://<你的域名>/auth/callback`。GitHub App 的用户令牌应保持默认的到期与刷新功能；代理签发的访问令牌有效期为一小时，刷新令牌上限为三十天并随刷新轮换，GitHub 上游的有效性仍是约束。
 
 手建 OAuth App 是退路：用户在 GitHub Developer settings → OAuth Apps 创建，Homepage 填公开源地址，Authorization callback URL 填上面的 `/auth/callback`；用户自己在服务器的 600 专用 env 文件中填 `TRIPWRIGHT_GITHUB_CLIENT_ID` 和 `TRIPWRIGHT_GITHUB_CLIENT_SECRET`，文件归 10001:10001。不要将密钥发到聊天。普通 OAuth App 往往不提供刷新令牌；此时访问令牌一小时后需要重新登录。优先使用 manifest 创建的 GitHub App。
 
@@ -125,8 +127,8 @@ Caddy 现有 `handle { reverse_proxy tripwright:8000 }` 已覆盖以下路径，
 部署后可运行：
 
 ```bash
-curl --fail --silent --show-error https://159-195-240-39.sslip.io/.well-known/oauth-authorization-server
-curl --fail --silent --show-error https://159-195-240-39.sslip.io/.well-known/oauth-protected-resource/mcp
+curl --fail --silent --show-error https://<你的域名>/.well-known/oauth-authorization-server
+curl --fail --silent --show-error https://<你的域名>/.well-known/oauth-protected-resource/mcp
 .venv/bin/python -B deploy/check_https.py --url https://<你的域名> --ssh <服务器的 SSH 别名>
 ```
 

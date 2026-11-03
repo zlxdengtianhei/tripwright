@@ -18,9 +18,10 @@ def outputs(sources):
 @pytest.fixture
 def checkout(tmp_path):
     """A throwaway checkout with this repository's sources and a fresh build, outside the repository."""
-    for folder in (f"{AGENTS}/roles", f"{AGENTS}/steps"):
+    for folder in (f"{AGENTS}/roles", f"{AGENTS}/steps", f"{AGENTS}/templates"):
         if (ROOT / folder).is_dir():
             shutil.copytree(ROOT / folder, tmp_path / folder)
+    shutil.copy(ROOT / AGENTS / "core.yaml", tmp_path / AGENTS / "core.yaml")  # S4a: every message's steps
     (tmp_path / "skills").mkdir()
     write(tmp_path, build(load_sources(tmp_path)))
     return tmp_path

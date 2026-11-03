@@ -11,32 +11,98 @@ ORDER = (
     re.compile(r"(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])", re.I),
     re.compile(r"\bHM[A-Z0-9]{8,}\b"),
     re.compile(r"(?<![\d.,])\d{9,}(?![\d.,])"),
-    re.compile(r"(?:订单号|预订号|确认号|确认码|预订码|订座号|护照号|Booking\s*(?:number|no\.?)|PNR)\s*[:：]?\s*[A-Za-z0-9][A-Za-z0-9-]{4,}", re.I),
+    re.compile(r"(?:订单号|订单编号|预订号|确认号|确认码|预订码|订座号|取票号|取票码|票号|护照号|Buchungsnummer|Reservierungsnummer|Bestellnummer|"
+               r"Booking\s*(?:number|no\.?|reference|ref\.?|code|id)|(?:confirmation|reservation|order|ticket)\s*(?:number|no\.?|code|id)|PNR)"
+               r"\s*[:：#]?\s*[A-Za-z0-9][A-Za-z0-9-]{4,}", re.I),
 )
+# A flight number: a two-character airline designator, then 1–4 digits (ZQ731, U2 1234, W6 2345). Transit lines and
+# trains must pass: REX 7, RJX 19959 and VAB 1 have three letters; U6, S7 and 18 路 have no number after the designator;
+# N25 and S45 have one digit after a letter-digit designator; times, decimals and counted units are not numbers here.
+# Two-letter train categories and common abbreviations are not airlines on a trip page.
+FLIGHT = re.compile(r"(?<![A-Za-z0-9])(?P<carrier>[A-Z]{2}|[A-Z][0-9]|[0-9][A-Z])(?P<space>\s?)(?P<number>[0-9]{1,4})[A-Z]?"
+                    r"(?![A-Za-z0-9]|[:.,][0-9]|\s?(?:站|路|号|个|個|次|分|楼|层|人|天|晚|km|min|m\b|h\b|′|'|″|stops?\b|Min))")
+NOT_AIRLINES = frozenset("IC EC EN NJ RJ RE RB IR ER EX RS RX SB SE SN SV TL CJ WB EG OG UG DG AM PM KW CO NR XL XS".split())
+PHONE = (
+    re.compile(r"(?<![\w+])(?:\+|00)[1-9][0-9]{0,2}(?:[ ./-]?\(?[0-9]{1,4}\)?){2,6}(?![0-9])"),
+    re.compile(r"(?<![\w.,:/-])0[0-9]{1,4}(?:[ /-][0-9]{2,}){1,4}(?![0-9:.,])"),
+    re.compile(r"(?<![0-9])1[3-9][0-9](?:[ -]?[0-9]{4}){2}(?![0-9])"),
+)
+POLICY_WORD = "private policy word"
 
 
 class PrivacyError(ValueError):
     pass
 
 
+def flight_numbers(text: str) -> list[str]:
+    """Flight numbers in a text, as written."""
+    found = []
+    for match in FLIGHT.finditer(text):
+        carrier, number = match.group("carrier"), match.group("number")
+        if carrier in NOT_AIRLINES:
+            continue
+        if not carrier.isalpha() and len(number) < 2 and not match.group("space"):
+            continue  # N25, S45: a night bus or a train line, not a flight
+        found.append(match.group(0))
+    return found
+
+
+def phone_numbers(text: str) -> list[str]:
+    found = []
+    for pattern in PHONE:
+        for match in pattern.finditer(text):
+            digits = sum(character.isdigit() for character in match.group(0))
+            if digits >= (8 if match.group(0).startswith(("+", "00")) else 7):
+                found.append(match.group(0))
+    return found
+
+
+def phone_digits(number: str) -> str:
+    digits = re.sub(r"\D", "", number)
+    return digits[2:] if number.lstrip().startswith("00") else digits
+
+
+def word_pattern(word: str) -> re.Pattern:
+    return re.compile(rf"(?<![A-Za-z0-9]){re.escape(word)}(?![A-Za-z0-9])", re.I)
+
+
 class Policy:
-    def __init__(self, lines: Iterable[str] = ()):
+    """Private words: each line is `word` (denied) or `word => replacement` (replaced, then denied if still there).
+
+    `add` takes the same with a category, which a scan reports instead of the word. `flight` replaces flight numbers.
+    `public_phones` (digits) are a business's published numbers, which a scan lets through."""
+
+    def __init__(self, lines: Iterable[str] = (), *, flight: str | None = None):
         self.replacements = []
         self.forbidden = []
+        self.categories: dict[re.Pattern, str] = {}
+        self.flight = flight
+        self.public_phones: set[str] = set()
         for raw in lines:
             line = raw.strip()
             if not line or line.startswith("#"):
                 continue
             word, separator, replacement = (part.strip() for part in line.partition("=>"))
-            pattern = re.compile(rf"(?<![A-Za-z0-9]){re.escape(word)}(?![A-Za-z0-9])", re.I)
+            self.add(word, replacement if separator and replacement else None)
+
+    def add(self, word: str, replacement: str | None = None, category: str = POLICY_WORD, *, deny: bool = True):
+        pattern = word_pattern(word)
+        if deny:
             self.forbidden.append(pattern)
-            if separator and replacement:
-                self.replacements.append((pattern, replacement))
+            self.categories[pattern] = category
+        if replacement:
+            self.replacements.append((pattern, replacement))
+            # longer words first, so a full name or address is replaced before a part of it
+            self.replacements.sort(key=lambda pair: -len(pair[0].pattern))
+        return pattern
 
 
 def redact(text: str, policy: Policy) -> str:
     for pattern, replacement in policy.replacements:
         text = pattern.sub(lambda match: replacement, text)
+    if policy.flight:
+        for number in sorted(set(flight_numbers(text)), key=len, reverse=True):
+            text = re.sub(rf"(?<![A-Za-z0-9]){re.escape(number)}(?![A-Za-z0-9])", policy.flight, text)
     return text
 
 
@@ -53,6 +119,7 @@ def redact_values(value, policy: Policy):
 
 
 def scan_text(text: str, policy: Policy | None = None) -> list[tuple[int, str]]:
+    """(line number, category) for each private finding; the found words themselves are never returned."""
     policy = policy or Policy()
     findings = []
     for number, line in enumerate(unquote(html.unescape(text)).splitlines(), 1):
@@ -60,8 +127,12 @@ def scan_text(text: str, policy: Policy | None = None) -> list[tuple[int, str]]:
             findings.append((number, "email"))
         if any(pattern.search(line) for pattern in ORDER):
             findings.append((number, "order-like identifier"))
-        if any(pattern.search(line) for pattern in policy.forbidden):
-            findings.append((number, "private policy word"))
+        if flight_numbers(line):
+            findings.append((number, "flight number"))
+        if any(phone_digits(found) not in policy.public_phones for found in phone_numbers(line)):
+            findings.append((number, "phone number"))
+        for category in dict.fromkeys(policy.categories.get(pattern, POLICY_WORD) for pattern in policy.forbidden if pattern.search(line)):
+            findings.append((number, category))
     return findings
 
 

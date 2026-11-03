@@ -152,15 +152,19 @@ def _render(template: str, context: dict, **values) -> str:
     return environment.get_template(template).render(**dict(context, **values))
 
 
-def _policy(trip: dict, additional: Policy | None) -> Policy:
-    lines = [f"{person['name']} => Traveler {index}" for index, person in enumerate(trip.get("people", []), 1)]
+def _policy(trip: dict, additional: Policy | None, language: str = "en") -> Policy:
+    policy = Policy(flight="航班" if language == "zh" else "flight")
+    for index, person in enumerate(trip.get("people", []), 1):
+        policy.add(person["name"], f"Traveler {index}", "person name")
     for place in trip.get("places", []):
         if str(place.get("kind", "")).casefold() in {"住宿", "lodging", "hotel", "accommodation"}:
-            lines.extend(f"{place[key]} => Private stay" for key in ("name", "name_local") if place.get(key))
-    policy = Policy(lines)
+            for key in ("name", "name_local"):
+                if place.get(key):
+                    policy.add(place[key], "Private stay", "lodging")
     if additional is not None:
         policy.replacements.extend(additional.replacements)
         policy.forbidden.extend(additional.forbidden)
+        policy.categories.update(additional.categories)
     return policy
 
 
@@ -234,7 +238,7 @@ def build_site(service_or_store, owner: str, out_dir, *, language: str | None = 
     context["memory_sections"] = None
     if memory is not None:
         context.update(_memory(memory))
-    policy = _policy(context["trip"], privacy_policy)
+    policy = _policy(context["trip"], privacy_policy, context["language"])
     context = redact_values(context, policy)
     public_names = {person["id"]: person["name"] for person in context["trip"].get("people", [])}
     context["people"] = lambda subject: ", ".join(public_names.get(identifier, identifier) for identifier in subject)

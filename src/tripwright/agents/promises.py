@@ -19,7 +19,11 @@ ALL_MAIN = MAIN_TEXTS + (L0_MAIN,)
 # this page, which the MCP prompt and the L0 text still carry inline.
 RECORDS = "skills/tripwright-main/references/records.md"
 SINGLE = "skills/tripwright-main/references/single-agent.md"
+# S4a: the server instructions are core.yaml's steps; the rules below them live in the MCP prompt (MCP_MAIN), which the
+# instructions point to, so a promise names SERVER only for what the core steps themselves say.
 SERVER = f"{GENERATED}/server/instructions.md"
+AGENTS_MD = f"{GENERATED}/repo/AGENTS.init.md"
+CORE_TEXTS = (MAIN, MCP_MAIN, SERVER, AGENTS_MD)
 VERIFIER = ("skills/tripwright-verifier/SKILL.md", f"{GENERATED}/claude/tripwright-verifier.md",
             f"{GENERATED}/codex/tripwright_verifier.toml", f"{GENERATED}/mcp/tripwright-verifier.md")
 RESEARCHER = ("skills/tripwright-researcher/SKILL.md", f"{GENERATED}/claude/tripwright-researcher.md",
@@ -49,20 +53,20 @@ PROMISES = (
     Promise("competing-preferences-get-options", (RECORDS, MCP_MAIN, L0_MAIN),
             must=(r"Give 2–3 complete, feasible options", r"never traded off against each other", r"over the whole day",
                   r"Recommend only for a factual reason", r"“默认” only when a stored user decision already chose it", r"“默认”, not “推荐”")),
-    Promise("baggage-holder", (RECORDS, MCP_MAIN, L0_MAIN, SERVER), must=(r"`?baggage_holder`?",)),
+    Promise("baggage-holder", (RECORDS, MCP_MAIN, L0_MAIN), must=(r"`?baggage_holder`?",)),
     Promise("declare-relations-in-propose", (RECORDS, MCP_MAIN),
             must=(r"Declare it on the items, in `record` or `propose`", r"`same_object_as`", r"`exclusive_with` only when one statement has two readings")),
     # A (abb09fc): turn records what this message states in the same step, so the answer already uses it.
     Promise("turn-records-this-message", MAIN_TEXTS + (SINGLE,),
             must=(r"`record`", r'`source\.event: "this"`')),
     # S4 after the third verdict: declarations hold only on overlap; undeclared overlap gives a non-blocking notice.
-    Promise("declarations-hold-only-on-overlap", (RECORDS, MCP_MAIN, L0_MAIN, SERVER, "skills/tripwright-requirements/SKILL.md"),
+    Promise("declarations-hold-only-on-overlap", (RECORDS, MCP_MAIN, L0_MAIN, "skills/tripwright-requirements/SKILL.md"),
             must=(r"[Aa] declaration holds only where (?:the two records' )?people, dates and time windows overlap",
                   r"(?:both stay active|both stay)", r"both readings and the default", r"`?compatible_with`?"),
             must_not=(r"[Uu]ndeclared[^.\n]*(?:become|are made|turn) pending", r"[Uu]ndeclared[^.\n]*(?:\b(?<!non-)(?<!never )(?<!not )block(?:s|ed)?\b|refused)"),
             bad_sample="Undeclared overlapping records become pending until the user answers."),
     # B3d names (fe1e5632): the notice and the after-the-fact declaration; no placeholder may remain.
-    Promise("possible-contradictions-named", (RECORDS, MCP_MAIN, SERVER),
+    Promise("possible-contradictions-named", (RECORDS, MCP_MAIN),
             must=(r"`?possible_contradictions`?", r"`?changes\.relate`?"), must_not=(r"field names pending",),
             bad_sample="The service returns a notice (field names pending)."),
     Promise("new-trip-calls", (RECORDS, MCP_MAIN, SINGLE),
@@ -70,7 +74,7 @@ PROMISES = (
     Promise("new-trip-without-tools", (L0_MAIN, SINGLE),
             must=(r"trips/<trip>/ledger/carry/<ID>\.yaml",)),
     Promise("verifier-gets-the-wide-pack", VERIFIER, must=(r'state\(view="pack", draft_id',)),
-    Promise("locks-follow-identity", (RECORDS, MCP_MAIN, L0_MAIN, SERVER) + VERIFIER,
+    Promise("locks-follow-identity", (RECORDS, MCP_MAIN, L0_MAIN) + VERIFIER,
             must=(r"(?:plan\.id|plan IDs?|plan ID)", r"(?:never display names|display name alone is not enough)")),
     Promise("transport-text-search-term-and-triggers", ALL_MAIN,
             must=(r"(?:exact term to type into the named app, in its original spelling|在哪个 App 搜什么（地名照原文）)",
@@ -87,20 +91,20 @@ PROMISES = (
             must=(r"Quick question: 1 → 2", r"Status report only: 1 → 5", r"Replan or plan from scratch: 1 → 6",
                   r"large batch of new requirements: 1 → 2")),
     Promise("multi-agent-first", (MAIN,),
-            must=(r"Dispatch one `tripwright-researcher` in the background with the whole list", r"[Aa] draft in your thinking is never shown",
+            must=(r"dispatch one `tripwright-researcher` there now", r"No tool result or draft is shown",
                   r"dispatch `tripwright-verifier` in the background",
-                  r"do not hand it your unchecked lines as its checklist", r"You alone call `commit`")),
+                  r"do not hand it your unchecked lines as its checklist", r"[Yy]ou alone call `commit`")),
     # Q8 (E3 sent back): two real parts, the second backed by live checks with sources; no write states for the user.
-    Promise("two-parts-checked-live", ALL_MAIN + (SERVER,),
+    Promise("two-parts-checked-live", ALL_MAIN,
             must=(r"second (?:part|message)", r"[Ss]ynthetic or demo", r"(?:its|with its) source", r"(?:first two lines|前两行|第二行写“按现在 HH:MM 算”|Line 2 says \"As of HH:MM\")"),
             must_not=(r"(?<![Nn]ever )(?<!not )[Tt]ell the user (?:the )?write state", r"(?<![Nn]ever )(?<!not )[Ss]how the user (?:the )?write state"),
             bad_sample="Tell the user the write state of every message."),
     # Answer layer v2b (verdict on r7—r11): the clock comes from turn or date, and the second part is complete.
     Promise("clock-not-guessed", ALL_MAIN, must=(r"按现在 HH:MM", r"(?:先跑 date|run `?date`?)", r"不编“几点查”")),
     Promise("second-part-complete", ALL_MAIN, must=(r"完整安排", r"和第一段不同")),
-    Promise("no-write-state-for-the-user", MAIN_TEXTS + (SERVER,),
+    Promise("no-write-state-for-the-user", MAIN_TEXTS,
             must=(r"(?:Say nothing about the write|[Nn]ever tell the user write states)",)),
-    Promise("food-has-a-common-option", ALL_MAIN + (SERVER,),
+    Promise("food-has-a-common-option", ALL_MAIN,
             must=(r"(?:麦当劳|common,? reliable chain|common chain)",)),
     # Second quality verdict (D-42): 核过 rests on a tool result; the plan heading stands out; fallbacks leave later;
     # no shop of unknown hours late at night; transfer stations get a Chinese name.
@@ -108,9 +112,9 @@ PROMISES = (
             # Quoted words are stripped before must_not runs, so the old rule shows as "事实标或".
             must_not=(r"影响行动的事实标或", r"[Mm]ark each fact the user will act on \"checked"),
             bad_sample="- 影响行动的事实标“核过（来源）”或“没核：什么”。"),
-    Promise("plan-under-a-heading", ALL_MAIN + (SERVER,), must=(r"## 完整安排",)),
-    Promise("fallback-leaves-later", ALL_MAIN + (SERVER,), must=(r"(?:后备要?比主选晚开|leaves later than the main choice)",)),
-    Promise("no-shop-of-unknown-hours", ALL_MAIN + (SERVER,), must=(r"(?:营业时间不明或(?:此刻)?已关的不推荐|never one of unknown hours or closed now)",)),
+    Promise("plan-under-a-heading", ALL_MAIN, must=(r"## 完整安排",)),
+    Promise("fallback-leaves-later", ALL_MAIN, must=(r"(?:后备要?比主选晚开|leaves later than the main choice)",)),
+    Promise("no-shop-of-unknown-hours", ALL_MAIN, must=(r"(?:营业时间不明或(?:此刻)?已关的不推荐|never one of unknown hours or closed now)",)),
     Promise("transfer-stations-named", ALL_MAIN, must=(r"换乘站、上车站在句中第一次出现时写“原文（中文名，是什么）”",)),
     Promise("researcher-labels-each-claim", RESEARCHER,
             must=(r"`?status`?", r"snippet", r"only for a time inside the result's `window`", r"web_evidence", r"[Nn]ever read raw timetable data yourself")),
@@ -120,7 +124,8 @@ PROMISES = (
     # The main agent's one command line is the second part's check_answer (D-43); lookups stay with the researcher. A16:
     # and the first part's draft (`first-part`, no lookup) when the tools are down.
     Promise("main-agent-never-runs-the-command-line", ALL_MAIN, must=(r"(?:主 agent 只跑第二段的 `check_answer`|the main agent runs only the second part's `check_answer`)",),
-            must_not=(r"uvx --from (?![^\n]*?(?:query check_answer|tripwright --repo \. first-part))",),
+            # S4a2: and the share page's publish after an effective commit (step 6), which looks nothing up
+            must_not=(r"uvx --from (?![^\n]*?(?:query check_answer|tripwright --repo \. first-part|tripwright --repo \. share publish))",),
             bad_sample="Without the MCP tools run `uvx --from ./tools/x.whl tripwright --repo . query transit`."),
     # Third quality verdict (D-44): the tools' words leaked into answers; a way not looked up was called impossible.
     Promise("tool-words-stay-out", ALL_MAIN, must=(r"(?:工具里的说法不进回答|The tools' words stay out of the answer)", r"(?:不写证据号|never the evidence ID)"),
@@ -132,8 +137,24 @@ PROMISES = (
     Promise("food-from-stored-hours", ALL_MAIN + RESEARCHER, must=(r'kind=\\?"open_places\\?"', r'`?type`?: \\?"opening_hours\\?"')),
     # D-46 (v2f pre-checks): asked to write the first part before dispatching, the host drafted it in its thinking in 8 of 8
     # questions; dispatching first and ending the step with the first part kept two parts in 16 of 16 (v2e).
-    Promise("dispatch-before-the-first-part", (MAIN, MCP_MAIN), must=(r"Start the check \(next section\) in the background; call no lookup",
-                                                                     r"as the text that ends this step", r"at most 8 body lines")),
+    # S4a: the same order in core.yaml's steps 3 and 4, for every entry; a subagent is used only where the app has one.
+    Promise("dispatch-before-the-first-part", CORE_TEXTS, must=(r"dispatch one `tripwright-researcher` there now",
+                                                               r"After step 3 it is the last text of this reply")),
+    # S4a (td/apps-github.md 5.3): no entry is assumed to have subagents or to run lookups side by side; without a
+    # subagent the agent looks things up itself, one after another.
+    Promise("subagents-optional", CORE_TEXTS, must=(r"Otherwise skip this step", r"without one, do them yourself, one after another"),
+            must_not=(r"(?:searches|lookups|subagents|agents) (?:at once|in parallel|side by side)", r"请并行", r"同时派"),
+            bad_sample="Without subagents: the first part, then several searches at once, then the second part."),
+    # S4a: an app that may not show text written between tool calls ends the reply with the first part and a line
+    # saying how to get the second; the next message brings it (turn's second_part_due).
+    Promise("second-part-in-the-next-reply", CORE_TEXTS, must=(r"`first_part\.later`", r"`second_part_due`")),
+    # S4a2 (D-89, s4c): after an effective commit the share page is published again; a blocked scan is fixed by category,
+    # never by writing the value; the first public repository is published to others, so the user is asked first.
+    Promise("share-page-after-commit", (SINGLE, MCP_MAIN),
+            must=(r"stop and ask first", r"run `tripwright share publish`", r"`share_blocked`", r"never write the value",
+                  r"GitHub Free serves Pages only from a public repository", r"holds only the pages")),
+    Promise("stop-only-before-what-cannot-be-undone", CORE_TEXTS,
+            must=(r"Stop for the user only before", r"every other step goes on without asking")),
     # D-48: the host sent true_from "this" (copied from source.event) and turn refused the record.
     Promise("record-times-with-offset", (MAIN, MCP_MAIN), must=(r'`true_from` an ISO time with offset, never "this"',)),
     Promise("send-the-passed-draft", ALL_MAIN, must=(r"(?:照抄那份草稿发出，一字不改|send that draft exactly)",)),
@@ -155,11 +176,11 @@ PROMISES = (
             must=(r"1\. The user's saved material, when it can hold the answer[\s\S]*2\. Live sources: (?:Tripwright's `query` for transport and weather, and )?the host's web search and fetch[\s\S]*3\. Only then the open web",
                   r"synthetic or demo is not a source", r"source", r"valid", r"Never fill a gap with a guess")),
     # v2g: these rules travel in both the skill and MCP prompts, without a host-specific hook.
-    Promise("server-transport-sentences", ALL_MAIN + RESEARCHER + VERIFIER + (SERVER,),
+    Promise("server-transport-sentences", ALL_MAIN + RESEARCHER + VERIFIER,
             must=(r"sentences", r"how_to_check", r"coverage")),
-    Promise("must-only-and-change-reasons", ALL_MAIN + (RECORDS, SINGLE, SERVER),
+    Promise("must-only-and-change-reasons", ALL_MAIN + (RECORDS, SINGLE),
             must=(r"must", r"changes\.revisions", r"changelog", r"这次没改成")),
-    Promise("final-check-and-inquiry-section", ALL_MAIN + (SERVER,),
+    Promise("final-check-and-inquiry-section", ALL_MAIN,
             must=(r"怎么查、怎么问", r"我可以帮你起草询问内容", r"英语", r"当地语言")),
     Promise("unchecked-latest-example-defers-answer", ("skills/tripwright-main/references/examples.md", MCP_MAIN, L0_MAIN),
             must=(r"Good first part, before lookups:\n```text\n按现在 \d\d:\d\d 算：几点出发要查，第二段给。",)),
@@ -171,7 +192,7 @@ PROMISES = (
     # A10 replay: a status line before the first part and one between the two parts
     Promise("two-messages-only", ALL_MAIN + (SERVER,), must=(r"[Ss]end no status line before the\s+first or between the two",)),
     # a10d (R2's fields): a write the server cannot push is said with its hint; local storage needs the user's backup
-    Promise("blocked-write-and-local-backup", MAIN_TEXTS + (RECORDS, SERVER),
+    Promise("blocked-write-and-local-backup", MAIN_TEXTS + (RECORDS,),
             must=(r"write\.blocked", r"hint", r"storage\.kind", r"back up the data directory")),
     # A11: an online check-in stored as a node at the airport became “要 05:45 前到”; the plan's writers mark it
     Promise("online-deadline-anchor", (RECORDS, MCP_MAIN, L0_MAIN, "skills/tripwright-requirements/SKILL.md"),
@@ -182,8 +203,8 @@ PROMISES = (
     # A12 (quality judge 6): the first part was the plan's template whatever was asked (A); a stored ticket went unused
     # (E); part 2 ran to about 20 body lines (F)
     Promise("first-part-answers-the-points", MAIN_TEXTS + (SERVER,), must=(r"`?points`?",)),
-    Promise("second-part-twelve-lines", ALL_MAIN + (SERVER,), must=(r"(?:正文最多 12 行|at most 12 body lines)",)),
-    Promise("tickets-as-stored", ALL_MAIN + (SERVER,), must=(r"(?:票照 `tickets`|tickets as the result's stored tickets)",)),
+    Promise("second-part-twelve-lines", ALL_MAIN, must=(r"(?:正文最多 12 行|at most 12 body lines)",)),
+    Promise("tickets-as-stored", ALL_MAIN, must=(r"(?:票照 `tickets`|tickets as the result's stored tickets)",)),
 )
 
 

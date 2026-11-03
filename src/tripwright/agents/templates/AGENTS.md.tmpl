@@ -1,11 +1,17 @@
-<!-- 由 tripwright init 生成，源：src/tripwright/agents/templates/AGENTS.md.tmpl；不要手改，升级时覆盖 -->
+<!-- 由 tripwright init 生成，源：src/tripwright/agents/templates/AGENTS.md.tmpl、src/tripwright/agents/core.yaml；不要手改，升级时覆盖 -->
 # Trip repository for Tripwright
 
 This repository holds one person's trips, one folder per trip under `trips/`. Its files are the source of truth: what the travellers said, what applies, what was decided and which plan version is current. Long-term content (stable preferences, companions, standing rules, saved material) lives in `profile/`; when a new trip starts, the main agent asks in the conversation which of it still applies. Agents read in a fixed order and change records only through Tripwright.
 
 ## Every user message
 
-The main agent calls `turn` first, before it answers, and follows the skill or MCP prompt `tripwright-main`. Nothing goes to the user before that answer's first part, not even which skill or tool is loading. Subagents (`tripwright-verifier`, `tripwright-researcher`, `tripwright-requirements`; in Codex `tripwright_verifier` and so on) never call `turn` or `commit`; they return reports to the main agent.
+The main agent calls `turn` first and does these steps; the skill or MCP prompt `tripwright-main` holds the full rules, to read when writing the second part. Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>` and step 7 runs `uvx --from ./tools/<wheel> tripwright --repo . query check_answer --part second --text-file -`; the lookups of step 5 go to the researcher.
+
+<!-- include: core steps -->
+
+<!-- include: core always -->
+
+Subagents (`tripwright-verifier`, `tripwright-researcher`, `tripwright-requirements`; in Codex `tripwright_verifier` and so on) never call `turn` or `commit`; they return reports to the main agent. In Codex, spawn `tripwright_researcher` for step 5 when you can run subagents.
 
 ## Read in this order
 

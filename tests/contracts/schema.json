@@ -326,7 +326,21 @@
         "transitions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/transition"}}
       }
     },
-    "notice": {
+    "notice": {"oneOf": [{"$ref": "#/$defs/conflict_notice"}, {"$ref": "#/$defs/share_blocked_notice"}]},
+    "share_blocked_notice": {
+      "$comment": "S4a2 (s4c): written by `tripwright share publish` (site/publish.py) when the privacy scan blocks a version, read by turn's notices; categories and page names only, never a found value; closed by the next publish that succeeds.",
+      "type": "object", "additionalProperties": false,
+      "required": ["notice_id", "kind", "created_at", "user_line", "detail", "paths"],
+      "properties": {
+        "notice_id": {"$ref": "#/$defs/notice_id"},
+        "kind": {"const": "share_blocked"},
+        "created_at": {"$ref": "#/$defs/stamp"},
+        "user_line": {"type": "string", "minLength": 1},
+        "detail": {"type": "string", "minLength": 1},
+        "paths": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^[A-Za-z0-9._/-]+$"}}
+      }
+    },
+    "conflict_notice": {
       "type": "object", "additionalProperties": false,
       "required": ["notice_id", "kind", "op_id", "created_at", "shown", "reason", "replan", "user_line", "until"],
       "properties": {

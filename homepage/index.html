@@ -6,7 +6,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>tripwright</title>
-<meta name="description" content="An open-source trip-planning service over MCP: relevant memories each turn, sourced transport facts, and recorded plan changes. Remote HTTP and local stdio; app connections remain to be tested.">
+<meta name="description" content="An open-source trip-planning MCP server that you deploy for yourself: relevant memories each turn, sourced transport facts, and recorded plan changes. Remote HTTP and local stdio.">
 <meta name="color-scheme" content="light dark">
 <link rel="stylesheet" href="assets/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230e6b66'/%3E%3Cpath d='M8 22 L14 10 L18 18 L21 13 L25 22' stroke='white' stroke-width='2.6' fill='none'/%3E%3C/svg%3E">
@@ -16,7 +16,7 @@
 <header class="top">
   <div class="wrap">
     <a class="brand" href="#top">tripwright</a>
-    <nav class="nav" aria-label="Sections / 章节">
+    <nav class="nav" aria-label="Sections" data-label-en="Sections" data-label-zh="章节">
       <a href="#how"><span class="zh">怎样工作</span><span class="en">How it works</span></a>
       <a href="#facts"><span class="zh">事实与边界</span><span class="en">Facts and limits</span></a>
       <a href="#where"><span class="zh">怎样连接</span><span class="en">Connect</span></a>
@@ -49,7 +49,7 @@
         <li><span class="zh">数据存在自己的行程仓或本地库，可查看与导出。</span><span class="en">Keep a trip repository or local database you can inspect and export.</span></li>
       </ul>
     </div>
-    <aside class="phone" aria-label="Answer structure / 回答结构">
+    <aside class="phone" aria-label="Answer structure" data-label-en="Answer structure" data-label-zh="回答结构">
       <div class="bar"><span class="zh">你会得到怎样的回答</span><span class="en">What the answer contains</span><span>MCP</span></div>
       <div class="msg user"><div class="bubble"><span class="zh">今天我一个人，后面怎么排？</span><span class="en">I'm on my own today. What next?</span></div></div>
       <div class="msg bot"><div class="who"><span class="zh">第一段 · 先给下一步</span><span class="en">Part 1 · the next step</span></div><div class="bubble"><span class="zh">按存的计划与现在的条件给安排。存的车次时刻标为待核，不沿用“只剩末班”的旧结论。</span><span class="en">A next step from the stored plan and current conditions. Saved departure times stay marked as unchecked; an old “last train” claim is not reused.</span></div></div>
@@ -57,7 +57,7 @@
         <p><span class="zh">先说与第一段的不同。交通逐程写清，保留数据范围；计划若改了，说明改动与理由。</span><span class="en">Start with what changed. Give each transport leg and its data limits. Explain accepted plan changes and their reasons.</span></p>
         <div class="pending"><b><span class="zh">怎么查、怎么问</span><span class="en">How to check, how to ask</span></b><br><span class="zh">拿不到的实时信息：给 App、搜索内容、步骤和链接。要问人时，先提供起草邀请。</span><span class="en">For missing live information: the app, search, steps and link. When asking a person is needed, offer a draft first.</span></div>
       </div></div>
-      <p class="note"><span class="zh">回答结构示意，不是行程输出或出行建议。两段接续取决于宿主能力。</span><span class="en">A structure illustration, not a trip output or travel advice. Continuation between parts depends on the host.</span></p>
+      <p class="note"><span class="zh">回答结构示意，不是行程输出或出行建议。有的客户端不能自己接着发第二段，这时第一段末尾会请你回一句“继续”。</span><span class="en">A structure illustration, not a trip output or travel advice. Some clients cannot send Part 2 on their own; there, Part 1 ends by asking you to reply “go on”.</span></p>
     </aside>
   </div>
 </section>
@@ -66,7 +66,7 @@
   <div class="wrap">
     <div class="kicker"><span class="zh">每次对话的路径</span><span class="en">From message to plan</span></div>
     <h2><span class="zh">记下之后，还要取出来用。</span><span class="en">A memory needs to be used.</span></h2>
-    <ol class="flow" aria-label="Workflow / 工作流程">
+    <ol class="flow" aria-label="Workflow" data-label-en="Workflow" data-label-zh="工作流程">
       <li><span class="num">01</span><h3><span class="zh">收到这一问</span><span class="en">Receive this turn</span></h3><p><span class="zh">保存消息，分清偏好、实况和决定。</span><span class="en">Store the message and distinguish preferences, facts and decisions.</span></p></li>
       <li><span class="num">02</span><h3><span class="zh">取适用记忆</span><span class="en">Bring in memories</span></h3><p><span class="zh">按人、时段与地点，列出该考虑的条件和问题。</span><span class="en">Select conditions and questions for these people, times and places.</span></p></li>
       <li><span class="num">03</span><h3><span class="zh">核事实范围</span><span class="en">Check the facts</span></h3><p><span class="zh">交通、天气和已记录来源，查不到就保留未知。</span><span class="en">Use transport, weather and recorded sources. Keep missing facts unknown.</span></p></li>
@@ -96,17 +96,28 @@
 <section id="where">
   <div class="wrap">
     <div class="kicker"><span class="zh">怎样连接</span><span class="en">Connect</span></div>
-    <h2><span class="zh">同一个 MCP 服务，各家能力分别核。</span><span class="en">One MCP service. Check each host.</span></h2>
-    <p class="lede zh">部署者提供完整的 <code>https://trip.example/mcp</code> 地址。配置好 GitHub 应用后，通过标准 OAuth 登录，只放行配置里的账号；支持请求头的客户端也可使用部署者分配的令牌。没有开放注册或令牌自助管理页。</p>
-    <p class="lede en">Your operator supplies the full <code>https://trip.example/mcp</code> URL. After GitHub app setup, sign in through standard OAuth; only configured accounts are allowed. Header-capable clients can use an operator-provided token. There is no public signup or self-service token page.</p>
+    <h2><span class="zh">自己部署一份，再接进你的 App。</span><span class="en">Run your own copy. Add it to your app.</span></h2>
+    <p class="lede zh">没有公共服务，也不开放注册：每人自己部署一份，只给自己用。</p>
+    <p class="lede en">There is no public service and no signup. Each person runs their own copy, for themselves.</p>
+    <ol class="zh">
+      <li><b>起服务：</b>用 Docker（自己的电脑或任意一台机器）或 Railway。服务会生成一串密钥，连接器地址形如 <code>https://&lt;你的域名&gt;/mcp/&lt;密钥&gt;</code>。这个地址就是登录凭据，拿到它的人能读写你的行程。</li>
+      <li><b>连 GitHub 私有仓</b>存行程。这一步可以不做；不做时，行程存在部署里的本地 Git 仓，备份要自己做。</li>
+      <li><b>把地址加进客户端。</b>在 Claude 和 ChatGPT 里，只有账号主人能在 App 的设置里加连接器。</li>
+    </ol>
+    <ol class="en">
+      <li><b>Start the service</b> with Docker (on your own computer or any server) or on Railway. The service creates a secret key, and your connector address is <code>https://&lt;your-host&gt;/mcp/&lt;key&gt;</code>. This address is your login: anyone who has it can read and change your trips.</li>
+      <li><b>Connect a private GitHub repository</b> to hold your trips. This step is optional. Without it, the trips stay in a Git repository inside your deployment, and you make the backups yourself.</li>
+      <li><b>Add the address to your client.</b> In Claude and ChatGPT, only the account owner can add a connector, in the app's settings.</li>
+    </ol>
+    <p class="zh">第一次部署，把仓内的 <a href="https://github.com/zlxdengtianhei/tripwright/blob/main/deploy/SETUP.md">deploy/SETUP.md</a> 交给你的编码 agent（Claude Code、Codex 等）照做。各客户端的步骤在 <a href="https://github.com/zlxdengtianhei/tripwright/blob/main/deploy/CLIENTS.md">deploy/CLIENTS.md</a>。</p>
+    <p class="en">For the first deployment, give <a href="https://github.com/zlxdengtianhei/tripwright/blob/main/deploy/SETUP.md">deploy/SETUP.md</a> to your coding agent (Claude Code, Codex or similar) and let it follow the steps. The steps for each client are in <a href="https://github.com/zlxdengtianhei/tripwright/blob/main/deploy/CLIENTS.md">deploy/CLIENTS.md</a>.</p>
     <div class="hosts">
-      <article class="host"><div class="hd"><b><span class="zh">Claude 网页／手机</span><span class="en">Claude web / mobile</span></b><span class="chip plan"><span class="zh">完整流程未实测</span><span class="en">App flow untested</span></span></div><p class="zh">网页添加自定义连接器，填完整 /mcp，完成 GitHub 登录；手机使用同一账号的连接器。需账号与工作区支持，不承诺所有套餐。</p><p class="en">Add a custom connector on the web, enter /mcp and complete GitHub login; use the connector with the same account on mobile. Account and workspace support is required.</p></article>
-      <article class="host"><div class="hd"><b>Claude Code</b><span class="chip ok"><span class="zh">本机有一次实连</span><span class="en">Local connection recorded</span></span></div><p class="zh">本机配 stdio；远程可显式加 HTTP MCP 并登录。历史本机实连不代表远程、云端和手机流程都已验证。</p><p class="en">Configure local stdio, or explicitly add HTTP MCP and sign in. One historical local connection does not establish remote, cloud or mobile support.</p></article>
-      <article class="host"><div class="hd"><b>ChatGPT</b><span class="chip plan"><span class="zh">完整流程未实测</span><span class="en">App flow untested</span></span></div><p class="zh">在支持自定义 MCP 的账号中添加地址并选择 OAuth。读写权限、工作区与手机支持由宿主决定；只读连接不能完整记录本次要求。</p><p class="en">Add the URL with OAuth in an account that supports custom MCP. Write access, workspace and mobile support depend on the host. Read-only access cannot record the full turn.</p></article>
-      <article class="host"><div class="hd"><b><span class="zh">其他 MCP 宿主</span><span class="en">Other MCP hosts</span></b><span class="chip plan"><span class="zh">逐家待验证</span><span class="en">Host testing pending</span></span></div><p class="zh">需支持远程 Streamable HTTP 与 OAuth，或自定义认证请求头。标准协议实现不等于所有聊天 app 已兼容。</p><p class="en">Requires remote Streamable HTTP with OAuth, or custom authorization headers. A standard server does not establish compatibility with every chat app.</p></article>
+      <article class="host"><div class="hd"><b><span class="zh">Claude 网页／桌面／手机</span><span class="en">Claude web / desktop / mobile</span></b><span class="chip plan"><span class="zh">完整流程未实测</span><span class="en">App flow untested</span></span></div><p class="zh">在网页上添加自定义连接器，填你的地址，认证选不登录：网址密钥不需要 OAuth。网页上加好的连接器，手机 App 也能用。免费账号只能加一个自定义连接器。</p><p class="en">Add a custom connector on the web with your address, and choose no sign-in: the secret key needs no OAuth. A connector added on the web also works in the mobile app. Free accounts can add only one custom connector.</p></article>
+      <article class="host"><div class="hd"><b>ChatGPT</b><span class="chip plan"><span class="zh">完整流程未实测</span><span class="en">App flow untested</span></span></div><p class="zh">自定义 MCP 只能在网页版添加。会写入的工具要 Business、Enterprise 或 Edu 账号。Pro 账号只能用只读工具；tripwright 只有 <code>state</code>、<code>explain</code> 是只读的，所以在 Pro 上只能读行程，不能查交通，也不能改计划。</p><p class="en">You can add a custom MCP server on the web only. Tools that write need a Business, Enterprise or Edu account. Pro accounts can use only read-only tools. In tripwright only <code>state</code> and <code>explain</code> are read-only, so on Pro you can read the trip but cannot check transport or change the plan.</p></article>
+      <article class="host"><div class="hd"><b>Claude Code</b><span class="chip ok"><span class="zh">本机有一次实连</span><span class="en">Local connection recorded</span></span></div><p class="zh">本机用 stdio；远程用 <code>claude mcp add --transport http</code> 加你的地址。云端会话默认连不到交通数据来源，用 Claude 账号里加的连接器可以绕开。</p><p class="en">Use local stdio, or add your address with <code>claude mcp add --transport http</code>. Cloud sessions cannot reach the transport sources by default; a connector added to your Claude account works around this.</p></article>
+      <article class="host"><div class="hd"><b>Codex</b><span class="chip plan"><span class="zh">按 0.162 核过</span><span class="en">Checked on 0.162</span></span></div><p class="zh">本机 CLI、桌面 App 和 IDE 插件都用 <code>codex mcp add tripwright --url "&lt;地址&gt;"</code>。查交通的 <code>query</code> 要先批准，也可以在配置里设成自动批准。<code>codex mcp list</code> 会打印完整地址，别在共享屏幕上跑。</p><p class="en">The local CLI, desktop app and IDE extension all use <code>codex mcp add tripwright --url "&lt;address&gt;"</code>. The transport tool <code>query</code> needs approval first, or you can set automatic approval in the config. <code>codex mcp list</code> prints the full address, so do not run it on a shared screen.</p></article>
     </div>
-    <div class="callout note"><span class="zh">作者自己的部署：<code>https://159-195-240-39.sslip.io/mcp</code>。2026-11-02 检查时，健康页可达、MCP 要求认证，但 OAuth 发现端点返回 503；仍需完成 GitHub 应用配置。不是开放试用地址。</span><span class="en">Author's deployment: <code>https://159-195-240-39.sslip.io/mcp</code>. On 2026-11-02, health checks passed and MCP required authentication, while OAuth discovery returned 503. GitHub app setup remains necessary. This is not an open trial endpoint.</span></div>
-    <p class="note"><span class="zh">仓内连接指南：<code>docs/CONNECT.md</code>。真实 app 登录、两段接续与回答质量仍需分别验证；远程服务没有旧 /r 结果页后备入口。</span><span class="en">Repository guide: <code>docs/CONNECT.md</code>. App login, continuation between replies and answer quality need separate verification. The remote service does not expose the old /r results page.</span></p>
+    <p class="note" style="margin-top:16px"><span class="zh">其他 MCP 客户端要支持远程 Streamable HTTP；用了标准协议，不等于每个聊天 App 都已兼容。各家限制按 2026-11-02 的官方文档写，没有逐家完整实测。真实 App 登录、两段接续和回答质量要分别验证；回答质量还在评测中。</span><span class="en">Other MCP clients need remote Streamable HTTP support; a standard server does not mean every chat app is compatible. Client limits follow the official documentation as of 2026-11-02 and are not tested end to end in every app. App sign-in, continuation between parts and answer quality need separate checks; answer quality is still being evaluated.</span></p>
   </div>
 </section>
 
@@ -132,7 +143,7 @@
 uv run tripwright demo
 uv run tripwright serve --stdio</code></pre></div>
       <p class="note"><span class="zh">MCP 真实查询需在启动时设置 <code>TRIPWRIGHT_PROVIDERS=live</code>；未设置时是 synthetic。虚构数据不能用于真实出行。</span><span class="en">For real MCP lookups, set <code>TRIPWRIGHT_PROVIDERS=live</code> at startup; otherwise they are synthetic. Fictional data cannot guide real travel.</span></p>
-      <h3><span class="zh">自己部署</span><span class="en">Self-host</span></h3><p class="zh">仓内 <code>deploy/README.md</code> 介绍 Docker、Caddy 与 HTTPS；<code>deploy/REMOTE_AUTH.md</code> 介绍 GitHub 登录、账号名单、私有仓与部署钥匙。</p><p class="en">In the repository, <code>deploy/README.md</code> covers Docker, Caddy and HTTPS. <code>deploy/REMOTE_AUTH.md</code> covers GitHub login, allowed accounts, private repositories and deploy keys.</p>
+      <h3><span class="zh">自己部署</span><span class="en">Self-host</span></h3><p class="zh">把仓内的 <a href="https://github.com/zlxdengtianhei/tripwright/blob/main/deploy/SETUP.md">deploy/SETUP.md</a> 交给你的编码 agent 照做：它用 Docker 或 Railway 起服务、连行程仓，最后把连接器地址交给你。三步总览见<a href="#where">怎样连接</a>。</p><p class="en">Give <a href="https://github.com/zlxdengtianhei/tripwright/blob/main/deploy/SETUP.md">deploy/SETUP.md</a> in the repository to your coding agent and let it follow the steps. It starts the service with Docker or on Railway, connects the trip repository, and gives you the connector address. For the three steps, see <a href="#where">Connect</a>.</p>
     </div>
     <div>
       <div class="kicker"><span class="zh">数据与隐私</span><span class="en">Data and privacy</span></div>
@@ -144,6 +155,6 @@ uv run tripwright serve --stdio</code></pre></div>
   </div>
 </section>
 </main>
-<footer><div class="wrap"><div><b>tripwright</b> · <span class="zh">代码采用 MIT 许可，数据与服务条款另行适用。</span><span class="en">MIT-licensed code; data and service terms apply separately.</span></div><div><span class="zh">本页无外部字体或追踪脚本。接入状态按 2026-11-02 已核到的范围说明。</span><span class="en">No external fonts or tracking scripts. Connection status reflects the evidence available on 2026-11-02.</span></div></div></footer>
+<footer><div class="wrap"><div><b>tripwright</b> · <span class="zh">代码采用 MIT 许可，数据与服务条款另行适用。</span><span class="en">MIT-licensed code; data and service terms apply separately.</span></div><div><span class="zh">本页无外部字体或追踪脚本。接入状态按 2026-11-03 已核到的范围说明。</span><span class="en">No external fonts or tracking scripts. Connection status reflects the evidence available on 2026-11-03.</span></div></div></footer>
 </body>
 </html>

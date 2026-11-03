@@ -355,3 +355,105 @@ MEMORY = """{% extends 'base' %}{% block main %}
 {% else %}
 <p>{{ label('还没有长期内容。','No long-term content yet.') }}</p>
 {% endfor %}{% endblock %}"""
+
+
+# The page friends read (`tripwright.site.share`): a home page and one page per day, English first, nothing else.
+SHARE_BASE = """<!doctype html>
+<html lang="en" data-language="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<title>{{ title.en }}</title>
+<style>{{ style|safe }}.orig{font-size:13px;color:var(--muted)}.how{font-size:15px}.who{font-size:14px;color:var(--muted)}</style>
+</head>
+<body>
+<header class="top">
+<a class="brand" href="index.html" data-language-link>{{ t(trip_title) }}</a>
+<button type="button" class="navtoggle" data-menu aria-expanded="false">{{ label('菜单','Menu') }}</button>
+<nav>
+<a href="index.html" data-language-link>{{ label('首页','Home') }}</a>
+{% for item in days %}<a href="{{ item.date }}.html" data-language-link>{{ t(item.short) }}</a>
+{% endfor %}
+</nav>
+<div class="language" role="group" aria-label="Language / 语言">
+<button type="button" data-language-button="en">EN</button>
+<button type="button" data-language-button="zh">中文</button>
+</div>
+</header>
+<main>
+{% block main %}{% endblock %}
+</main>
+<footer>{{ label('分享给朋友看的行程概览：人名用代号，住处只写城区。时刻与安排以出行当天为准。','A shared overview of the plan: people appear as codes and places to stay only by area. Times and plans may still change.') }}<br>{{ label('更新于','Updated') }} {{ updated }}</footer>
+<script>{{ script|safe }}</script>
+</body>
+</html>"""
+
+SHARE_INDEX = """{% extends 'base' %}{% block main %}
+<h1>{{ t(trip_title) }}</h1>
+<p>{{ t(span) }}{% if areas %} · {% for area in areas %}{{ t(area) }}{% if not loop.last %} · {% endif %}{% endfor %}{% endif %}</p>
+{% if travelers %}<p class="who">{{ label('同行','Travelling') }}: {{ t(travelers) }}</p>{% endif %}
+<h2>{{ label('每天','Day by day') }}</h2>
+<ul class="daylist">
+{% for day in days %}
+<li><a href="{{ day.date }}.html" data-language-link>{{ t(day.long) }}</a> · {{ t(day.title) }}{% if day.area %} · {{ t(day.area) }}{% endif %}</li>
+{% endfor %}
+</ul>
+{% endblock %}"""
+
+SHARE_DAY = """{% extends 'base' %}{% macro place(item, named=true) %}{% if item.stay %}{% if named %}
+<p class="place-note">{{ t(item.stay) }}</p>{% endif %}{% else %}
+<span class="place-name">{{ item.local }}</span>{% if named and item.name %}<span class="place-note">{{ t(item.name) }}</span>{% endif %}
+<a href="{{ item.map_url }}" target="_blank" rel="noopener noreferrer">{{ label('地图','Map') }} ↗</a>{% endif %}{% endmacro %}{% block main %}
+<h1>{{ t(day.long) }} · {{ t(day.title) }}</h1>
+<p class="muted">{% if day.area %}{{ t(day.area) }}{% endif %}{% if day.sunset %} · {{ label('日落','Sunset') }} {{ day.sunset }}{% endif %}</p>
+{% if day.stay %}<p>{{ t(day.stay) }}</p>{% endif %}
+{% if day.anchors %}
+<section class="callout">
+<h2>{{ label('要准时的','Fixed times') }}</h2>
+{% for anchor in day.anchors %}<p><span class="time">{{ anchor.time }}</span> {{ t(anchor.text) }}</p>
+{% endfor %}
+</section>
+{% endif %}
+{% if day.notes %}<section class="card"><h2>{{ label('说明','Notes') }}</h2><p>{{ t(day.notes) }}</p></section>{% endif %}
+{% for plan in day.plans %}
+<section>
+<h2>{% if loop.first %}{{ label('推荐安排','Recommended plan') }}{% else %}{{ label('另一套','Alternative') }}{% endif %}</h2>
+<p>{{ t(plan.name) }}</p>
+<div class="tracks">
+{% for track in plan.tracks %}
+<section>
+<h3 class="who">{{ t(track.who) }}</h3>
+<ol class="timeline">
+{% for block in track.blocks %}
+<li>
+<span class="time">{{ block.start }}{% if block.end and block.end != block.start %}–{{ block.end }}{% endif %}</span> · {{ t(block.kind) }}
+<h4>{{ t(block.title) }}</h4>
+{% if block.text %}<p>{{ t(block.text) }}</p>{% endif %}
+{% if block.how %}<p class="how"><b>{{ label('怎么走','Getting there') }}:</b> {{ t(block.how) }}</p>{% endif %}
+{% if block.note %}<p>{{ t(block.note) }}</p>{% endif %}
+{% if block.place %}{{ place(block.place, named=false) }}{% endif %}
+{% if block.options %}<p>{{ label('备选','Alternatives') }}:</p>{% for item in block.options %}{{ place(item) }}{% endfor %}{% endif %}
+</li>
+{% endfor %}
+</ol>
+</section>
+{% endfor %}
+</div>
+</section>
+{% endfor %}
+{% if day.candidates %}
+<section>
+<h2>{{ label('也可以去','Other places for this day') }}</h2>
+{% for slot in day.candidates %}<h3>{{ t(slot.name) }}</h3>
+<div class="cards">{% for item in slot.places %}<article class="card">{{ place(item) }}</article>{% endfor %}</div>
+{% endfor %}
+</section>
+{% endif %}
+{% if day.rain %}<section class="card"><h2>{{ label('下雨的话','If it rains') }}</h2><p>{{ t(day.rain) }}</p></section>{% endif %}
+<nav class="daynavs">
+{% if previous %}<a href="{{ previous.date }}.html" data-language-link>← {{ t(previous.short) }}</a>{% endif %}
+{% if following %}<a href="{{ following.date }}.html" data-language-link>{{ t(following.short) }} →</a>{% endif %}
+</nav>
+{% endblock %}"""

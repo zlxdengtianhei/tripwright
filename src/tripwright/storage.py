@@ -102,17 +102,25 @@ def remember_answer(path: Path | None, request_id: str | None, text: str, digest
 
 
 class Store:
-    def __init__(self, path: str | Path = ":memory:"):
+    def __init__(self, path: str | Path = ":memory:", *, read_only: bool = False):
+        """`read_only` opens an existing database for reading only (`tripwright status`, s4b): no tables are created
+        and any write fails; SQLite may still leave its -wal and -shm files beside it."""
         self.path = str(path)
-        if str(path) != ":memory:":
-            Path(path).expanduser().parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(str(Path(path).expanduser()), check_same_thread=False, isolation_level=None)
+        if read_only:
+            self.connection = sqlite3.connect(Path(path).expanduser().resolve().as_uri() + "?mode=ro", uri=True,
+                                              check_same_thread=False, isolation_level=None)
+        else:
+            if str(path) != ":memory:":
+                Path(path).expanduser().parent.mkdir(parents=True, exist_ok=True)
+            self.connection = sqlite3.connect(str(Path(path).expanduser()), check_same_thread=False, isolation_level=None)
         self.lock = threading.RLock()
         # Bumped by every write through this object; with SQLite's data_version (other connections' commits) it lets a
         # background loop see "nothing changed" without decoding a table.
         self.generation = 0
-        self.connection.execute("PRAGMA foreign_keys=ON")
         self.connection.execute("PRAGMA busy_timeout=5000")
+        if read_only:
+            return
+        self.connection.execute("PRAGMA foreign_keys=ON")
         self.connection.execute("PRAGMA journal_mode=WAL")
         for table in TABLES:
             self.connection.execute(

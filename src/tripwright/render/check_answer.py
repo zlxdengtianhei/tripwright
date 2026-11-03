@@ -21,6 +21,8 @@ import sys
 from datetime import datetime, tzinfo
 from urllib.parse import parse_qs, unquote, unquote_plus, urlsplit
 
+from tripwright.render.first_part import LATER
+
 LIMITS = {"quick": 5, "first": 10, "second": 16}
 STEP_VERBS = ("坐", "换", "走", "下车", "买", "出示", "搜")
 EN_STEP_VERBS = ("take", "change", "walk", "get off", "buy", "show", "search", "leave", "go")
@@ -1058,8 +1060,10 @@ FIRST_LINES = 8
 
 
 def first_length_problems(text: str) -> list[dict]:
-    """The first part has at most 8 body lines; place name lines and their explanation lines do not count."""
+    """The first part has at most 8 body lines; place name lines and their explanation lines do not count, nor does the
+    line that ends a reply with it (`first_part.later`, S4a2)."""
     skipped = {number for block in place_blocks(text) for number in (block["line"], block["line"] + 1)}
+    skipped |= {number for number, line in numbered(text) if is_later(line)}
     body = [(number, line) for number, line in numbered(text) if number not in skipped and not line.startswith("#")]
     if len(body) <= FIRST_LINES:
         return []
@@ -1370,7 +1374,8 @@ def second_length_problems(text: str) -> list[dict]:
 
 
 FIRST_CHECKS = ("clock_in_first_part", "no_tags", "internal_words", "no_process_notes", "first_part_lines", "answers_each_point",
-                "place_in_first_lines", "archived_marked", "assumed_place_matches_plan", "latest_needs_lookup", "per_person_alone")
+                "place_in_first_lines", "archived_marked", "assumed_place_matches_plan", "latest_needs_lookup", "per_person_alone",
+                "no_status_line", "ends_with_later")
 SECOND_CHECKS = ("second_heading", "frame_matches_server", "checked_has_evidence", "only_inside_window", "direct_needs_one_ride",
                  "unreachable_needs_lookup", "denied_needs_coverage", "count_needs_continuous",
                  "fallback_later", "plan_heading", "meals_named", "title_time_not_later", "no_tags", "internal_words",
@@ -1388,7 +1393,7 @@ def check_draft(text: str, part: str, clock: int, found: dict | None = None, *, 
     if part == "first":
         return (clock_problems(text, clock) + tag_problems(text) + internal_problems(text) + note_problems(text) + first_length_problems(text)
                 + point_problems(text, points) + archived_problems(text, points) + plan_place_problems(text, here)
-                + unlooked_latest_problems(text) + party_problems(text, [], points))
+                + unlooked_latest_problems(text) + party_problems(text, [], points) + later_problems(text))
     return (second_heading_problems(text) + frame_problems(text, clock, found["lookups"]) + evidence_problems(text, found)
             + window_problems(text, clock, found["windows"], found["lookups"])
             + direct_problems(text, found["lookups"]) + unreachable_problems(text, found)
@@ -1456,6 +1461,24 @@ def turn_texts(transcript: list[dict]) -> tuple[float | None, list[tuple[float |
     return asked, shown
 
 
+def answers_later(transcript: list[dict]) -> bool:
+    """Whether the last real user message answers a reply that ended with first_part.later (S4e): the first part of
+    this question is in that reply, and this message asks for its second part (dry_cc_ns_synth_v4: the first-part hook
+    denied the lookups after “继续”, and the host sent its first part again)."""
+    before, shown, answered = [], [], False
+    for entry in transcript:
+        if real_message(entry):
+            before, shown = shown, []
+            lines = [line for line in (before[-1].splitlines() if before else []) if line.strip()]
+            answered = bool(lines) and is_later(lines[-1])
+        elif entry.get("type") == "assistant" and not entry.get("isSidechain"):
+            content = (entry.get("message") or {}).get("content")
+            for block in content if isinstance(content, list) else []:
+                if isinstance(block, dict) and block.get("type") == "text" and block.get("text", "").strip():
+                    shown.append(block["text"])
+    return answered
+
+
 def stop_decision(payload: dict, answers: dict, transcript: list[dict], minute_at=None, blocked: int = 0) -> tuple[str | None, str]:
     """The Stop hook's verdict when the host ends a turn: (reason to block, or None; what to log). A pusher with a cap
     (D-48): it keeps a question going until its second part is out, at most STOP_BLOCKS times per question.
@@ -1488,11 +1511,20 @@ def stop_decision(payload: dict, answers: dict, transcript: list[dict], minute_a
         if any(is_second_part(shown_text) for _, shown_text in texts):
             return None, "not a second part; this question's second part was sent"
         looked = turn_lookups(transcript)
-        last = first_part_sent(texts, minute_at, first_part_shape)
-        promised = any(PROMISE.search(shown_text) and not first_part_shape(shown_text, minute_at(at)) for at, shown_text in texts)
+        if answers_later(transcript):  # the user said “继续” to a first part that ended with later: the second part is due
+            last, promised, ended = [], True, None
+        else:
+            last = first_part_sent(texts, minute_at, first_part_shape)
+            promised = any(PROMISE.search(shown_text) and not first_part_shape(shown_text, minute_at(at)) for at, shown_text in texts)
+            ended = later_ending(texts)
         if looked and last != []:
             reason = STOP_FIRST_REASON + failing(last)
             verdict = f"{', '.join(dict.fromkeys(looked))} this question but no first part"
+        elif ended == "ends":
+            return None, "first part ends with first_part.later: the user's next message brings the second part"
+        elif ended == "more":
+            reason = LATER_REASON
+            verdict = "text after first_part.later"
         elif promised or looked:
             running = running_checks(transcript)
             if running:
@@ -1504,6 +1536,62 @@ def stop_decision(payload: dict, answers: dict, transcript: list[dict], minute_a
     if blocked >= STOP_BLOCKS:
         return None, f"would block ({reason}) but let through after {blocked} blocks for this question"
     return reason, "blocked: " + verdict
+
+
+# --- S4a2: a first part that ends the reply with first_part.later ------------------------------------------------------------
+# In an app that cannot show text between tool calls the first part is the whole reply and its last line says how to get
+# the second (core step 4). That line ends it: nothing after it, and no status line in it (a17b_off_r2: “第二段核完就发。”;
+# a17_off_r3: “第二段我还在核…核完马上发。”). The server's own “没核：……，第二段核完再发。” is not a status line.
+LATER_LINES = tuple(LATER.values())
+LATER_MARKS = str.maketrans("", "", "“”\"「」『』'‘’ 　")
+
+
+def later_key(line: str) -> str:
+    """The later line as words: quote marks, spaces and the end mark do not count (dry_cc_ns_synth: the host wrote
+    回我一句"继续" with ASCII quotes)."""
+    return line.strip().translate(LATER_MARKS).rstrip("。.!！")
+
+
+LATER_KEYS = frozenset(later_key(line) for line in LATER_LINES)
+
+
+def is_later(line: str) -> bool:
+    return bool(line.strip()) and later_key(line) in LATER_KEYS
+STATUS_LINE = re.compile(r"马上(?:发|回|给|再)|稍等|稍后(?:发|给|再)|正在(?:查|核|看|找)|还在(?:查|核|看|找)|(?:我|这就)先?去(?:查|核|看)|"
+                         r"核完(?:就|马上)发|查完(?:就|马上|再)发|第一段(?:已经)?发(?:完|给你)|上面(?:那段|这段)|"
+                         r"I'm still|I am still|[Ss]till checking|[Ll]et me (?:check|look)|I'll (?:check|look)|[Cc]hecking now")
+LATER_REASON = "第一段以“回我一句“继续””那一行结束这一轮，后面不再写别的，也不写进度"
+
+
+def status_lines(text: str) -> list[tuple[int, str]]:
+    """Lines that report progress instead of answering (the server's own 没核 line is not one)."""
+    return [(number, line) for number, line in numbered(text)
+            if STATUS_LINE.search(line) and not line.lstrip().startswith(("没核", "没查", "Not checked"))]
+
+
+def later_problems(text: str) -> list[dict]:
+    """A first part with first_part.later ends with it; no first part carries a status line."""
+    found = [problem("no_status_line", number, line, f"第一段里有状态句：{line.strip()}",
+                     "删掉这一行：用户只看到第一段和第二段，不看进度") for number, line in status_lines(text)]
+    marks = [number for number, line in numbered(text) if is_later(line)]
+    after = [(number, line) for number, line in numbered(text) if marks and number > marks[0] and line.strip()]
+    if after:
+        found.append(problem("ends_with_later", after[0][0], after[0][1], "“回我一句“继续””那一行之后还写了字",
+                             "以那一行结束这一轮，后面不写别的"))
+    return found
+
+
+def later_ending(texts: list[tuple]) -> str | None:
+    """How this question's shown texts use first_part.later: "ends" when the last one ends with it and has no status line,
+    "more" when a text has it and something follows (or a status line comes with it), None when no text has it."""
+    with_later = [index for index, (_, text) in enumerate(texts) if any(is_later(line) for line in str(text).splitlines())]
+    if not with_later:
+        return None
+    text = str(texts[with_later[-1]][1])
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if with_later[-1] == len(texts) - 1 and lines and is_later(lines[-1]) and not status_lines(text):
+        return "ends"
+    return "more"
 
 
 def evidence_found(records: list[dict], zone: tzinfo, since: datetime, until: datetime) -> dict:
@@ -1639,6 +1727,12 @@ if __name__ == "__main__":
 DISPATCH_TOOLS = {"Agent", "Task"}
 LOOKUP_TOOLS = DISPATCH_TOOLS | {"WebSearch", "WebFetch"}
 LOOKUP_COMMAND = re.compile(r"\btripwright\b[^\n|;&]*\bquery\b")
+# S4a (self replays without MCP): `tripwright --repo . query --help` was denied as a lookup in a17b_off_r1 and a17_off_r2,
+# and the deny's “dispatch in the background” came right before the status line; reading the help looks nothing up. A
+# lookup through a shell alias (`$W query latest_departure`, a17_off_r1) still is one.
+COMMAND_PARTS = re.compile(r"&&|\|\||[;|\n]")
+HELP = re.compile(r"(?:^|\s)(?:--help|-h)(?=\s|$)")
+KIND_COMMAND = re.compile(r"\bquery\s+(?:transit|latest_departure|web_evidence|open_places|nearby|weather|opening|saved|geocode)\b")
 FIRST_REASON = "先把第一段发给用户（现在怎么走；没查过的最晚、末班不写），再查"
 # D-46: the order that kept both parts (v2e, 16 questions) dispatches the researcher in the background, then writes the
 # first part as the turn's last text; the reason points there (it replaces 11-01's "dispatch in the same reply").
@@ -1660,9 +1754,15 @@ def lookup_use(name: str, arguments: dict) -> bool:
     if name.startswith("mcp__") and name.endswith("__query") and "tripwright" in name:
         return arguments.get("kind") != "check_answer"
     if name == "Bash":
-        command = str(arguments.get("command") or "")
-        return bool(LOOKUP_COMMAND.search(command)) and "check_answer" not in command
+        return lookup_command(str(arguments.get("command") or ""))
     return False
+
+
+def lookup_command(command: str) -> bool:
+    """A shell command that runs a lookup in one of its parts: the tripwright query command line (not its check_answer,
+    not its help) or a query of a lookup kind through an alias."""
+    return any((LOOKUP_COMMAND.search(part) or KIND_COMMAND.search(part)) and "check_answer" not in part and not HELP.search(part)
+               for part in COMMAND_PARTS.split(command))
 
 
 def in_background(name: str, arguments: dict) -> bool:
@@ -1752,6 +1852,8 @@ def first_part_decision(payload: dict, transcript: list[dict], minute_at, denied
     asked, shown = turn_texts(transcript)
     if asked is None:
         return None, "no user message in the transcript"
+    if answers_later(transcript):
+        return None, "first part sent in the reply that ended with first_part.later"
     last = first_part_sent(shown, minute_at)
     if last == []:
         return None, "first part sent"

@@ -1115,3 +1115,182 @@ Field table (one row per model field; `tests/core/test_b3f_field_table.py` keeps
 - **命令行 `first-part --points`。** 字符串列表照 A16 报 pydantic 原文退出 1，错误末尾保留 A17 加的可照抄的例子（`cli.read_points`）；其他格式错同样带例子。整体不是列表时错误路径写“points”而不是“points.”，保留。
 - **留下。** `first_part.point_draft` 的合并与去重（A17 第一条）不变。
 - **测试。** `tests/core/test_a17_fixes.py`：`test_points_of_one_kind_to_one_place_share_one_line` 照旧；字符串那条改成 `test_the_command_line_refuses_plain_strings_with_a_right_shape_to_copy`（坏样本：重放的三个字符串，退出 1、信息里有例子；对照：例子换上行程的地点编号后出带存档车的第一段）。源码退回基线后两条都在坏样本处不过。
+
+## S4a：给 agent 的引导按“最差入口”重写（2026-11-03，任务包 4a，调研 td/apps-github.md）
+
+- **为什么。** 原来的引导按 Claude Code 写：默认能派后台子代理，默认能在一轮里先发第一段、再接着核、再发第二段。调研（第一节第 4 条、4.1、5.3）查到的事实是：没有一家应用保证“一次任务中途先发一段再继续”；Claude 聊天、豆包工作没有子代理；豆包工作只连 MCP、不读仓里的文件。server instructions 是 5,715 字节的一段英文连写，步骤和完成条件分不出来。
+- **一份核心步骤，同源生成。**
+  - 源：`src/tripwright/agents/core.yaml`。8 步，每步一个动作和一句完成条件，完成条件看工具结果或发出的文字就能核对；另有 4 条始终成立的规矩，最后一条是停点。
+  - 生成四处：server instructions（3,445 字节，上限 3,600，构建时超了就拒）；`generated/server/steps.json`，`turn` 和命令行 `first-part` 照它返回 `steps`、`always`；主 skill 与 MCP prompt 的“Every message”；`generated/repo/AGENTS.init.md`，init 写成用户仓的 `AGENTS.md`，`CLAUDE.md` 仍是 `@AGENTS.md`。
+  - 这个文件不叫 `AGENTS.md`：在本仓里工作的宿主会把它当本仓的说明读。
+  - instructions 只放步骤；长规则留在 MCP prompt `tripwright-main`，instructions 最后一句写“写第二段、记录或步骤不清时读它”。只连 MCP 的入口按 instructions、`turn` 的 `steps` 与 `next` 走，`check_answer` 照旧兜底。
+  - 承诺里 16 条原来也核 server instructions，现在只核 MCP prompt 和 skill；核 instructions 的只留步骤本身说到的 8 条。新增 3 条，每条核四处：`subagents-optional`、`second-part-in-the-next-reply`、`stop-only-before-what-cannot-be-undone`。`dispatch-before-the-first-part` 改用核心步骤的字句，也核四处。
+- **子代理可选，D-46 的顺序不变。**
+  - 第 3 步写：应用能在后台跑子代理、并在它回报时通知（Claude Code），先派一个 researcher，否则跳过。
+  - 第 4 步：派了的，第一段是这一轮最后的文字。
+  - 第 5 步：子代理可以替你查；没有就自己一件一件查。
+  - 不写“同时查”。原 skill 的“several searches at once”删掉了。
+  - Codex 要在 AGENTS.md 里明写才会派，所以 AGENTS.md 加一句“In Codex, spawn `tripwright_researcher` for step 5 when you can run subagents”。
+  - 没把顺序改成“先发第一段再派”：D-46 的预检里那样做 8 问都丢了第一段。
+- **第二段怎样到用户手里。**
+  - 选的做法：在 Claude Code 里，派后台 researcher 的，回报开新一轮；在 Codex 里，同一轮接着做。其他应用，以及不确定的，第一段作这一轮的完整回复，以 `first_part.later`（“要核过的第二段，回我一句“继续”。”）结束。用户下一句以 `points: []` 进 `turn`，结果带 `second_part_due`，宿主照第 5—8 步做，`check_answer` 用那一问的 `request_id`。
+  - 服务端认“欠着”的办法：上一问的上下文记了 `request_id`、第一段说了有第二段（`promises_second`），而答案文件（`check_answer` 过核时写、Stop 钩子读的那份）里没有这个 `request_id`。只在 6 小时内认。上一句也这样要过，还指那一问。一句点名了新事（给了要点），就当新问题，不把旧的第二段塞进来。
+  - 没用 `clientInfo` 判应用，原因三条：
+    - 远程 HTTP 服务是 stateless，SDK 2.3 在旧协议下给工具调用建连接时 `client_info` 是 None（`streamable_http_manager._handle_stateless_request` 调 `Connection.from_envelope(pv, None, None)`），用户手机上的 Claude Code 连的正是这条路；
+    - Cowork 和 `claude -p` 也报 `claude-code`，同一个名字背后显示行为不同（Claude 5 模型在工具调用之间的文字可能成为看不到的进度思考块）；
+    - 读到它要改 `adapters/mcp.py` 的 turn 签名，超出本包写域。
+  - 子代理调研查到的名字：Claude Code `claude-code`，Codex `codex-mcp-client`，Claude 网页与 Cowork 远程连接器 `Anthropic/ClaudeAI`（社区日志），豆包工作没查到。
+  - 代价：
+    - 豆包工作这类应用里，第二段要等用户回一句，核查在下一轮才开始，用户再等一次核查的时间；
+    - 宿主对“自己是不是 Claude Code、Codex”的判断不由服务端核对；
+    - 一句“继续”之外又问新事时，旧的第二段不再发。
+- **停点。** 只在三处：带 `accept_unverified` 的提交、改用户定为必须的事、发给用户以外的人的东西。其余步骤写明“不用问，接着做”（第 4 条规矩）。
+- **没有 MCP 时第一段前的状态句（第 5 条）。**
+  - 查法：子代理逐轮读了 a17b、a16、a17 的 off 轮流水（含思考与钩子消息）；我抽查了 a17b_off_r1 第一问。
+  - 结果：12 轮里 7 轮有，共 9 句，都在第一段之前；on 轮没有。
+  - 9 句里 6 句在同一个位置：后台派出 researcher 之后、第一段之前。
+  - 每一轮在发第一段前，都在工具结果里见过第一段的原文成行出现：命令行把它印在 stderr，宿主又常加 `2>&1`。a17b_off_r2 那一轮是宿主自己用 python 印出来的，因为上一问 `2>&1 | json.load` 读坏了。
+  - 有两句直说“第一段已经发给你了（上面那段）”“第一段发完了”。
+  - 4 句前面紧挨一次 PreToolUse 拒绝，其中两次拒的是 `tripwright … query --help`。拒绝理由的“核查请在后台派 researcher”让它先派，派完写状态句。
+  - on 轮的第一段只在 `turn` 的 JSON 里，6 问没有一句状态句。
+  - 其余 3 句：A16 的 points 错误没给例子（A17b 已加例子）；A17 的别名查询；A17 的一次核查重试。
+  - 来源上的改法：
+    - 命令行 `first-part` 只出 JSON（`cli.run_first_part`）；
+    - 钩子按分段判查询，带 `--help`、`-h` 的那段不算，经别名的 `query <种类>` 算（`render.check_answer.lookup_command`）。
+  - 没改说明措辞，也没改 D-46 的顺序。效果要主会话重放才知道。
+- **测试。**
+  - `tests/agents/test_s4a_core.py`：
+    - `test_server_instructions_hold_every_step_and_its_check_within_the_limit`
+    - `test_the_build_refuses_instructions_over_the_limit_and_a_step_without_its_check`
+    - `test_the_four_places_carry_the_same_steps`
+    - `test_a_changed_step_reaches_every_place_only_through_the_build`
+    - `test_codex_is_told_to_spawn_the_researcher_and_no_entry_must_have_subagents`
+    - `test_the_main_skill_did_not_grow`
+    - `test_sources_load_the_core_from_the_checkout`
+  - `tests/core/test_s4a_delivery.py`：
+    - `test_a_reply_that_ends_with_the_first_part_gets_the_second_part_on_the_next_message`
+    - `test_only_a_message_that_names_nothing_asks_for_the_latest_second_part`
+    - `test_one_question_goes_through_from_the_instructions_and_the_tool_results_alone`
+    - `test_the_command_line_first_part_carries_the_steps_and_the_line_that_ends_a_reply`
+    - `test_the_command_line_prints_the_first_part_only_inside_its_json`
+    - `test_reading_the_command_line_help_is_not_a_lookup`
+  - 改了的旧测试：
+    - `test_agents_prompts`：instructions 的开头；
+    - `test_agents_templates`：改看 init 写出的 AGENTS.md，首行带 core.yaml；
+    - `test_assemble`：`Sources` 用 `replace` 造；a9 那条不再核 instructions；
+    - `test_a10_frame`：`next` 第一句的尾巴改成“再照 steps 往下做”；
+    - `tests/agents/conftest.py`：throwaway checkout 也拷 core.yaml 和 templates。
+- **主 SKILL。** 12,130 → 12,119 字节。核心步骤换掉了原来的“Every message”和“Check before the second part”两节；“The answer”里与步骤重复的几句收短。
+
+## s4c：分享给朋友的去隐私公开页（D-82、D-83、D-89）
+
+命令 `tripwright --repo <行程仓> share build|publish`（`site/share.py` 出页，`site/publish.py` 推送）。下面是现行的定法。
+
+- **出什么。**
+  - 只出首页和每天一页，来源是**已提交的计划**：有远端读 `origin/<branch>`，没有读本地分支，与服务的 `effective` 一致。还没推到远端的本地提交不出页。
+  - 每天一页写：日期与星期、标题、区域、日落、过夜处（住处只写城区）、要准时的时刻和说明、当天说明、每套安排（第一套是推荐）。
+  - 每段写：时间、类型、标题、内容、“怎么走”（`mode`／`line`／步行分钟）、备注、当地名＋地图链接、备选地点；另有按时段的候选地点和下雨的安排。
+  - 不写：出处、把握度、核验、营业时间、价格字段、地点的 reason／notes、App 提示；决定、记忆、原话、证据也不读。
+- **代号。**
+  - 所有人编成 Traveler A–Z／旅伴 A–Z。顺序是 `trip.yaml` 的 `people`，再接 `profile/people.yaml` 里其余的人。
+  - 用户本人也编代号：记录里没有字段标明哪一个是用户本人。
+  - 名字本身是代称、后面带编号的（“队友 1”“同行人 A”）只替换，不当私密词挡。单独一个代词（“我”）不动。
+- **住处。**
+  - 怎样认：地点 `kind` 属于 hotel、hostel、apartment、airbnb、guesthouse、pension、lodging、accommodation、stay、home、住宿、住处、酒店、青旅、公寓、民宿、家（不分大小写）。
+  - 写成“住在 <城区>（酒店）／Staying in <district> (hotel)”，没有地图链接。
+  - 城区按序取：地点的 `district`；当地名里“邮编＋城镇”那一段（如 1070 Wien）；`area`。括号里的类型按 kind 写，默认“酒店”。
+  - 当私密词的有：名字、当地名、地址前两段（名字、街道门牌）；名字里长度至少 4 的拉丁字母词，但泛称（Hotel、Hostel、Haus 等）和在别的公开地点、区域名里出现过的除外；小数至少 4 位的坐标。
+  - 城区、城市、国家不算私密。
+- **航班号。**
+  - 规则：两位航司代码＋1—4 位数字，中文改成“航班”，英文改成“flight”。
+  - 不算航班号的：三个字母开头的（REX、RJX、VAB）；字母加数字开头、后面只跟一位数字、中间又没有空格的（N25、S45）；时刻、小数；数字后跟单位的（站、路、楼、min、′ 等）；列车类别和常见缩写（IC、EC、RJ、RE、EN、NJ、EG、OG、UG、XL 等）。
+  - flight 类 booking 原文里出现的号码一律算航班号。
+- **电话。**
+  - 算电话的：带 + 或 00 的国际号码，至少 8 位数字；0 开头、中间有分隔的本地号码，至少 7 位数字；中国手机号。
+  - 记在非住宿地点上的号码是商家公开电话，放行；住处的号码照挡。
+- **订单。**
+  - 原有规则之外，认这些标签：Buchungsnummer、confirmation/reservation/order/ticket number、订单编号、取票码、票号等。
+  - booking 里键名像订单号的字段（reference、confirmation、pnr、order、voucher 等），值带数字、长度至少 5 的，原值当私密词。
+- **英文。**
+  - 程序生成的字是双语的。用户写的中文从 `<行程仓>/.tripwright/share/en.yaml` 取英文（Git 忽略）。它的键是已换好代号的中文，所以文件里不会有真名。
+  - `share build --todo` 把还没英文的句子加进去、值留空，agent 填好再出一次。
+  - 没有英文的照原文显示，标“(中文)”。
+  - 页面默认英文（`<html lang="en">`），右上角 EN／中文 切换，也认 `?lang=`。
+- **扫描与换上。**
+  - 先写到输出目录旁的临时目录，扫描过了再用一次 rename 整体换上。扫不过就删掉临时目录，原输出不动。
+  - 已有目录不是分享页（没有 `.tripwright-share` 标记）时拒绝覆盖。
+  - 扫描逐个文件，先解 HTML 实体与 URL 编码再扫。类别：email、order-like identifier、flight number、phone number、person name、lodging、private word。只报“类别 → 页名”，不报原值。
+- **发布。**
+  - 第一次必须带 `--create`。依次做：`gh repo create <名> --public`、克隆、提交并推送、`gh api -X POST repos/<o>/<r>/pages`（legacy，main，`/`），再读 `html_url`。
+  - 之后每次：fetch；把副本整个换成网页；再扫一遍副本；提交、推送。内容没变就不提交。
+  - 第二道扫描不过时，先把副本 reset、clean，再报错，线上保持上一版。
+  - 提交者固定为 `tripwright <share@tripwright.invalid>`，日期用 UTC。
+  - 仓名：没给 `--name` 时用 `trip-<趟 id>`。`--private` 只在付费计划可用（网页本身仍公开）。
+  - 公开仓里只有几页 HTML、`.nojekyll`、`robots.txt`（Disallow）、`.tripwright-share` 标记；每页加 `noindex`。
+- **退出码与提醒。**
+  - 退出码：0 成功，1 出错，2 扫描没过、没推。
+  - 被挡时在行程仓索引留一条 `share_blocked` notice（只写类别和页名），下一次 `turn` 带出；下一次发布成功时关掉（CONTRACTS 3.9）。
+- **本机状态。** 都在 `<行程仓>/.tripwright/share/`：
+  - `config.json`：仓名与网址，有它就表示这趟开了分享页；
+  - `site/`：最近一次干净的出页；
+  - `public/`：推送用的副本；
+  - `last.json`：最近一次结果，只记类别；
+  - `en.yaml`。
+- **谁来触发。**
+  - 提交生效后由主 agent 跑 `share publish`：主角色第 6 步，S4a2。
+  - 服务端不推公开仓：它没有那个仓的凭据。远程部署时 `share_blocked` 只在跑命令的那台机器的索引里。
+
+## S4a2：分享页接进引导与约定，later 一行过核（2026-11-03）
+
+- **提交后重出分享页（D-89）。**
+  - 写在第 6 步“Update the site”的 With tools 里，进 skill 的 `references/single-agent.md` 和 MCP prompt；主 SKILL 读表那一行加“or the share page after a commit”，instructions 的读那句加“the share page after a commit”。
+  - 内容：
+    - 行程仓有 `.tripwright/share/config.json` 时，写入 `effective` 后跑 `tripwright share publish`。
+    - 退出 2 是扫描没过、没推，下一次 `turn` 带 `share_blocked`；照类别经 `propose`、`commit` 改记录，不把原值写进回答或记录，再发布一次。
+    - 第一次建公开仓（`--create`）是对外发布，要先停下问用户：说清 GitHub Free 只能从公开仓发 Pages、仓里只有网页、仓名是什么，用户同意再建。
+  - 核心步骤不加步。停点那条规矩从“anything sent to someone other than the user”改成“anything sent or published to others”，公开网页也算在内，不点具体命令。
+  - 承诺 `main-agent-never-runs-the-command-line` 放行 `share publish`：它在提交之后跑，不查任何东西。新承诺 `share-page-after-commit` 核第 6 步的这几句。
+- **接缝约定。** `share_blocked` 写进 CONTRACTS 3.9 和 schema（`$defs/share_blocked_notice`；`$defs/notice` 成为冲突通知与它二选一）。
+- **later 一行。**
+  - 第一段以 `first_part.later` 结尾时，`check_answer` 不把那一行算正文，Stop 钩子让这一轮结束（原来按 D-48 推第二段）。
+  - `later` 之后还有字报 `ends_with_later`。第一段里的状态句报 `no_status_line`，规则见 `check_answer.STATUS_LINE`，服务端自己的“没核：……”行除外。Stop 钩子遇到这两种情况拦下。
+  - `first_part.LATER` 是这一行的唯一出处，服务端和检查共用。
+- **测试。**
+  - `tests/agents/test_s4a2_share_guidance.py::test_after_a_commit_the_share_page_is_published_and_the_first_public_repository_waits_for_the_user`
+  - `tests/site/test_s4a2_share_notice.py::test_a_blocked_share_page_leaves_a_contract_notice_without_values_until_a_clean_publish`
+  - `tests/core/test_s4a2_later.py::test_a_first_part_may_end_the_reply_with_later_and_nothing_after_it`
+  - 第 4 条的坏样本与对照都在最后这一条里。
+  - 改了的旧测试：`test_a14_fixes` 的状态句坏样本现在也报 `no_status_line`。
+- **主 SKILL。** 12,119 → 12,108 字节：“写法（对话里的回答）：”那一行标签删了，读表多半行。
+## s4b：工具注解、交通查询跨进程共享、check 与 status 只读（2026-11-03）
+
+依据：主会话 s4b 任务包第 1—3 条。
+
+- **工具注解按实情标（`adapters/mcp.py`）。** ChatGPT 按 `readOnlyHint` 判断读写，没有这个注解的算写，Pro 只能用读取类工具。
+  - 逐个工具在带远端的行程仓上调用，比较调用前后的索引库、工作区、HEAD 和远端 main，结果是：只有 `state`（各个 view）和 `explain` 什么都不改。
+  - `query` 原来标成只读，但它的大多数 kind 都写：`transit`（含 `stops`）、`latest_departure`、`weather`、`geocode`、`nearby`、`saved`、`web_evidence` 每次都新记一条证据，提交并推送；`plan_day` 排一个作业；`check_answer` 的第二段通过时写本机的 `.tripwright/answers.json`（不提交）。只有 `opening`、`open_places` 和第一段的 `check_answer` 什么都不写。
+  - 改：`query` 标为写（`readOnlyHint: false`、`destructiveHint: false`、`idempotentHint: false`、`openWorldHint: true`）；`commit` 换掉当前计划、`result` 的 cancel 停掉作业，这两个标 `destructiveHint: true`；`turn`、`propose` 不变。这一批不拆 `query`。
+  - 代价：ChatGPT Pro 只剩 `state`、`explain`，不能查交通；Codex 对 `query` 要先批准（`codex exec` 不批准就拒，`default_tools_approval_mode = "approve"` 可放行）。
+  - 测试：`tests/repo/test_s4b_tool_annotations.py`。
+- **交通查询跨进程共享（`providers/common.py` 的 `SharedLookups`，`providers/transitous.py`）。**
+  - 来源：11-03 02:1x 四轮自重放并行，每轮一个本地 stdio 服务，同样的查询各发一遍。本机共享的 720 次/24 小时计数用满（`ROUTING_BUDGET_EXCEEDED`），其余排队超时。
+  - 改：上游的 JSON 回答按请求（路径加参数）存进共享目录（`TRIPWRIGHT_TRANSITOUS_SHARED`，默认在计数文件旁的 `transitous-shared/`），在有效期内各进程直接用。
+    - 同一请求只有一个进程去取，其余等它的回答。
+    - 所有进程的请求间隔至少 0.5 秒，同时最多 2 个。
+    - 429 和 502—504 先停 1 秒、3 秒再试（`Retry-After` 不超过 10 秒时按它），每次重试都计入 720。
+    - 锁都是不阻塞地取、取不到就短睡再试，被取消的查询不会留下锁；目录写不了就关掉共享，查询照常。
+  - 有效期沿用各查询原来的内存缓存：路线 30 分钟，整天时刻表 6 小时，站名 7 天，步行时间 30 天。用的回答保留原来的抓取时刻（`fetched_at`、`valid_until` 按它算），不当成新的。`fresh` 的查询（存的计划事实复用前重查，D-57）只认这次查询开始之后取到的回答。
+  - 测试：`tests/providers/test_s4b_shared_lookups.py`。
+- **`check`、`status` 只读（`cli.read_repository`、`committer.read_status`、`Store(read_only=True)`）。**
+  - 来源：命令行打开行程仓时先 `attach`：索引不在 HEAD 时重建，并把 HEAD 上比远端多出的带 `Tripwright-Op` 的提交恢复成待推的写入；命令结束时 `committer.stop()` 收手改、提交并推一次。11-03 08:08 在 my-travel 副本上跑 `check`，就这样把一个还没核完的合并提交推上了远端 main。远端已经前移时这次推送被拒，那条路不再重试。
+  - 改：`check` 只用 `Repository` 读提交；`status` 以只读方式打开索引库，不重建、不 fetch、不 push、不提交，输出补上 `fetched: false`、`index_head`、`index_at_head` 和一句说明。同步只在 `sync` 和写入时做。
+  - 测试：`tests/repo/test_s4b_check_reads_only.py`。
+
+## S4e：Codex 也在下一轮出第二段，later 一行认字不认引号（2026-11-03，主会话；任务 D-93）
+
+- **为什么：** 合并版（8dda6d99）上两轮合成数据干跑。Codex（gpt-6-luna）发完第一段就停、没出第二段，第一段前还多一句开场话：D-88 的回头条件。Claude Code 不给子代理那轮把 later 一行抄成英文引号，`check_answer`、Stop 钩子与重放脚本按原句逐字比，没认出，重放就没补发“继续”。
+- **改了：**
+  - `agents/core.yaml` 第 4 步：没有后台子代理的应用（含 Codex）都以 `first_part.later` 结束这一轮，下一句出第二段；第 1 步加“写任何文字之前先调 `turn`”。生成文件随之重出（instructions、steps、主 SKILL、AGENTS.init）。
+  - `render/check_answer.py`：`is_later` 按字比，引号、空格与句末标点不算；四处原来的 `in LATER_LINES` 都换成它。测试 `tests/core/test_s4a2_later.py` 加一条：英文引号、直角引号、去掉句号都算结束，后面跟状态句照旧拦。
+  - 钩子：用户回“继续”的那条消息算同一问的后半（`answers_later`：上一条真消息之后的最后一段文字以 later 一行结束）。first-part 钩子放行这时的查询；Stop 钩子把第一段当已发，没出第二段就催第二段。来源：answer-v4 上 Claude Code 不给子代理的干跑，“继续”之后 first-part 钩子拦了查询，宿主写了一段解释又重发第一段。测试同一文件加一条，带对照：上一段没以 later 结束时，新消息的查询照旧等第一段。
+- **没改：** 第一段的内容与 `first_part.text`、`second_part_due` 的判法。

@@ -18,12 +18,13 @@ MANIFEST = json.loads((ROOT / "tests/contracts/manifest.json").read_text(encodin
 
 
 def agents_md() -> str:
-    return (TEMPLATES / "AGENTS.md.tmpl").read_text(encoding="utf-8")
+    # S4a: what init writes, the template with core.yaml's steps filled in by the build
+    return user_repo_files()["AGENTS.md"].decode("utf-8")
 
 
 def template_problems(text: str) -> list[str]:
     problems = []
-    if not text.startswith("<!-- 由 tripwright init 生成，源：src/tripwright/agents/templates/AGENTS.md.tmpl；不要手改"):
+    if not text.startswith("<!-- 由 tripwright init 生成，源：src/tripwright/agents/templates/AGENTS.md.tmpl、src/tripwright/agents/core.yaml；不要手改"):
         problems.append("first line must say it is generated, from which source, not to edit")
     if not re.search(r"calls `turn` first", text):
         problems.append("must say the main agent calls turn first")

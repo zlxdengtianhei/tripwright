@@ -1,10 +1,13 @@
 """Assemble skills, host agent files and prompts from one set of role and step sources (CONTRACTS section 4).
 
 Sources: this package's `roles/*.md` and `steps/*.md`; the main role owns its answer and writing reference.
+`core.yaml` holds the steps of every message (S4a), rendered the same way into the server instructions, the `steps`
+that `turn` returns, the roles that include them and the AGENTS.md that `tripwright init` writes.
 Block B's writing fragments remain available through B's `tripwright.render.writing.fragment(name, language)`
 for explicit includes, copied verbatim. A role body is Markdown with
 whole-line directives: `<!-- only: skill mcp -->` ... `<!-- /only -->` keeps lines for the named targets;
-`<!-- include: fragment writing zh -->` and `<!-- include: steps summary|tool|notool -->` insert text.
+`<!-- include: fragment writing zh -->`, `<!-- include: steps summary|tool|notool -->` and
+`<!-- include: core steps|always -->` insert text.
 A missing fragment becomes a visible placeholder line, so the skill can be assembled before B delivers.
 
 `build(load_sources(root))` is pure: the same sources give the same bytes. Every output names its sources in a
@@ -32,12 +35,16 @@ TARGETS = ("skill", "claude", "codex", "mcp", "l3", "l0")
 AGENTS = "src/tripwright/agents"
 GENERATED = f"{AGENTS}/generated"
 FRAGMENTS = "src/tripwright/render/fragments"
+CORE = f"{AGENTS}/core.yaml"
+AGENTS_TEMPLATE = f"{AGENTS}/templates/AGENTS.md.tmpl"
+# S4a: the server instructions are the core steps and little else, for an entry that reads nothing but MCP (豆包工作)
+INSTRUCTIONS_LIMIT = 3600
 STEP_SECTIONS = ("## With tools", "## Without tools")
 # Frontmatter fields documented on code.claude.com/docs/en/sub-agents (read 2026-10-31). Claude Code ignores an
 # unknown field without an error, so a misspelt restriction would silently not apply: refuse it here instead.
 CLAUDE_FIELDS = {"tools", "disallowedTools", "model", "permissionMode", "maxTurns", "skills", "mcpServers", "hooks",
                  "memory", "background", "omitClaudeMd", "effort", "isolation", "color"}
-ROLE_FIELDS = {"name", "title", "description", "metadata", "targets", "claude", "server_instructions"}
+ROLE_FIELDS = {"name", "title", "description", "metadata", "targets", "claude"}
 METADATA_FIELDS = ("trigger", "owns", "not", "layer")
 DIRECTIVE = re.compile(r"<!--\s*(?:(only):\s*([\w ]+?)|(/only)|(include):\s*([\w ]+?)|(reference):\s*([\w.-]+?\.md)|(/reference))\s*-->")
 
@@ -76,10 +83,21 @@ class Step:
 
 
 @dataclass(frozen=True)
+class Core:
+    intro: str
+    steps: tuple[tuple[str, str], ...]  # (do, done)
+    always: tuple[str, ...]
+    read: str
+    path: str = CORE
+
+
+@dataclass(frozen=True)
 class Sources:
     roles: dict[str, Role]
     steps: tuple[Step, ...]
     fragments: dict[str, str]
+    core: Core
+    agents_template: str
 
 
 # --- sources ------------------------------------------------------------------
@@ -141,6 +159,30 @@ def parse_step(text: str, path: str) -> Step:
     return Step(number, meta["title"], meta["summary"], tool.strip(), notool.strip(), path)
 
 
+def plain(text) -> str:
+    return " ".join(str(text).split())
+
+
+def parse_core(text: str, path: str = CORE) -> Core:
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as error:
+        raise AssembleError(f"{path}: not valid YAML: {error}") from None
+    if not isinstance(data, dict) or set(data) != {"intro", "steps", "always", "read"}:
+        raise AssembleError(f"{path}: needs exactly intro, steps, always and read")
+    steps = data["steps"]
+    if not isinstance(steps, list) or not steps or any(not isinstance(step, dict) or set(step) != {"do", "done"}
+                                                       or not all(isinstance(step[key], str) and step[key].strip() for key in step) for step in steps):
+        raise AssembleError(f"{path}: steps must be a list of {{do, done}}, each one action and the check that it is done")
+    always = data["always"]
+    if not isinstance(always, list) or any(not isinstance(rule, str) or not rule.strip() for rule in always):
+        raise AssembleError(f"{path}: always must be a list of sentences")
+    if any(not isinstance(data[key], str) or not data[key].strip() for key in ("intro", "read")):
+        raise AssembleError(f"{path}: intro and read are text")
+    return Core(plain(data["intro"]), tuple((plain(step["do"]), plain(step["done"])) for step in steps),
+                tuple(plain(rule) for rule in always), plain(data["read"]), path)
+
+
 def b_fragments(read=read_fragment) -> dict[str, str]:
     """Every fragment B currently provides, as `<name>.<language>.md` → text; a missing one is left out."""
     found = {}
@@ -168,7 +210,8 @@ def load_sources(root: Path = ROOT, read=read_fragment) -> Sources:
     fragments = b_fragments(read)
     if "tripwright-main" not in roles:
         raise AssembleError(f"{AGENTS}/roles: tripwright-main is required")
-    return Sources(roles, steps, fragments)
+    core = parse_core((root / CORE).read_text(encoding="utf-8"))
+    return Sources(roles, steps, fragments, core, (root / AGENTS_TEMPLATE).read_text(encoding="utf-8"))
 
 
 # --- expansion ------------------------------------------------------------------
@@ -188,6 +231,42 @@ def steps_text(sources: Sources, mode: str, where: str) -> str:
     if mode not in ("tool", "notool"):
         raise AssembleError(f"{where}: unknown steps mode {mode!r}")
     return "\n\n".join(f"### {step.number}. {step.title}\n\n{step.tool if mode == 'tool' else step.notool}" for step in sources.steps)
+
+
+def core_step_lines(core: Core) -> list[str]:
+    """The numbered steps, each its action and the check that it is done, as every output shows them."""
+    return [f"{number}. {do} Done when: {done}" for number, (do, done) in enumerate(core.steps, 1)]
+
+
+def core_text(core: Core, part: str, where: str = CORE) -> str:
+    if part == "steps":
+        return "\n".join(core_step_lines(core))
+    if part == "always":
+        return "\n".join(f"- {rule}" for rule in core.always)
+    raise AssembleError(f"{where}: unknown core part {part!r}")
+
+
+def core_steps(core: Core) -> list[dict]:
+    """The steps as `turn` returns them."""
+    return [dict(step=number, do=do, done=done) for number, (do, done) in enumerate(core.steps, 1)]
+
+
+def server_instructions_text(core: Core) -> str:
+    return "\n\n".join([core.intro, core_text(core, "steps"), core_text(core, "always"), core.read]) + "\n"
+
+
+def agents_md(sources: Sources) -> str:
+    """The AGENTS.md `tripwright init` writes: the template with its core lines filled in."""
+    lines = []
+    for number, line in enumerate(sources.agents_template.splitlines(), 1):
+        match = DIRECTIVE.fullmatch(line.strip())
+        if match is None:
+            lines.append(line)
+        elif match.group(4) and match.group(5).split()[0] == "core" and len(match.group(5).split()) == 2:
+            lines.extend(core_text(sources.core, match.group(5).split()[1], f"{AGENTS_TEMPLATE}:{number}").splitlines())
+        else:
+            raise AssembleError(f"{AGENTS_TEMPLATE}:{number}: only core includes belong in the template")
+    return "\n".join(lines) + "\n"
 
 
 @dataclass(frozen=True)
@@ -239,6 +318,9 @@ def expand(body: str, target: str, sources: Sources, where: str) -> Expanded:
             elif kind == "steps" and len(arguments) == 1:
                 lines.extend(steps_text(sources, arguments[0], place).splitlines())
                 used.add("steps")
+            elif kind == "core" and len(arguments) == 1:
+                lines.extend(core_text(sources.core, arguments[0], place).splitlines())
+                used.add("core")
             else:
                 raise AssembleError(f"{place}: unknown include {match.group(5)!r}")
     if stack or reference is not None:
@@ -263,6 +345,8 @@ def source_paths(role: Role, used: set[str]) -> list[str]:
         paths.append(f"{AGENTS}/steps/*.md")
     if "fragments" in used:
         paths.append(f"{FRAGMENTS}/*.md")
+    if "core" in used:
+        paths.append(CORE)
     return paths
 
 
@@ -324,17 +408,22 @@ def build(sources: Sources) -> dict[str, str]:
                 prompts.append({"name": name, "title": role.meta["title"], "description": description, "file": f"{name}.md"})
             else:
                 outputs[f"{GENERATED}/{target}/{name}.md"] = markdown(note, body)
-    instructions = [role for role in sources.roles.values() if role.meta.get("server_instructions")]
-    if len(instructions) != 1:
-        raise AssembleError("exactly one role must carry server_instructions")
-    server = instructions[0]
-    outputs[f"{GENERATED}/server/instructions.md"] = markdown(notice([server.path]), " ".join(server.meta["server_instructions"].split()) + "\n")
+    # S4a: the instructions are the core steps (they were a 5.7 KB run of the main role's rules), and turn returns the same
+    instructions = server_instructions_text(sources.core)
+    if len(instructions.encode()) > INSTRUCTIONS_LIMIT:
+        raise AssembleError(f"{CORE}: the server instructions are {len(instructions.encode())} bytes, over {INSTRUCTIONS_LIMIT}")
+    outputs[f"{GENERATED}/server/instructions.md"] = markdown(notice([CORE]), instructions)
+    outputs[f"{GENERATED}/server/steps.json"] = json_text({"_generated": notice([CORE]), "steps": core_steps(sources.core),
+                                                           "always": list(sources.core.always)})
+    # Not named AGENTS.md: a host working on this checkout would read it as this repository's instructions. init
+    # writes it as the trip repository's AGENTS.md, without this notice (its own first line says init wrote it).
+    outputs[f"{GENERATED}/repo/AGENTS.init.md"] = markdown(notice([AGENTS_TEMPLATE, CORE]), agents_md(sources))
     outputs[f"{GENERATED}/mcp/index.json"] = json_text({"_generated": notice([f"{AGENTS}/roles/*.md"]), "prompts": prompts})
     steps_note = notice([f"{AGENTS}/steps/*.md"])
     outputs["skills/tripwright-main/references/single-agent.md"] = markdown(steps_note, tidy("\n\n".join([
         SINGLE_AGENT_INTRO, "## With tools", steps_text(sources, "tool", "single-agent"),
         "## Without tools", steps_text(sources, "notool", "single-agent")])))
-    outputs[f"{GENERATED}/build.json"] = json_text({"_generated": notice([f"{AGENTS}/roles/*.md", f"{AGENTS}/steps/*.md", f"{FRAGMENTS}/*.md"]),
+    outputs[f"{GENERATED}/build.json"] = json_text({"_generated": notice([f"{AGENTS}/roles/*.md", f"{AGENTS}/steps/*.md", CORE, f"{FRAGMENTS}/*.md"]),
                                                     "fragments": fragment_digests(sources)})
     return outputs
 

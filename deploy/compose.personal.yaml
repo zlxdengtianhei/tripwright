@@ -1,5 +1,6 @@
 # Tripwright on your own computer (or any machine without a domain): one container, reachable only from this computer
-# at http://127.0.0.1:8000. Phones and web chat apps reach it through a tunnel (see README.md, "个人电脑").
+# at http://localhost:8000 (TRIPWRIGHT_PUBLIC_URL; another port: TRIPWRIGHT_PORT in .env). Phones and web chat apps
+# reach it through a tunnel (see SETUP.md, Step 1, Docker).
 #   cd deploy && cp .env.example .env    # the URL key is generated into data/remote/url-key (set TRIPWRIGHT_PUBLIC_URL for a tunnel)
 #   docker-compose -f compose.personal.yaml up -d --build
 name: tripwright-personal

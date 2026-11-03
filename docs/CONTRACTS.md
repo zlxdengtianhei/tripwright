@@ -156,6 +156,21 @@ A（仓、状态与快照）、B（渲染与输出）、C（角色、步骤与�
 - **A16 自重放里的两处（A17）：**
   - 第一段（给了 points）：同一种类、同一地点（解析出的地点或宿主给的 place）的要点合成一行；整段不出完全相同的行。`turn` 与命令行 `first-part` 同一处出。`first_part.points` 仍每个要点一项，合并的几项 `line` 相同。
   - 命令行 `first-part --points`：格式错（含字符串列表）照旧退出 1，错误信息末尾给一个可以照抄的正确例子。
+- **每问的步骤，按最差入口写（S4a）：**
+  - 源：`src/tripwright/agents/core.yaml`（`intro`、`steps` 每步 `{do, done}`、`always`、`read`）。生成四处，字句相同：server instructions（不超过 3,600 字节）、`generated/server/steps.json`、主 skill 与 MCP prompt 的“Every message”、`generated/repo/AGENTS.init.md`。init 把最后这份写成用户仓的 `AGENTS.md`，去掉生成说明那一行；`CLAUDE.md` 仍只一行 `@AGENTS.md`。主角色 frontmatter 不再有 `server_instructions`。
+  - `turn` 结果加 `steps` `[{step, do, done}]` 与 `always`（句子列表）；命令行 `first-part` 也带。`first_part` 加 `later`：在不能于工具调用之间显示文字的应用里，第一段作这一轮的完整回复，`later` 是它的最后一行，告诉用户怎样拿第二段。
+  - `turn(points=[])`（这一句没点名新事）时，若满足三条：上一问的第一段说了有第二段；在 6 小时内；答案文件里那一问的 `request_id` 没有过核的第二段。结果就带 `second_part_due {request_id, said, first_part, points[{kind, said, place}], at}`，`first_part` 为 null，`next` 开头说这一句要的是那一问的第二段。上一句也这样要过、那一问仍没过核时，还指那一问。不给 `points`（null）照旧。
+  - 命令行 `first-part` 只在 stdout 出 JSON；stderr 不再出第一段原文。
+  - PreToolUse 钩子认查询：命令按 `;`、`&&`、`||`、`|` 和换行分段判，带 `--help` 或 `-h` 的那一段不算；经别名的 `query <查询种类>` 也算。
+- **分享页被挡的提醒 `share_blocked`（s4c、S4a2）：**
+  - 形状：schema `$defs/share_blocked_notice`，`{notice_id, kind: "share_blocked", created_at, user_line, detail, paths[]}`。`$defs/notice` 现在是冲突通知（`$defs/conflict_notice`，原形状不变）与它二选一。
+  - 谁写：`tripwright share publish`（`site/publish.py` 的 `notice`）在扫描没过、这一版没推时写进行程仓的索引（本机 `.tripwright/`），同一时间只开一条。谁读：`turn` 的 `notices` 原样带出（`repo/notices.open_notices` 对非冲突种类给这六个字段）。
+  - 只写类别和页名：`user_line`、`detail` 写扫描的类别（email、order-like identifier、flight number、phone number、person name、lodging、private word）；`paths` 写被挡的页名。都不写扫到的原值。宿主照类别改记录，不把原值写进回答或记录。
+  - 关掉：下一次发布扫描通过、推送成功时关掉（`status: closed`）。
+  - 限制：只进本机索引。连远程服务的 `turn` 看不到，只能看命令的退出码（2）和 stderr。
+- **第一段以 `first_part.later` 结尾（S4a2）：**
+  - `check_answer` 第一段：`later` 那一行不算正文行数。它之后还有字报 `ends_with_later`。任何一行是进度、状态句（“马上发”“正在查”“我先去查”“第一段发完”“I'm still”等）报 `no_status_line`。服务端自己的“没核：……第二段核完再发。”不算。
+  - Stop 钩子：这一问最后显示的文字以 `later` 那一行结尾、里面没有状态句，就让这一轮结束（不再推第二段）。有 `later` 的文字之后还有字，或同一段里有状态句，就拦下，理由“第一段以“回我一句“继续””那一行结束这一轮，后面不再写别的，也不写进度”。
 
 ## 4 源文件与生成文件
 
@@ -166,7 +181,7 @@ A（仓、状态与快照）、B（渲染与输出）、C（角色、步骤与�
 - B：`src/tripwright/render/**`（包与回答渲染、交通行与地图链接、地区表 `regions.yaml`、查询触发、机械检查、写法规则源片段 `fragments/*.md`、首屏与视图）、`src/tripwright/site/**`、`src/tripwright/adapters/web.py`、`tests/render/**`、`tests/site/**`。
 - C：`src/tripwright/agents/**`（角色源 `roles/*.md`、单 agent 步骤源 `steps/*.md`、模板 `templates/*.tmpl`、生成器与生成件 `generated/**`）、`src/tripwright/adapters/prompts.py`（MCP prompts 注册）、`skills/**`（主 skill 只由 C 装配）、`tests/agents/**`。
 - 冻结核心（三块都不写，要改经主会话）：`src/tripwright/__init__.py`、`src/tripwright/checks.py`、`src/tripwright/trip.py`、`src/tripwright/usage.py`、`src/tripwright/evidence.py`、`src/tripwright/locks.py`、`src/tripwright/query.py`、`src/tripwright/providers/**`、`src/tripwright/solver/**`、`tests/providers/**`、`tests/solver/**`。
-- 主会话与接缝负责人：`pyproject.toml`、`uv.lock`、`uv.toml`、`.python-version`、`.gitignore`、`.github/**`、`README.md`、`LICENSE`、`homepage/**`、`scripts/**`、`deploy/**`、`docs/CONNECT.md`、`docs/DATA_SOURCES.md`、`docs/CONTRACTS.md`、`tests/contracts/**`、`tests/fixtures/contract_sample/**`。
+- 主会话与接缝负责人：`pyproject.toml`、`uv.lock`、`uv.toml`、`.python-version`、`.gitignore`、`.github/**`、`README.md`、`README.zh-CN.md`、`LICENSE`、`homepage/**`、`scripts/**`、`deploy/**`、`docs/CONNECT.md`、`docs/DATA_SOURCES.md`、`docs/CONTRACTS.md`、`tests/contracts/**`、`tests/fixtures/contract_sample/**`。
 - 只追加：`docs/DECISIONS-impl.md`，各块只在末尾写自己的节。
 
 **本仓里的生成文件：** `skills/tripwright-main/SKILL.md` 由 C 装配，源是 C 的角色源与步骤源；写法页 `references/writing.md` 由角色源的 `reference: writing.md` 生成（v1.8 起，v2g；B 的 `render/fragments/*.md` 不再整段嵌入主 skill，公共片段接口照留，供 B 自己的渲染用）；其他 `skills/tripwright-*/SKILL.md` 与 `src/tripwright/agents/generated/**`（`.claude/agents`、`.codex/agents` 格式、MCP prompts、L3 提示词、L0 步骤稿、服务端 instructions）也由 C 生成。

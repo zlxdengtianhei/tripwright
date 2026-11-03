@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import re
 from datetime import timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -17,6 +19,7 @@ from tripwright.render import first_part
 from tripwright.repo import files as repo_files, memory, notices, replay
 from tripwright.repo.outbox import Outbox
 from tripwright.repo.snapshot import received_events
+from tripwright.agents import core_steps
 from tripwright.storage import Store, answers_path, encode, identifier, now, remember_answer
 from tripwright.trip import Trip, aware, input_problems, json_type, local_instant
 from tripwright.usage import checked_usages
@@ -30,6 +33,11 @@ SKELETON = {"quick": "quick", "status": "quick"}
 # have changed (A2's refresh time), and the earlier questions of a conversation fall inside it.
 SESSION_HOURS = 6
 RECENT_QUESTION_MINUTES = 30  # check_answer without question or request_id: a user message this recent is the question
+# S4a: an app that may not show text written between tool calls ends its reply with the first part and this line (core
+# step 4); the user's next message, sent to turn with points [], brings the second part (second_part_due)
+LATER = first_part.LATER
+# a first part that says a second part follows (the hooks' word list, render.check_answer.PROMISE)
+PROMISES_SECOND = re.compile(r"第二段|核完再发|second part", re.I)
 UNKNOWN_QUESTION = "本问原话不明，吃的检查没做。"
 UNKNOWN_POINTS = "这一问的 turn 没给 points（或没给 request_id），没核第一段有没有逐件回应、写没写在哪。"  # A12
 
@@ -246,15 +254,23 @@ class Tripwright:
                                   record=dict(carry=[dict(id=entry["id"], status="confirmed or not_used") for entry in pending])))
             # A10 (D-67): the first part, drafted from what is stored, for every host to send before any lookup; A12: from
             # this question's points when the host gives them, with what the trip stores for each
+            # S4a: a message that names nothing (points []) after a question whose promised second part never passed
+            # check_answer asks for that second part; no new first part is drafted for it
+            due = self._second_part_due(owner, event_id, at) if points == [] else None
             told = packs.point_facts(self.store, owner, plan or None, points, anchors, at, self.language,
-                                     person=packs.asker(plan, speaker, subject)) if points is not None and plan else None
-            first = first_part.draft(text, response["now"], anchors, plan or None, self.language, told)
-            context.update(points=packs.point_record(told, anchors))  # what check_answer holds this question's first part to
+                                     person=packs.asker(plan, speaker, subject)) if points is not None and plan and due is None else None
+            first = None if due else self._with_later(first_part.draft(text, response["now"], anchors, plan or None, self.language, told))
+            context.update(points=packs.point_record(told, anchors),  # what check_answer holds this question's first part to
+                           request_id=request_id, promises_second=bool(first and PROMISES_SECOND.search(first["text"])),
+                           first_text=first["text"] if first else None, continues=due["request_id"] if due else None)
             self.store.put("contexts", owner, context)
             response.update(consider={key: considered[key] for key in ("entries", "more", "more_how") if key in considered},
                             ask=asked, offer=consider.offer(known["languages"], self.language), first_part=first,
                             next=self._next(considered, asked, recorded, archived=any(anchor.get("archived_claims") for anchor in anchors),
-                                            latest=first["asks_latest"], points=(points is not None) if plan else None))
+                                            latest=bool(first and first["asks_latest"]), points=(points is not None) if plan and not due else None, due=due),
+                            **core_steps())
+            if due:
+                response["second_part_due"] = due
             if told is not None:
                 response["points"] = told
         if self.committer is not None:
@@ -297,15 +313,49 @@ class Tripwright:
         told = packs.point_facts(self.store, owner, plan, points, anchors, at, self.language,
                                  person=packs.asker(plan, speaker, subject)) if points is not None and plan else None
         clock = self.clock(owner, at)
-        first = first_part.draft(text, clock, anchors, plan or None, self.language, told)
+        first = self._with_later(first_part.draft(text, clock, anchors, plan or None, self.language, told))
         en = self.language == "en"
         return dict(now=clock, first_part=first, **(dict(points=told) if told is not None else {}),
-                    next=(" " if en else "").join(self._send_first(en)))
+                    next=(" " if en else "").join(self._send_first(en)), **core_steps())
+
+    def _with_later(self, first: dict) -> dict:
+        """The first part and the line that ends it in an app that cannot show text between tool calls (S4a)."""
+        return dict(first, later=LATER["en" if self.language == "en" else "zh"])
+
+    def _second_part_due(self, owner: str, event_id: str, at: str) -> dict | None:
+        """The question before this message, when its first part said a second part follows and no second part passed
+        check_answer for its request_id (the answers file the Stop hook reads), within SESSION_HOURS (S4a). An app that
+        cannot show text between tool calls ended its reply with that first part; a host that stopped early did too.
+        None without an answers file: nothing tells whether the second part went out."""
+        # in the order they were written (one clock moment can hold two), the latest last
+        earlier = sorted((context for context in self.store.all("contexts", owner)
+                          if context.get("source_event") != event_id and context.get("request_id")),
+                         key=lambda context: aware(context["created_at"]))
+        last = earlier[-1] if earlier else None
+        path = self.answers_path()
+        if last is None or path is None:
+            return None
+        if last.get("continues"):  # the message before asked for it too, and it has still not passed
+            last = next((context for context in reversed(earlier) if context["request_id"] == last["continues"]), None)
+        if last is None or not last.get("promises_second") or aware(at) - aware(last["created_at"]) > timedelta(hours=SESSION_HOURS):
+            return None
+        try:
+            passed = json.loads(path.read_text(encoding="utf-8")).get("answers", {}) if path.is_file() else {}
+        except (OSError, ValueError):
+            passed = {}
+        if last["request_id"] in passed:
+            return None
+        event = self.store.get("events", owner, last["source_event"])
+        kept = last.get("points") or {}
+        # what step 5 looks up from: each point with its place, and where the user is (or was assumed to be)
+        return dict(request_id=last["request_id"], said=event["receipt"]["received_text"], first_part=last.get("first_text"),
+                    points=[dict(kind=point["kind"], said=point["said"], place=point.get("place")) for point in kept.get("points", [])],
+                    at=kept.get("at"))
 
     def _send_first(self, en: bool) -> list[str]:
         """What `next` says of the first part (A10, A14, A16), for turn and for the command line's first part."""
         return ["Send first_part.text to the user as it is (only the form of address and the language may change), then "
-                "look things up." if en else "先把 first_part.text 原样发给用户（只可改称呼和语言），再去查。",
+                "follow steps." if en else "先把 first_part.text 原样发给用户（只可改称呼和语言），再照 steps 往下做。",
                 # A10 replay: “Following instructions: …” before the first part, “还在核…马上发第二段” between the two
                 "The user sees two messages only, the first and the second part: send no status line before the first "
                 "or between the two." if en else "用户只看到第一段和第二段两条消息：第一段之前、两段之间不发任何状态句。",
@@ -320,7 +370,7 @@ class Tripwright:
         return (latest or {}).get("asked") or []
 
     def _next(self, considered: dict, asked: list[dict], recorded: dict, *, archived: bool = False, latest: bool = False,
-              points: bool | None = None) -> str:
+              points: bool | None = None, due: dict | None = None) -> str:
         """What to do before answering (design v0.3.1 2.1 three). First (A10, D-67): send `first_part` as it is, then
         look things up; a latest/last-service question goes to latest_departure without a deadline, whose first line
         the second part opens with; the second part is sent once, after check_answer passes. Then: weigh the listed
@@ -336,7 +386,14 @@ class Tripwright:
                                    "that result." if en else
                                    "这一问没给 points：first_part 只按存的计划写，不回应这一问点名的事。先把这一问点名的每件事"
                                    "（人在哪、去哪、吃、活动、票，用用户的话）写进 points，用同一个 request_id 再调一次 turn，再照它做。"]
-        parts += self._send_first(en)
+        if due:
+            # S4a: the user asks for the earlier question's second part (it was promised, none passed check_answer)
+            parts.append(f"This message asks for the second part of request {due['request_id']} (“{due['said']}”): send no new "
+                         f"first part; check its facts and run check_answer with request_id {due['request_id']}, then send it." if en else
+                         f"这一句是要上一问（request_id {due['request_id']}，“{due['said']}”）的第二段：不再发第一段，核查它的事，"
+                         f"check_answer 用 request_id {due['request_id']}，过了再发。")
+        else:
+            parts += self._send_first(en)
         if latest:
             parts.append("For the latest departure or the last service: query latest_departure with origin and destination "
                          "only (no anchor_id, by or board_at); the service searches tonight's last connection and the next "

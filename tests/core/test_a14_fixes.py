@@ -170,7 +170,8 @@ def test_the_first_part_is_sent_and_the_second_is_never_sent_twice(make):
     assert "用户看不到工具结果：第一段要你发出来才算，不写“上面已经……”。" in turn["next"]
     # bad sample (on_r1): the status line sent instead of the first part is no first part
     status = "第一部分已经在上面了：今晚不用急着去机场。吃的和万圣节活动我还在查，查完会发第二部分。"
-    assert [entry["check"] for entry in check_draft(status, "first", 21 * 60 + 52)] == ["clock_in_first_part"]
+    # (S4a2: and its “我还在查” is a status line)
+    assert [entry["check"] for entry in check_draft(status, "first", 21 * 60 + 52)] == ["clock_in_first_part", "no_status_line"]
     # off_r1: a second part sent before it passed; the hook asks for the check and says not to send it again
     transcript = [dict(type="user", timestamp="2026-11-04T20:01:00Z", message=dict(role="user", content="最晚几点出发去机场")),
                   dict(type="assistant", timestamp="2026-11-04T20:03:00Z",

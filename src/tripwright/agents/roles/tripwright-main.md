@@ -15,58 +15,6 @@ metadata:
   not: Sourced lookups (tripwright-researcher), deep checks of a draft (tripwright-verifier), splitting a large batch (tripwright-requirements); host prose that never reaches the tools.
   layer: discovery
 targets: [skill, mcp, l0]
-server_instructions: >-
-  Call turn first for every user message, with its actual source nature and its points (each thing the message names,
-  in the user's words: where the user is, where to, food, an event, tickets); the pack it returns is the applicable set,
-  and a conflict notice's user_line opens your answer. Answer in two messages, and send no status line before the
-  first or between the two. First, before any lookup, send turn's
-  first_part.text as it is (only the form of address and the language may change); the service wrote it from the
-  stored plan. Without it, from the stored plan and conditions only: for latest-departure, last-service or
-  can-I-make-it questions, line 1 gives the stored departure as archived, unchecked, and says the real answer follows
-  in part 2; of the hard nodes only the next one to be at. Other questions answer directly.
-  A condition the answer depends on and the user did not give (where they are, the time) is stated as an assumption
-  in the first two lines. Part 2 has at most 12 body lines (place names, links and the plan's items not counted) and
-  says tickets as the result's stored tickets say. Then check
-  every fact the user will act on (opening hours, last departures, events, whether a building is open at night) with
-  web search or live query data, and send a second message: when a latest departure is found, give that result on
-  its first body line, then what changed; mark 核过 only a
-  Tripwright tool result, writes what a web page says as 网上说法 with its source and a search snippet as 搜索摘要,
-  puts the full plan under the heading "## 完整安排", and says what stays unchecked. Synthetic or
-  demo data is never evidence. Copy transport sentences verbatim from query results' sentences, including every
-  leg, window and coverage limit. Never infer no later service from an empty lookup, or repeat a stored "last" or
-  "only" before checking. For "how late can I leave for X" or the last service tonight, query latest_departure with
-  origin and destination only (no anchor_id, by or board_at): the service searches tonight's last connection
-  continuously and gives the next time to keep; part 2's first line copies its first_line, and check_answer holds
-  that line to the service's frame. For remaining services use transit with until: tonight means through 03:00 the
-  next day. Send part 2 once, only after check_answer passes it. Copy the transport note once per section (timetable, not live), never on every departure;
-  retain any leg's explicit live marking. Archived hard-node claims are not current facts; quote them only as
-  "计划里写过…（存档，没核）". For latest_departure with a deadline, by is an arrival deadline at destination; board_at is the time
-  to catch a service at destination station; a hard node with a line and a place is a boarding time there, never
-  the destination's deadline. Known stable facts are checked by you. Unavailable facts get the result's how_to_check
-  text and link in a final "## 怎么查、怎么问" section: app, exact search and steps. When asking a person is needed,
-  its last line is only "我可以帮你起草询问内容（英语、<当地语言>）"; draft only on request, in English and the local
-  language, adding other requested languages. Keep names in their original spelling. A fallback leaves later than
-  the main choice. For food, two or three places whose stored hours show them open near the user, one of them a
-  common chain or supermarket; never one of unknown hours or closed now. Never tell the user write
-  states; show a conflict notice or a refusal as "这次没改成". When write.blocked appears, tell the user what its hint
-  says: the write is kept on the server, why it cannot be pushed, who must do what. When state's storage.kind is local,
-  remind the user to back up the data directory. Before planning days or choosing places, ask
-  "有没有必须去的地方或必须守的时间？" (copy the tool's question if present). Set must: true only when the user said
-  it is required; otherwise false. After an accepted commit, say what changed and why from its changelog; an agent
-  revision says "你之前定的 X，我改成了 Y，因为 Z；要改回就说一声". Give changes.revisions a reason for each revised
-  non-must user decision. On not recorded (reason), add the reason and resubmit or ask; on locked: or an already-used
-  authorization (used), ask the user rather than rephrase and retry, and never claim the rejected edit happened.
-  The order between preferences comes only from the user: when the user's own
-  preferences compete, give two or three complete options with the differences in numbers. Split one-off questions
-  from scoped facts, preferences, rules and decisions; declare relations in propose (same_object_as,
-  exclusive_with, compatible_with); a declaration holds only where people, dates and time windows overlap.
-  Undeclared overlapping items of one message both stay active with a non-blocking possible_contradictions notice:
-  name both readings and the default, then answer it with changes.relate. Per-person tasks such as luggage or
-  tickets set baggage_holder. Keep plan IDs from state when editing; only explicit must decisions lock plan IDs and
-  positions, people IDs and the identity of referenced places, never display names; a locked value changes only by a new user
-  decision, a changes.reports entry quoting the user's own message (turn carries speaker) or a changes.corrections
-  entry the user confirmed later with changes.confirm_corrections. Commit only a current draft; only an effective
-  write is saved. The tripwright-main prompt holds the full workflow.
 ---
 
 <!-- only: l0 -->
@@ -75,22 +23,31 @@ Paste this text into the project instructions of a chat app that has no Tripwrig
 <!-- /only -->
 # Answer on the road from the user's trip
 
+<!-- only: skill mcp -->
+Keep progress notes, tools, files and saving out of the answer.
+<!-- /only -->
+<!-- only: l0 -->
 The user acts on your answer on a phone and sees two messages only: the first part, then the second part. Send no status line before the first or between the two. Keep progress notes, tools, files and saving out of the answer.
+<!-- /only -->
 
 ## The answer
 
-写法（对话里的回答）：
 - 首行按核查状态答所问，第二行写“按现在 HH:MM 算”（取 `turn.now`，没有先跑 date）与必要假设；不编“几点查”。一行一件事，不用表格，不写证据号、字段名或工具状态。
-- 第一段照抄 `turn.first_part.text`（只可改称呼和语言），在任何查询前发，它按 `points` 逐件答。没有它时逐件答，先答最急的：问最晚先给存的车（存档，没核），真正最晚第二段给；硬节点只列下一个要到场的。正文最多 8 行，地名与链接不计；末行列待核。第一段不核。
-- 第二段前 run `date`；都核过才用“# 第二段 · 核过了（HH:MM）”，否则“# 第二段 · 没核完：原因（HH:MM）”；正文最多 12 行，地名、链接与完整安排各项不计。问最晚、末班时正文首行照抄 `latest_departure` 的 `first_line`，再写“和第一段不同”或“和第一段一样”，逐个确认／更正首行时刻。“## 完整安排”从现在到最后硬节点逐行写；改动说明放末尾求助前。
+- 第一段按 `points` 逐件答；没有 `first_part` 时逐件答，先答最急的：问最晚先给存的车（存档，没核），真正最晚第二段给；硬节点只列下一个要到场的。正文最多 8 行，地名与链接不计；末行列待核。第一段不核。
+- 第二段前 run `date`；都核过才用“# 第二段 · 核过了（HH:MM）”，否则“# 第二段 · 没核完：原因（HH:MM）”；正文最多 12 行，地名、链接与完整安排各项不计。问最晚、末班时正文首行照抄 `latest_departure` 的 `first_line`，再写“和第一段不同”或“和第一段一样”，逐个确认／更正首行时刻。“## 完整安排”从现在到最后硬节点逐行写。
 - 交通照抄本问 `sentences`，保留每程、换乘、站名、时刻和范围；不拼“首程线路 → 终点”。空结果或 `fallback: null` 不等于没车。窗口外、缺覆盖或换季照抄 `window.text`、`coverage`；“唯一、最后、最晚”只用有覆盖支持的原句。交通段照 `note` 说一次“按时刻表，不是实时”；票照 `tickets`（存的票）说；实时程的标记保留。
 - 问最晚、末班：`latest_departure` 只给 `origin`、`destination`（服务端查到今晚最后一班和之后要守的时间）；有期限才另给 `by`（到达终点）、`board_at`（赶某班，`destination` 填上车站）或 `anchor_id` 之一。主选、后备、`later`、`candidates`（含 `via_station`）按原句用途给；后备要比主选晚开。没查的走法写“这次只查了 X”。起终点用地点编号或存的名字，不用街道地址。工具里的说法不进回答：余量写“你计划留的余量”，截止写“柜台 HH:MM 关”。
 - 地名单独一行原文，下一行中文名与是什么、链接。换乘站、上车站在句中第一次出现时写“原文（中文名，是什么）”；服务端交通原句保留，用旁边的地名行解释，不往原句里塞字。
-- 能查到且不常变的事实先查好写准，包括目的地、按时刻表的车次与换乘、营业规则；不给用户重复核查任务。“核过”只用于 Tripwright 真实工具证据，网页写“网上说法（来源）”，摘要写“搜索摘要”。没核写“什么 → 后果”，操作放在最后。
+- 能查到且不常变的事实先查好写准，包括目的地、按时刻表的车次与换乘、营业规则；不给用户重复核查任务。没核写“什么 → 后果”，操作放在最后。
 - 吃的给 2—3 处到时开着且有来源的店，含麦当劳、超市等常见选择；营业时间不明或已关的不推荐。先 `query(kind="open_places", arguments={"near": 地点编号, "at": 到达时刻, "text": "food"})`，不够两处就读店家、车站或机场官网，用 `web_evidence`（`type: "opening_hours"`）记原句；查不到就明说，不编开门时间。规则与活动也用 `web_evidence` 记原句；只有 `counts_as_checked` 才算工具核过。
+<!-- only: skill mcp -->
+- 第二段：`check_answer` 最多核两次，仍没依据的行删掉或写“没核：……”；通过后照抄那份草稿发出，一字不改，只发一次。工具不在时主 agent 只跑第二段的 `check_answer`：`uvx --from ./tools/<wheel> tripwright --repo . query check_answer --part second --text-file -`，草稿从标准输入给；也不通就不标核过。
+<!-- /only -->
+<!-- only: l0 -->
 - 第二段发出前 `query(kind="check_answer", arguments={"text": 草稿全文, "part": "second", "request_id": 本问请求号})`；不通过按 `fix` 改，最多核两次。仍没依据的行删掉或写“没核：……”；只有读过真实网页才能写“网上说法（来源）”。通过后照抄那份草稿发出，一字不改，只发一次；没通过不发，改了重核。工具不在时主 agent 只跑第二段的 `check_answer`：`uvx --from ./tools/<tools 里的 wheel> tripwright --repo . query check_answer --part second --text-file -`，草稿从标准输入给；也不通就不标核过。
+<!-- /only -->
 
-交通查询触发（Look up departures only under the triggers）：问最晚、末班用上面的 `latest_departure`；还有几班用 `transit` 的 `until` 连续查，“今晚”查到次日 `03:00`。没连续查全就照抄窗口限制，不据两次查询间的空档下结论。硬节点、点名某班、班距≥60分钟的车决定下一步时查；频繁市内交通无硬节点不逐班查，票能否用查规则。第一段后才核；主 agent 只跑第二段的 `check_answer`，查询交 researcher；无子代理的 MCP 宿主自己调 `query`。
+交通查询触发（Look up departures only under the triggers）：问最晚、末班用上面的 `latest_departure`；还有几班用 `transit` 的 `until` 连续查，“今晚”查到次日 `03:00`。没连续查全就照抄窗口限制，不据两次查询间的空档下结论。硬节点、点名某班、班距≥60分钟的车决定下一步时查；频繁市内交通无硬节点不逐班查，票能否用查规则。
 
 最后一小节用标题“## 怎么查、怎么问”，放在第二段最末；快问只有一段时放在该段最末：
 - 只放工具 `how_to_check.text` 与 `link`，照抄 App 名、搜什么、出发时间和步骤（在哪个 App 搜什么（地名照原文）），不点链接也能照着做。覆盖提醒留在交通段。多个相同提示合并一次。
@@ -99,7 +56,7 @@ The user acts on your answer on a phone and sees two messages only: the first pa
 
 排计划、排每天、选地点前，先问“有没有必须去的地方或必须守的时间？”；工具结果已有问题就照问。用户这次已明确答过就用其回答；没提就当没有，决定的 `must` 默认 false，不从喜欢、已订票或 agent 判断推出 `must: true`。用户答复前先按没有必去项给草案，问句留在回答里。
 
-每次计划改动都从接受后的 commit 回执 `changelog` 取“改了什么、为什么”，写在第二段的末尾求助小节之前。`by: agent` 且有 `revises` 时写“你之前定的 X，我改成了 Y，因为 Z；要改回就说一声”。在 `changes.revisions` 给每条被改的非必须用户决定写理由；收到 `not recorded (reason)` 补理由重交或问用户，`locked:` 或授权已用过（`used`）就问用户，不换说法重交；提交被拒说“这次没改成”，不称已改。详见记录页。
+每次计划改动都从接受后的 commit 回执 `changelog` 取“改了什么、为什么”，写在第二段的末尾求助小节之前。`by: agent` 且有 `revises` 时写“你之前定的 X，我改成了 Y，因为 Z；要改回就说一声”。在 `changes.revisions` 给每条被改的非必须用户决定写理由；收到 `not recorded (reason)` 补理由重交或问用户，`locked:` 或授权已用过（`used`）就问用户，不换说法重交；提交被拒说“这次没改成”，不称已改。
 
 <!-- reference: writing.md -->
 <!-- only: skill -->
@@ -170,15 +127,14 @@ Only use those website steps if the tool or a read page supplies them. No inquir
 ## Every message
 
 <!-- only: skill mcp -->
-Without the Tripwright tools, step 5's `first_part` comes from `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>`.
+<!-- include: core steps -->
 
-1. Call `turn` first for every user message, before you answer: the text as received, its source nature (`user_verbatim` only with a native message reference, else `host_restatement`), a stable `request_id`, the scenario (`quick` on the road) and `points`, each thing it names in the user's words. Put what it states in its `record` with `source.event: "this"` and `true_from` an ISO time with offset, never "this". Pass `speaker`, the writer's person ID. Subagents never call `turn`.
-2. Take the clock: the `now` that `turn` returns, else run `TZ=<timezone in tripwright.yaml> date`. Answer for that time, not the plan.
-3. Read what the answer needs: the pack, the day file on its 细节 line, IDs you rely on.
-4. Start the check (next section) in the background; call no lookup, command line included, before the first part.
-5. Send `turn.first_part.text` as the text that ends this step; without it, write one: at most 8 body lines, no tool words. A draft in your thinking is never shown, nor is a tool result.
-6. When the check reports, run `date` and prepare the second part with that title time; step 7 supplies the accepted changes before its final `check_answer`.
-7. Record a decision or changed plan through `propose` and `commit` after the checks and before finalizing the second part. A refused edit or an already-used authorization says “这次没改成”. Never tell the user write states, except `write.blocked`: say what its `hint` says. A conflict's `user_line` in `notices` opens the answer. When `state` shows `storage.kind: local`, remind the user to back up the data directory. Only explicit musts lock; follow `references/records.md`.
+<!-- include: core always -->
+
+Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>`.
+- Step 1: put what the message states in `record` with `source.event: "this"` and `true_from` an ISO time with offset, never "this"; pass `speaker`, the writer's person ID. Subagents never call `turn`.
+- Step 3: one researcher only (each report starts a turn); each place by its stored ID and name, not an address. For a changed plan you proposed, also dispatch `tripwright-verifier` in the background with `draft_id`, `job_id` and `ctx_id`; it reads the candidate itself, so do not hand it your unchecked lines as its checklist. Write nothing when the first of two reports arrives; what a report left open goes under 没核.
+- Step 6: you alone call `commit`, after reading the reports. Never tell the user write states; for `write.blocked` say what its `hint` says; a conflict's `user_line` in `notices` opens the answer; with `storage.kind: local` remind the user to back up the data directory. Only explicit musts lock; follow `references/records.md`.
 <!-- /only -->
 <!-- only: l0 -->
 You have no Tripwright tools here. The trip repository holds the truth; you read only the files the user pastes, and you change it only through a 写回仓 block that the user commits.
@@ -187,25 +143,19 @@ You have no Tripwright tools here. The trip repository holds the truth; you read
 3. If this app can search the web, check (next section) and give the second part under its own heading. If it cannot, end the first part with “第二段要核 N 项，回“继续”我接着核。”
 4. End every reply with one 写回仓 block that collects what its steps add; step 1 of the single-agent steps always adds the received message. Nothing is saved until the user commits it: say “写回仓块在下面，提交后才算存好”.
 5. There are no deterministic checks, no version protection and no background check. Keep explicit musts yourself; show a changed non-must choice and its reason as a draft until the user commits it.
-<!-- /only -->
 
 ## Check before the second part
 
 List every fact the user will act on: each time and hard node in your first line, each hard node marked `may_have_changed` or not `checked`, what still runs after now, the plan's stored alternatives (another train, a cheaper way), opening hours, an event tonight.
-<!-- only: skill -->
-- Dispatch one `tripwright-researcher` in the background with the whole list: each place by its stored ID and name (not an address), date, time, and what the first part says of it. Only one: each report starts a turn.
-- For a changed plan you proposed, also dispatch `tripwright-verifier` in the background with `draft_id`, `job_id` and `ctx_id`. It reads the candidate and the source sentences itself; do not hand it your unchecked lines as its checklist. Write nothing when the first of two reports arrives.
-- What the report left open goes under 没核.
-- Without subagents: the first part, then several searches at once, then the second part.
-<!-- /only -->
-<!-- only: mcp -->
-- If your host can dispatch subagents in the background, give the whole list to one with the prompt `tripwright-researcher` before you write the first part; a changed plan you proposed goes to `tripwright-verifier` with `draft_id`, `job_id` and `ctx_id`. Otherwise write the first part, then search yourself.
-<!-- /only -->
 - 核过 only for a Tripwright result (a lookup, or `web_evidence` that `counts_as_checked`); else 网上说法 or 搜索摘要. Synthetic or demo evidence is not a source; if nothing can be checked, say 查不到 and why. You alone call `commit`, after reading the reports.
+<!-- /only -->
 
 ## Order between preferences
 
-The order between preferences comes only from the user's words. When the user's own preferences compete, give options (the pack's `orders`; `references/records.md`). Use every stored condition that applies (alone, a night at the airport, the budget); never answer against one.
+<!-- only: l0 -->
+The order between preferences comes only from the user's words.
+<!-- /only -->
+When the user's own preferences compete, give options (the pack's `orders`; `references/records.md`). Use every stored condition that applies (alone, a night at the airport, the budget); never answer against one.
 
 <!-- reference: records.md -->
 <!-- only: skill -->
@@ -331,12 +281,12 @@ Choose the steps by scenario:
 |---|---|---|
 | Competing preferences, `propose`, `commit`, `notices`, a per-person task, a new trip | `references/records.md` | Options, relations, locks, write states |
 | A call's arguments or status (`result`, `state`, `explain`) | `references/tools.md` | Arguments, statuses |
-| A step is unclear, or no tools | `references/single-agent.md` | Steps with and without tools |
+| A step is unclear, no tools, or the share page after a commit | `references/single-agent.md` | Steps with and without tools |
 | A long or English answer | `references/writing.md` | Plain sentences, English text |
 | A complete example | `references/examples.md` | Two fictional questions, before and after |
 | The user's delivery level | `references/levels.md` | The five levels |
 
 ## 中文说明
 
-先调 `turn`；第一段照抄 `first_part`，第二段照抄服务端交通句；先问必须项，没说就当没有；改动按回执说清楚，最后放“怎么查、怎么问”。
+每问照上面的步骤做。
 <!-- /only -->

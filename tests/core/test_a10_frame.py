@@ -330,9 +330,10 @@ def test_turn_drafts_the_first_part_from_stored_data_and_next_says_send_it_first
     assert first["text"] == "\n".join(first["lines"]) and len(first["lines"]) <= 8
     # D-64 two (A10 replay): the stored “只剩 23:53 末班” sentence and its “这条作废” never enter the first part
     assert "23:53" not in first["text"] and "作废" not in first["text"] and "只剩" not in first["text"]
-    # A12: without the question's points, next first asks for them; then the A10 order
+    # A12: without the question's points, next first asks for them; then the A10 order (S4a: then turn's steps, whose
+    # step 4 says whether the check follows in this reply or after the user's next message)
     assert turn["next"].startswith("这一问没给 points：first_part 只按存的计划写") and (
-        "先把 first_part.text 原样发给用户（只可改称呼和语言），再去查。用户只看到第一段和第二段两条消息：第一段之前、两段之间不发任何状态句。"
+        "先把 first_part.text 原样发给用户（只可改称呼和语言），再照 steps 往下做。用户只看到第一段和第二段两条消息：第一段之前、两段之间不发任何状态句。"
         in turn["next"])
     assert "latest_departure 只给 origin 和 destination" in turn["next"] and "第二段过了 check_answer 才发，只发一次" in turn["next"]
     # the draft passes the first part's checks; a9b's English status line does not

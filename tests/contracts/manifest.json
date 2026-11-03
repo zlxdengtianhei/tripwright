@@ -17,7 +17,7 @@
       "src/tripwright/evidence.py", "src/tripwright/locks.py", "src/tripwright/query.py", "src/tripwright/providers/**",
       "src/tripwright/solver/**", "tests/providers/**", "tests/solver/**"]},
     "main": {"name": "主会话与接缝负责人", "paths": [
-      "pyproject.toml", "uv.lock", "uv.toml", ".python-version", ".gitignore", ".github/**", "README.md", "LICENSE",
+      "pyproject.toml", "uv.lock", "uv.toml", ".python-version", ".gitignore", ".github/**", "README.md", "README.zh-CN.md", "LICENSE",
       "homepage/**", "scripts/**", "deploy/**", "docs/CONNECT.md", "docs/DATA_SOURCES.md", "docs/CONTRACTS.md", "tests/contracts/**", "tests/fixtures/contract_sample/**"]},
     "shared_append": {"name": "各块只在末尾追加自己的节", "paths": ["docs/DECISIONS-impl.md"]}
   },

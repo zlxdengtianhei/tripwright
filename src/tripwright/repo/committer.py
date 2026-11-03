@@ -480,20 +480,7 @@ class Committer:
             self.lock.release()
 
     def status(self) -> dict:
-        record = self.head_record() or {}
-        checked = record.get("head_checked_at")
-        age = None
-        if checked:
-            age = int((datetime.now(timezone.utc) - datetime.fromisoformat(checked)).total_seconds())
-        status = dict(canonical=self.repo.canonical(), head=record.get("head"), head_checked_at=checked, head_age_seconds=age,
-                      remote_reachable=self.reachable, unsynced=len(self.outbox.open(self.owner)),
-                      oldest_unsynced_at=self.outbox.oldest(self.owner))
-        blocked = self.outbox.blocked(self.owner)
-        if blocked:
-            status["blocked"] = blocked
-        if not self.repo.remote():
-            status["storage"] = dict(kind="local", note=LOCAL_NOTE)
-        return status
+        return status_of(self.store, self.repo, self.owner, reachable=self.reachable)
 
 
 LOCAL_NOTE = ("No remote repository: the trip's files exist only in this copy (on the server's data volume, or in this "
@@ -503,3 +490,51 @@ LOCAL_NOTE = ("No remote repository: the trip's files exist only in this copy (o
 def _tail(text: str, limit: int = 300) -> str:
     """The last lines of a Git error, on one line and bounded, for a log line or a stored reason."""
     return " | ".join(line.strip() for line in str(text).strip().splitlines()[-3:] if line.strip())[-limit:]
+
+
+def status_of(store, repository, owner: str, *, reachable: bool | None = None) -> dict:
+    """The canonical head, unsynced writes and the oldest one, as the index records them."""
+    outbox = Outbox(store)
+    record = repo_head(store, owner) or {}
+    checked = record.get("head_checked_at")
+    age = None
+    if checked:
+        age = int((datetime.now(timezone.utc) - datetime.fromisoformat(checked)).total_seconds())
+    status = dict(canonical=repository.canonical(), head=record.get("head"), head_checked_at=checked, head_age_seconds=age,
+                  remote_reachable=reachable, unsynced=len(outbox.open(owner)), oldest_unsynced_at=outbox.oldest(owner))
+    blocked = outbox.blocked(owner)
+    if blocked:
+        status["blocked"] = blocked
+    if not repository.remote():
+        status["storage"] = dict(kind="local", note=LOCAL_NOTE)
+    return status
+
+
+def read_status(repository) -> dict:
+    """`tripwright status` (s4b): what the copy and its index hold, read only. Nothing is fetched, pushed or committed
+    and the index is not rebuilt, so `canonical` is as of the last fetch and `unsynced` counts the writes the index
+    knows; `sync` (or any write) brings both up to date. Opening the trip to answer this used to attach the index and
+    flush at shutdown, which pushed whatever HEAD held."""
+    from tripwright.storage import Store
+
+    head = repository.git.rev("HEAD")
+    if repository.state_path.is_file():
+        store = Store(repository.state_path, read_only=True)
+        try:
+            status = status_of(store, repository, repository.owner)
+            indexed = (repo_head(store, repository.owner) or {}).get("commit")
+        finally:
+            store.close()
+    else:
+        status = dict(canonical=repository.canonical(), head=None, unsynced=None, oldest_unsynced_at=None)
+        indexed = None
+    status.update(head=short(head), index_head=short(indexed), index_at_head=indexed is not None and indexed == head,
+                  remote_reachable=None, fetched=False)
+    if indexed is None:
+        status["note"] = "This copy has no index yet: unsynced is unknown. `tripwright sync` builds it, fetches and pushes."
+    elif indexed != head:
+        status["note"] = (f"The index was built from {short(indexed)}, not HEAD {short(head)}: unsynced counts the writes it "
+                          "knows. Nothing was fetched; `tripwright sync` brings the index and the remote up to date.")
+    else:
+        status["note"] = "Read only: nothing was fetched or pushed; canonical is as of the last fetch (`tripwright sync` fetches)."
+    return status

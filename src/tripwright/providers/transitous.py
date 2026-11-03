@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 from . import coverage
 from .base import Itinerary, Leg, Place, Sourced
-from .common import HTTPProvider, ProviderError, RollingBudget, budgeted, gather_cancel, validate_limit, validate_place
+from .common import HTTPProvider, ProviderError, RollingBudget, SharedLookups, budgeted, gather_cancel, validate_limit, validate_place
 
 MODES = ("TRAM,SUBWAY,FERRY,BUS,COACH,RAIL,HIGHSPEED_RAIL,LONG_DISTANCE,NIGHT_RAIL,"
          "REGIONAL_FAST_RAIL,REGIONAL_RAIL,SUBURBAN,FUNICULAR,AERIAL_LIFT,CABLE_CAR,OTHER")
@@ -34,6 +34,13 @@ def usage_path() -> Path:
     if given:
         return Path(given)
     return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "tripwright" / "transitous-routing.log"
+
+
+def shared_folder(usage: Path) -> Path:
+    """Where the answers and pacing shared across processes live: TRIPWRIGHT_TRANSITOUS_SHARED, else beside the
+    route-search counter (on a server, the data volume)."""
+    given = os.environ.get("TRIPWRIGHT_TRANSITOUS_SHARED")
+    return Path(given) if given else usage.parent / "transitous-shared"
 
 
 def headsign(value) -> str | None:
@@ -141,6 +148,9 @@ class TransitousProvider(HTTPProvider):
         # Shared across processes when this instance talks to the real network (it made its own client) or a file is named.
         shared = usage_file or (usage_path() if self.owns_client or os.environ.get("TRIPWRIGHT_TRANSITOUS_USAGE") else None)
         self.routing = RollingBudget(limit, path=shared, source=self.source)
+        if self.shared is None and shared:
+            # Answers and pacing shared across processes, beside the shared counter (s4b): see SharedLookups.
+            self.shared = SharedLookups(shared_folder(Path(shared)))
         reason = (f"At most {limit} route searches in 24 hours (Transitous's terms for one user); try again later "
                   "or check the operator's timetable by hand")
         self.budgets = {path: (self.routing, reason) for path in ROUTING}

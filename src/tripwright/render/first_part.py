@@ -34,6 +34,9 @@ from pydantic import BaseModel, ConfigDict, Field
 LATEST = re.compile(r"最晚|末班|最后一班|几点(?:出发|走|出门|动身|去)|来得及|来不及|赶得上|赶不上|赶紧|还有(?:车|班)|"
                     r"\blast (?:train|bus|connection|one)\b|\blatest\b|\bin time\b|\bhurry\b", re.I)
 LINES = 8
+# S4a: the line that ends a reply with the first part in an app that cannot show text between tool calls (core step 4);
+# turn returns it as first_part.later. S4a2: check_answer and the Stop hook take it as the first part's last line.
+LATER = dict(zh="要核过的第二段，回我一句“继续”。", en="Reply “go on” for the checked second part.")
 NODES = 3  # hard nodes the draft names
 # a stored claim as packs.archived_claims rewrote it inside a node's text: left out of the draft
 ARCHIVED = re.compile(r"计划里写过“[^”]*”（存档[^）]*）。?|the plan stored \"[^\"]*\" \(archived[^)]*\)\.?")

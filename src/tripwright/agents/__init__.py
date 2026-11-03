@@ -35,10 +35,17 @@ def server_instructions() -> str:
     return _without_notice(_generated("server/instructions.md")).strip()
 
 
+def core_steps() -> dict:
+    """The steps of every message and the rules that always hold (core.yaml, S4a), as `turn` returns them."""
+    document = json.loads(_generated("server/steps.json"))
+    return dict(steps=document["steps"], always=document["always"])
+
+
 def user_repo_files() -> dict[str, bytes]:
     """Repository-relative path → bytes for the files block C decides in a user's trip repository."""
     base = files(__package__)
-    output = {"AGENTS.md": base.joinpath("templates/AGENTS.md.tmpl").read_bytes(),
+    # AGENTS.md is the template with the core steps filled in by the build (S4a); CLAUDE.md imports it.
+    output = {"AGENTS.md": _without_notice(_generated("repo/AGENTS.init.md")).encode(),
               "CLAUDE.md": base.joinpath("templates/CLAUDE.md.tmpl").read_bytes(),
               # Registers the server as `tripwright`, the name the subagents' tool restrictions use.
               ".mcp.json": base.joinpath("templates/mcp.json.tmpl").read_bytes(),
