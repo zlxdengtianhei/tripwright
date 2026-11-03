@@ -1087,3 +1087,31 @@ Field table (one row per model field; `tests/core/test_b3f_field_table.py` keeps
   - 重放仓的两家岩馆 `opening_hours` 是空的（营业时间只在 `hours` 文字里），第三条在那份数据上不生效，要补 `opening_hours`。
   - 下一步只认解析出的地点；“去市区”这类没解析的 do 不改起点。宿主在完整安排里另定的主选，服务端仍不知道。
   - 相似度只比拉丁字母；中文地名只认包含。
+
+## A17：A16 自重放里的两处小毛病（2026-11-03，主会话自重放 a16_self_on_r1、a16_self_off_r1）
+
+依据：两轮自重放的回复原文与工具流。每条有重放形状的坏样本与合法对照（`tests/core/test_a17_fixes.py`、`tests/agents/test_a17_dispatch.py`）；源码退回基线（610d7735）后三条都在坏样本处不过。
+
+- **一、第一段同一行出现两次（`first_part.point_draft`）。**
+  - 来源：off 轮第一问，宿主把“最晚几点出发机场”和“怎么走”拆成两个 go 要点，地点都是机场；第一段按要点各出一行，第 1 行与第 4 行相同。on 轮宿主只给了一个 go 要点，没出。
+  - 改：同一种类、同一地点（解析出的地点，没解析时是宿主给的 place）的要点合成一行，取排在前面的那个；没有地点的要点不合并（各说各的）。整段再去掉完全相同的行，合并后腾出的行留给硬节点。`turn` 与命令行 `first-part` 都经 `point_draft`，一处改两处管。`first_part.points` 仍每个要点一项，合并的几项 `line` 相同，`answers_each_point` 照旧逐个核。
+- **二、没有 MCP 时第一段前的两句英文状态句。**
+  - 第一句（19.6 秒，“the points format needs objects, so I'm retrying”）：宿主第一次调 `first-part` 时 `--points` 给的是字符串列表，命令报 pydantic 原文退出 1。改：命令行 `read_points` 把列表里的字符串当成 `{kind: other, said}`（去空白，空串略去，超过 60 字截断，与 `Point.said` 的上限一致）；真格式错（不是 JSON、不是列表、kind 不对、元素不是对象）照旧退出 1，错误末尾加一个可照抄的例子；顺带把整体不是列表时的路径从“points.”改成“points”。字符串要点没有种类，第一段对它们只写“…：第二段给。”，不给存的车；要存的车，宿主得给 kind 与 place（例子里有）。
+  - 第二句（38.2 秒，“I'm still checking tonight's actual departures…”）：宿主在后台派出 researcher 之后、第一段之前写的。查了主角色与步骤页，没有一句让它在第一段前说话；有一句让它“以为第一段已经发了”：派单那条要它把“what the first part says of it”交给 researcher，而 D-46 的顺序是先派、再把第一段写成这一步最后的文字。两轮四次派单（on、off 各两问）的 prompt 里都写了“First part already told user”或“The first part said”，当时第一段一次都还没发；派完之后 on 轮没写字、接着自己调了查询，外壳补了一句“没有可见输出”才发第一段；off 轮写了这句状态句，Stop 钩子拦下后才发第一段。
+  - 改（主角色，生成的主 SKILL 12,130 → 12,129 字节，一进一出）：派单那条改成交“what the plan stores of it”；第 5 步末句“A draft in your thinking is never shown, nor is a tool result.”换成“The user sees no dispatch, draft in your thinking or tool result.”。researcher 回报格式的 `answer line` 跟着改成“what the plan stored”。新承诺 `dispatch-carries-the-plan`：主 SKILL 要有新说法、不许出现旧说法；`multi-agent-first` 的对应一条换成新句。D-46 的顺序（先在后台派、再发第一段）不变。
+- **限制。**
+  - 第二句的改法是说明文字，宿主照不照做要看下一次重放；钩子没有改（Stop 钩子已经会拦“I'm still”这类状态句，但拦的时候用户已经看到了）。
+  - `turn.next` 里“先把 first_part.text 原样发给用户，再去查”没改：后台派单不算查询（PreToolUse 钩子放行），与 D-46 不冲突。
+
+## A17b：退回 A17 的两处，留下去重（2026-11-03，主会话自重放 a17_self_*）
+
+依据：主会话用 A17 跑的 5 轮自重放，与 A16 的 2 轮比。
+
+- **为什么退。**
+  - 第一段前、两段之间多发状态句的问，从 4 问里 1 问变成 10 问里 7 问（“还在核第二段，马上发。”“上面发的第二段已经核过，内容不变，不用再看一遍。”“正在核今晚去机场的车次，核完发第二段。”）。主会话判断最可能来自 A17 改的两句回答层说明；单轮波动也可能，但比例差太大。
+  - 没有 MCP 时宿主照旧把 `--points` 写成字符串列表，A17 把它们当 other，第一段只剩“今晚到明天：第二段给。”这类行，答不了所问（a17_self_off_r2、off_r3 第一问）。A16 时报错，宿主改成对象重试，第一段反而是对的。
+  - 去重有效：5 轮里没再出现重复行。
+- **退回。** 主角色第 5 步末句（“A draft in your thinking is never shown, nor is a tool result.”）、派单那条（“what the first part says of it”）、研究员回报格式的 `answer line`、`promises.py`（`multi-agent-first` 原句，去掉 `dispatch-carries-the-plan`）都回到基线原文，生成件重建；主 SKILL 回到 12,130 字节，`agents/`、`skills/` 与基线无差。`tests/agents/test_a17_dispatch.py` 删去。
+- **命令行 `first-part --points`。** 字符串列表照 A16 报 pydantic 原文退出 1，错误末尾保留 A17 加的可照抄的例子（`cli.read_points`）；其他格式错同样带例子。整体不是列表时错误路径写“points”而不是“points.”，保留。
+- **留下。** `first_part.point_draft` 的合并与去重（A17 第一条）不变。
+- **测试。** `tests/core/test_a17_fixes.py`：`test_points_of_one_kind_to_one_place_share_one_line` 照旧；字符串那条改成 `test_the_command_line_refuses_plain_strings_with_a_right_shape_to_copy`（坏样本：重放的三个字符串，退出 1、信息里有例子；对照：例子换上行程的地点编号后出带存档车的第一段）。源码退回基线后两条都在坏样本处不过。

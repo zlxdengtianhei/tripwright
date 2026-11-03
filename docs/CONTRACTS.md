@@ -153,6 +153,9 @@ A（仓、状态与快照）、B（渲染与输出）、C（角色、步骤与�
   - 地点解析：points 的 `place`（at、go、do）先按 ID 与存的名字（`match_place`），再在存的地点名（中文名“（”前、原文名地址前）里找被 place 或用户原话包含的唯一一处，再按拉丁字母相似度（≥ 0.68，且比第二名高 0.15）取唯一一处；都不中就不解析。
   - `check_answer`：`search_matches_main` 改核“怎么查”的搜索起点站与出发时间等于框里主选第一程（旧框照旧核时刻）；第二段加 `leave_before_closing`（一行的“HH:MM 出门”是今晚从这个起点找到的出门时刻、又晚于框里的 `closes`）；两段都加 `per_person_alone`（存的票价都只对一个人时出现“/人”“每人”）；第一段加 `latest_needs_lookup`（“最晚、末班、最后一班”挨着时刻，而这行没有“HH:MM 查过”）；`no_process_notes` 也拦“连续查全”“在这次的查询结果里”。PreToolUse 与 Stop 钩子要第一段时的理由改成“（现在怎么走；没查过的最晚、末班不写）”。
   - 命令行 `tripwright first-part --text … [--points JSON] [--speaker id]`：没有 MCP 时出与 `turn.first_part` 相同的第一段（JSON：`now`、`first_part`、`points`、`next`），不记消息、不留上下文；它不是查询，PreToolUse 钩子不拦。
+- **A16 自重放里的两处（A17）：**
+  - 第一段（给了 points）：同一种类、同一地点（解析出的地点或宿主给的 place）的要点合成一行；整段不出完全相同的行。`turn` 与命令行 `first-part` 同一处出。`first_part.points` 仍每个要点一项，合并的几项 `line` 相同。
+  - 命令行 `first-part --points`：格式错（含字符串列表）照旧退出 1，错误信息末尾给一个可以照抄的正确例子。
 
 ## 4 源文件与生成文件
 

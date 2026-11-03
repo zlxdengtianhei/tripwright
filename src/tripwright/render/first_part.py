@@ -90,7 +90,7 @@ def checked_points(points: list | None) -> list[dict] | None:
         found = [point.model_dump() for point in TypeAdapter(list[Point]).validate_python(points)]
     except ValidationError as error:
         raise ValueError("Invalid points: " + "; ".join(
-            f"points.{'.'.join(str(part) for part in problem['loc'])}: {problem['msg']}" for problem in error.errors())) from None
+            f"points{''.join(f'.{part}' for part in problem['loc'])}: {problem['msg']}" for problem in error.errors())) from None
     if len(found) > POINTS or sum(point["kind"] == "at" for point in found) > 1:
         raise ValueError(f"Invalid points: at most {POINTS} points with one 'at' (where the user is), got {len(found)} "
                          f"with {sum(point['kind'] == 'at' for point in found)}")
@@ -208,9 +208,10 @@ def place_head(where: dict | None, clock: str, said: dict) -> str:
 def point_draft(question: str, now: dict, anchors: list[dict], plan: dict | None, told: dict, language: str = "zh") -> dict:
     """The first part from this question's points (`told`: packs.point_facts): line 1 answers the first point (getting
     somewhere first: a time to keep comes before a meal), line 2 the clock and where the user is (said, or assumed from
-    the plan), one line per other point, then at most one hard node: the next time to be somewhere, at a place the
-    question goes to when there is one (A14, quality judge 7: three lines of tomorrow's airport times crowded out what
-    was asked; the plan's own train is in the go line), the last line what part 2 checks. At most LINES."""
+    the plan), one line per other point (points of one kind to one place share one), then at most one hard node: the
+    next time to be somewhere, at a place the question goes to when there is one (A14, quality judge 7: three lines of
+    tomorrow's airport times crowded out what was asked; the plan's own train is in the go line), the last line what
+    part 2 checks. At most LINES."""
     said, words = POINT_WORDS.get(language, POINT_WORDS["en"]), WORDS.get(language, WORDS["en"])
     where = told["at"]
     points = sorted(told["points"], key=lambda point: point["kind"] != "go")
@@ -219,14 +220,21 @@ def point_draft(question: str, now: dict, anchors: list[dict], plan: dict | None
     # the plan's way to its train goes under where the user is (A16): line 1 says when, this one how
     ways = [said["way"].format(how=point["facts"]["way"]["how"]) for point in points[:1] if point["kind"] == "go"
             and not point["facts"].get("frame") and point["facts"].get("train") and (point["facts"].get("way") or {}).get("how")]
-    lines = [answers[0], head, *ways, *answers[1:]] if answers else [said["plain"], head]
+    # A17 (self replay off_r1): “最晚几点出发机场” and “怎么走” were two go points to the airport, and the same line came
+    # twice; one line per kind and place, and no line twice
+    kept, seen = [], set()
+    for point, answer in zip(points, answers):
+        if point["place"] is None or (point["kind"], point["place"]) not in seen:
+            kept.append(answer)
+        seen.add((point["kind"], point["place"]))
+    lines = list(dict.fromkeys([kept[0], head, *ways, *kept[1:]] if kept else [said["plain"], head]))
     from tripwright.query import anchor_meaning
 
     going = {point["place"] for point in points if point["kind"] == "go"}
     be_there = sorted((anchor for anchor in anchors if not anchor.get("passed") and anchor_meaning(anchor) == "arrival_deadline"
                        and anchor.get("deadline") != "plan"), key=lambda anchor: (anchor.get("place") not in going, anchor["date"], anchor["time"]))
     nodes = [node_line(anchor, plan, now["date"], words) for anchor in be_there[:1]] if len(lines) < LINES - 1 else []
-    lines = [*lines[:LINES - 1], *nodes, said["tail"]]
+    lines = list(dict.fromkeys([*lines[:LINES - 1], *nodes, said["tail"]]))
     return dict(text="\n".join(lines), lines=lines, asks_latest=asks_latest(question) or any(point["kind"] == "go" for point in points),
                 points=[dict(kind=point["kind"], said=point["said"], line=line) for point, line in zip(points, answers)],
                 at={key: value for key, value in where.items() if key != "coords"} if where else None)

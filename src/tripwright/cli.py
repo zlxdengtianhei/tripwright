@@ -96,6 +96,28 @@ def run_query(arguments) -> int:
     return 0
 
 
+POINTS_EXAMPLE = ('for example --points \'[{"kind": "go", "said": "最晚几点出发去机场", "place": "<place ID or stored name>"}, '
+                  '{"kind": "eat", "said": "想吃点东西"}]\'')
+
+
+def read_points(raw: str | None) -> list[dict] | None:
+    """first-part's --points as turn takes them; a wrong shape is refused with a right one to copy (A17, self replay
+    off_r1: a list of plain strings was refused with pydantic's words alone). Plain strings stay refused (A17b): read as
+    points of kind other, the first part answered none of what was asked; refused, the host retried with objects."""
+    from tripwright.render.first_part import checked_points
+
+    if not raw:
+        return None
+    try:
+        points = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"--points must be a JSON list: {error}; {POINTS_EXAMPLE}") from None
+    try:
+        return checked_points(points)
+    except ValueError as error:
+        raise ValueError(f"{error}; {POINTS_EXAMPLE}") from None
+
+
 def run_first_part(arguments) -> int:
     """turn's first part for a host whose Tripwright tools are down (A16): the draft from the stored trip as JSON on
     stdout (`first_part.text` is what to send, `next` what to do), its text on stderr. Records nothing."""
@@ -104,10 +126,7 @@ def run_first_part(arguments) -> int:
             if arguments.text_file else arguments.text
         if not str(text or "").strip():
             raise ValueError("first-part needs the user's message: --text or --text-file")
-        try:
-            points = json.loads(arguments.points) if arguments.points else None
-        except json.JSONDecodeError as error:
-            raise ValueError(f"--points must be a JSON list: {error}") from None
+        points = read_points(arguments.points)
         store, service = open_service(arguments, providers="synthetic")
     except (ValueError, OSError, GitError) as error:
         print(f"tripwright: {error}", file=sys.stderr)
