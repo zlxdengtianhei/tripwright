@@ -604,7 +604,14 @@ def test_check_answer_without_any_message_reads_no_question(tmp_path, monkeypatc
     fixed(monkeypatch)
     database = tmp_path / "empty.sqlite3"
     Store(database).close()
-    result = cli_check(database, GOOD_SECOND.replace("核过：", "没核：").replace("（20:45）", ""), tmp_path, capsys)
+    draft = GOOD_SECOND.replace("核过：", "没核：").replace("（20:45）", "")
+    # S4h-b: with no recorded turn at all the command line refuses (an unanchored check once passed as "本问原话不明")
+    code = main(["--db", str(database), "query", "check_answer", "--part", "second", "--text", draft, "--providers", "synthetic"])
+    captured = capsys.readouterr()
+    assert code == 1 and captured.out == ""
+    assert "no recorded turn" in captured.err and "--request-id" in captured.err and "tripwright" in captured.err
+    # the service itself still answers with no question (no meal check), as over MCP
+    result = over_mcp(database, monkeypatch, text=draft)
     assert "meals_named" not in {entry["check"] for entry in result["problems"]}
 
 
@@ -778,7 +785,8 @@ def answer_check(database: Path, text: str, tmp_path: Path, monkeypatch, capsys,
     printed = capsys.readouterr()
     assert code == 0, printed.err
     result = json.loads(printed.out)
-    assert printed.err.strip() == result["summary"]
+    # S4h-b: without --request-id the command line may say on stderr which turn it took, before the summary
+    assert printed.err.strip().splitlines()[-1] == result["summary"]
     return result
 
 
@@ -788,10 +796,12 @@ def over_mcp(database: Path, monkeypatch, **arguments) -> dict:
 
 
 def test_without_question_or_request_id_check_answer_reads_only_a_recent_users_message(asked_db, tmp_path, monkeypatch, capsys):
-    # the setup message is not the user's, the hungry one is 40 minutes old: the question is unknown, no meal check
-    unknown = answer_check(asked_db, PLAIN_SECOND, tmp_path, monkeypatch, capsys)
+    # S4h-b: the command line takes the session's latest turn itself (the setup message is system-channel, so the
+    # hungry one 40 minutes old is still this session's question); the MCP path still reads only a recent message
+    hungry_early = answer_check(asked_db, PLAIN_SECOND, tmp_path, monkeypatch, capsys)
+    assert failing(hungry_early) == {"meals_named": [None]} and UNKNOWN not in hungry_early["summary"]
+    unknown = over_mcp(asked_db, monkeypatch, text=PLAIN_SECOND)
     assert unknown["ok"] and unknown["summary"] == "草稿可以发。" + UNKNOWN
-    assert over_mcp(asked_db, monkeypatch, text=PLAIN_SECOND) == unknown  # MCP and the command line: the same result
     # the user asks again 10 minutes ago: that message is this question
     at_moment(asked_db, monkeypatch, NOW - timedelta(minutes=10), lambda service: service.turn("local", "饿了，路上能吃点什么？", "again"))
     fixed(monkeypatch, NOW)

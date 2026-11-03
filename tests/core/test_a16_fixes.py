@@ -164,14 +164,14 @@ def test_no_time_to_leave_is_later_than_the_origin_closes(make):
     assert found["origin_closes"] == "22:10"
     # the plan's train leaves 23 minutes after closing: out at closing, then to the stop; the last train an hour later
     # is its boarding alone (the replay: “22:00 关门” beside “22:11 出门”)
-    assert "计划里的 22:53 REX 7 赶得上：22:10 关门出来，走到 Wien Matzleinsdorfer Platz 坐 22:33 的 D" in said
+    assert "计划里的 22:53 REX 7 赶得上：22:10 关门出来（按存的营业时间），走到 Wien Matzleinsdorfer Platz 坐 22:33 的 D" in said
     assert said[0].endswith("火车最后一班 00:53 REX 7（最晚 00:33 在 Wien Matzleinsdorfer Platz 上车）")
     assert said[1].startswith("这班火车怎么坐：00:33 在 Wien Matzleinsdorfer Platz 上车，换 1 次车：00:33 D")
     assert not any(re.search(r"2[2-3]:[1-5]\d 出门|0\d:\d\d 出门", line) for line in said[:3])
     assert problems(service, second_part(said[0], *said[1:])) == {}
     # bad samples: the replay's shape, a time to leave the lookup found but after the closing
     bad = problems(service, second_part(said[0], "计划里的 22:53 REX 7 赶得上：22:30 出门"))
-    assert bad["leave_before_closing"] == ["写 22:30 出门，起点 22:10 就关门 | 照 latest_departure 的句子写“22:10 关门出来，走到 … 坐 HH:MM 的车”，"
+    assert bad["leave_before_closing"] == ["写 22:30 出门，起点 22:10 就关门 | 照 latest_departure 的句子写“22:10 关门出来（按存的营业时间），走到 … 坐 HH:MM 的车”，"
                                            "或写从关门时刻起算的那班"]
     # control: no stored hours, nothing to hold the time to
     open_late = make()

@@ -1234,8 +1234,8 @@ LAST_SAY = {"zh": dict(last="今晚最后一班：{sentence}", regular="不用�
                        plan_found_as="计划里的 {time} {line} 赶得上（时刻表里叫 {found}）：{leave}",
                        plan_missing="计划里的 {time} {line} 这次没在时刻表数据里找到（可能没收录，或车次号不同）：要坐它，先在 {app}核一下",
                        app="交通 App", step="按你先去{name}算（你说的“{said}”）",
-                       leave="{leave} 出门", latest="最晚 {leave} 出门", closing="{closes} 关门出来，走到 {stop}",
-                       closing_ride="{closes} 关门出来，走到 {stop} 坐 {board} 的 {line}", board="{board} 在 {stop} 上车",
+                       leave="{leave} 出门", latest="最晚 {leave} 出门", closing="{closes} 关门出来（按存的营业时间），走到 {stop}",
+                       closing_ride="{closes} 关门出来（按存的营业时间），走到 {stop} 坐 {board} 的 {line}", board="{board} 在 {stop} 上车",
                        latest_board="最晚 {board} 在 {stop} 上车", reach="，{reach} 到"),
             "en": dict(last="Tonight's last connection: {sentence}", regular="The last one without an extra ticket: {sentence}",
                        rail="The last train, {board}: {sentence}", rail_how="How to take that train: {sentence}",
@@ -1255,8 +1255,8 @@ LAST_SAY = {"zh": dict(last="今晚最后一班：{sentence}", regular="不用�
                        plan_missing="The plan's {time} {line} was not found in the timetable data this time (it may be missing, or "
                                     "numbered differently): to take it, check it in {app} first", app="the transit app",
                        step="Counted from {name}, where you go next (you said “{said}”)",
-                       leave="leave {leave}", latest="leave by {leave}", closing="out at closing, {closes}, walk to {stop}",
-                       closing_ride="out at closing, {closes}, walk to {stop} for the {board} {line}", board="board at {stop} at {board}",
+                       leave="leave {leave}", latest="leave by {leave}", closing="out at closing, {closes} (stored opening hours), walk to {stop}",
+                       closing_ride="out at closing, {closes} (stored opening hours), walk to {stop} for the {board} {line}", board="board at {stop} at {board}",
                        latest_board="board at {stop} by {board}", reach=", arrive {reach}")}
 
 
@@ -1336,6 +1336,8 @@ def margin_text(text: str | None, when: str, time: str, language: str) -> str:
 NAMED_MODES = ("tram",)
 # A16 (quality judge 8, 3 of 3 runs): “22:00 关门” beside “22:11 出门”. From an origin that closes before a connection
 # leaves, the user walks out at closing; up to this wait for the first ride that is how it is said, longer the boarding.
+# S4h-a (stage 4 exit judge): the closing time is the stored opening hours, no lookup's, and the sentence says so; a line
+# marked 核过 that copies it passed no check (“22:00 不在工具查到的结果里”), and every run dropped the time to leave the gym.
 CLOSE_WAIT = timedelta(minutes=30)
 
 

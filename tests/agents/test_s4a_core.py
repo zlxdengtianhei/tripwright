@@ -85,7 +85,8 @@ def test_codex_is_told_to_spawn_the_researcher_and_no_entry_must_have_subagents(
 
 def test_the_main_skill_did_not_grow(outputs):
     # S4a: 12,130 bytes before; the core steps replaced the skill's own steps and check section
-    assert len(outputs[MAIN].encode()) <= 12130
+    # S4h-b: 12,225 bytes, step 1's wait-for-the-tools sentence (a deliberate growth, pinned once)
+    assert len(outputs[MAIN].encode()) <= 12225
 
 
 def test_sources_load_the_core_from_the_checkout():

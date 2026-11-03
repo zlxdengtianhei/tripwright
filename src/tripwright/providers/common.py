@@ -21,7 +21,7 @@ from pathlib import Path
 import httpx
 
 from tripwright import __version__
-from tripwright.storage import clock as storage_clock
+from tripwright.storage import clock as storage_clock, pinned_since
 
 from .base import Place, ProviderUnavailable, Sourced
 
@@ -519,8 +519,14 @@ class HTTPProvider:
             _shelf_terms.reset(terms)
         fetched = self.clock()
         if used and self.shared is not None:
-            # An answer fetched earlier (by another process) is as old as it is: its time, on this service's clock.
-            fetched -= timedelta(seconds=max(0.0, self.shared.wall() - min(used)))
+            # An answer fetched earlier (by another process) is as old as it is: its time, on this service's clock. S4h-a
+            # (stage 4 exit judge): a pinned clock (a replay) keeps step with the wall clock only since its pin began; an
+            # answer another replay fetched before that, on another replayed evening, took this run's clock back before
+            # its first message (“（20:51 查过）” for a question at 21:01, looked up at 21:05). It counts from this lookup.
+            began = pinned_since()
+            aged = [moment for moment in used if began is None or moment >= began]
+            if aged:
+                fetched -= timedelta(seconds=max(0.0, self.shared.wall() - min(aged)))
         result = Sourced(value, self.source, fetched, fetched + ttl, notes=[self.attribution])
         self.cache[key] = copy.deepcopy(result)
         while len(self.cache) > self.cache_max:

@@ -26,7 +26,7 @@ from jinja2 import DictLoader, Environment, select_autoescape
 from markupsafe import Markup, escape
 
 from .assets import SCRIPT, STYLE
-from .privacy import POLICY_WORD, Policy, PrivacyError, flight_numbers, phone_digits, phone_numbers, redact, scan_text
+from .privacy import POLICY_WORD, Policy, PrivacyError, STAY_WORDS, flight_numbers, phone_digits, phone_numbers, redact, scan_text, stay_segment_dirty
 from .templates import SHARE_BASE, SHARE_DAY, SHARE_INDEX
 
 MARKER = ".tripwright-share"
@@ -212,6 +212,13 @@ def _date_words(day: str) -> tuple[Text, Text]:
     return short, long
 
 
+def _quiet(item: Text | None) -> Text | None:
+    """A text of a segment that starts or ends at a stay: the text itself when it carries nothing that localizes the
+    stay (S4h-b), else None (minute times, walking minutes, arrival times and door wording are dropped whole, in both
+    languages; what localizes never survives by hiding behind only one of them)."""
+    return item if item is not None and not stay_segment_dirty(item.zh, item.en) else None
+
+
 def _view(plan: dict, words: Words) -> dict:
     rules = words.rules
     places = {place["id"]: place for place in plan.get("places", [])}
@@ -235,7 +242,7 @@ def _view(plan: dict, words: Words) -> dict:
         return dict(stay=None, local=local, name=name,
                     map_url="https://www.google.com/maps/search/?api=1&query=" + quote(local))
 
-    def block_view(block: dict) -> dict:
+    def block_view(block: dict, quiet: bool = False, arriving: bool = False) -> dict:
         place = place_view(block.get("place"))
         kind = KINDS.get(block.get("kind"), (str(block.get("kind") or ""), str(block.get("kind") or "")))
         if place and place["stay"]:
@@ -243,18 +250,54 @@ def _view(plan: dict, words: Words) -> dict:
         elif place:
             title = place["name"] or words(place["local"])
         else:
-            title = words(block.get("text")) or words.pair(*kind)
-        how = [words(block.get("mode"))] if block.get("mode") else []
-        if block.get("line") and not (block.get("mode") and str(block["line"]) in str(block["mode"])):
-            how.insert(0, words(block["line"]))
-        if block.get("walk_minutes") and not block.get("mode"):
+            title = words(block.get("text"))
+            # S4h-b: a stay-touching segment says only the order; its own words may carry what localizes the stay
+            if quiet and _quiet(title) is None:
+                title = None
+            title = title or (words.pair("回住处", "Back to the lodging") if quiet and arriving else None) \
+                or (words.pair("从住处出发", "From the lodging") if quiet else None) or words.pair(*kind)
+        how = []
+        if block.get("mode"):
+            mode = _quiet(words(block.get("mode"))) if quiet else words(block.get("mode"))
+            if mode:
+                how.append(mode)
+        if block.get("line") and not any(str(block["line"]) in part for item in how for part in (item.zh, item.en)):
+            # S4h-b: a line whose mode was dropped (it carried what localizes the stay) still says which service
+            line = _quiet(words(block["line"])) if quiet else words(block["line"])
+            if line:
+                how.insert(0, line)
+        if block.get("walk_minutes") and not block.get("mode") and not quiet:
             how.append(words.pair(f"步行 {block['walk_minutes']} 分钟", f"{block['walk_minutes']} min walk"))
         how = [item for item in how if item]
-        return dict(start=block.get("start"), end=block.get("end"), kind=words.pair(*kind), title=title,
-                    text=words(block.get("text")) if place else None,
+        text = words(block.get("text")) if place else None
+        return dict(start=None if quiet else block.get("start"), end=None if quiet else block.get("end"), kind=words.pair(*kind),
+                    title=title, text=_quiet(text) if quiet else text,
                     how=words.pair(" · ".join(item.zh for item in how), " · ".join(item.en for item in how)) if how else None,
-                    note=words(block.get("note")), place=place,
+                    note=_quiet(words(block.get("note"))) if quiet else words(block.get("note")), place=place,
                     options=[view for view in map(place_view, block.get("options") or []) if view])
+
+    def quiet_flags(blocks: list, base_is_stay: bool) -> list[tuple[bool, bool]]:
+        """Per timeline block: (it starts or ends at a stay, and the stay is the arriving end) — S4h-b. A block touches
+        the stay when its own place is one, its neighbour's is, its words name the lodging, or it is the day's first
+        move out of the stay the day is based at."""
+        flags = []
+        for index, block in enumerate(blocks):
+            here = places.get(block.get("place"))
+            before = places.get(blocks[index - 1].get("place")) if index else None
+            after = places.get(blocks[index + 1].get("place")) if index + 1 < len(blocks) else None
+            arriving = is_stay(here) or any(
+                re.search(r"回|back", f"{words(blocks[index].get(key)).zh} {words(blocks[index].get(key)).en}", re.I)
+                for key in ("text", "note") if words(blocks[index].get(key)))
+            # a block with its own public place (a visit, a meal) is not the way in or out of the stay however it
+            # sits in the list, and its note may name the lodging as a landmark; a block without one (or a travel
+            # block) is a movement whose ends are its neighbours and whose words may be the stay's own
+            movement = block.get("place") is None or str(block.get("kind") or "").casefold() in ("travel", "路上")
+            touching = is_stay(here) or (movement and (is_stay(before) or is_stay(after) or any(
+                STAY_WORDS.search(f"{words(blocks[index].get(key)).zh} {words(blocks[index].get(key)).en}")
+                for key in ("text", "mode", "note") if words(blocks[index].get(key))))) \
+                or bool(base_is_stay and index == 0 and movement)
+            flags.append((touching, arriving))
+        return flags
 
     days = []
     for raw in sorted(plan.get("days", []), key=lambda day: day["date"]):
@@ -270,7 +313,9 @@ def _view(plan: dict, words: Words) -> dict:
             sunset=raw.get("sunset"), stay=stay, notes=words(raw.get("notes")), rain=words(raw.get("rain_plan")),
             anchors=[dict(time=anchor.get("time"), text=words(anchor.get("text"))) for anchor in raw.get("anchors", [])],
             plans=[dict(name=words(item.get("name")), tracks=[dict(who=who(track.get("subject")),
-                                                                    blocks=[block_view(block) for block in track.get("blocks", [])])
+                                                                    blocks=[block_view(block, quiet=quiet, arriving=arriving)
+                                                                            for block, (quiet, arriving)
+                                                                            in zip(track.get("blocks", []), quiet_flags(track.get("blocks", []), is_stay(base)))])
                                                                for track in item.get("tracks", [])])
                    for item in raw.get("plans", [])],
             candidates=[dict(name=words(slot), places=[view for view in map(place_view, identifiers) if view])

@@ -428,7 +428,7 @@ SHARE_DAY = """{% extends 'base' %}{% macro place(item, named=true) %}{% if item
 <ol class="timeline">
 {% for block in track.blocks %}
 <li>
-<span class="time">{{ block.start }}{% if block.end and block.end != block.start %}–{{ block.end }}{% endif %}</span> · {{ t(block.kind) }}
+<span class="time">{% if block.start %}{{ block.start }}{% if block.end and block.end != block.start %}–{{ block.end }}{% endif %}{% endif %}</span> · {{ t(block.kind) }}
 <h4>{{ t(block.title) }}</h4>
 {% if block.text %}<p>{{ t(block.text) }}</p>{% endif %}
 {% if block.how %}<p class="how"><b>{{ label('怎么走','Getting there') }}:</b> {{ t(block.how) }}</p>{% endif %}

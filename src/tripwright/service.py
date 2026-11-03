@@ -33,6 +33,7 @@ SKELETON = {"quick": "quick", "status": "quick"}
 # have changed (A2's refresh time), and the earlier questions of a conversation fall inside it.
 SESSION_HOURS = 6
 RECENT_QUESTION_MINUTES = 30  # check_answer without question or request_id: a user message this recent is the question
+FRAME_MINUTES = packs.STEP_MINUTES  # S4h-a: a quick latest question's frame holds for lookups this long after its turn
 # S4a: an app that may not show text written between tool calls ends its reply with the first part and this line (core
 # step 4); the user's next message, sent to turn with points [], brings the second part (second_part_due)
 LATER = first_part.LATER
@@ -40,6 +41,7 @@ LATER = first_part.LATER
 PROMISES_SECOND = re.compile(r"第二段|核完再发|second part", re.I)
 UNKNOWN_QUESTION = "本问原话不明，吃的检查没做。"
 UNKNOWN_POINTS = "这一问的 turn 没给 points（或没给 request_id），没核第一段有没有逐件回应、写没写在哪。"  # A12
+UNKNOWN_LISTED = 8  # stored place IDs `next` names when a place in points is not recognized (S4h-a)
 
 
 class RecordEntry(BaseModel):
@@ -186,7 +188,7 @@ class Tripwright:
              new_trip: str | None = None, points: list | None = None) -> dict:
         self.bound(owner)
         record_input = (checked_record(record) if record is not None else None) or None
-        points = first_part.checked_points(points)
+        points = self._checked_places(owner, first_part.checked_points(points))
         prior = self.outbox.find(owner, "turn", request_id)
         if prior is not None and encode(prior["replay"].get("input")) != encode(record_input):
             raise ValueError("request_id was reused with different content")
@@ -256,18 +258,26 @@ class Tripwright:
             # this question's points when the host gives them, with what the trip stores for each
             # S4a: a message that names nothing (points []) after a question whose promised second part never passed
             # check_answer asks for that second part; no new first part is drafted for it
-            due = self._second_part_due(owner, event_id, at) if points == [] else None
+            continued = self._unanswered(owner, event_id, at) if points == [] else None
+            due = self._second_part_due(owner, continued) if continued else None
             told = packs.point_facts(self.store, owner, plan or None, points, anchors, at, self.language,
                                      person=packs.asker(plan, speaker, subject)) if points is not None and plan and due is None else None
             first = None if due else self._with_later(first_part.draft(text, response["now"], anchors, plan or None, self.language, told))
-            context.update(points=packs.point_record(told, anchors),  # what check_answer holds this question's first part to
+            # S4h-a (stage 4 exit judge, mcponly_r1 question 2): the message asking for an earlier second part is that
+            # question's turn for the lookups that follow: its points (where the user is, where they go next) and its frame
+            # go with it, and the lookups start from its next step as they would have without the “继续”
+            context.update(points=(continued.get("points") or packs.point_record(None, anchors)) if continued else
+                           packs.point_record(told, anchors),  # what check_answer holds this question's first part to
+                           frame=continued.get("frame") if continued else
+                           dict(scenario=scenario, asks_latest=bool(first and first["asks_latest"])),
                            request_id=request_id, promises_second=bool(first and PROMISES_SECOND.search(first["text"])),
                            first_text=first["text"] if first else None, continues=due["request_id"] if due else None)
             self.store.put("contexts", owner, context)
             response.update(consider={key: considered[key] for key in ("entries", "more", "more_how") if key in considered},
                             ask=asked, offer=consider.offer(known["languages"], self.language), first_part=first,
                             next=self._next(considered, asked, recorded, archived=any(anchor.get("archived_claims") for anchor in anchors),
-                                            latest=bool(first and first["asks_latest"]), points=(points is not None) if plan and not due else None, due=due),
+                                            latest=bool(first and first["asks_latest"]), points=(points is not None) if plan and not due else None,
+                                            due=due, unknown=self._unknown_places(plan, told)),
                             **core_steps())
             if due:
                 response["second_part_due"] = due
@@ -306,7 +316,7 @@ class Tripwright:
         reads the trip and records nothing: the message is not received, no context is kept. Returns the clock, the
         draft (`first_part`, as turn's) and what to do with it (`next`)."""
         self.bound(owner)
-        points = first_part.checked_points(points)
+        points = self._checked_places(owner, first_part.checked_points(points))
         plan = self.versions.current(owner)["plan"] or {}
         at = now()
         anchors = self._hard_nodes(owner, plan, subject, None, at) if plan else []
@@ -316,17 +326,44 @@ class Tripwright:
         first = self._with_later(first_part.draft(text, clock, anchors, plan or None, self.language, told))
         en = self.language == "en"
         return dict(now=clock, first_part=first, **(dict(points=told) if told is not None else {}),
-                    next=(" " if en else "").join(self._send_first(en)), **core_steps())
+                    next=(" " if en else "").join(self._unknown_places(plan, told) + self._send_first(en)), **core_steps())
+
+    def _checked_places(self, owner: str, points: list[dict] | None) -> list[dict] | None:
+        """Points whose place and words name two different stored places are refused before anything is recorded
+        (S4h-a, ns_on_r1 question 2), with what to send instead; the same request_id may be sent again."""
+        conflicts = packs.place_conflicts(self.versions.current(owner)["plan"], points) if points else []
+        if conflicts:
+            raise ValueError("Invalid points: " + "; ".join(conflicts))
+        return points
+
+    def _unknown_places(self, plan: dict | None, told: dict | None) -> list[str]:
+        """What `next` says of the places in points that are no stored place and no coordinates (S4h-a, mcponly_r1
+        question 1: “airport” was left unread and the first part said only that the time needs checking): which, that
+        the first part names none of them and never the plan's place in their stead, and the stored IDs to send."""
+        unknown = list(dict.fromkeys([point["unknown"] for point in (told or {}).get("points", []) if point.get("unknown")]
+                                     + ([told["at"]["unknown"]] if (told or {}).get("at") and told["at"].get("unknown") else [])))
+        if not unknown:
+            return []
+        en = self.language == "en"
+        stored = [place for place in (plan or {}).get("places", []) if place.get("transit_id") or place.get("coords")]
+        named = (", " if en else "、").join(f"{place['id']} {packs.short_name(place, self.language, plan)}" for place in stored[:UNKNOWN_LISTED])
+        said = (", " if en else "、").join(f"“{value}”" for value in unknown)
+        return [f"These places in points are no stored place and were not recognized: {said}. The first part says nothing "
+                f"stored for them and does not put the plan's place in their stead. If one is a stored place, send its ID "
+                f"({named}) and call turn again with the same request_id; if not, answer as it is and look it up by "
+                f"coordinates or stop name." if en else
+                f"points 里这些地方不是这趟存的地点，也认不出：{said}。第一段没给它们存的车和时刻，也没拿计划里的地点顶替。"
+                f"是存的地点就改成地点编号（{named}），用同一个 request_id 再调一次 turn；不是就照这样答，第二段按坐标或站名查。"]
 
     def _with_later(self, first: dict) -> dict:
         """The first part and the line that ends it in an app that cannot show text between tool calls (S4a)."""
         return dict(first, later=LATER["en" if self.language == "en" else "zh"])
 
-    def _second_part_due(self, owner: str, event_id: str, at: str) -> dict | None:
-        """The question before this message, when its first part said a second part follows and no second part passed
-        check_answer for its request_id (the answers file the Stop hook reads), within SESSION_HOURS (S4a). An app that
-        cannot show text between tool calls ended its reply with that first part; a host that stopped early did too.
-        None without an answers file: nothing tells whether the second part went out."""
+    def _unanswered(self, owner: str, event_id: str, at: str) -> dict | None:
+        """The context of the question before this message, when its first part said a second part follows and no second
+        part passed check_answer for its request_id (the answers file the Stop hook reads), within SESSION_HOURS (S4a).
+        An app that cannot show text between tool calls ended its reply with that first part; a host that stopped early
+        did too. None without an answers file: nothing tells whether the second part went out."""
         # in the order they were written (one clock moment can hold two), the latest last
         earlier = sorted((context for context in self.store.all("contexts", owner)
                           if context.get("source_event") != event_id and context.get("request_id")),
@@ -343,8 +380,10 @@ class Tripwright:
             passed = json.loads(path.read_text(encoding="utf-8")).get("answers", {}) if path.is_file() else {}
         except (OSError, ValueError):
             passed = {}
-        if last["request_id"] in passed:
-            return None
+        return None if last["request_id"] in passed else last
+
+    def _second_part_due(self, owner: str, last: dict) -> dict:
+        """turn's `second_part_due` for the unanswered question's context (`last`, _unanswered)."""
         event = self.store.get("events", owner, last["source_event"])
         kept = last.get("points") or {}
         # what step 5 looks up from: each point with its place, and where the user is (or was assumed to be)
@@ -370,7 +409,7 @@ class Tripwright:
         return (latest or {}).get("asked") or []
 
     def _next(self, considered: dict, asked: list[dict], recorded: dict, *, archived: bool = False, latest: bool = False,
-              points: bool | None = None, due: dict | None = None) -> str:
+              points: bool | None = None, due: dict | None = None, unknown: list[str] = ()) -> str:
         """What to do before answering (design v0.3.1 2.1 three). First (A10, D-67): send `first_part` as it is, then
         look things up; a latest/last-service question goes to latest_departure without a deadline, whose first line
         the second part opens with; the second part is sent once, after check_answer passes. Then: weigh the listed
@@ -386,6 +425,7 @@ class Tripwright:
                                    "that result." if en else
                                    "这一问没给 points：first_part 只按存的计划写，不回应这一问点名的事。先把这一问点名的每件事"
                                    "（人在哪、去哪、吃、活动、票，用用户的话）写进 points，用同一个 request_id 再调一次 turn，再照它做。"]
+        parts = list(unknown) + parts  # S4h-a: places in points the service did not recognize come first
         if due:
             # S4a: the user asks for the earlier question's second part (it was promised, none passed check_answer)
             parts.append(f"This message asks for the second part of request {due['request_id']} (“{due['said']}”): send no new "
@@ -509,6 +549,8 @@ class Tripwright:
 
         # Local times in the answer are the trip's (A5): the plan's zone, else the repository's default.
         zone = (plan or {}).get("timezone") or (self.repository.timezone() if self.repository is not None else None)
+        if kind == "latest_departure":
+            self._keep_frame(owner, arguments, plan, zone)
 
         async def lookup():
             async with asyncio.timeout(self.query_timeout):
@@ -524,6 +566,43 @@ class Tripwright:
                     **(lookup_failed("timeout", self.language) if kind in ("latest_departure", "transit") else {})}
         self.record_evidence(owner, before, key=f"query:{identifier('Q')}")
         return result
+
+    def _keep_frame(self, owner: str, arguments: dict, plan: dict | None, zone: str | None) -> None:
+        """A quick question whose turn asked for the latest departure is framed by the service (A10, D-67): its lookups
+        name no hard node (S4h-a, stage 4 exit judge, codex_r1 question 1: the host added the plan's 05:45 queue as
+        anchor_id after the frame's lookup, and its second part moved the user's night at the airport to leaving at
+        dawn). Within FRAME_MINUTES of that turn (a “继续” turn carries it), latest_departure with anchor_id, or with
+        `by` or `board_at` at a hard node's own time, is refused with what to send. A time the user names is not a hard
+        node's and passes, as do other scenarios and lookups after the half hour."""
+        from tripwright.query import anchors as plan_anchors, moment
+
+        named = [key for key in ("anchor_id", "by", "board_at") if arguments.get(key)]
+        if not named:
+            return
+        at = aware(now())
+        written = [context for context in self.store.all("contexts", owner) if aware(context["created_at"]) <= at + timedelta(minutes=1)]
+        latest = max(reversed(written), key=lambda context: aware(context["created_at"]), default=None)  # the later written of a tie
+        frame = (latest or {}).get("frame") or {}
+        if not frame.get("asks_latest") or SKELETON.get(frame.get("scenario")) != "quick" or \
+                aware(latest["created_at"]) < at - timedelta(minutes=FRAME_MINUTES):
+            return
+        if "anchor_id" in named:
+            key, node = "anchor_id", arguments["anchor_id"]
+        else:
+            key = named[0]
+            try:
+                instant = moment(arguments[key], arguments.get("date"), ZoneInfo(arguments.get("timezone") or zone or "UTC"), key)
+            except ValueError:
+                return  # its own check says what is wrong with it
+            node = next((anchor["id"] for _, anchor, found in plan_anchors(plan) if found == instant), None)
+            if node is None:
+                return
+        request = latest.get("continues") or latest.get("request_id")
+        raise ValueError(f"Invalid query arguments: arguments.{key}: this question (turn request_id {request}) asks for the latest "
+                         f"departure, and the service frames it: send origin and destination only (no anchor_id, by or board_at"
+                         f"{f'; {arguments[key]!r} is hard node {node!r}' if key != 'anchor_id' else ''}). The result gives "
+                         f"tonight's last connection and the next time to keep after it with when to leave for it (hard_node); "
+                         f"the second part opens with its first_line.")
 
     def check_answer(self, owner: str, arguments: dict) -> dict:
         """Check a host's draft of the first or second part before it is sent (A6, D-43): against the clock in the

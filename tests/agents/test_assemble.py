@@ -197,10 +197,11 @@ def test_main_skill_has_no_placeholder_once_b_has_delivered(sources):
 
 def test_main_skill_stays_within_its_pre_latest_byte_budget(outputs):
     """The deferred first answer replaces old instructions without growing the generated skill; A10 (first_part, the
-    server's frame, part 2 sent once) replaced old lines without growing it past 12,171 bytes either."""
+    server's frame, part 2 sent once) replaced old lines without growing it past 12,171 bytes either. S4h-b raised the
+    pin once: step 1's wait-for-the-tools sentence (never write about connections) is a deliberate 54-byte growth."""
     text = outputs[MAIN]
-    assert len(text.encode()) <= 12171
-    assert len((text + "y" * 12172).encode()) > 12171
+    assert len(text.encode()) <= 12225
+    assert len((text + "y" * 12226).encode()) > 12225
 
 
 def test_a9_instructions_and_examples_are_generated_for_every_host(outputs):

@@ -1294,3 +1294,69 @@ Field table (one row per model field; `tests/core/test_b3f_field_table.py` keeps
   - `render/check_answer.py`：`is_later` 按字比，引号、空格与句末标点不算；四处原来的 `in LATER_LINES` 都换成它。测试 `tests/core/test_s4a2_later.py` 加一条：英文引号、直角引号、去掉句号都算结束，后面跟状态句照旧拦。
   - 钩子：用户回“继续”的那条消息算同一问的后半（`answers_later`：上一条真消息之后的最后一段文字以 later 一行结束）。first-part 钩子放行这时的查询；Stop 钩子把第一段当已发，没出第二段就催第二段。来源：answer-v4 上 Claude Code 不给子代理的干跑，“继续”之后 first-part 钩子拦了查询，宿主写了一段解释又重发第一段。测试同一文件加一条，带对照：上一段没以 later 结束时，新消息的查询照旧等第一段。
 - **没改：** 第一段的内容与 `first_part.text`、`second_part_due` 的判法。
+
+## S4h-a：服务端核这一轮的参数与形状（2026-11-03，阶段 4 出口判不合格，任务 D-96）
+
+依据：阶段 4 出口判词（6 轮重放，0 轮合格；共同前提 A：宿主没照指令做，check_answer 照样放行；前提 B：“继续”那一轮不带原问题的 points）与 codex_r1、ns_on_r1、mcponly_r1、ns_off_r1 的工具记录。做法：错的参数在服务端拒收或认对，不再只靠 `next` 里的说明。每条有重放形状的坏样本与对照（`tests/core/test_s4h_server.py`）；源码退回基线（9eb3334）后 8 条测试都在坏样本处不过。
+
+- **一、quick 场景问最晚时，查询不收硬节点（`Tripwright._keep_frame`）。**
+  - 来源：codex_r1 第 1 问。`turn` 的 `next` 写了“不给 anchor_id、by、board_at”，宿主第一次照做，第二次自己加了计划目标 05:45 排队的 `anchor_id`，查成明早的框；第二段主选改成“明早 04:56 出门”，丢了存的“机场过夜”。
+  - 改：`turn` 的上下文记 `frame {scenario, asks_latest}`。最近一次 `turn`（30 分钟内，“继续”那一轮带原问题的）是 quick 或 status、`first_part.asks_latest` 为真时，`latest_departure` 带 `anchor_id` 拒收；`by`、`board_at` 的时刻正好是某个硬节点当天的时刻，也拒收（同一个硬节点换个字段）。报错写明“只给 origin 和 destination”，结果里有今晚最后一班和之后要守的时间（`hard_node`）。
+  - 为什么拒收、不忽略：约定里错的参数一律“报错并给改法”（A9 上车时刻当 `by`、A11 网上做的锚点）；照服务的框静默改查，宿主拿到的不是它要的，又不一定读说明。拒收不花查询额度。
+  - 放行：用户自己说的时刻（不是任何硬节点的）照常按 `by` 查；plan 等其他场景、`turn` 30 分钟之后照常。
+- **二、`turn` 的 `place` 和 `said` 对不上时拒收；认不出就明说（`packs.place_conflicts`、`packs.aliased`、`Tripwright._checked_places`、`_unknown_places`）。**
+  - 来源一：ns_on_r1 第 2 问。用户说“Block Factory 还是什么的那个”，宿主把 at 的 place 填成计划里的另一家岩馆，第一段写“你在 <计划的岩馆>（你说的“…Block Factory…”）”，末班也从那里算。
+  - 改：at、go、do 要点的 place 认出一处存的地点，said 按同样的规则（包含存的名字、拉丁字母相似度、下面的类别词）认出另一处时，`turn` 在收件之前拒收：`Invalid points: points.N: place … is the stored …, but its said “…” names the stored …: send place …`。什么都没记，同一个 `request_id` 可以再发。命令行 `first-part` 同样拒（退出 1）。said 认不出、认出两处或认出同一处，都不算冲突。
+  - 来源二：mcponly_r1 第 1 问。宿主把 go 的 place 填成英文 “airport”，行程里存的是“维也纳机场 / Flughafen Wien”，什么都没认出，第一段只有“几点出发要查，第二段给”，没给计划里的车。
+  - 改：`resolve_place` 最后按类别词认（`PLACE_WORDS`：airport、机场、Flughafen、aéroport…；station、火车站、Hauptbahnhof…）：先取 kind 就是这一类的唯一一处，否则取短名（中文名“（”前、原文名地址前）里有这一类词的唯一一处。短名不含括号里的说明和地址，所以“汉堡王（机场到达大厅）”不算机场。两处都像就不认。
+  - 还认不出（不是存的地点，也不是坐标）：要点记 `unknown`（at 记在 `points.at.unknown`），`next` 开头写一句：哪些没认出、第一段没给它们存的车和时刻、也没拿计划里的地点顶替，存的地点 ID（前 8 个）可以改填，用同一个 `request_id` 再调。不拒收：用户可以在任何没存的地方。
+- **三、“继续”那一轮带上原问题（`Tripwright._unanswered`、`_second_part_due`）。**
+  - 来源：mcponly_r1 第 2 问。“继续”的 `turn` 回了 `second_part_due`，之后 `latest_departure` 仍从岩馆算，没按原问题的下一步（先去车站吃）。没走“继续”的 sub_on、codex 起点对了。
+  - 真因：`packs.next_step` 取最近一份带 `points` 的上下文。“继续”那一轮的上下文存的是 `point_record(None)`（`given: false`，没有 `at`、`next`），比原问题的新，`next_step` 就取了它，什么都不改。
+  - 改：带 `second_part_due` 的那一轮，上下文的 `points` 和 `frame` 照抄原问题的；`second_part_due` 的判法不变。之后的查询从原问题的下一步算，第一条的框也照原问题。再回一句“继续”还指同一问，也带它。
+  - 顺带：同一时刻写的两份上下文，`next_step` 和 `_keep_frame` 取后写的那份（原来 `max` 取先写的；冻住钟的测试里会碰上）。
+- **四、存的关门时刻可以写进第二段（`render.check_answer.stored_times`；`query.LAST_SAY` 的 closing）。**
+  - 来源：判词“跨轮的毛病”第二点。第 1 问各轮把服务的“22:00 关门出来，走到 … 坐 22:16 的 5B”写进标“核过”的行，`checked_has_evidence` 以“时刻 22:00 不在这一趟工具查到的结果里”拦下，修法是“改成网上说法”；宿主删了时刻，“最晚几点出发”只剩车站上车时刻。
+  - 查清：拦的是 `evidence_problems`。22:00 来自起点存的 `opening_hours`（`origin_closes`），不在任何查询结果里；服务自己的句子没说它是存的。
+  - 改：服务句子写“22:00 关门出来（按存的营业时间）”。`checked_has_evidence` 不把“自己带标的时刻”算作核过的说法：时刻后面、下一个时刻或分句结束之前（括号里的标注到右括号）有“存的、存档、没核”之一（英文 stored、archived、not checked），这个时刻不要证据。没带标、又正好是这一问查询起点存的关门时刻（`frame.closes`），照样拦，修法改成“照 latest_departure 的句子写“22:00 关门出来（按存的营业时间）”，时刻留着”。`leave_before_closing` 的修法同步加标。
+  - 没带“没核”：起点的营业时间可能有网页出处（`hours_source`），这次查询没核它，存的是实情；“存的”已经是标。
+- **五、第一段“（20:51 查过）”早于 21:01 的问（`providers/common.cached`、`storage.pinned_since`）。**
+  - 真因（查实）：不是 UTC 显示。ns_on_r1 第 1 问的查询在服务钟 21:04:45—21:05 做，证据 `fetched_at` 是 19:51:35Z，即 20:51 CET，比查询早 14 分钟；按 UTC 显示会是 20:05。差的 14 分钟正好是墙钟上 sub_on_r1 做同一查询（13:33:36Z）到 ns_on 做它（13:47:15Z）的间隔。s4b 的共享答案按墙钟上的年龄倒推抓取时刻（`fetched = 服务钟 − (墙钟现在 − 墙钟抓取)`）；重放把每一轮的服务钟钉在 21:01，别的轮在更早的墙钟时刻抓的答案，就被放到这一轮第一问之前。mcponly 的 20:35（早约 27 分钟）、ns_off 的 20:46（早约 19 分钟）同理，往回推都落在墙钟上 ns_on 第 1 问发查询的 13:47Z。
+  - 改：钉住的钟只从钉住那一刻起和墙钟同步（`storage.pinned_since`：`TRIPWRIGHT_NOW_SET_AT`，否则进程第一次读钟的墙钟时刻）。钉住之前抓的共享答案，按这次查询的时刻算；钉住之后抓的照 s4b 按年龄倒推。没钉钟时不变：别的进程 10 分钟前抓的答案，照旧说 10 分钟前，`valid_until` 也照旧。
+  - 为什么不改显示：没钉钟时，显示的就是数据真实的抓取时刻，可以早于这一问（同一台机器上别的会话 30 分钟内查过同一程），这是实情。错只在重放：别的轮在另一条钉住的时间线上抓的，放到这一轮里没有意义。
+- **测试。** `tests/core/test_s4h_server.py`：
+  - `test_a_quick_latest_question_refuses_a_lookup_that_names_a_hard_node`
+  - `test_a_place_the_users_words_contradict_is_refused_before_anything_is_recorded`
+  - `test_a_word_for_a_kind_of_place_names_the_one_stored_place_of_that_kind`
+  - `test_a_place_not_recognized_is_said_and_never_taken_for_the_plans`
+  - `test_the_lookups_after_go_on_start_where_the_continued_question_goes_next`
+  - `test_the_stored_closing_time_may_stand_on_a_checked_line_when_it_says_so`
+  - `test_an_answer_another_replay_fetched_earlier_is_not_dated_before_this_replays_question`
+  - `test_on_a_pinned_clock_an_answer_fetched_after_the_pin_keeps_its_age`
+  - 改了的旧测试：
+    - `test_a16_fixes` 第 3 条：关门句与 `leave_before_closing` 的修法加“（按存的营业时间）”；
+    - `test_a12_first_part` 的 a12b 一条：原话里有“机场”时，现在按类别词认出存的机场（不拿原话当地名的保证不变）；“几处都像或都不像就不写地名”改用不含类别词的原话核，另加一条“place 填‘维也纳’、原话说机场”认出机场。
+- **限制。**
+  - 第一条只看最近一次 `turn`：宿主不调 `turn` 就查，判不出。用户自己说的时刻正好是某个硬节点的时刻时，`by` 也被拒；这时服务的框已经给了它（`hard_node` 或“你计划留的余量”那行）。
+  - 第一条没做判词机制补充 1 的另一半（第二段主选的车不在今晚的框里、计划存着机场过夜时报出）：框错的查询拒收之后，第二段拿不到明早的框。
+  - 第二条的冲突只认得出“said 里像另一处存的地点”。said 什么地点都没说、宿主填了计划里的地点（假设用户在那），服务端分不出。
+  - 类别词只有机场和火车站两类；地铁站、公交站名太多，不收。
+  - 第四条只放行带标的存的时刻；宿主把存的时刻写成“核过”而不带标，照旧拦。
+
+## S4h-b：命令行少拦人、分享页住处段只说先后、工具连得慢时先等（2026-11-03，主会话 191cd345）
+
+依据：阶段 4 出口判词（第 9 次质量判）前提 C、机制补充 4 与 6、出口第 17 条“几点到住处”段；坏样本 runs/s4_ns_off_r1。S4h-a 同步改服务端文件（service.py、query.py、render/），互不相碰。
+
+- **命令行少拦人（`cli.py`）。**
+  - `first-part --points` 收宿主自己写的 kind 近义词（S4h-b：deadline、route、time、latest_departure、transit、departure → go；food、meal → eat；event、activity → do；place、where → at；大小写与空白照收，`place: ""` 当没给），stderr 出一行“read kind 'x' as 'y'”说明收成了什么；stdout 仍只有 JSON（S4a 不变）。认不出的 kind 仍退出 1，报错里除原有示例外，再给一条改好的完整命令（`try: tripwright [--db|--repo] first-part --text … --points '[…]'`，未知 kind 换成 other、空 place 去掉），照粘贴即可运行。坏样本：off_r1 第一问宿主填 departure/route/time，连报三次错、第一段拖晚。
+  - `query check_answer` 没带 `--request-id`（也没带 `--question`）时，CLI 取同一会话最近一次 turn 的 request_id（事件表里最近收到的非 system 消息；与服务的 30 分钟回退同一“同时刻取后录”规则），stderr 写明用的哪一条与收到时间；一条 turn 都没有时报错退出 1，报错里给带 `--request-id` 的完整命令例子（并提 `--question`）。给了 `--question` 时不自动取（那是 D-48 设计的“turn 没记下时给原话”路径）。坏样本：off_r1 两问的 check_answer 没带 request_id，回“本问原话不明，吃的检查没做”照旧放行，过的不是这一问的检查。
+  - 测试：`tests/core/test_s4hb_cli.py`（16 例，改前全红）；`test_a17_fixes` 一行随 read_points 新签名（返回 (points, 说明)）更新。
+- **分享页构建不出住处进出的时刻（`site/privacy.py`、`site/share.py`、`site/templates.py`）。**
+  - 规则：时间线里起点或终点是住处的那一段，不出分钟级时刻（HH:MM，含全角冒号）、步行分钟、到站时刻，也不出 “from your door”“N minute walk”“门口/楼下” 这类和住处连用的说法；只说先后（“回住处 / Back to the lodging”+线路）。公共地点之间的时刻照留。
+  - 判“这段贴着住处”：块的 place 是住处；或块是无 place 的移动块（或 kind travel），而相邻块的 place 是住处、或它自己的 text/mode/note 提到住处（重写后的“住处/our stay”）、或它是当日基于住处的第一个移动块。带公共 place 的块（参观、吃饭）不算，即使它的 note 拿住处当地标。
+  - 实现：`privacy.py` 加 `MINUTE_TIME`、`WALK_MINUTES`、`AT_THE_DOOR`、`STAY_WORDS` 与 `stay_segment_dirty`（中英一起查；提到住处的字句再带裸“N 分钟”也算）；`share.py` 的 `block_view` 对这种段把 start/end 置空、walk_minutes 不出、text/mode/note/title 里有这些内容的整句不出现（两语言任一脏即整句不出）、mode 被丢弃时线路（line）仍保留、标题退到“回住处/Back to the lodging”或“从住处出发/From the lodging”；模板的时间跨越加空守卫。
+  - 测试：`tests/site/test_share.py` 用合成计划（住处→某站→景点、景点→住处）核中英两种输出（改前红），加一条对照（干净的“回 住处 放行李”照旧可见）。
+- **工具连得慢时不转命令行（`agents/core.yaml` 第 1 步）。**
+  - 第 1 步末尾加一句：“While Tripwright's tools are still connecting, retry every few seconds (up to about 30) before using the command line; never write about connections.”。生成物重出（instructions 3,585/3,600 字节、steps.json、主 SKILL、MCP prompt、AGENTS.init），`build --check` 过。主 SKILL 的字节钉因这句从 12,171/12,130/12,119 提到 12,225（三处守护测试各注一句 S4h-b 后改钉）。
+  - 测试：`tests/agents/test_s4hb_core.py`（2 例，改前红）。
+- **契约：** `docs/CONTRACTS.md` 3 节加一组 S4h-b（命令行两条与分享页一条；无形状变化，机读件与样本不动）。

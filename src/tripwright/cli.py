@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import sys
 import tempfile
 from pathlib import Path
@@ -93,12 +94,26 @@ def query_arguments(arguments) -> dict:
 
 
 def run_query(arguments) -> int:
-    """Print the MCP query result as JSON on stdout and its one-line summary on stderr; refusals read as over MCP."""
+    """Print the MCP query result as JSON on stdout and its one-line summary on stderr; refusals read as over MCP.
+
+    S4h-b (off_r1): `check_answer` without `--request-id` (and without `--question`) passed a draft the check never saw
+    this question's words for ("本问原话不明，吃的检查没做"). The CLI now takes the session's latest turn itself and says
+    on stderr which request_id it took; with no recorded turn at all it refuses with a command that names
+    `--request-id`."""
     import asyncio
 
     try:
         given = query_arguments(arguments)
         store, service = open_service(arguments, providers=arguments.providers)
+        if arguments.kind == "check_answer" and not given.get("request_id") and not given.get("question"):
+            event = latest_turn(store, arguments.local_user)
+            if event is None:
+                raise ValueError("check_answer: this session has no recorded turn to take a request_id from; pass this "
+                                 f"question's turn: {check_answer_command(arguments, given)} "
+                                 "(or its words with --question <file>)")
+            given["request_id"] = event["request_id"]
+            print(f"check_answer: using the latest turn's request_id '{event['request_id']}' "
+                  f"(received {event['receipt']['received_at']}); pass --request-id to name another one", file=sys.stderr)
     except (ValueError, OSError, GitError) as error:
         print(f"tripwright: {error}", file=sys.stderr)
         return 1
@@ -120,22 +135,99 @@ def run_query(arguments) -> int:
 
 POINTS_EXAMPLE = ('for example --points \'[{"kind": "go", "said": "最晚几点出发去机场", "place": "<place ID or stored name>"}, '
                   '{"kind": "eat", "said": "想吃点东西"}]\'')
+# S4h-b (quality judge 9, premise C; the off_r1 replay): without the tools the host wrote its own words for a point's
+# kind (deadline, route, time, each tried and refused) and every retry cost minutes before the first part. Common
+# synonyms are read as the kind they mean; a kind nothing maps to is still refused, with a whole command to paste.
+KIND_SYNONYMS = dict(deadline="go", route="go", time="go", latest_departure="go", transit="go", departure="go",
+                     food="eat", meal="eat", event="do", activity="do", place="at", where="at")
+VALID_KINDS = ("at", "go", "eat", "do", "ticket", "other")
 
 
-def read_points(raw: str | None) -> list[dict] | None:
-    """first-part's --points as turn takes them; a wrong shape is refused with a right one to copy (A17, self replay
-    off_r1: a list of plain strings was refused with pydantic's words alone). Plain strings stay refused (A17b): read as
-    points of kind other, the first part answered none of what was asked; refused, the host retried with objects."""
+def latest_turn(store: Store, owner: str) -> dict | None:
+    """The latest turn this session recorded (its event record), or None when there is none (S4h-b). System-channel
+    messages are not questions, as in the service's own recent-question fallback."""
+    from datetime import datetime
+
+    from tripwright.repo.snapshot import received_events
+
+    events = [event for event in received_events(store, owner) if event["received"].get("channel") != "system"]
+    return max(reversed(events), key=lambda event: datetime.fromisoformat(event["receipt"]["received_at"]), default=None)
+
+
+def check_answer_command(arguments, given: dict) -> str:
+    """This check_answer call as a whole command with `--request-id`, to paste (S4h-b)."""
+    parts = ["tripwright"]
+    if arguments.repo:
+        parts += ["--repo", arguments.repo]
+    parts += ["query", "check_answer", "--part", str(given.get("part") or "second")]
+    if arguments.text_file:
+        parts += ["--text-file", arguments.text_file]
+    else:
+        parts += ["--text", str(given.get("text") or "<draft>")]
+    parts += ["--request-id", "<request_id of this question's turn>"]
+    return shlex.join(parts)
+
+
+def first_part_command(arguments, points) -> str:
+    """This first-part call with points that pass, as a whole command to paste (S4h-b)."""
+    parts = ["tripwright"]
+    if arguments.repo:
+        parts += ["--repo", arguments.repo]
+    elif arguments.db and arguments.db != os.environ.get(
+            "TRIPWRIGHT_DB", str(Path.home() / ".local/share/tripwright/tripwright.sqlite3")):
+        parts += ["--db", arguments.db]
+    parts.append("first-part")
+    if arguments.text_file:
+        parts += ["--text-file", arguments.text_file]
+    elif arguments.text:
+        parts += ["--text", arguments.text]
+    if arguments.speaker:
+        parts += ["--speaker", arguments.speaker]
+    parts += ["--points", json.dumps(points, ensure_ascii=False)]
+    return shlex.join(parts)
+
+
+def read_points(arguments) -> tuple[list[dict] | None, str]:
+    """first-part's --points as turn takes them, and the note of what was read as what (S4h-b): a wrong shape is
+    refused with a right one to copy (A17, self replay off_r1: a list of plain strings was refused with pydantic's
+    words alone); plain strings stay refused (A17b: read as points of kind other, the first part answered none of what
+    was asked). A kind the host wrote for itself is read as the kind it means (an empty place is no place); a kind
+    nothing maps to is refused with a whole corrected command to paste."""
     from tripwright.render.first_part import checked_points
 
+    raw = getattr(arguments, "points", arguments)  # the parsed arguments, or the raw --points string
     if not raw:
-        return None
+        return None, ""
     try:
         points = json.loads(raw)
     except json.JSONDecodeError as error:
         raise ValueError(f"--points must be a JSON list: {error}; {POINTS_EXAMPLE}") from None
+    read: list[tuple[str, str]] = []
+    if isinstance(points, list):
+        entries = [isinstance(point, dict) and isinstance(point.get("kind"), str) for point in points]
+        for index, point in enumerate(points):
+            if not entries[index]:
+                continue
+            written = point["kind"]
+            folded = written.strip().casefold()
+            target = folded if folded in VALID_KINDS else KIND_SYNONYMS.get(folded)
+            if target is not None and (target != written or point.get("place") == ""):
+                points[index] = dict(point, kind=target, place=None if point.get("place") == "" else point.get("place"))
+            if target is not None and folded not in VALID_KINDS:
+                read.append((written, target))
+        if entries and all(entries):
+            kinds = [point["kind"].strip().casefold() for point in points]
+            unknown = next((kind for kind in kinds if kind not in VALID_KINDS and kind not in KIND_SYNONYMS), None)
+            if unknown is not None:
+                fixed = [dict(point, kind=point["kind"].strip().casefold() if point["kind"].strip().casefold() in VALID_KINDS
+                              else KIND_SYNONYMS.get(point["kind"].strip().casefold(), "other"),
+                              place=None if point.get("place") == "" else point.get("place")) for point in points]
+                raise ValueError(f"Invalid points: points.{kinds.index(unknown)}.kind: {unknown!r} is not a kind turn takes "
+                                 f"(at, go, eat, do, ticket, other); {POINTS_EXAMPLE}; "
+                                 f"try: {first_part_command(arguments, fixed)}")
     try:
-        return checked_points(points)
+        note = "--points: read kind " + ", ".join(f"'{written}' as '{target}'" for written, target in read) if read else ""
+        return checked_points(points), note
     except ValueError as error:
         raise ValueError(f"{error}; {POINTS_EXAMPLE}") from None
 
@@ -153,7 +245,9 @@ def run_first_part(arguments) -> int:
             if arguments.text_file else arguments.text
         if not str(text or "").strip():
             raise ValueError("first-part needs the user's message: --text or --text-file")
-        points = read_points(arguments.points)
+        points, note = read_points(arguments)
+        if note:
+            print(note, file=sys.stderr)
         store, service = open_service(arguments, providers="synthetic")
     except (ValueError, OSError, GitError) as error:
         print(f"tripwright: {error}", file=sys.stderr)

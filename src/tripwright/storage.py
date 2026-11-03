@@ -45,6 +45,15 @@ def clock() -> datetime:
     return pinned() or datetime.now(timezone.utc)
 
 
+def pinned_since() -> float | None:
+    """The wall time (Unix seconds) the pinned clock began to run from its moment, or None without a pin. The pinned
+    clock and the wall clock keep step only from then: a wall time before it has no place on the pinned clock (S4h-a)."""
+    value = os.environ.get("TRIPWRIGHT_NOW")
+    if not value or pinned() is None:
+        return None
+    return float(os.environ["TRIPWRIGHT_NOW_SET_AT"]) if os.environ.get("TRIPWRIGHT_NOW_SET_AT") else _PINNED_FROM[value]
+
+
 def now() -> str:
     return clock().isoformat()
 

@@ -91,6 +91,28 @@ def with_text(text: str) -> dict:
     return plan
 
 
+def quiet_plan() -> dict:
+    """One stay, a segment 住处 → 某站 → 景点 and a segment 景点 → 住处 (S4h-b): the first leaves the stay in the
+    morning, the last comes back to it at night."""
+    plan = sample_plan()
+    plan["places"].insert(1, dict(id="stop-1", kind="transport", name="某站", name_local="Beispielplatz, 1070 Wien", area="Wien"))
+    plan["days"][0]["plans"][0]["tracks"][0]["blocks"] = [
+        block("q1", "09:30", "09:45", "travel", text="住处 → 某站 → 美术馆：U6 09:31 → 09:38，步行 4 分钟",
+              mode="U6 09:31 → Beispielplatz 09:38，步行 4 分钟", line="U6"),
+        block("q2", "10:05", "12:30", "visit", place="kunsthalle"),
+        block("q3", "21:00", "21:30", "travel", text="22:47 U1 → 我们那站 22:52，约 22:55 回到住处",
+              mode="U1 22:47 → Beispielplatz 22:52", line="U1", walk_minutes=3, note="回到住处"),
+    ]
+    return plan
+
+
+QUIET_ENGLISH = {"住处 → 某站 → 美术馆：U6 09:31 → 09:38，步行 4 分钟":
+                     "From the lodging via Beispielplatz to the gallery: U6 09:31 → 09:38, a 4 minute walk",
+                 "22:47 U1 → 我们那站 22:52，约 22:55 回到住处":
+                     "U1 22:47 → our stop 22:52, back at the lodging at about 22:55",
+                 "回到住处": "Back at the lodging by 22:55"}
+
+
 # --- pages and rewrites ---------------------------------------------------------------------------------------------
 
 def test_share_has_home_and_day_pages_only(tmp_path):
@@ -139,6 +161,34 @@ def test_default_english_switches_to_chinese_and_uses_given_english(tmp_path):
 
 
 # --- the scan: legal controls pass, private data blocks -------------------------------------------------------------
+
+
+def test_a_segment_to_or_from_the_stay_says_only_the_order(tmp_path):
+    """S4h-b (verdict 17, mechanism 6): the day pages kept "22:47 U1 → our stop 22:52, back at about 22:55", which put
+    the stay inside one station's walking circle. A timeline segment that starts or ends at a stay now shows no
+    minute-level time, no walking minutes, no arrival times and no door wording, in either language; it says the order
+    (and the line), while times between public places stay."""
+    result = build(tmp_path, quiet_plan(), english=QUIET_ENGLISH)
+    html = (result["out"] / "2030-07-14.html").read_text()
+    for absent in ("09:30", "09:45", "09:31", "09:38", "步行 4 分钟", "4 minute walk", "21:00", "21:30",
+                   "22:47", "22:52", "22:55", "我们那站", "our stop", "回到住处", "Back at the lodging by", "walk_minutes"):
+        assert absent not in html, absent
+    # the order is still said, with the line, in both languages
+    assert "从住处出发" in html and "From the lodging" in html
+    assert "回住处" in html and "Back to the lodging" in html
+    assert "住在 1070 Wien（酒店）" in html and "Staying in 1070 Wien (hotel)" in html
+    assert ">U6<" in html and ">U1<" in html  # the lines without their times
+    # times between public places stay, in this plan and in the untouched one
+    assert "10:05" in html and "10:00" in html
+    assert "05:12" in (build(tmp_path)["out"] / "2030-07-15.html").read_text()
+
+
+def test_stay_words_in_a_clean_segment_text_stay_visible(tmp_path):
+    """A stay-touching block whose own words carry no time, walk or door keeps them: only what localizes is
+    dropped (S4h-b)."""
+    html = (build(tmp_path)["out"] / "2030-07-14.html").read_text()
+    assert "回 住处 放行李" in html and "晚上回 住处" in html  # the evening block's text and the day's notes
+
 
 @pytest.mark.parametrize("legal", ["订位打 +43 1 555 0199", "REX 7", "U6", "18 路", "RJX 19959", "RJX", "S45", "N25", "IC 540", "RJ 641", "U1 03:22",
                                    "22:42–23:15", "€13.40", "HUF 4500", "EUR 9.70", "Stephansdom", "Gleis 8A", "T3 2 楼",

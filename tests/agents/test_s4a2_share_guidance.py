@@ -24,7 +24,7 @@ def test_after_a_commit_the_share_page_is_published_and_the_first_public_reposit
     assert "anything sent or published to others" in server_instructions()
     assert "the share page after a commit" in server_instructions()
     assert "the share page after a commit | `references/single-agent.md`" in outputs["skills/tripwright-main/SKILL.md"]
-    assert len(outputs["skills/tripwright-main/SKILL.md"].encode()) <= 12119
+    assert len(outputs["skills/tripwright-main/SKILL.md"].encode()) <= 12225  # S4h-b: step 1's wait-for-the-tools sentence
     # bad sample: step 6 without the stop before the first public repository is caught on every build
     promise = next(promise for promise in PROMISES if promise.id == "share-page-after-commit")
     broken = dict(outputs, **{SINGLE: outputs[SINGLE].replace("stop and ask first", "go ahead")})

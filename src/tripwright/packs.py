@@ -764,7 +764,54 @@ def resolve_place(plan: dict | None, place: str | None, said: str | None = None)
                            if letters(name)), default=0), entry["id"]) for entry in places), reverse=True)
     if scored and scored[0][0] >= NAME_LIKE and (len(scored) == 1 or scored[0][0] - scored[1][0] >= NAME_AHEAD):
         return next(entry for entry in places if entry["id"] == scored[0][1])
-    return None
+    return next(filter(None, (aliased(places, text) for text in texts)), None)
+
+
+# S4h-a (stage 4 exit judge, mcponly_r1 question 1): the host sent the place “airport”, the trip stores “维也纳机场 / Flughafen
+# Wien”; nothing matched and the first part had only “几点出发要查”. A word for a kind of place, in any of these languages,
+# names the one stored place of that kind (its kind, else a word of its short names).
+PLACE_WORDS = {
+    "airport": ("airport", "机场", "機場", "空港", "공항", "flughafen", "aéroport", "aeroport", "aeropuerto", "aeroporto", "luchthaven",
+                "lufthavn", "flygplats", "lentoasema", "lotnisko", "letiště", "letisko", "repülőtér", "aerodrom", "havalimanı"),
+    "station": ("railway station", "train station", "main station", "火车站", "火車站", "中央车站", "hauptbahnhof", "bahnhof",
+                "hbf", "gare", "estación", "stazione", "dworzec", "nádraží", "pályaudvar", "駅"),
+}
+
+
+def named_kind(text: str) -> str | None:
+    """The one kind of place a text names with a word of PLACE_WORDS (a Latin word on its own, not inside another)."""
+    folded = text.casefold()
+    kinds = {kind for kind, words in PLACE_WORDS.items() for word in words
+             if (re.search(r"(?<![a-zà-öø-ÿß])" + re.escape(word) + r"(?![a-zà-öø-ÿß])", folded) if word.isascii() else word in folded)}
+    return next(iter(kinds)) if len(kinds) == 1 else None
+
+
+def aliased(places: list[dict], text: str) -> dict | None:
+    """The stored place a word for its kind names (named_kind): the one place of that kind, else the one whose short
+    name (stored_names: not the address, not a note in brackets, so no shop inside the airport) holds such a word."""
+    kind = named_kind(text)
+    if kind is None:
+        return None
+    typed = [place for place in places if str(place.get("kind") or "").casefold() == kind]
+    named = typed or [place for place in places if any(named_kind(name) == kind for name in stored_names(place))]
+    return named[0] if len(named) == 1 else None
+
+
+def place_conflicts(plan: dict | None, points: list[dict]) -> list[str]:
+    """Each point whose `place` is one stored place while its `said` names another (S4h-a, ns_on_r1 question 2: the user
+    said “Block Factory”, the host sent the plan's gym, and the answer had the user there): `points.N: …`, with what to
+    send instead. Words that name no stored place, or several, agree with any place."""
+    found = []
+    for index, point in enumerate(points):
+        if not point.get("place") or point["kind"] not in ("at", "go", "do"):
+            continue
+        given, said = resolve_place(plan, point["place"]), resolve_place(plan, None, point["said"])
+        if given and said and given["id"] != said["id"]:
+            found.append(f"points.{index}: place {point['place']!r} is the stored {given['id']!r} ({given.get('name_local') or given['name']}), "
+                         f"but its said “{point['said']}” names the stored {said['id']!r} ({said.get('name_local') or said['name']}): "
+                         f"send place {said['id']!r} when that is the place the user means (the user's words decide), else leave "
+                         f"place out; never the plan's place in place of what the user said")
+    return found
 
 
 def stored_destination(plan: dict | None, anchors: list[dict], word: str | None) -> dict | None:
@@ -857,6 +904,8 @@ def point_facts(store: Store, owner: str, plan: dict | None, points: list[dict],
         where = dict(said=said_at["said"], place=(place or {}).get("id"), name=short_name(place, language, plan) if place else None,
                      coords=(tuple(place["coords"]) if place and place.get("coords") else
                              coordinates(plan, said_at["place"]) if said_at.get("place") else None), assumed=False)
+        if said_at.get("place") and place is None and where["coords"] is None:
+            where["unknown"] = said_at["place"]  # S4h-a: said, never the plan's place in its stead
     else:
         planned = plan_place(plan, now["date"], now["time"], person or asker(plan))
         planned = match_place(plan, planned) if planned else None
@@ -873,6 +922,8 @@ def point_facts(store: Store, owner: str, plan: dict | None, points: list[dict],
             place = stored_destination(plan, upcoming, point.get("place"))
         entry = dict(kind=point["kind"], said=point["said"], place=(place or {}).get("id") or point.get("place"),
                      name=short_name(place, language, plan) if place else None)
+        if point.get("place") and place is None and coordinates(plan, point["place"]) is None:
+            entry["unknown"] = point["place"]  # S4h-a: no stored place and no coordinates; turn's next says so
         keys = [point["said"]] + ([entry["name"], place.get("name_local") or ""] if place else [])
         if point["kind"] == "go":
             train = planned_train(plan, upcoming, place, now, language) if place else None
@@ -925,7 +976,7 @@ def next_step(store: Store, owner: str, plan: dict | None, origin: str, destinat
     from tripwright.query import match_place
 
     kept = [context for context in store.all("contexts", owner) if "points" in context and aware(context["created_at"]) <= at + timedelta(minutes=1)]
-    latest = max(kept, key=lambda context: aware(context["created_at"]), default=None)
+    latest = max(reversed(kept), key=lambda context: aware(context["created_at"]), default=None)  # of two at one moment, the later written
     if latest is None or aware(latest["created_at"]) < at - timedelta(minutes=STEP_MINUTES):
         return None
     record = latest["points"]

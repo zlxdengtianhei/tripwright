@@ -289,7 +289,10 @@ def test_check_answer_over_real_stdio_and_the_command_line(tmp_path):
                           "--part", "second", "--text-file", str(path), "--providers", "synthetic"],
                          env=environment(), capture_output=True, text=True, timeout=120)
     assert run.returncode == 0, run.stderr
-    assert json.loads(run.stdout)["problems"] == found["result"]["problems"] and run.stderr.startswith("要改 3 处再发")
+    assert json.loads(run.stdout)["problems"] == found["result"]["problems"]
+    # S4h-b: without --request-id the command line takes the latest turn (the seed turn the MCP call named) and says so
+    assert "using the latest turn's request_id 'seed'" in run.stderr
+    assert run.stderr.strip().splitlines()[-1].startswith("要改 3 处再发")
 
 
 # --- latest_departure compact -------------------------------------------------------------------------------------------

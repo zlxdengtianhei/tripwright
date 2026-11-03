@@ -171,6 +171,19 @@ A（仓、状态与快照）、B（渲染与输出）、C（角色、步骤与�
 - **第一段以 `first_part.later` 结尾（S4a2）：**
   - `check_answer` 第一段：`later` 那一行不算正文行数。它之后还有字报 `ends_with_later`。任何一行是进度、状态句（“马上发”“正在查”“我先去查”“第一段发完”“I'm still”等）报 `no_status_line`。服务端自己的“没核：……第二段核完再发。”不算。
   - Stop 钩子：这一问最后显示的文字以 `later` 那一行结尾、里面没有状态句，就让这一轮结束（不再推第二段）。有 `later` 的文字之后还有字，或同一段里有状态句，就拦下，理由“第一段以“回我一句“继续””那一行结束这一轮，后面不再写别的，也不写进度”。
+- **服务端核这一轮的参数（S4h-a，阶段 4 出口判；见 `docs/DECISIONS-impl.md` 的 S4h-a 节）：**
+  - quick 场景问最晚：最近一次 `turn`（30 分钟内）是 quick 或 status、`first_part.asks_latest` 为真时，`latest_departure` 带 `anchor_id`，或 `by`、`board_at` 正好是某个硬节点当天的时刻，报 `Invalid query arguments: arguments.<字段>: this question (turn request_id …) asks for the latest departure, and the service frames it: send origin and destination only …`。用户说的、不是硬节点的时刻照常按 `by` 查。`turn` 的上下文为此记 `frame {scenario, asks_latest}`。
+  - `turn` 与命令行 `first-part` 的 `points`：at、go、do 的 `place` 认出一处存的地点、`said` 认出另一处时，在收件之前拒收，报 `Invalid points: points.N: place … is the stored …, but its said “…” names the stored …: send place …`；什么都不记，同一 `request_id` 可再发。
+  - 地点解析（接 A16 的三步）最后一步按类别词：`place` 或 `said` 里有机场、火车站一类的词（`packs.PLACE_WORDS`，多语），取 kind 就是这一类的唯一一处，否则取短名里有这一类词的唯一一处；两处都像就不认。
+  - 还认不出（不是存的地点，也不是坐标）：`points.points[]` 的那一项加 `unknown`（宿主给的 place），at 的加在 `points.at.unknown`（`first_part.at` 同）；`next` 开头一句说哪些没认出、第一段没给它们存的数据、也没拿计划里的地点顶替，并列出可填的地点 ID。不拒收。
+  - 带 `second_part_due` 的那一轮，上下文的 `points` 与 `frame` 照抄被续的那一问；之后的 `latest_departure` 按那一问的下一步（A16 起点跟下一步）与框算。
+  - 交通句：起点关门时的出门写“HH:MM 关门出来（按存的营业时间），走到 …”（英文 “out at closing, HH:MM (stored opening hours), …”）。`check_answer` 的 `checked_has_evidence` 不要求带标的时刻有证据：时刻之后、下一个时刻或分句结束之前（括号到右括号）有“存的”“存档”“没核”（stored、archived、not checked）之一。没带标、又是这一问查询起点存的关门时刻（证据 `frame.closes`）的，照样拦，修法给带标的原句。
+  - 共享的交通答案（s4b）在钉住的钟（`TRIPWRIGHT_NOW`）上：钉住之前（`TRIPWRIGHT_NOW_SET_AT`，否则进程第一次读钟）抓的，`fetched_at` 记这次查询的时刻；钉住之后抓的照旧按年龄倒推。没钉钟时不变。
+- **命令行少拦人、分享页住处段只说先后（S4h-b；判词前提 C、机制 4 与 6）：**
+  - 命令行 `first-part --points`：常见 kind 近义词照收（deadline、route、time、latest_departure、transit、departure → go；food、meal → eat；event、activity → do；place、where → at；大小写、空白与 `place: ""` 照收），stderr 出一行说明收成了什么（stdout 仍只有 JSON）；认不出的 kind 仍退出 1，报错里除示例外再给一条改好的完整命令（未知 kind 换 other）。
+  - 命令行 `query check_answer`：没带 `--request-id` 也没带 `--question` 时，取同一会话最近一次 turn 的 request_id（非 system 消息里最近收到的；同时刻取后录的），stderr 写明用的是哪一条；一条 turn 都没有时报错退出 1，报错里给带 `--request-id` 的命令例子。带了 `--question` 时不自动取。服务端行为不变。
+  - 分享页：时间线里起点或终点是住处的那一段，不出分钟级时刻（HH:MM）、步行分钟、到站时刻和 “from your door”“N minute walk”“门口/楼下” 类说法（中英两语、含标题/正文/怎么走/备注，两语言任一带即整句不出现），线路保留，只说先后（“回住处 / Back to the lodging”“从住处出发 / From the lodging”）；判“贴着住处”看块的 place、相邻移动块与文字里提到的住处（重写后的“住处/our stay”），带公共 place 的参观/吃饭块不算。公共地点之间的时刻照留。无形状变化，机读件与样本不动。
+  - `agents/core.yaml` 第 1 步末尾加一句（工具还在连时隔几秒再找、至多约 30 秒才用命令行；无论哪种都不写关于连接的话），生成物随之重出；服务端 instructions ≤3,600 字节不变，主 SKILL 的字节钉升到 12,225。
 
 ## 4 源文件与生成文件
 

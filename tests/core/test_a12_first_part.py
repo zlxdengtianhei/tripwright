@@ -310,11 +310,15 @@ def test_a_go_place_the_trip_does_not_store_is_never_named_with_the_users_words(
     word = service.turn("local", FIRST, "q10", scenario="quick", points=[dict(kind="go", said=said, place="机场")])
     assert word["first_part"]["lines"][0] == "去维也纳机场：计划里是今晚 22:53 在 Wien Hauptbahnhof 坐 REX 7（存档，没核）；几点出门、怎么走，第二段核完给。"
     assert next(point for point in word["points"]["points"])["place"] == "airport"
-    # a word for several stored places, or none: no name at all, never the user's words
-    for request, point in (("q11", dict(kind="go", said=said, place="维也纳")), ("q12", dict(kind="go", said=said))):
+    # a word for several stored places, or none: no name at all, never the user's words (S4h-a: the user's “机场” is a word for
+    # a kind of place, and names the one stored airport; words without one name nothing)
+    vague = "最晚几点出发 怎么走"
+    for request, point in (("q11", dict(kind="go", said=vague, place="维也纳")), ("q12", dict(kind="go", said=vague))):
         bare = service.turn("local", FIRST, request, scenario="quick", points=[point])
-        assert bare["first_part"]["lines"][0] == "几点出发要查，第二段给。" and said not in bare["first_part"]["text"]
+        assert bare["first_part"]["lines"][0] == "几点出发要查，第二段给。" and vague not in bare["first_part"]["text"]
         assert checked(service, bare["first_part"]["text"], request_id=request) == {}
+    kind = service.turn("local", FIRST, "q14", scenario="quick", points=[dict(kind="go", said=said, place="维也纳")])
+    assert kind["first_part"]["lines"][0].startswith("去维也纳机场：") and said not in kind["first_part"]["text"]
     # control: a place ID names the stored place, as before
     named = service.turn("local", FIRST, "q13", scenario="quick", points=[dict(kind="go", said=said, place="airport")])
     assert named["first_part"]["lines"][0] == "去维也纳机场：计划里是今晚 22:53 在 Wien Hauptbahnhof 坐 REX 7（存档，没核）；几点出门、怎么走，第二段核完给。"

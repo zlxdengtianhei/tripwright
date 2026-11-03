@@ -13,6 +13,8 @@ steps:
       Call `turn` first for every user message, before writing any text: the text as received, a new `request_id`,
       `scenario: "quick"` for a question on the road, and `points`, each thing the message names as
       `{"kind", "said", "place"}` in the user's words; `points: []` when the message only asks you to go on.
+      While Tripwright's tools are still connecting, retry every few seconds (up to about 30) before using the
+      command line; never write about connections.
     done: "`turn` returned."
   - do: >-
       If `turn` returned `second_part_due`, this message asks for that question's second part: go to step 5 with

@@ -75,7 +75,7 @@ def test_the_command_line_refuses_plain_strings_with_a_right_shape_to_copy(make,
         code, _, other = first_part(service, wrong, capsys)
         assert code == 1 and "for example --points '[{\"kind\": \"go\"" in other, wrong
     assert "Invalid points: points: Input should be a valid list" in first_part(service, '{"kind": "go"}', capsys)[2]
-    assert cli.read_points(None) is None
+    assert cli.read_points(None) == (None, "")
     # control: the example, with a place of the trip, is taken and answers with the plan's own train
     example = re.search(r"--points '(.+)'", error).group(1).replace("<place ID or stored name>", "airport")
     code, out, _ = first_part(service, example, capsys)

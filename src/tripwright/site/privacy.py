@@ -29,6 +29,30 @@ PHONE = (
 )
 POLICY_WORD = "private policy word"
 
+# S4h-b (verdict 17, mechanism 6): a timeline segment that starts or ends at a stay says only the order. Minute
+# times, walking minutes, arrival times and "from your door" wording put the stay inside one station's walking circle
+# ("22:47 U1 → our stop 22:52, back at about 22:55", "a 20–25 minute walk"), so a text of such a segment never
+# carries them, in either language. What such a segment may still say: the order ("Back to the lodging by U1").
+MINUTE_TIME = re.compile(r"(?<!\d)(?:[01]?\d|2[0-3])[：:][0-5]\d(?!\d)")
+WALK_MINUTES = re.compile(r"(?:步行|走路|走)\s*[0-9０-９]+\s*(?:分钟|分)|(?:walk(?:ed|s|ing)?|foot)\b[^。\n;；]{0,12}?\b[0-9]+\s*"
+                          r"(?:分钟|分\b|\bmin\b|\bminutes?)\b|[0-9０-９]+\s*[-–~]?\s*[0-9０-９]*\s*(?:分钟|分\b|\bmin\b|\bminutes?)\s*"
+                          r"(?:步行|walks?|on foot)", re.I)
+AT_THE_DOOR = re.compile(r"门口|门前|楼下|\bdoors?\b|\bdoorstep\b|\bdoor step\b", re.I)
+STAY_WORDS = re.compile(r"住处|住宿|\bour stay\b|\bour lodging\b|\bthe lodging\b", re.I)
+
+
+def stay_segment_dirty(*texts: str) -> bool:
+    """True when one of a stay-touching segment's texts carries what it must not show (S4h-b): a minute-level time, a
+    walking distance, a door, or bare minutes next to the lodging's own words."""
+    for text in texts:
+        if not text:
+            continue
+        if MINUTE_TIME.search(text) or WALK_MINUTES.search(text) or AT_THE_DOOR.search(text):
+            return True
+        if STAY_WORDS.search(text) and re.search(r"[0-9０-９]+\s*(?:分钟|分\b|\bmin\b|\bminutes?\b)", text, re.I):
+            return True
+    return False
+
 
 class PrivacyError(ValueError):
     pass

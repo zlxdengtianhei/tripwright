@@ -305,7 +305,7 @@ NOW_CLAIM = re.compile(r"现在(?:是|已经是)?\s*(?:凌晨|早上|上午|中�
 EVIDENCE_ID = re.compile(r"\bEV-\d{6}-[a-z0-9]{6}\b")
 ISO_TIME = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d(?:\.\d+)?)?(?:Z|[+-]\d\d:\d\d)")
 CLOCK_SLACK = 5  # minutes a first part's clock may differ from the moment it is sent
-NO_EVIDENCE = dict(times=set(), windows=[], ids=set(), counted=[], reachable=set(), latest=0, sources=[], lookups=[])
+NO_EVIDENCE = dict(times=set(), windows=[], ids=set(), counted=[], reachable=set(), latest=0, sources=[], lookups=[], closes=set())
 
 
 def clock_minutes(match: re.Match) -> int:
@@ -857,10 +857,37 @@ def acted_times(line: str) -> set[int]:
     return times
 
 
+# S4h-a (stage 4 exit judge, every run's first question): “主选（核过，时刻表）：…22:00 关门出来，走到 … 坐 22:16 的 5B” was
+# refused for its 22:00, the gym's stored closing; the hosts dropped the time to leave. A time its own words mark as stored
+# or not checked (“22:00 关门出来（按存的营业时间）”, “07:05 柜台关（存档，没核）”) is not said to be checked.
+STORED_MARKS = ("存的", "存档", "没核", "stored", "archived", "not checked")
+PIECE_END = re.compile(r"[，,。；;！？!?]")
+
+
+def stored_times(line: str) -> set[int]:
+    """The times of a line said with a mark of STORED_MARKS before the next time or the end of its clause (a mark in
+    brackets runs to the closing bracket)."""
+    found, matches = set(), list(CLOCK.finditer(line))
+    for index, match in enumerate(matches):
+        tail, depth = line[match.end():matches[index + 1].start() if index + 1 < len(matches) else len(line)], 0
+        for position, character in enumerate(tail):
+            if character in "（(":
+                depth += 1
+            elif character in "）)":
+                depth -= 1
+            elif depth <= 0 and PIECE_END.match(character):
+                tail = tail[:position]
+                break
+        if any(mark in tail for mark in STORED_MARKS):
+            found.add(clock_minutes(match))
+    return found
+
+
 def evidence_problems(text: str, found: dict) -> list[dict]:
     """Every line that says 核过 (or a list item under a bare 核过 label) matches this trip's evidence: it names an evidence
     ID that counts, or every time it states is in a transit or latest_departure result or in a counted web quote or
-    claim, or (without times) it shares words with a counted web claim or quote."""
+    claim, or (without times) it shares words with a counted web claim or quote. A time marked as stored (stored_times)
+    is not said to be checked; the stored closing of a lookup's origin without its mark is refused with that mark."""
     web_times = {clock_minutes(match) for match in CLOCK.finditer(" ".join(found["counted"]))}
     problems, section = [], None
     for number, line in numbered(text):
@@ -873,7 +900,7 @@ def evidence_problems(text: str, found: dict) -> list[dict]:
         if not (CHECKED_WORD.search(line) or (section == "核过" and not label and re.match(r"^(?:[-*•]|\d+[.、])\s*", line))):
             continue
         named = set(EVIDENCE_ID.findall(line))
-        times = acted_times(line)
+        times = acted_times(line) - stored_times(line)
         missing = times - found["times"] - web_times
         if named and named <= found["ids"]:
             continue
@@ -881,14 +908,18 @@ def evidence_problems(text: str, found: dict) -> list[dict]:
             continue
         if not times and shares_words(line.split("核过", 1)[-1], found["counted"]):
             continue
+        fix = "改成“网上说法（来源）”；要写核过，先用 web_evidence 记下页面原句，这一行写原句和网站名"
+        closing = sorted(missing & found.get("closes", set()))
         if named - found["ids"]:
             why = f"证据号 {'、'.join(sorted(named - found['ids']))} 不是这一趟算核过的证据"
+        elif closing:
+            why = f"时刻 {'、'.join(hhmm(time) for time in closing)} 是起点存的关门时刻，不是查到的车"
+            fix = f"照 latest_departure 的句子写“{hhmm(closing[0])} 关门出来（按存的营业时间）”，时刻留着"
         elif missing:
             why = f"时刻 {'、'.join(hhmm(time) for time in sorted(missing))} 不在这一趟工具查到的结果里"
         else:
             why = "这一趟没有对得上的工具证据（交通查询、最晚出发或算核过的网页证据）"
-        problems.append(problem("checked_has_evidence", number, line, "“核过”对不上证据：" + why,
-                                "改成“网上说法（来源）”；要写核过，先用 web_evidence 记下页面原句，这一行写原句和网站名"))
+        problems.append(problem("checked_has_evidence", number, line, "“核过”对不上证据：" + why, fix))
     return problems
 
 
@@ -1280,7 +1311,7 @@ def closing_problems(text: str, lookups: list[dict]) -> list[dict]:
                          and ahead(minute, frame["start"]) > ahead(frame["closes"], frame["start"])), None)
             if late:
                 found.append(problem("leave_before_closing", number, line, f"写 {hhmm(minute)} 出门，起点 {hhmm(late['closes'])} 就关门",
-                                     f"照 latest_departure 的句子写“{hhmm(late['closes'])} 关门出来，走到 … 坐 HH:MM 的车”，"
+                                     f"照 latest_departure 的句子写“{hhmm(late['closes'])} 关门出来（按存的营业时间），走到 … 坐 HH:MM 的车”，"
                                      "或写从关门时刻起算的那班"))
                 break
     return found
@@ -1601,7 +1632,7 @@ def evidence_found(records: list[dict], zone: tzinfo, since: datetime, until: da
     all of these. Demo, stale and uncounted records (search snippets, quotes not on the page) never count."""
     from tripwright.evidence import uncounted
 
-    found = dict(times=set(), windows=[], ids=set(), counted=[], reachable=set(), latest=0, sources=[], lookups=[])
+    found = dict(times=set(), windows=[], ids=set(), counted=[], reachable=set(), latest=0, sources=[], lookups=[], closes=set())
     for record in records:
         try:
             fetched = datetime.fromisoformat(record["fetched_at"])
@@ -1629,6 +1660,7 @@ def evidence_found(records: list[dict], zone: tzinfo, since: datetime, until: da
             ends = [window.get("to")] + ([window.get("target")] if window.get("covers_target") else [])
             found["windows"] += sorted(time for end in ends if end for time in clock_times(str(end), zone))
             found["lookups"].append(dict(latest_lookup(value, zone), fetched=fetched))
+            found["closes"] |= clock_times(str((value.get("frame") or {}).get("closes") or ""), zone)  # stored, not looked up
         elif kind == "web":
             found["counted"].append(f"{record.get('claim', '')} {record.get('quote', '')}")
         else:
