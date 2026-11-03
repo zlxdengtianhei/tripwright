@@ -12,7 +12,7 @@ from pydantic import AfterValidator, Field, TypeAdapter, ValidationError, field_
 from pydantic.json_schema import SkipJsonSchema
 
 from tripwright import consider
-from tripwright.consider import SETTING
+from tripwright.consider import CONFLICTS_USER, SETTING, USER_LAYER
 from tripwright.evidence import uncounted
 from tripwright.events import Events
 from tripwright.locks import (EXTERNAL, MODELS, PARTIAL, amend, binding, decides, described, field_class, held, inner, lock_changes, model,
@@ -338,6 +338,21 @@ def compatible(first, second) -> bool:
 
 
 POSSIBLE = "possible_contradiction_with"
+
+
+def user_layer(basis: str | None) -> bool:
+    """METHOD 2.9 and 4 (S5): the user's layer is what the user said, set or confirmed (consider.USER_LAYER); the agent's
+    is its inferences and recommended defaults. On the same object (key or declaration, overlapping people and scope) an
+    agent's entry never replaces, narrows or pends a user's: both stay active, the user's governs, and the agent's names
+    it under `conflicts_with_user`."""
+    return basis in USER_LAYER
+
+
+def offered(item: dict) -> bool:
+    """An entry of the agent's layer that is no hard condition (S5): the plan may use it and say so, but no usage or
+    wide-pack disposition is required for it, so a proposal that also sends the agent's inferences back is not judged
+    incomplete for them. Musts and forbids are required whoever recorded them."""
+    return not user_layer((item.get("source") or {}).get("basis")) and item.get("strength") in ("prefer", "optional")
 
 
 def contradiction_notice(first: dict, second: dict) -> dict:
@@ -978,11 +993,17 @@ class Ledger:
                     if not (overlaps(first.scope, second.scope) and people_overlap(first.subject, second.subject)):
                         continue
                     if declared(first, second) or first.key == second.key:
+                        if user_layer(first.source.basis) != user_layer(second.source.basis):
+                            # The user's words and the agent's own reading: no two readings to clarify; the user's governs.
+                            agent, user = (second, first) if user_layer(first.source.basis) else (first, second)
+                            agent.relations.setdefault(CONFLICTS_USER, []).append(user.id)
+                            continue
                         # Two readings of one statement: neither is used until the user clarifies.
                         contradictory.update((first.id, second.id))
                         pairs.append((first, second))
                         continue
-                    if not compatible(first, second):
+                    if not compatible(first, second) and user_layer(first.source.basis) == user_layer(second.source.basis):
+                        # the agent's own reading beside the user's words is no second reading of the message (S5)
                         first.relations.setdefault(POSSIBLE, []).append(second.id)
                         second.relations.setdefault(POSSIBLE, []).append(first.id)
                     if all((first.scope.time_from, first.scope.time_to, second.scope.time_from, second.scope.time_to)):
@@ -1015,6 +1036,7 @@ class Ledger:
                         continue
                     if (old["status"] == "active" and old["id"] not in batch and old["source"]["event"] == item.source.event
                             and old["key"] != item.key and not declared(item, old) and not compatible(item, old)
+                            and user_layer(old["source"]["basis"]) == user_layer(item.source.basis)
                             and (old.get("value") != item.value or old["text"] != item.text)
                             and overlaps(Scope.model_validate(old["scope"]), item.scope) and people_overlap(old["subject"], item.subject)):
                         # The same message recorded over two proposals: the same non-blocking notice as within one batch.
@@ -1031,6 +1053,15 @@ class Ledger:
                         continue
                     different = old.get("value") != item.value or old["text"] != item.text
                     if item.id in contradictory and old["source"]["event"] != item.source.event:
+                        continue
+                    if user_layer(old["source"]["basis"]) and not user_layer(item.source.basis):
+                        if different:
+                            item.relations.setdefault(CONFLICTS_USER, []).append(old["id"])
+                        continue
+                    if user_layer(item.source.basis) and not user_layer(old["source"]["basis"]) and old["source"]["event"] == item.source.event:
+                        if different:  # the agent's reading of this message came first: it gives way the same
+                            old.setdefault("relations", {}).setdefault(CONFLICTS_USER, []).append(item.id)
+                            self.store.put("items", owner, old)
                         continue
                     if old["source"]["event"] == item.source.event and different:
                         item.status = "pending"

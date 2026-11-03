@@ -81,6 +81,18 @@ EVIDENCE_ID = checks.EVIDENCE_ID
 # first_part_copied: what may differ between turn's first_part.text and the first part sent
 ADDRESS_CHARS = 12  # a form of address before line 1 ("Lin，", "Hi Lin, ")
 LOOSE = re.compile(r"[\s，,；;：:（）()。.、！!？?“”\"'‘’·]")
+# S5b (s5_mcponly_r1 question 1): a text of zero-width characters (and spaces) shows the user nothing: it is no part, only
+# a text too many (no_extra_text)
+ZERO_WIDTH = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff"))
+
+
+def invisible(text: str) -> bool:
+    return not text.translate(ZERO_WIDTH).strip()
+
+
+def shown_as(text: str) -> str:
+    """A text as no_extra_text names it: its first line, or the code points of an invisible one."""
+    return " ".join(f"U+{ord(char):04X}" for char in text.strip()) if invisible(text) else text.strip().splitlines()[0][:50]
 
 
 def texts(stream: Path, zone: ZoneInfo, pinned: list[datetime] | None = None) -> list[tuple[int, str]]:
@@ -356,7 +368,7 @@ def split_parts(shown: list[tuple[int, str]], draft: str | None = None):
     # The first part is the last answer-sized text before the second part; a stray status line is not it. With turn's
     # first_part (A10): the text that copies it, whatever its length, else the last text before the second part (what
     # the host sent instead of the draft is what first_part_copied compares).
-    before = shown[:shown.index(second)] if second else shown
+    before = [item for item in (shown[:shown.index(second)] if second else shown) if not invisible(item[1])]
     if draft and before:
         return next((item for item in reversed(before) if copied(item[1], draft) is None), before[-1]), second
     first = next((item for item in reversed(before) if len(lines_of(item[1])) >= 3), None)
@@ -384,7 +396,7 @@ def check_turn(shown: list[tuple[int, str]], lookup: bool = False, found: dict |
     bare = [(minute, without_later(text)[0]) for minute, text in shown]
     kept = split_parts(bare, draft)
     extra = [text for item in bare for text in [item[1]] if item is not kept[0] and item is not kept[1] and text.strip()]
-    results["no_extra_text"] = dict(ok=not extra, detail=(f"{len(extra)} other texts: " + " | ".join(text.strip().splitlines()[0][:50] for text in extra))
+    results["no_extra_text"] = dict(ok=not extra, detail=(f"{len(extra)} other texts: " + " | ".join(shown_as(text) for text in extra))
                                     if extra else "only the first and the second part")
     asked = any(without_later(text)[1] for _, text in shown)
     results["later_when_no_subagents"] = (dict(ok=asked and continued_at is not None and shape is None,

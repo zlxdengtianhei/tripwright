@@ -133,7 +133,7 @@ Only use those website steps if the tool or a read page supplies them. No inquir
 
 Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>`.
 - Step 1: put what the message states in `record` with `source.event: "this"` and `true_from` an ISO time with offset, never "this"; pass `speaker`, the writer's person ID. Subagents never call `turn`.
-- Step 3: one researcher only (each report starts a turn); each place by its stored ID and name, not an address. For a changed plan you proposed, also dispatch `tripwright-verifier` in the background with `draft_id`, `job_id` and `ctx_id`; it reads the candidate itself, so do not hand it your unchecked lines as its checklist. Write nothing when the first of two reports arrives; what a report left open goes under 没核.
+- Step 3: one researcher only (each report starts a turn); each place by its stored ID and name, not an address. For a changed plan you proposed, also dispatch `tripwright-verifier` in the background with `draft_id`, `job_id` and `ctx_id`; do not hand it your unchecked lines as its checklist. Write nothing when the first of two reports arrives; what a report left open goes under 没核.
 - Step 6: you alone call `commit`, after reading the reports. Never tell the user write states; for `write.blocked` say what its `hint` says; a conflict's `user_line` in `notices` opens the answer; with `storage.kind: local` remind the user to back up the data directory. Only explicit musts lock; follow `references/records.md`.
 <!-- /only -->
 <!-- only: l0 -->
@@ -155,7 +155,7 @@ List every fact the user will act on: each time and hard node in your first line
 <!-- only: l0 -->
 The order between preferences comes only from the user's words.
 <!-- /only -->
-When the user's own preferences compete, give options (the pack's `orders`; `references/records.md`). Use every stored condition that applies (alone, a night at the airport, the budget); never answer against one.
+When the user's own preferences compete, give options (the pack's `orders`; `references/records.md`). Use every stored condition that applies (alone, a night at the airport, the budget), never against one.
 
 <!-- reference: records.md -->
 <!-- only: skill -->
@@ -283,8 +283,8 @@ Choose the steps by scenario:
 | A call's arguments or status (`result`, `state`, `explain`) | `references/tools.md` | Arguments, statuses |
 | A step is unclear, no tools, or the share page after a commit | `references/single-agent.md` | Steps with and without tools |
 | A long or English answer | `references/writing.md` | Plain sentences, English text |
-| A complete example | `references/examples.md` | Two fictional questions, before and after |
-| The user's delivery level | `references/levels.md` | The five levels |
+| An example | `references/examples.md` | Two fictional questions |
+| Delivery level | `references/levels.md` | The five levels |
 
 ## 中文说明
 

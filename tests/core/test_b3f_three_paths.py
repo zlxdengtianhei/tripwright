@@ -178,10 +178,12 @@ def test_path2_a_report_without_the_plan_marks_the_unchanged_plan_for_replanning
 
 
 def test_reports_and_corrections_go_through_propose_not_turn(locked):
-    with pytest.raises(ValueError, match="send reports with propose and commit"):
-        locked.turn("alice", "我买了票。", "record-report", nature="user_verbatim", native_ref="fixture:rr", speaker="u1",
-                    record=dict(reports=[dict(target=ENTRY, field="status", old="on_site", new="bought", quote="我买了票",
-                                              source=dict(event="this"))]))
+    # S5: the turn is not refused for its record; the same words come back in recorded.not_recorded
+    turned = locked.turn("alice", "我买了票。", "record-report", nature="user_verbatim", native_ref="fixture:rr", speaker="u1",
+                         record=dict(reports=[dict(target=ENTRY, field="status", old="on_site", new="bought", quote="我买了票",
+                                                   source=dict(event="this"))]))
+    assert "send reports with propose and commit" in turned["recorded"]["not_recorded"][0]["reason"]
+    assert not turned["recorded"]["changed"]
 
 
 def test_two_reports_on_one_field_apply_in_order(locked):

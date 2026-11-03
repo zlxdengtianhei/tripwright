@@ -206,12 +206,16 @@ def window_end(pack: dict) -> datetime:
 
 
 def non_required(record: dict, pack: dict) -> bool:
-    """The only records a pack may leave out with `over_budget` (CONTRACTS 3.1): in a narrow pack, open checks due after
-    the window ends, and goals in a quick or status pack. A wide pack leaves nothing out over budget."""
+    """The only records a pack may leave out with `over_budget` (CONTRACTS 3.1, 3.10): in a narrow pack, open checks due
+    after the window ends, goals in a quick or status pack, and the agent's own soft entries (basis neither user_explicit
+    nor direction_set, strength prefer or optional). A wide pack leaves nothing out over budget."""
     if pack["kind"] == "wide":
         return False
     if record["type"] == "check":
         return at(record["due_at"]) > window_end(pack)
+    basis = record.get("basis") or (record.get("source") or {}).get("basis")
+    if record["type"] == "item" and basis not in ("user_explicit", "direction_set") and record["strength"] in ("prefer", "optional"):
+        return True
     goal = record["type"] == "item" and record["kind"] == "goal" and not record.get("always") and record["strength"] not in ("must", "forbid")
     return goal and pack["scenario"] in ("quick", "status")
 

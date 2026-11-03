@@ -64,7 +64,10 @@ def test_a_quick_question_lists_only_what_bears_on_it_and_a_plan_lists_people_de
 def test_a_long_list_is_cut_at_the_scenario_limit_and_state_memory_lists_everything(vienna):
     quote = "我们喜欢公园、博物馆、咖啡、甜点、市场、河边、老街、书店。"
     words = ["公园", "博物馆", "咖啡", "甜点", "市场", "河边", "老街", "书店"]
-    said(vienna, quote, record=dict(items=[item("preference", f"likes-{index}", f"喜欢{word}", quote=quote) for index, word in enumerate(words)]))
+    # S5: the user's own lines are never cut (test_s5_layers); the limit cuts the agent's, here its readings of the message
+    said(vienna, quote, record=dict(items=[dict(item("preference", f"likes-{index}", f"喜欢{word}", quote="", basis="agent_inference"),
+                                                compatible_with=[f"likes-{other}" for other in range(len(words)) if other != index])
+                                           for index, word in enumerate(words)]))
     quick = said(vienna, "现在去哪？")
     limit = consider.table()["scenarios"]["quick"]["limit"]
     assert len(quick["consider"]["entries"]) == limit and quick["consider"]["more"] > 0
@@ -127,7 +130,10 @@ def test_a_decision_from_an_earlier_message_does_not_authorize_a_people_change(v
 
 def test_a_changing_wish_is_replaced_and_said_a_stable_one_is_not_replaced_by_an_inference(vienna):
     said(vienna, "想去美景宫。", record=dict(items=[item("goal", "visit", "想去美景宫", quote="想去美景宫。")]))
-    replaced = agent(vienna, "改成想去美泉宫", record=dict(items=[item("goal", "visit", "想去美泉宫", quote="", basis="agent_inference")]))
+    # S5: an inference does not replace what the user said, also of a changing kind; the user's own words do
+    guessed = agent(vienna, "改成想去美泉宫", record=dict(items=[item("goal", "visit", "想去美泉宫", quote="", basis="agent_inference")]))
+    assert "replaced" not in guessed["recorded"]
+    replaced = said(vienna, "改成想去美泉宫。", record=dict(items=[item("goal", "visit", "想去美泉宫", quote="改成想去美泉宫。")]))
     assert replaced["recorded"]["replaced"][0]["old"] == "想去美景宫" and replaced["recorded"]["replaced"][0]["stability"] == "changing"
     assert "想去美景宫 → 想去美泉宫" in replaced["next"]
     said(vienna, "我一直只喝无糖饮料。", record=dict(items=[item("preference", "drink", "只喝无糖饮料", quote="我一直只喝无糖饮料。", long_term=True)]))

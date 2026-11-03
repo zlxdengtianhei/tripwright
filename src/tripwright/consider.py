@@ -23,9 +23,13 @@ from importlib.resources import files
 import yaml
 
 SETTING = "setting"
+# Whose an entry is (METHOD 2.9, S5): the bases of the user's layer (said, set or confirmed by the user); every other
+# basis is the agent's. An agent's entry that meets a user's on the same object names it under CONFLICTS_USER.
+USER_LAYER = ("user_explicit", "direction_set")
+CONFLICTS_USER = "conflicts_with_user"
 SCENARIOS = ("plan", "replan", "compare", "requirements")  # the scenarios that plan, so ask about must-go and sources
 WORDS = {
-    "zh": dict(more="另有 {n} 条没列，state(view='memory') 可看。", must="必须", inferred="推断", pending="长期条目待确认，没答前照用",
+    "zh": dict(more="另有 {n} 条没列，state(view='memory') 可看；单条的原话与来源用 explain(record_id)。", must="必须", inferred="推断", pending="长期条目待确认，没答前照用",
                next="回答前先逐条看 consider 里的 {n} 条：用到哪条、权衡掉哪条（为什么），回答里说清；标“必须”的不能动，要动先问用户；"
                     "定了基本不变的（stable）只按用户本轮的话改。",
                ask_next="ask 里的问题照问。", people="{id}：{name}", destination="{areas}（{start}—{end}）",
@@ -33,8 +37,10 @@ WORDS = {
                must_go="有没有必须要去的地方或必须守的时间？没提就当没有。",
                realtime="这趟要不要配实时数据（例：{options}）？不配就用免费的 Transitous，按时刻表。",
                must_go_default="用户没提必须去的地方，按没有算", realtime_default="这趟不配实时数据，用 Transitous（按时刻表）",
-               offer="我可以帮你起草询问内容（{languages}）。", join="、", source_on="开", source_off="不配"),
-    "en": dict(more="{n} more not listed; state(view='memory') lists them.", must="must", inferred="inferred",
+               offer="我可以帮你起草询问内容（{languages}）。", join="、", source_on="开", source_off="不配",
+               layer=dict(user="用户说的", inference="我的推断", default="我的默认", agent="我定的", plan="计划里的", table="我的默认"),
+               mine="标“我的推断”“我的默认”“我定的”的是你自己的，不说成用户要的。", yields="带 conflicts_with_user 的和用户说的冲突，照用户说的。"),
+    "en": dict(more="{n} more not listed; state(view='memory') lists them; explain(record_id) gives one with its words and source.", must="must", inferred="inferred",
                pending="long-term entry awaiting confirmation, applied until answered",
                next="Before answering, go through the {n} entries in consider: say which you use and which you trade off (and why); "
                     "a must cannot change without asking the user; a stable entry changes only on the user's own words this turn.",
@@ -43,7 +49,11 @@ WORDS = {
                must_go="Is there any place you must go to, or a time you must keep? If you don't say, I take it there is none.",
                realtime="Do you want real-time data on this trip (e.g. {options})? Without it I use the free Transitous timetable.",
                must_go_default="The user named no must-go place; taken as none", realtime_default="No real-time data on this trip; Transitous timetable",
-               offer="I can draft what to ask, in {languages}.", join=", ", source_on="on", source_off="not set up"),
+               offer="I can draft what to ask, in {languages}.", join=", ", source_on="on", source_off="not set up",
+               layer=dict(user="user said", inference="my inference", default="my default", agent="my decision", plan="in the plan",
+                          table="my default"),
+               mine="Lines marked “my …” are your own: never say the user wants them.",
+               yields="A line with conflicts_with_user conflicts with what the user said: follow the user's."),
 }
 
 
@@ -116,6 +126,25 @@ def regions_of(plan: dict | None) -> list[dict]:
     said = " ".join([*((plan or {}).get("areas") or []), *(str(day.get("area") or "") for day in (plan or {}).get("days", []))]).casefold()
     rows = [row for row in regions()["regions"] if any(word.casefold() in said for word in row.get("match") or [])]
     return rows or [next(row for row in regions()["regions"] if row["id"] == "default")]
+
+
+def layer(entry: dict) -> str:
+    """Whose a consider entry is (S5): `user` (said, set or decided by the user), the agent's `inference`, `default` or
+    `agent` (a decision it made), `plan` (the committed plan's people, destination and places) or `table` (the product's
+    region table). Words for each are WORDS layer."""
+    source = entry.get("from") or {}
+    if "decided_by" in entry:
+        return "user" if entry["decided_by"] == "user" else "agent"
+    if "plan" in source or "table" in source:
+        return "plan" if "plan" in source else "table"
+    return basis_layer(source.get("basis"))
+
+
+def basis_layer(basis: str | None) -> str:
+    """`user`, or the agent's `default` or `inference` (the basis an entry has when none was sent)."""
+    if basis in USER_LAYER:
+        return "user"
+    return "default" if basis == "recommended_default" else "inference"
 
 
 def origin(item: dict) -> dict:
@@ -253,6 +282,8 @@ def build(store, owner: str, *, pack: dict | None, plan: dict | None, scenario: 
             extra["status"] = "pending"
         elif item["source"].get("basis") == "agent_inference":
             extra["status"] = "inferred"
+        if item.get("relations", {}).get(CONFLICTS_USER):
+            extra[CONFLICTS_USER] = item["relations"][CONFLICTS_USER]
         found.append(dict(id=item_id, kind=kind, text=item["text"], stability=stability(kind, overridden), **{"from": origin(item)}, **extra))
     for decision_id in decision_ids:
         decision = store.get("decisions", owner, decision_id)
@@ -274,11 +305,18 @@ def build(store, owner: str, *, pack: dict | None, plan: dict | None, scenario: 
                                   stability=stability("want_to_go", overridden), **{"from": {"plan": f"/places/{place['id']}"}}))
     found += sources(store, owner, plan, at=at, language=language)["entries"]
     order = table()["order"]
-    listed = sorted((entry for entry in found if entry["kind"] in kinds),
-                    key=lambda entry: (not entry.get("must"), order.index(entry["kind"])))
+    # S5 (METHOD 3.2): each line says whose it is; musts and the user's own lines are never cut, whatever their kind;
+    # the limit cuts the rest (the agent's, the plan's, the region table's), in the kind order.
+    whose = [(dict(entry, layer=w["layer"][layer(entry)]), layer(entry)) for entry in found if entry["kind"] in kinds]
+    listed = sorted(whose, key=lambda pair: (not pair[0].get("must"), pair[1] != "user", order.index(pair[0]["kind"])))
+    kept = [entry for entry, code in listed if entry.get("must") or code == "user"]
+    others = [entry for entry, code in listed if not (entry.get("must") or code == "user")]
     limit = rule["limit"] if limit == "scenario" else limit
-    shown, rest = (listed, []) if limit is None else (listed[:limit], listed[limit:])
-    result = dict(entries=shown, more=len(rest), next=w["next"].format(n=len(shown)))
+    room = None if limit is None else max(limit - len(kept), 0)
+    shown, rest = kept + others[:room], others[room:] if room is not None else []
+    hints = ([w["mine"]] if any(code in ("inference", "default", "agent") for entry, code in listed if entry in shown) else []) + (
+        [w["yields"]] if any(entry.get(CONFLICTS_USER) for entry in shown) else [])
+    result = dict(entries=shown, more=len(rest), next=(" " if language == "en" else "").join([w["next"].format(n=len(shown)), *hints]))
     if rest:
         result["more_how"] = w["more"].format(n=len(rest))
     return result

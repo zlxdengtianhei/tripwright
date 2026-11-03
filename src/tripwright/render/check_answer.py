@@ -21,7 +21,7 @@ import sys
 from datetime import datetime, tzinfo
 from urllib.parse import parse_qs, unquote, unquote_plus, urlsplit
 
-from tripwright.render.first_part import LATER
+from tripwright.render.first_part import DO_DUE, LATER
 
 LIMITS = {"quick": 5, "first": 10, "second": 16}
 STEP_VERBS = ("坐", "换", "走", "下车", "买", "出示", "搜")
@@ -1033,16 +1033,20 @@ FOOD = re.compile(r"吃|饭|餐|店|麦当劳|汉堡|咖啡|面包|超市|香肠
                   r"Restaurant|Imbiss|Würstel|Spar|Billa|Kebab|Pizza|Döner|Starbucks|Subway|KFC|Grill|Kiosk|Snack|Deli|Bistro|Sushi|Wok", re.I)
 HOURS = re.compile(r"开到|营业|开门|几点关|关门|全天|24 ?小时|(?:[01]?\d|2[0-3])[:：][0-5]\d\s*[—–~-]\s*(?:[01]?\d|2[0-4])[:：][0-5]\d")
 CJK_CHAR = re.compile(r"[⺀-鿿]")
+# S5c (s5b_mcponly_r2 question 2): “麦当劳（中央车站店，一层）· 今晚开到 00:00 …” was no place line, so a part naming two
+# places with hours and sources got “只有 0 处” four times. The dot separates with spaces around it, or right after a
+# closing bracket, whose full width spaces it already; a dot inside words (“U1·U4”) separates nothing
+DOT = re.compile(r" [·・] |[）)][·・] ?")
 
 
 def place_blocks(text: str) -> list[dict]:
     """Places written the answer's way: the name alone on a line, the next line its Chinese name and what it is,
-    joined with " · ", and up to two more lines before the next place or heading."""
+    joined with " · " (or a dot right after a closing bracket), and up to two more lines before the next place or heading."""
     lines = numbered(text)
     starts = []
     for index in range(len(lines) - 1):
         name, explanation = lines[index][1], lines[index + 1][1]
-        if (" · " in explanation and CJK_CHAR.search(explanation) and " · " not in name and not name.startswith(("#", "-", "*"))
+        if (DOT.search(explanation) and CJK_CHAR.search(explanation) and not DOT.search(name) and not name.startswith(("#", "-", "*"))
                 and not CLOCK.match(name) and not name.startswith(MARKED) and len(name) <= 80 and not re.search(r"[。；！？：:]$", name)):
             starts.append(index)
     blocks = []
@@ -1490,7 +1494,8 @@ def check_draft(text: str, part: str, clock: int, found: dict | None = None, *, 
 PART_HEADING = re.compile(r"^#{1,6}\s*(?:第二段|完整安排)", re.M)
 # A14 (quality judge 7, off_r1): a second part sent before it passed was checked when the hook asked, then sent again; the
 # user got two identical messages. What was sent is on the user's screen: it is checked as it stands, never sent twice.
-SEEN = "；这段用户已经看到了：过了就结束，别再发一遍；没过只发一条“更正：”，写改了的几行"
+# S5b (s5_ns_on_r2 question 2): after “过了就结束，别再发一遍” the host rechecked and wrote “第二段上面已经发过了，没有要改的地方。”
+SEEN = "；这段用户已经看到了：重核过了就结束这一轮，不写任何字；没过只发一条“更正：”，写改了的几行"
 BLOCK_REASON = "第二段和核过的草稿不一致，请把发出的文字交 check_answer 再核" + SEEN
 NEVER_REASON = "这一问的第二段还没过 check_answer，请把发出的文字交 check_answer 再核" + SEEN
 
@@ -1591,7 +1596,8 @@ def stop_decision(payload: dict, answers: dict, transcript: list[dict], minute_a
         if any(is_second_part(shown_text) for _, shown_text in texts):
             return None, "not a second part; this question's second part was sent"
         looked = turn_lookups(transcript)
-        if answers_later(transcript):  # the user said “继续” to a first part that ended with later: the second part is due
+        due = answers_later(transcript)
+        if due:  # the user said “继续” to a first part that ended with later: the second part is due
             last, promised, ended = [], True, None
         else:
             last = first_part_sent(texts, minute_at, first_part_shape)
@@ -1613,6 +1619,8 @@ def stop_decision(payload: dict, answers: dict, transcript: list[dict], minute_a
             verdict = ("second part promised" if promised else f"{', '.join(dict.fromkeys(looked))} this question") + ", no second part, no check running"
         else:
             return None, "not a second part; nothing promised or looked up"
+        if due:  # S5b: after “继续” the push opens with the one thing to do (s5_ns_on_r1, s5_mcponly_r2: status lines)
+            reason = DO_DUE["zh"] + reason
     if blocked >= STOP_BLOCKS:
         return None, f"would block ({reason}) but let through after {blocked} blocks for this question"
     return reason, "blocked: " + verdict

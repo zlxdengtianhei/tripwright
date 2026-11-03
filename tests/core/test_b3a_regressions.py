@@ -208,7 +208,7 @@ def test_s4_broad_independent_preferences_remain_applicable_without_a_question(s
 def test_preview_does_not_mutate_relations_or_duplicate_supersedes(seeded, item):
     record_preference(seeded, item)
     receipt = seeded.events.receive("alice", "Prefer parks.", "replace")
-    replacement = dict(item, quote="Prefer parks.", text="Prefer parks.", source={"event": receipt["event_id"]})
+    replacement = dict(item, quote="Prefer parks.", text="Prefer parks.", source={"event": receipt["event_id"], "basis": "user_explicit"})
     draft = propose(seeded, changes={"items": [replacement]})
     seeded.commit("alice", draft["draft_id"], "replacement")
     assert len(seeded.ledger.current("alice")["items"][0]["relations"]["supersedes"]) == 1

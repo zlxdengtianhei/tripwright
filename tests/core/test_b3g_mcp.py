@@ -84,8 +84,10 @@ async def scenario(session) -> dict:
 
     for part, shape in SHAPES:
         record, refused = bad_record(part, shape)
-        error, text, _ = await call(session, "turn", dict(text=SAID, request_id=f"bad-{part}-{shape}", record=record))
-        results[f"C-{part}-{shape}"] = (error and f"Invalid record: {refused}" in text and "got array" in text, text[:300])
+        error, text, data = await call(session, "turn", dict(text=SAID, request_id=f"bad-{part}-{shape}", record=record))
+        # S5: received, the record left out whole with the same words
+        reason = (((data or {}).get("recorded") or {}).get("not_recorded") or [{}])[0].get("reason", "")
+        results[f"C-{part}-{shape}"] = (not error and reason.startswith(f"Invalid record: {refused}") and "got array" in reason, text[:300])
     for part in dict.fromkeys(part for part, _ in SHAPES):
         error, text, data = await call(session, "turn", dict(text=SAID, request_id=f"good-{part}", nature="user_verbatim",
                                                               native_ref=f"fixture:good-{part}", speaker="u1", record=valid_record(part)))

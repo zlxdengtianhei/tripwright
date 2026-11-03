@@ -4,7 +4,7 @@ from copy import deepcopy
 
 from tripwright.checks import check_plan, conclusion
 from tripwright.jobs import Jobs
-from tripwright.ledger import Changes, Ledger, Scope, lock_receipt, refusals
+from tripwright.ledger import Changes, Ledger, Scope, lock_receipt, offered, refusals
 from tripwright.locks import (binding, changed_items, claimed, covers, decides, field_name, held, identify, lock_changes, plan_changes,
                               plan_objects, pointer, protects, recorded_snapshot, required, snapshot, stable_path, user_part)
 from tripwright.repo import snapshot as snapshots
@@ -138,12 +138,13 @@ class Versions:
                                                    "A user-decided plan part must keep its value, date, plan and the plan's position, "
                                                    "its people and the identity of the places, fares, bookings and people it refers to.",
                                                    changed=changed, decided_placement=recorded))
-        required = {}
+        required, optional = {}, {}
         if require_usage:
             for day in plan.days:
                 bundle = self.ledger.compile(owner, scope=Scope(start=day.date, end=day.date, channel="conversation"))
-                required.update({item["id"]: item for item in bundle["items"]})
-        report["usages"] = account_usages(plan, required, usages, report["checks"], report["activity_coverage"])
+                required.update({item["id"]: item for item in bundle["items"] if not offered(item)})
+                optional.update({item["id"]: item for item in bundle["items"] if offered(item)})
+        report["usages"] = account_usages(plan, required, usages, report["checks"], report["activity_coverage"], optional=optional)
         report["applicable_items"] = list(required.values())
         report["undecided"] = self.ledger.compile(owner)["undecided"]
         report["conflicts"] = [check for check in report["checks"] if check["status"] == "conflict" and check["critical"]]

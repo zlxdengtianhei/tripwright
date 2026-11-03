@@ -1,52 +1,54 @@
-# 远程 GitHub 登录与用户仓写回
+# Remote GitHub sign-in and write-back to the user's repository
 
-> **Not recommended for a personal deployment.** The default and recommended sign-in is the key in the connector address ([SETUP.md](SETUP.md)). This page documents the optional GitHub sign-in (OAuth) and header tokens that the code keeps, off by default. It has not been translated yet.
+中文：[REMOTE_AUTH.zh-CN.md](REMOTE_AUTH.zh-CN.md)
 
-这份说明用于已有的 Docker＋Caddy 部署（见 [README.md](README.md#a-server-with-a-domain-docker-and-caddy)）。公网入口是 `https://<你的域名>/mcp`。开启本模式后，Claude 等宿主使用标准 OAuth 登录；现有 `TRIPWRIGHT_TOKENS` 请求头令牌也能连接同一个用户仓。应用内部仍使用现有七个工具和 Git 发件箱、提交器、操作重放。
+> **Not recommended for a personal deployment.** The default and recommended sign-in is the key in the connector address ([SETUP.md](SETUP.md)). This page documents the optional GitHub sign-in (OAuth) and header tokens that the code keeps, off by default.
 
-远程模式已部署在作者自己的维也纳服务器，请求头令牌路已验证可用。GitHub App 待用户创建；用户在场时通过 `deploy/setup_github_app.py` 生成设置链接，完成应用登记后启用 OAuth。
+This page is for an existing Docker and Caddy deployment (see [README.md](README.md#a-server-with-a-domain-docker-and-caddy)). The public entry point is `https://<your-domain>/mcp`. With this mode on, hosts such as Claude sign in with standard OAuth. The existing `TRIPWRIGHT_TOKENS` header tokens can also connect to the same user repository. Inside, the app still uses the same seven tools, the Git outbox, the committer and the operation replay.
 
-## 配置和目录
+Remote mode has been run on the author's own server, and the header-token path has been verified. The GitHub App is still to be created by the user. While the user is present, `deploy/setup_github_app.py` makes a setup link. After the app is registered, OAuth is turned on.
 
-将 `remote.example.yaml` 复制为服务器 `/opt/tripwright/data/remote.yaml`。填写用户的 GitHub 登录名与已有私有行程仓的 SSH 地址，仓中应已有 `tripwright.yaml` 等 Tripwright 文件。配置的 GitHub 登录名大小写不敏感，名单外的账号拿不到本服务令牌。
+## Configuration and directories
 
-| 配置 | 含义 |
+Copy `remote.example.yaml` to `/opt/tripwright/data/remote.yaml` on the server. Fill in the user's GitHub login name and the SSH address of the existing private trip repository. The repository should already hold `tripwright.yaml` and the other Tripwright files. GitHub login names in the configuration are case-insensitive. An account that is not on the list gets no token for this service.
+
+| Setting | Meaning |
 | --- | --- |
-| `public_url` | 无路径、无查询参数的 HTTPS 公开源地址 |
-| `data_dir` | 容器内运行目录；例 `/data/remote` |
-| `secrets_file` | 容器内专用 env 文件；例 `/data/remote-secrets.env`，权限 600 |
-| `oauth` | 是否开启 GitHub OAuth；false 时仍可使用请求头令牌 |
-| `accounts` | GitHub 登录名 → 租户 ID；这里只列获准账号 |
-| `tenants.<id>.repo_url` | 对应的私有 Git 仓 SSH 地址 |
-| `tenants.<id>.owner` | 仓索引中的身份；现有个人仓一般为 `local` |
-| `tenants.<id>.branch` | 正本分支，默认 `main` |
-| `tenants.<id>.ssh_key` | 仅服务器持有的私钥路径 |
-| `tenants.<id>.known_hosts` | 已核过来源的 SSH 主机公钥文件 |
-| `token_tenants` | 旧令牌映射中的身份 → 租户 ID；例 `local: personal` |
+| `public_url` | Public HTTPS origin, with no path and no query string |
+| `data_dir` | Run directory inside the container, for example `/data/remote` |
+| `secrets_file` | Dedicated env file inside the container, for example `/data/remote-secrets.env`, permission 600 |
+| `oauth` | Whether GitHub OAuth is on. When false, header tokens still work |
+| `accounts` | GitHub login name → tenant ID. List only the approved accounts here |
+| `tenants.<id>.repo_url` | SSH address of the tenant's private Git repository |
+| `tenants.<id>.owner` | Identity in the repository index. For an existing personal repository this is usually `local` |
+| `tenants.<id>.branch` | Source-of-truth branch, default `main` |
+| `tenants.<id>.ssh_key` | Path of the private key, held only on the server |
+| `tenants.<id>.known_hosts` | SSH host key file whose origin has been checked |
+| `token_tenants` | Identity from the old token mapping → tenant ID, for example `local: personal` |
 
-YAML 中不放密钥。`data_dir/tenants/<id>/mirror/` 是镜像克隆，运行库在镜像的 `.tripwright/state.sqlite`。每个租户独立目录、库和服务对象；调用方不能通过工具参数指定租户。镜像 origin 或当前分支与配置不同会拒绝打开，避免推错仓或推错分支。
+Do not put secrets in the YAML. `data_dir/tenants/<id>/mirror/` is a mirror clone, and the working database is `.tripwright/state.sqlite` inside the mirror. Each tenant has its own directory, database and service object. A caller cannot choose the tenant through tool parameters. If the mirror's origin or current branch differs from the configuration, the service refuses to open it. This stops a push to the wrong repository or the wrong branch.
 
-服务器上所有 `/data/...` 路径对应宿主 `/opt/tripwright/data/...`。现有 Compose 已绑定整个数据目录，无需额外挂载。远程模式不会导入旧的单库 `/data/tripwright.sqlite3`，而是从配置的用户仓重建索引。
+Every `/data/...` path on the server is `/opt/tripwright/data/...` on the host. The existing Compose file already binds the whole data directory, so no extra mount is needed. Remote mode does not import the old single database `/data/tripwright.sqlite3`. It rebuilds the index from the configured user repository.
 
-## 服务器生成部署钥匙；主会话将公钥加到私有仓
+## The server makes the deploy key; your agent adds the public key to the private repository
 
-下面第一段在 Mac 执行。私钥留在维也纳，`ssh-keygen -q` 不显示私钥。已有同名钥匙时停止，避免覆盖。
+Run the first block below on your computer. Replace `<server>` with the SSH alias of your server. The private key stays on the server, and `ssh-keygen -q` does not print it. If a key with the same name exists, the command stops, so it never overwrites.
 
 ```bash
-ssh vienna 'install -d -m 700 -o 10001 -g 10001 /opt/tripwright/data/ssh && test ! -e /opt/tripwright/data/ssh/personal_ed25519 && ssh-keygen -q -t ed25519 -N "" -C tripwright-vienna-personal -f /opt/tripwright/data/ssh/personal_ed25519 && chown 10001:10001 /opt/tripwright/data/ssh/personal_ed25519 /opt/tripwright/data/ssh/personal_ed25519.pub && chmod 600 /opt/tripwright/data/ssh/personal_ed25519'
+ssh <server> 'install -d -m 700 -o 10001 -g 10001 /opt/tripwright/data/ssh && test ! -e /opt/tripwright/data/ssh/personal_ed25519 && ssh-keygen -q -t ed25519 -N "" -C tripwright-personal -f /opt/tripwright/data/ssh/personal_ed25519 && chown 10001:10001 /opt/tripwright/data/ssh/personal_ed25519 /opt/tripwright/data/ssh/personal_ed25519.pub && chmod 600 /opt/tripwright/data/ssh/personal_ed25519'
 ```
 
-主会话使用 Mac 上已经登录的 `gh`，把 `OWNER/PRIVATE_REPO` 换成实际行程仓。管道里只有公钥：
+Your agent uses the `gh` that is already signed in on your computer. Replace `OWNER/PRIVATE_REPO` with the real trip repository. Only the public key goes through the pipe:
 
 ```bash
-ssh vienna 'ssh-keygen -y -f /opt/tripwright/data/ssh/personal_ed25519' \
-  | gh repo deploy-key add /dev/stdin --repo OWNER/PRIVATE_REPO --allow-write --title tripwright-vienna
+ssh <server> 'ssh-keygen -y -f /opt/tripwright/data/ssh/personal_ed25519' \
+  | gh repo deploy-key add /dev/stdin --repo OWNER/PRIVATE_REPO --allow-write --title tripwright-server
 ```
 
-GitHub 主机钥匙从经 HTTPS 校验的官方 metadata API 取得，保存后 SSH 使用 `StrictHostKeyChecking=yes`，不会在第一次 SSH 连接时盲信网络返回的钥匙：
+The GitHub host keys come from the official metadata API, over verified HTTPS. After they are saved, SSH uses `StrictHostKeyChecking=yes`, so it does not blindly trust a key that the network returns on the first SSH connection:
 
 ```bash
-ssh vienna 'python3 -' <<'PY'
+ssh <server> 'python3 -' <<'PY'
 import json
 import os
 import urllib.request
@@ -63,75 +65,75 @@ os.chmod(path, 0o600)
 PY
 ```
 
-`repo_url` 写成 `ssh://git@ssh.github.com:443/OWNER/PRIVATE_REPO.git` 就走 443 端口，不依赖出站 22 端口；新部署建议用这个写法（`git@github.com:…` 走 22，仍可用）。已有镜像改 `repo_url` 会被拒绝打开（“different origin”）：先把 `data_dir/tenants/<id>/mirror` 挪开，服务会重新克隆，没推上去的写入要先推完（`/readyz` 的 `unsynced` 为 0）。
+If you write `repo_url` as `ssh://git@ssh.github.com:443/OWNER/PRIVATE_REPO.git`, Git uses port 443 and does not need outbound port 22. Use this form for new deployments. (`git@github.com:…` uses port 22 and still works.) For an existing mirror, a changed `repo_url` is refused ("different origin"). First move `data_dir/tenants/<id>/mirror` aside, and the service clones it again. Push any writes that have not been pushed before you do this (`unsynced` in `/readyz` is 0).
 
-钥匙只授予这一个行程仓的写权限。用户在 GitHub 网页或其他克隆里的改动，沿用现有 45 秒轮询收编；推送不强推，被拒后按操作在新 head 上重放。
+The key grants write access to this one trip repository only. Changes the user makes on the GitHub website or in another clone are still picked up by the existing 45-second poll. Pushes are never forced. When a push is rejected, the operations are replayed on the new head.
 
-## 开启远程配置
+## Turn on the remote configuration
 
-让容器用户能够读取配置文件；例如 `chown 10001:10001 /opt/tripwright/data/remote.yaml`、`chmod 600 ...`。在既有 `/opt/tripwright/tripwright.env` 中新增一行：
+Make the config file readable by the container user, for example `chown 10001:10001 /opt/tripwright/data/remote.yaml` and `chmod 600 ...`. Add one line to the existing `/opt/tripwright/tripwright.env`:
 
 ```dotenv
 TRIPWRIGHT_REMOTE_CONFIG=/data/remote.yaml
 ```
 
-现有 `TRIPWRIGHT_TOKENS` 原样保留，并在 YAML 的 `token_tenants` 中映射其身份。Compose 的 `env_file` 会把配置路径传给 CLI；不需要更改 Caddyfile 或 Compose 路由。新 Dockerfile 为 Git 写回加入了 `openssh-client`，因此需要重建应用镜像：
+Keep the existing `TRIPWRIGHT_TOKENS` as it is, and map its identities in `token_tenants` in the YAML. The `env_file` in Compose passes the config path to the CLI. You do not need to change the Caddyfile or the Compose routes. The new Dockerfile adds `openssh-client` for Git write-back, so you must rebuild the app image:
 
 ```bash
-ssh vienna 'cd /opt/tripwright/app/deploy && docker-compose up -d --build --force-recreate'
+ssh <server> 'cd /opt/tripwright/app/deploy && docker-compose up -d --build --force-recreate'
 ```
 
-直接运行 CLI 时的等价入口：
+The equivalent when you run the CLI directly:
 
 ```bash
 tripwright serve --http --host 0.0.0.0 --port 8000 --remote-config /data/remote.yaml
 ```
 
-没有 `--remote-config` 或 `TRIPWRIGHT_REMOTE_CONFIG` 时，原有本地单库、`--repo` 与 Bearer 行为保留。stdio 使用原有路径。
+Without `--remote-config` or `TRIPWRIGHT_REMOTE_CONFIG`, the original local single-database, `--repo` and Bearer behavior stays. stdio uses the original path.
 
-## GitHub 应用：用户创建，凭据直接回服务器
+## GitHub App: the user creates it, the credentials go straight to the server
 
-采用 GitHub App manifest。它只用于登录，不申请行程仓权限；行程写回单独使用上面的部署钥匙。应用要建在用户自己的 GitHub 账号里，GitHub 要求账号主人在浏览器里确认；宿主有浏览器工具、用户已在浏览器登录 GitHub 并同意时，agent 可以替用户打开链接、点确认（见 README 的“GitHub 登录是什么、谁来点”）。
+Use the GitHub App manifest flow. The app is only for sign-in. It does not ask for any permission on the trip repository. Trip write-back uses the deploy key above. The app must be created in the user's own GitHub account, and GitHub requires the account owner to confirm in the browser. When the host has a browser tool and the user is already signed in to GitHub and agrees, the agent may open the link and click confirm for the user (see "Who can connect" in [README.md](README.md#who-can-connect)).
 
-用户在场准备创建 GitHub App 时，在 Mac 的项目目录运行：
-
-```bash
-.venv/bin/python -B deploy/setup_github_app.py --url https://<你的域名> --ssh <服务器的 SSH 别名>
-```
-
-没有 SSH 时把一个请求头令牌放进环境变量 `TRIPWRIGHT_CHECK_TOKEN` 再运行，不给 `--ssh`。
-
-程序用已有令牌创建一个十分钟内有效、使用后作废的设置链接，只输出这个链接。主会话把链接给用户。用户打开后会自动转到 GitHub，在 GitHub 点“Create GitHub App”即可；浏览器禁用脚本时，页面保留“Continue to GitHub”按钮。用户可以修改显示名称。登录名应与 YAML 名单中的账号一致。
-
-GitHub 回调到 `/setup/github-app/callback`。服务器核对一次性 state、同一浏览器的 HttpOnly cookie 和 App 所属账号，再向 GitHub 换取凭据。客户端号、客户端密钥、App ID、PEM 私钥和 webhook 密钥直接写入 `/opt/tripwright/data/remote-secrets.env`，以权限 600 原子保存。页面只显示设置完成。凭据不会出现在页面、聊天、命令参数或源码中。专用 env 位于可写数据卷内，文件归容器 UID 10001；不要求容器修改 root 所有的外层 env 文件。
-
-保存成功后下一次请求自动启用 OAuth，无需再重启容器。设置链接过期后重新生成；已有应用凭据时不再开放登记。失败时页面只给出状态，不显示 GitHub 的凭据响应。
-
-默认回调地址：`https://<你的域名>/auth/callback`。GitHub App 的用户令牌应保持默认的到期与刷新功能；代理签发的访问令牌有效期为一小时，刷新令牌上限为三十天并随刷新轮换，GitHub 上游的有效性仍是约束。
-
-手建 OAuth App 是退路：用户在 GitHub Developer settings → OAuth Apps 创建，Homepage 填公开源地址，Authorization callback URL 填上面的 `/auth/callback`；用户自己在服务器的 600 专用 env 文件中填 `TRIPWRIGHT_GITHUB_CLIENT_ID` 和 `TRIPWRIGHT_GITHUB_CLIENT_SECRET`，文件归 10001:10001。不要将密钥发到聊天。普通 OAuth App 往往不提供刷新令牌；此时访问令牌一小时后需要重新登录。优先使用 manifest 创建的 GitHub App。
-
-可选 `TRIPWRIGHT_OAUTH_SIGNING_KEY` 同样只能从进程环境或专用 600 env 文件读取；未配置时由上游客户端密钥派生。OAuth 客户端、授权码、上游令牌与刷新状态保存在 `/data/remote/oauth/`，以 Fernet 加密，避免容器重启后所有连接失效。只有一个应用进程写这份状态。轮换签名材料会让旧连接失效，需要重新登录。
-
-## 公网路径与核验
-
-Caddy 现有 `handle { reverse_proxy tripwright:8000 }` 已覆盖以下路径，应全部转给应用并保留 Authorization、Cookie 和 Set-Cookie：
-
-- `/mcp`；未认证响应 401，`WWW-Authenticate` 指向资源元数据。
-- `/.well-known/oauth-protected-resource/mcp`、`/.well-known/oauth-authorization-server`。
-- `/register`、`/authorize`、`/consent`、`/token`、`/auth/callback`。
-- `/setup/github-app/session`、`/setup/github-app/callback`、`/setup/github-app/<一次性号>`。
-
-不启用访问日志来记录授权码、临时链接或 cookie。健康入口是 `/healthz`（存活）与 `/readyz`（就绪：租户已打开、远端可达、没有卡住的写入），见 README。
-
-部署后可运行：
+When the user is present and ready to create the GitHub App, run this in the project directory on your computer:
 
 ```bash
-curl --fail --silent --show-error https://<你的域名>/.well-known/oauth-authorization-server
-curl --fail --silent --show-error https://<你的域名>/.well-known/oauth-protected-resource/mcp
-.venv/bin/python -B deploy/check_https.py --url https://<你的域名> --ssh <服务器的 SSH 别名>
+.venv/bin/python -B deploy/setup_github_app.py --url https://<your-domain> --ssh <SSH alias of the server>
 ```
 
-发现文档应包含 `S256`、`registration_endpoint`、`client_id_metadata_document_supported=true`、`token_endpoint_auth_methods_supported` 中的 `none`，以及 `authorization_response_iss_parameter_supported=true`。资源是完整 `/mcp` 地址；issuer、authorization_servers 与回调的 `iss` 使用同一个公开源地址。刷新令牌重复使用返回 `invalid_grant`。
+If there is no SSH, put one header token in the environment variable `TRIPWRIGHT_CHECK_TOKEN` and run the command without `--ssh`.
 
-Claude 网页在 Connectors 加完整 `/mcp` 地址，完成 GitHub 登录；同一连接器供手机使用。Claude Code 可以用同一连接器，或自己添加 HTTP MCP 并走 OAuth；固定请求头宿主也可继续用令牌。ChatGPT 的连接器能走相同 OAuth，但读写工具及手机可用性受套餐和宿主能力限制。OAuth 流程已在假的 GitHub 上游自验；作者的维也纳实例已用请求头令牌经 HTTPS 和官方 MCP SDK 验证七个工具与只读 `state`。GitHub App 待用户创建，真实 GitHub OAuth、Claude、手机和 ChatGPT 连接仍待验证。
+The program uses an existing token to make a setup link that is valid for ten minutes and is void after one use. It prints only this link. Your agent gives the link to the user. When the user opens it, the page goes to GitHub by itself, and the user clicks "Create GitHub App" there. If the browser has scripts disabled, the page keeps a "Continue to GitHub" button. The user can change the display name. The login name should match an account in the YAML list.
+
+GitHub calls back to `/setup/github-app/callback`. The server checks the one-time state, the HttpOnly cookie from the same browser and the account that owns the App, and then exchanges them with GitHub for the credentials. The client ID, client secret, App ID, PEM private key and webhook secret are written straight to `/opt/tripwright/data/remote-secrets.env`, saved atomically with permission 600. The page only shows that setup is done. The credentials never appear on the page, in chat, in command arguments or in the source. The dedicated env file is in the writable data volume and is owned by container UID 10001. The container does not need to change the outer env file, which root owns.
+
+After a successful save, OAuth turns on at the next request. You do not need to restart the container. When the setup link has expired, make a new one. When app credentials already exist, registration is no longer open. On failure the page shows only a status, never GitHub's credential response.
+
+Default callback address: `https://<your-domain>/auth/callback`. Keep the default expiry and refresh behavior of the GitHub App user token. The access token that the proxy issues is valid for one hour. The refresh token lasts at most thirty days and rotates on each refresh. The validity of the upstream GitHub token is still a limit.
+
+Creating an OAuth App by hand is the fallback. The user creates it in GitHub Developer settings → OAuth Apps. For Homepage, enter the public origin. For Authorization callback URL, enter the `/auth/callback` address above. The user fills in `TRIPWRIGHT_GITHUB_CLIENT_ID` and `TRIPWRIGHT_GITHUB_CLIENT_SECRET` in the server's dedicated env file with permission 600, owned by 10001:10001. Do not send the secret in chat. A plain OAuth App often gives no refresh token. In that case the user must sign in again after the access token expires, one hour later. Prefer a GitHub App created with the manifest.
+
+The optional `TRIPWRIGHT_OAUTH_SIGNING_KEY` is likewise read only from the process environment or the dedicated 600 env file. When it is not set, the key is derived from the upstream client secret. The OAuth clients, authorization codes, upstream tokens and refresh state are kept in `/data/remote/oauth/`, encrypted with Fernet, so that a container restart does not invalidate every connection. Only one app process writes this state. Rotating the signing material invalidates old connections, and users must sign in again.
+
+## Public paths and checks
+
+The existing Caddy `handle { reverse_proxy tripwright:8000 }` already covers the paths below. All of them must go to the app, with Authorization, Cookie and Set-Cookie kept:
+
+- `/mcp`. An unauthenticated request gets 401, and `WWW-Authenticate` points to the resource metadata.
+- `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server`.
+- `/register`, `/authorize`, `/consent`, `/token` and `/auth/callback`.
+- `/setup/github-app/session`, `/setup/github-app/callback` and `/setup/github-app/<one-time ID>`.
+
+Do not turn on access logs: they would record authorization codes, temporary links or cookies. The health endpoints are `/healthz` (alive) and `/readyz` (ready: the tenant is open, the remote is reachable, no write is stuck). See the README.
+
+After deployment you can run:
+
+```bash
+curl --fail --silent --show-error https://<your-domain>/.well-known/oauth-authorization-server
+curl --fail --silent --show-error https://<your-domain>/.well-known/oauth-protected-resource/mcp
+.venv/bin/python -B deploy/check_https.py --url https://<your-domain> --ssh <SSH alias of the server>
+```
+
+The discovery documents should contain `S256`, `registration_endpoint`, `client_id_metadata_document_supported=true`, `none` in `token_endpoint_auth_methods_supported`, and `authorization_response_iss_parameter_supported=true`. The resource is the full `/mcp` address. The issuer, `authorization_servers` and the `iss` in the callback use the same public origin. Reusing a refresh token returns `invalid_grant`.
+
+In Claude on the web, add the full `/mcp` address under Connectors and finish the GitHub sign-in. The same connector works on the phone. Claude Code can use the same connector, or you can add an HTTP MCP server yourself and use OAuth. Hosts that send a fixed header can keep using tokens. The ChatGPT connector can use the same OAuth, but its read and write tools and phone support depend on the plan and the host. The OAuth flow has been self-tested against a fake GitHub upstream. The author's own instance has been checked with a header token over HTTPS and the official MCP SDK: the seven tools and the read-only `state`. The GitHub App is still to be created by the user. Real GitHub OAuth, and the Claude, phone and ChatGPT connections, are still to be verified.

@@ -60,6 +60,8 @@ TRIPWRIGHT_PROVIDERS=live uv run tripwright --repo ./my-trips serve --stdio
 **Answers.**
 
 - Answer quality is still being evaluated. Independent reviewers check answers against a fixed standard, and the answers have not passed yet.
+- In Claude Code (checked on 2026-11-03 with replays of real questions), the transport facts and the two-part shape held in every round, and the first part arrived within half a minute. The assistant sometimes adds one status line, such as "checking the restaurants now", before or after the second part. The service tells it not to, but cannot stop it.
+- Other clients (Codex, the command line without the service) are usable but less tested: Codex sometimes sends both parts in one reply.
 - Your assistant's model writes the answer. The service has no checking model of its own.
 
 **Transport and other data.**

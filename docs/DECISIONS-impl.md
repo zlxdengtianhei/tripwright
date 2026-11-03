@@ -1399,3 +1399,39 @@ Field table (one row per model field; `tests/core/test_b3f_field_table.py` keeps
 - **改（`cli.py` 的 `latest_turn`）：** 只取最近 `RECENT_QUESTION_MINUTES`（30 分钟，服务自己的“最近一条用户消息”回退用的同一个窗口）内收到的非 system 消息；没有就照旧报错，报错里给带 `--request-id` 的命令与 `--question`。
 - **测试：** `tests/core/test_s4hb_cli.py::test_check_answer_never_takes_a_turn_of_another_hour`（只有 21:01 的 seed turn、钟到 23:30：退出 1；旧代码上这条红）。
 
+## S5：方法论 v0.5 三点（2026-11-03，worker s5-impl；主会话 191cd345 派）
+
+依据：用户 Q42 的 R-147—R-149（`METHOD.md` v0.5 第 2.9、3.2、6.1 节）；现状见 s5 盘点（`gap-inventory.md`）。约定见 `docs/CONTRACTS.md` 3.10（v2.0）。
+
+- **一、agent 的不取代用户的（`ledger.apply`；METHOD 2.9、4）。**
+  - 来源：盘点 1.1 的探针。同 key、同人、同范围时，后到的 `agent_inference` 条目把用户明说的条目改成 `superseded`（`ledger.py` 原 1043—1046 行，取代时不看来源）。
+  - 改：两层按 `source.basis` 分。用户层是 `user_explicit`、`direction_set`（`consider.USER_LAYER`），其余是 agent 层。同一对象（同 key 或声明、人与范围相交）上，agent 层的新条目不取代、不作例外、不使用户条目待定（旧条是 must 时也不开问题）。两条都 `active`，agent 那条记 `relations.conflicts_with_user`。同一条消息里的一对（同批，或先记 agent 的、后记用户的）同样处理。用户层的新条目照旧取代用户层与 agent 层的旧条目，“用户自己改口”不受影响。
+  - 连带改：跨层的一对不再记 `possible_contradiction_with`。不改的话，agent 每发回一条推断，就和同一消息里用户的每条各生成一个“可能矛盾”的问题，进窄包的必需问题组，快问包更易超 1,800。
+  - 不改：“定了基本不变”的种类照旧先走 `stable_refusal`（agent 推断碰上就进 `not_recorded`，问用户），比“并存”更严。实况（facts）的取代照旧不看来源：查询得到的新实况常该盖过用户早先说的，要分层得另定规则。
+- **二、`consider` 每条标来源层，截断先留用户的（`consider.build`、`consider.layer`；METHOD 3.2）。**
+  - 改：每条加 `layer` 短词：用户说的、我的推断、我的默认、我定的、计划里的。产品地区表的条目写“我的默认”。agent 条目带 `conflicts_with_user`。
+  - 截断：必须项与用户层条目不计入条数上限、永不截；其余（agent 的、计划的、地区表的）按种类次序填到上限。这照 METHOD 3.2“用户层全量加这一范围最多若干条”。没取“按层排序、仍按上限硬截”，因为用户层自己超上限时，用户的偏好仍会因为种类次序排在用户规矩后面被截。
+  - `next`：列出 agent 层条目时加一句“不说成用户要的”，有冲突时加一句“照用户说的”。`more_how` 指向 `explain(record_id)`。
+  - 窄包与它的 1,800 预算不动：来源层只加在 `consider` 上，包的渲染没改。
+- **三、按编号取单条（`service.explain`、`service._record_card`）。**
+  - 改：扩 `explain`，不加工具，工具仍七个。`record_id` 是账本记录（条目、实况、决定、待核、待定问题）时，结果加 `record`：原文与引句、来源层与 basis、原话出处（`said`，取自 `packs.message`，长期条目导入的也有）、状态、被谁取代、取代链末端现在生效的那条（`current`）、关系、让给它的 agent 条目（`conflicted_by`）。
+  - `version_usage` 不给 `version` 时只回最新一版。每版只带这一条的用法、那版约束包带没带它（`carried`）、点名它的变更行，不带整份约束包。不是账本记录的编号照旧。
+  - 只经 MCP、不读仓文件，远程同样可用。
+- **四、云端写回（`agents/core.yaml` 第 6 步、`service.turn`、`ledger.offered`、`usage.account_usages`、`packs.compile_pack`、`Store.attempt`；METHOD 6.1 第 3 步）。**
+  - 第 6 步改为“用户这句定了或改了的，和你推断或选了的（basis `agent_inference`），放进同一份 `propose` 再 `commit`；两者之间不另记”。这句随生成物进 instructions、`steps`、主 SKILL 与 AGENTS.md。
+  - 为了守住字节上限，同时删了别处的字：开头一句、“停下问用户”一句、读长规则一句的括注（保留“the share page after a commit”）。另外删了主 SKILL 读表两行与第 3 步注里“it reads the candidate itself, so”。
+  - 字节数：instructions 3,586（≤3,600，`build --check` 过）；主 SKILL 12,217（≤12,225）。
+  - `turn` 加 `write_back {say, record}`：一句提醒和要发回的原形（来源是本问事件号，basis `agent_inference`，`quote` 空）。不占 instructions 的字节。
+  - agent 层的软条目（agent 层且 `prefer`／`optional`，`ledger.offered`）不是必需条目。计划提案的 `usages` 里可不给（给了照常核）；宽包标 `non_required`，不进 `dispositions`，宽包仍不因预算省记录。窄包里它们是第三种非必需记录（CONTRACTS 3.1），放不下时先整批走，再轮到用户条目缩成编号行；两条都是这种条目的可能矛盾问题同样非必需；它们不进偏好次序的配对。must、forbid 无论谁记都必需。
+  - 为什么窄包也要改：写回的推断按范围进窄包。实测“用户 3 条偏好、agent 发回 2 条推断”的快问包：不改时 1,892 token，用户的条目只剩编号；改后 1,626，用户的原文都在。基线是 1,775，那时推断还取代了用户的“轻松一点”。
+  - `turn.record` 出错不拒整条 `turn`：形状错、多给了 `decisions` 一类、账本拒，都照收原话、照出第一段。`record` 整份不记：新加的 `Store.attempt` 是存档点，回滚不留半条；`_record` 里原来那次嵌套写入也改用它。`recorded.not_recorded` 加 `{part: "record", records, reason, fix}`，`reason` 是原拒绝原文，`fix` 说改好后放进这一问的 `propose`；`next` 加一句。
+- **测试。** `tests/core/test_s5_layers.py`（14 条；每条先在改前的代码上红，记录见 REPLY）。
+- **改了的旧测试（都因第一、二、四条的语义变化，测试原意保留）：**
+  - `test_ledger.py` 三条、`test_b3a_regressions.py::test_preview_does_not_mutate_relations_or_duplicate_supersedes`：取代、例外、撞 must 的新条目原来没填 basis（默认 `agent_inference`），而它们是用户的话。现在补上 `basis: user_explicit`。
+  - `test_m1_consider.py`：“常变的被取代并说出来”原来用 agent 推断去取代用户的话。现在先断言推断不取代，再用用户的话取代。“长列表截到上限”改用 agent 的推断条目，因为用户的条目不再截。
+  - 坏 `record` 原来整条拒 `turn`。下面这些现在断言原话已收，同一句拒绝原文出现在 `recorded.not_recorded[].reason`：`test_b3g_admission.py`（10 个参数）、`test_b3g_mcp.py`、`test_a5_cli_and_stdio.py`、`test_a5_latest_and_evidence.py`、`test_b3f_three_paths.py::test_reports_and_corrections_go_through_propose_not_turn`、`tests/repo/test_memory.py::test_the_users_answer_is_recorded_through_turn_and_a_not_used_entry_stops_applying`。
+  - `tests/contracts/contract_checks.py::non_required` 加第三种：窄包里 agent 层的软条目。
+- **限制。**
+  - 没填 basis 的条目算 agent 层。宿主若把用户的话记成不填 basis，这些条目会被标“我的推断”，挡不住 agent 推断的覆盖，也不再是宽包必需。提醒写在 `write_back` 和 `turn` 的工具说明里，服务端不核。
+  - 同一 `request_id` 不能带改好的 `record` 重发（会报复用），只能放进 `propose`。没有提案的快问，写回就多一次只改账本的 `propose`＋`commit`，在第一段之后、第二段之前。
+  - 包里的“细节”行仍是行程仓路径（盘点 tw-6），云端读细节要靠 `explain(record_id)` 与 `state(view='day')`。

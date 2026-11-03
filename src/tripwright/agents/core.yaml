@@ -5,9 +5,9 @@
 # a tool result can show. `python -m tripwright.agents build` regenerates the outputs; tests/agents/test_s4a_core.py
 # holds them to this file.
 intro: >-
-  Tripwright answers each user message about a stored trip in two parts: a first part at once, from what the trip
-  stores, then a second part after the facts the user will act on are checked. Do these steps in order; go on when
-  a step's check holds.
+  Tripwright answers each user message about a stored trip in two parts: a first part at once from what it stores,
+  then a second part once the facts the user acts on are checked. Do these steps in order; go on when a step's check
+  holds.
 steps:
   - do: >-
       Call `turn` first for every user message, before writing any text: the text as received, a new `request_id`,
@@ -37,7 +37,9 @@ steps:
       lookups (`tripwright-researcher`; in Codex `tripwright_researcher`); without one, do them yourself, one after
       another.
     done: "each fact has a `query` result or a report line, or a reason it stays unchecked."
-  - do: "If the message decided or changed something, record it with `propose`, then `commit`."
+  - do: >-
+      Record in one `propose`, then `commit`, what the message decided or changed and what you inferred or chose
+      (basis `agent_inference`); record nothing in between.
     done: "`commit` accepted it, or there was nothing to record."
   - do: >-
       Write the second part from the results and pass it to `query(kind="check_answer", arguments={"text": <the
@@ -55,11 +57,11 @@ always:
     搜索摘要, and what stays unchecked is 没核, with why.
   - The order between preferences comes only from the user.
   - >-
-    Stop for the user only before a commit with `accept_unverified`, a change to something the user called a must,
-    or anything sent or published to others; every other step goes on without asking.
+    Stop for the user only before a commit with `accept_unverified`, a change to what the user called a must, or
+    anything sent or published to others; every other step goes on without asking.
 # Where the long rules are, for an entry that has only the MCP server (the skill has its own table)
 read: >-
-  When writing the second part, recording, or when a step is unclear, read the prompt `tripwright-main` (the full
-  rules: transport sentences, food, the last section, records and locks, the share page after a commit); each
-  tool's description holds its
-  arguments, and `turn`'s `next` adds what this message needs.
+  When writing the second part, recording, or unsure of a step, read the prompt `tripwright-main` (the full
+  rules: transport, food, the share page after a commit); each tool's description holds its arguments;
+  `turn`'s `next` adds
+  what this message needs.

@@ -2,9 +2,10 @@
 
 A narrow pack covers the asker's people and window; a wide pack covers every person, place and channel on the days a
 draft changes, for the deep check. Records narrow by people, then date, time, place and channel, never by kind;
-principles come along whatever their scope. Everything in scope is required except two kinds, which may be left out
-with `over_budget` when the rendered pack does not fit: open checks due after the window ends, and goals in a quick or
-status pack. Pure with respect to the clock: the moment of the read is an argument.
+principles come along whatever their scope. Everything in scope is required except three kinds, which may be left out
+with `over_budget` when the rendered pack does not fit: open checks due after the window ends, goals in a quick or
+status pack, and the agent's own soft entries (S5, `ledger.offered`; in a wide pack they only need no disposition).
+Pure with respect to the clock: the moment of the read is an argument.
 
 A live pack (a turn's) carries the moment of the read as `header.now` in the trip's time zone; a pack written into the
 repository does not, because it is read later. Every hard node says whether its time is an external deadline or the
@@ -23,7 +24,7 @@ from zoneinfo import ZoneInfo
 from tripwright.checks import departure_clock
 from tripwright.consider import SETTING
 from tripwright.evidence import uncounted
-from tripwright.ledger import Ledger, Scope, overlaps, people_overlap
+from tripwright.ledger import Ledger, Scope, offered, overlaps, people_overlap
 from tripwright.locks import unescape
 from tripwright.render.pack import pack_meta, render_pack
 from tripwright.storage import Store
@@ -554,12 +555,22 @@ def compile_pack(store: Store, owner: str, *, kind: str, scenario: str, pack_id:
         required["questions"].append(question_id)
     # Records in group order, as the reader meets them.
     records = {record_id: records[record_id] for group in GROUPS for record_id in required[group]}
+    # S5 (METHOD 3.2): the agent's own soft entries (ledger.offered) are not required: in a narrow pack they leave
+    # first when it does not fit, before the user's are cut to ID lines; in a wide pack they need no disposition.
+    offers = [record_id for record_id in required["items"] if offered(origins[record_id])]
     if kind == "narrow":
         for record_id in required["items"] + required["checks_due"]:
-            if optional(records[record_id], scenario=scenario, end=close):
+            if optional(records[record_id], scenario=scenario, end=close) or record_id in offers:
                 records[record_id]["non_required"] = True
+        for record_id in required["questions"]:  # a possible contradiction between two of the agent's own readings
+            if records[record_id].get("item_ids") and set(records[record_id]["item_ids"]) <= set(offers):
+                records[record_id]["non_required"] = True
+    else:
+        for record_id in offers:
+            records[record_id]["non_required"] = True
 
-    preferences = [(item["id"], item) for item in stored["items"] if section(item) == "preference"]
+    # the order between preferences is the user's to give (METHOD 4 three): the agent's own entries make no pair (S5)
+    preferences = [(item["id"], item) for item in stored["items"] if section(item) == "preference" and item["id"] not in offers]
     wide = kind == "wide"
     quotes = None
     if wide:
@@ -582,7 +593,7 @@ def compile_pack(store: Store, owner: str, *, kind: str, scenario: str, pack_id:
         details=details(plan, trip_folder, dates, nodes, [records[record_id] for record_id in required["decisions"]]),
         candidate=dict(draft_id=candidate, budget="excluded") if candidate else None,
         full_quotes=quotes,
-        dispositions=[dict(item_id=item_id, status="unaddressed") for item_id in required["items"]] if wide else None,
+        dispositions=[dict(item_id=item_id, status="unaddressed") for item_id in required["items"] if item_id not in offers] if wide else None,
         digest=dict(sections=SECTIONS + (["full_quotes", "dispositions"] if wide else []),
                     budget_tokens=budget or BUDGETS["wide" if wide else scenario], writing_rules=language))
 
@@ -615,7 +626,7 @@ def present(pack: dict) -> dict:
     required records to ID-only lines."""
     out = rendered(pack)
     final = pack
-    optional = non_required(pack)
+    optional = non_required(pack) if pack["kind"] == "narrow" else []  # a wide pack leaves nothing out over budget
     if optional and shortened(pack, out):
         final = without(pack, optional)
         out = rendered(final)

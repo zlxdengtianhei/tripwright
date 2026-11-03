@@ -89,8 +89,8 @@ def test_the_users_answer_is_recorded_through_turn_and_a_not_used_entry_stops_ap
     memory = {entry["id"]: entry for entry in writer.service.state("local", "memory")["entries"]}
     assert memory[item_id]["status"] == "not_used" and memory[item_id]["status_event"] == answer["receipt"]["event_id"]
     assert memory["p2"]["status"] == "confirmed" and memory["p1"]["status"] == "pending"
-    with pytest.raises(ValueError, match="not a long-term entry imported"):
-        writer.turn("x", "bad-carry", record=dict(carry=[dict(id="I-000000-nosuch", status="confirmed", source=dict(event="this"))]))
+    bad = writer.turn("x", "bad-carry", record=dict(carry=[dict(id="I-000000-nosuch", status="confirmed", source=dict(event="this"))]))
+    assert "not a long-term entry imported" in bad["recorded"]["not_recorded"][0]["reason"]  # S5: left out, the turn answered
     writer.service.committer.flush()
     assert any(line.get("entry", {}).get("action") == "carry_over" for path in (writer.root / layout.trip_folder(NEXT) / "ledger/journal").glob("*.jsonl")
                for line in map(yaml.safe_load, path.read_text().splitlines()))

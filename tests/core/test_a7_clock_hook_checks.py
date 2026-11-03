@@ -140,7 +140,7 @@ def test_a_changed_or_never_checked_second_part_is_blocked(checked, tmp_path, mo
     changed = transcript(tmp_path / "changed.jsonl", SECOND.replace("21:30", "21:20"), asked)
     assert json.loads(hook(database, dict(transcript_path=str(changed)), monkeypatch, capsys)) == {
         "decision": "block", "reason": "第二段和核过的草稿不一致，请把发出的文字交 check_answer 再核"
-        "；这段用户已经看到了：过了就结束，别再发一遍；没过只发一条“更正：”，写改了的几行"}  # A14: never sent twice
+        "；这段用户已经看到了：重核过了就结束这一轮，不写任何字；没过只发一条“更正：”，写改了的几行"}  # A14: never sent twice; S5b: no word after
     later = transcript(tmp_path / "later.jsonl", SECOND, time.time() + 60)  # a newer question: nothing passed since it
     assert json.loads(hook(database, dict(transcript_path=str(later)), monkeypatch, capsys))["reason"].startswith("这一问的第二段还没过 check_answer")
     # D-48: stop_hook_active no longer lets it through by itself; after 3 blocks for the question it does, and logs it

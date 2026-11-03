@@ -100,7 +100,7 @@ List every fact the user will act on: each time and hard node in your first line
 ## Order between preferences
 
 The order between preferences comes only from the user's words.
-When the user's own preferences compete, give options (the pack's `orders`; `references/records.md`). Use every stored condition that applies (alone, a night at the airport, the budget); never answer against one.
+When the user's own preferences compete, give options (the pack's `orders`; `references/records.md`). Use every stored condition that applies (alone, a night at the airport, the budget), never against one.
 
 ## Order between preferences
 

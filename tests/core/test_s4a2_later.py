@@ -91,6 +91,7 @@ def test_after_continue_the_hooks_take_the_first_part_as_sent(make):
     message) and the host sent its first part again. The message that answers a later line is the same question's second
     half: lookups go through, and the Stop hook pushes for the second part, not for a first part."""
     from tripwright.render.check_answer import FIRST_REASON, PUSH_REASON, first_part_decision
+    from tripwright.render.first_part import DO_DUE
 
     service = make(tracks=WAYS)
     first = service.turn("local", FIRST, "q1", scenario="quick", points=GO)["first_part"]
@@ -101,7 +102,7 @@ def test_after_continue_the_hooks_take_the_first_part_as_sent(make):
     assert first_part_decision(query, continued(ends, lookup=False), lambda _: minute) == (
         None, "first part sent in the reply that ended with first_part.later")
     reason, verdict = stop_decision(dict(last_assistant_message=""), {}, continued(ends), lambda _: minute)
-    assert reason.startswith(PUSH_REASON) and "no first part" not in verdict
+    assert reason.startswith(DO_DUE["zh"] + PUSH_REASON) and "no first part" not in verdict  # S5b: the one thing to do first
     # control: a reply that did not end with later, then a new message: a lookup still waits for this question's first part
     reason, _ = first_part_decision(query, continued(first["text"], lookup=False), lambda _: minute)
     assert reason is not None and reason.startswith(FIRST_REASON)

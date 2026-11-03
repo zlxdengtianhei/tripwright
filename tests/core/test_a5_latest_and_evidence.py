@@ -7,6 +7,7 @@ answers in UTC with walking legs, and a fictional web. Fictional people, places 
 from __future__ import annotations
 
 import asyncio
+import re
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -279,14 +280,17 @@ def fact(true_from):
 
 def test_turn_names_the_field_path_of_a_wrong_record(make):
     service = make(anchored_plan())
-    with pytest.raises(ValueError) as refused:
-        service.turn("alice", "Today I am alone.", "bad", nature="user_verbatim", native_ref="fixture:bad", record=fact("this"))
-    assert str(refused.value) == ("Invalid record: record.facts.0.true_from: must be an ISO time with a timezone offset "
-                                  "(e.g. 2030-06-10T09:00:00+02:00), got 'this'")
-    with pytest.raises(ValueError, match=r"record.facts.0.subject must be an array, got string; record.facts.0.true_from must be a string, got integer"):
-        service.turn("alice", "Today I am alone.", "bad2", record=dict(facts=[dict(fact("x")["facts"][0], subject="p1", true_from=5)]))
-    with pytest.raises(ValueError, match=r"record.facts.0.true_from: must be an ISO time with a timezone offset .*got '2030-06-10T09:00'"):
-        service.turn("alice", "Today I am alone.", "bad3", record=fact("2030-06-10T09:00"))
+    # S5: a wrong record no longer refuses the turn; recorded.not_recorded names the field path in the same words
+    def left(result):
+        return result["recorded"]["not_recorded"][0]["reason"]
+
+    refused = service.turn("alice", "Today I am alone.", "bad", nature="user_verbatim", native_ref="fixture:bad", record=fact("this"))
+    assert left(refused) == ("Invalid record: record.facts.0.true_from: must be an ISO time with a timezone offset "
+                             "(e.g. 2030-06-10T09:00:00+02:00), got 'this'")
+    assert re.search(r"record.facts.0.subject must be an array, got string; record.facts.0.true_from must be a string, got integer",
+                     left(service.turn("alice", "Today I am alone.", "bad2", record=dict(facts=[dict(fact("x")["facts"][0], subject="p1", true_from=5)]))))
+    assert re.search(r"record.facts.0.true_from: must be an ISO time with a timezone offset .*got '2030-06-10T09:00'",
+                     left(service.turn("alice", "Today I am alone.", "bad3", record=fact("2030-06-10T09:00"))))
     good = service.turn("alice", "Today I am alone.", "good", nature="user_verbatim", native_ref="fixture:good",
                         record=fact("2030-06-10T09:00:00+02:00"))
     assert good["recorded"]["changed"]

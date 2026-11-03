@@ -177,4 +177,4 @@ def test_the_first_part_is_sent_and_the_second_is_never_sent_twice(make):
                   dict(type="assistant", timestamp="2026-11-04T20:03:00Z",
                        message=dict(role="assistant", content=[dict(type="text", text="# 第二段 · 核过了（21:03）\n今晚不用赶")]))]
     reason, _ = stop_decision({}, {}, transcript)
-    assert reason == NEVER_REASON and reason.endswith("这段用户已经看到了：过了就结束，别再发一遍；没过只发一条“更正：”，写改了的几行")
+    assert reason == NEVER_REASON and reason.endswith("这段用户已经看到了：重核过了就结束这一轮，不写任何字；没过只发一条“更正：”，写改了的几行")

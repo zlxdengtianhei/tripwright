@@ -6,7 +6,7 @@ import pytest
 def test_same_object_replaces_and_other_object_coexists(service, item):
     service.ledger.apply("alice", {"items": [item]})
     new_source = service.events.receive("alice", "Prefer parks.", "parks")
-    replacement = dict(item, quote="Prefer parks.", text="Prefer parks.", source={"event": new_source["event_id"]})
+    replacement = dict(item, quote="Prefer parks.", text="Prefer parks.", source={"event": new_source["event_id"], "basis": "user_explicit"})
     other = dict(item, key="art", quote="Prefer art.", text="Prefer art.")
     service.ledger.apply("alice", {"items": [replacement, other]})
     active = [record for record in service.ledger.current("alice")["items"] if record["status"] == "active"]
@@ -21,7 +21,7 @@ def test_narrower_exception_only_applies_in_its_scope(service, item):
     receipt = service.events.receive("alice", "Prefer parks.", "exception")
     exception = dict(item, quote="Prefer parks.", text="Prefer parks.",
                      scope={"start": "2030-06-11", "end": "2030-06-11", "channel": "conversation"},
-                     source={"event": receipt["event_id"]})
+                     source={"event": receipt["event_id"], "basis": "user_explicit"})
     service.ledger.apply("alice", {"items": [exception]})
     inside = service.ledger.compile("alice", subject=["p1"], scope={"start": "2030-06-11", "end": "2030-06-11", "channel": "conversation"})
     outside = service.ledger.compile("alice", subject=["p1"], scope={"start": "2030-06-10", "end": "2030-06-10", "channel": "conversation"})
@@ -51,7 +51,7 @@ def test_contradictory_new_message_does_not_supersede_previous_preference(servic
 def test_hard_conflict_does_not_silently_replace(service, item):
     service.ledger.apply("alice", {"items": [dict(item, strength="must")]})
     received = service.events.receive("alice", "Prefer parks.", "new-hard")
-    new = dict(item, quote="Prefer parks.", text="Prefer parks.", source={"event": received["event_id"]})
+    new = dict(item, quote="Prefer parks.", text="Prefer parks.", source={"event": received["event_id"], "basis": "user_explicit"})
     service.ledger.apply("alice", {"items": [new]})
     assert service.store.all("items", "alice")[0]["status"] == "active"
     assert service.store.all("items", "alice")[1]["status"] == "pending"

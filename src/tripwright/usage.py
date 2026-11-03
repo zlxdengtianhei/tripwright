@@ -40,10 +40,14 @@ def applicable(item: dict, day, track, block) -> bool:
     return people_overlap(item["subject"], track.subject) and overlaps(Scope.model_validate(item["scope"]), scope)
 
 
-def account_usages(plan, required: dict, usages: list[dict], checks: list[dict], coverage: dict | None = None) -> list[dict]:
+def account_usages(plan, required: dict, usages: list[dict], checks: list[dict], coverage: dict | None = None,
+                   optional: dict | None = None) -> list[dict]:
     """`coverage` is the checker's per-person activity coverage (checks.activity_coverage); a used claim for an activity
-    is server-checked only when that same result covers every person of the condition."""
+    is server-checked only when that same result covers every person of the condition. `optional` are applicable
+    conditions of the agent's own layer (ledger.offered, S5): a usage sent for one is checked like the others, a missing
+    one is no conflict."""
     coverage = coverage or {}
+    optional = optional or {}
     blocks = {block.id: (day, track, block) for day in plan.days for candidate in day.plans
               for track in candidate.tracks for block in track.blocks}
     places = {place.id: place.model_dump(mode="json") for place in plan.places}
@@ -55,10 +59,10 @@ def account_usages(plan, required: dict, usages: list[dict], checks: list[dict],
             raise ValueError(f"usages.{position}.reason: a trade-off or exclusion requires its reason")
         supplied[usage["item_id"]] = dict(usage)
     normalized = []
-    for item_id in supplied.keys() - required.keys():
+    for item_id in supplied.keys() - required.keys() - optional.keys():
         checks.append(conclusion(f"usage:{item_id}", "conflict", "A reported usage is outside the candidate's applicable conditions."))
         normalized.append(dict(supplied[item_id], status="invalid", reason="Condition is outside this candidate's scope."))
-    for item_id, item in required.items():
+    for item_id, item in [*required.items(), *((item_id, item) for item_id, item in optional.items() if item_id in supplied)]:
         usage = supplied.get(item_id)
         hard = item["strength"] in ("must", "forbid")
         valid = usage is not None and not (hard and usage["status"] == "traded_off")

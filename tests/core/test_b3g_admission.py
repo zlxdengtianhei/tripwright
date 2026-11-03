@@ -222,10 +222,11 @@ def recorded(service, part: str, result: dict) -> bool:
 def test_counterexample_c_a_wrong_record_shape_is_refused_with_its_path_and_the_right_one_is_recorded(locked, part, shape):
     record, refused = bad_record(part, shape)
     events = len(locked.store.all("events", "alice"))
-    with pytest.raises(ValueError) as error:
-        locked.turn("alice", SAID, f"bad-{part}-{shape}", nature="user_verbatim", native_ref="fixture:bad", speaker="u1", record=record)
-    assert str(error.value).startswith(f"Invalid record: {refused}") and str(error.value).endswith("got array"), str(error.value)
-    assert len(locked.store.all("events", "alice")) == events  # refused before the message was received
+    # S5: the wrong record is left out whole with the same words; the message is still received and the turn answered
+    bad = locked.turn("alice", SAID, f"bad-{part}-{shape}", nature="user_verbatim", native_ref="fixture:bad", speaker="u1", record=record)
+    [left] = bad["recorded"]["not_recorded"]
+    assert left["part"] == "record" and left["reason"].startswith(f"Invalid record: {refused}") and left["reason"].endswith("got array"), left
+    assert len(locked.store.all("events", "alice")) == events + 1 and not bad["recorded"]["changed"]
     if part == "carry":
         carried(locked.store, "alice")
     result = locked.turn("alice", SAID, f"good-{part}-{shape}", nature="user_verbatim", native_ref=f"fixture:good-{shape}", speaker="u1",

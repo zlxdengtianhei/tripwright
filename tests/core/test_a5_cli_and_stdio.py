@@ -171,6 +171,6 @@ def test_the_new_kinds_and_the_record_path_over_real_stdio(tmp_path):
     assert not error and web["quote_found"] == "unchecked" and web["evidence"]["fetched_at"]
     error, text, _ = found["web time"]
     assert error and "arguments.fetched_at: the service records the time of a web check itself" in text
-    error, text, _ = found["record"]
-    assert error and ("Invalid record: record.facts.0.true_from: must be an ISO time with a timezone offset "
-                      "(e.g. 2030-06-10T09:00:00+02:00), got 'this'") in text, text
+    error, text, _ = found["record"]  # S5: the message is received; the record is left out with its field path
+    assert not error and ("Invalid record: record.facts.0.true_from: must be an ISO time with a timezone offset "
+                          "(e.g. 2030-06-10T09:00:00+02:00), got 'this'") in text, text

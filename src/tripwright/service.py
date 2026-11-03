@@ -42,6 +42,14 @@ PROMISES_SECOND = re.compile(r"第二段|核完再发|second part", re.I)
 UNKNOWN_QUESTION = "本问原话不明，吃的检查没做。"
 UNKNOWN_POINTS = "这一问的 turn 没给 points（或没给 request_id），没核第一段有没有逐件回应、写没写在哪。"  # A12
 UNKNOWN_LISTED = 8  # stored place IDs `next` names when a place in points is not recognized (S4h-a)
+# explain(record_id) (S5): the ledger tables a record ID is looked up in, and the fields each adds to the record
+RECORD_TABLES = (("items", "item"), ("facts", "fact"), ("decisions", "decision"), ("pending_checks", "pending_check"),
+                 ("undecided", "question"))
+RECORD_FIELDS = dict(item=("kind", "key", "strength", "condition", "valid_until", "reason", "always", "long_term"),
+                     fact=("key", "value", "true_from", "valid_until"),
+                     decision=("decided_by", "must", "reason", "depends_on", "revisit_when", "locked_paths"),
+                     pending_check=("due_at", "responsible", "consequence", "alternative", "result"),
+                     question=("options", "default", "item_ids"))
 
 
 class RecordEntry(BaseModel):
@@ -187,7 +195,14 @@ class Tripwright:
              exclude_keys: list[str] | None = None, speaker: str | None = None, record: dict | None = None,
              new_trip: str | None = None, points: list | None = None) -> dict:
         self.bound(owner)
-        record_input = (checked_record(record) if record is not None else None) or None
+        # S5: a record of the wrong shape (or one the ledger refuses, below) never refuses the turn: the message is
+        # received and the first part drafted as without it; recorded.not_recorded says what was left out and where to
+        # send it again
+        refused_record = None
+        try:
+            record_input = (checked_record(record) if record is not None else None) or None
+        except ValueError as error:
+            record_input, refused_record = None, str(error)
         points = self._checked_places(owner, first_part.checked_points(points))
         prior = self.outbox.find(owner, "turn", request_id)
         if prior is not None and encode(prior["replay"].get("input")) != encode(record_input):
@@ -206,7 +221,13 @@ class Tripwright:
                                carry=[self.store.get("carry", owner, entry) for entry in imported]) if opened else None
                 changes = None
                 if record_input:
-                    changes, recorded = self._record(owner, placeholder_sources(record_input, event_id), event_id)
+                    try:
+                        with self.store.attempt():
+                            changes, recorded = self._record(owner, placeholder_sources(record_input, event_id), event_id)
+                    except ValueError as error:
+                        refused_record = str(error)
+                if refused_record:
+                    recorded = dict(recorded, not_recorded=[*recorded["not_recorded"], self._refused_record(record, refused_record, event_id)])
                 # What the last turn asked and this message leaves unanswered takes its default (M1, R-58, R-67).
                 silent = consider.defaults(self.store, owner, self._asked(owner, event_id), record_input, at=now(), language=self.language)
                 if silent:
@@ -240,7 +261,9 @@ class Tripwright:
             anchors = self._hard_nodes(owner, plan, subject, scope, at)
             write = self.write_ref(owner, op)
             pending = memory.pending_entries(self.store, owner)
-            response = dict(now=self.clock(owner, at), receipt=receipt, ctx_id=context_id, base_version=current["number"], snapshot=context["snapshot"],
+            # S5b: do_first is the first field the host reads (set below, once the first part and second_part_due are known)
+            response = dict(do_first=None, now=self.clock(owner, at), receipt=receipt, ctx_id=context_id, base_version=current["number"],
+                            snapshot=context["snapshot"],
                             write=write, notices=self.open_notices(owner),
                             pack=dict(markdown=shown["markdown"], meta=shown["meta"], tokens=shown["tokens"]),
                             recorded=recorded, possible_contradictions=self.ledger.possible_contradictions(owner, context["bundle"]["items"]),
@@ -250,6 +273,7 @@ class Tripwright:
                             hard_nodes=anchors, answer=dict(skeleton=SKELETON.get(scenario, "first")),
                             inbox=[dict(job_id=message["job_id"], state=message["state"]) for message in self.store.all("inbox", owner)
                                    if message["state"] in ("generated", "available") and message["base_version"] == current["number"]])
+            response["write_back"] = self._write_back(event_id)
             if pending:
                 response["memory"] = dict(pending=pending, ask="长期条目待确认：在对话里问用户这趟还用不用；按回答调 turn(record={carry:[{id,status}]})。")
                 asked.append(dict(id="memory", say=response["memory"]["ask"], default=packs.WORDS["zh"]["memory_default"],
@@ -279,6 +303,10 @@ class Tripwright:
                                             latest=bool(first and first["asks_latest"]), points=(points is not None) if plan and not due else None,
                                             due=due, unknown=self._unknown_places(plan, told)),
                             **core_steps())
+            key = "en" if self.language == "en" else "zh"
+            unknown = self._unknown_places(plan, told)
+            response["do_first"] = (first_part.DO_DUE if due else first_part.DO_POINTS if unknown or (plan and points is None)
+                                    else first_part.DO_FIRST)[key]
             if due:
                 response["second_part_due"] = due
             if told is not None:
@@ -287,6 +315,30 @@ class Tripwright:
             response["sync"] = self.committer.status()
             self.committer.poke()
         return response
+
+    def _refused_record(self, record, reason: str, event_id: str) -> dict:
+        """recorded.not_recorded for a turn.record left out as a whole (S5), with where the corrected entries go: the same
+        request_id now holds this receipt, so they go into this question's propose (or the next turn's record)."""
+        count = sum(len(value) for value in record.values() if isinstance(value, list)) if isinstance(record, dict) else 0
+        en = self.language == "en"
+        return dict(part="record", records=count, reason=reason,
+                    fix=(f"Nothing of record was kept; the message was received. Send the corrected entries in this question's propose "
+                         f"(source.event \"{event_id}\"), not again with this request_id." if en else
+                         f"record 一条没记，原话已收。改好后放进这一问的 propose（source.event 写 \"{event_id}\"），不要用同一个 request_id 重发 turn。"))
+
+    def _write_back(self, event_id: str) -> dict:
+        """What turn says about the agent's own inferences and choices (S5, METHOD 6.1 three): send them back, marked as
+        the agent's, in this question's one proposal, never between propose and commit; the shape to send, with this
+        message as source."""
+        en = self.language == "en"
+        say = ("What you inferred or chose that the user did not say (a route, a place, a default): put it in this question's one "
+               "propose as changes.items with source.basis agent_inference (the user's own words: user_explicit), then commit; record "
+               "nothing between propose and commit." if en else
+               "这一问里你推断或替用户选了用户没说的（走法、店、默认）：放进这一问的同一份 propose 的 changes.items，source.basis 写 "
+               "agent_inference（用户的原话写 user_explicit），再 commit；不在 propose 与 commit 之间另记。")
+        return dict(say=say, record=dict(items=[dict(kind="preference", key="<the user's key when it is about the same thing>", quote="",
+                                                     text="<one sentence: what you inferred or chose>", subject=["*"], strength="prefer",
+                                                     source=dict(event=event_id, basis="agent_inference"))]))
 
     def _hard_nodes(self, owner: str, plan: dict, subject: list[str] | None, scope: dict | None, at: str) -> list[dict]:
         """turn's hard nodes: the plan's anchors for the subject and scope, each with its latest departure clock, where
@@ -453,6 +505,9 @@ class Tripwright:
                          "transit with until).")
         if asked:
             parts.append(w["ask_next"])
+        refused = [line["fix"] for line in recorded.get("not_recorded", []) if line.get("part") == "record"]
+        if refused:
+            parts.append(("record: " if en else "record 没记：") + refused[0])
         if recorded.get("replaced"):
             parts.append(("回答里说一句这次改了什么：" if self.language != "en" else "Say in the answer what this message changed: ")
                          + w["join"].join(f"{line['old']} → {line['new']}" for line in recorded["replaced"]) + ("。" if self.language != "en" else "."))
@@ -491,7 +546,7 @@ class Tripwright:
                                          "This entry is set once and the user did not say to change it this turn: ask the user first."))
         dumped = changes.model_dump(mode="json")
         try:
-            with self.store.transaction():
+            with self.store.attempt():
                 applied = self.ledger.apply(owner, dumped, answered=event_id)
         except ValueError as error:
             others = [part for part in TURN_RECORDS if part != "facts" and dumped.get(part)]
@@ -872,8 +927,58 @@ class Tripwright:
             except ValueError:
                 return None
 
-        explanation["version_usage"] = [dict(version=candidate["number"], ctx_id=candidate.get("ctx_id"), usages=candidate.get("usages", []),
-                                              origin=candidate.get("origin"), constraints=constraints(candidate),
-                                              changelog=candidate.get("changelog"))
+        card = self._record_card(owner, record_id) if record_id else None
+        if card is None:
+            explanation["version_usage"] = [dict(version=candidate["number"], ctx_id=candidate.get("ctx_id"), usages=candidate.get("usages", []),
+                                                  origin=candidate.get("origin"), constraints=constraints(candidate),
+                                                  changelog=candidate.get("changelog"))
+                                            for candidate in versions]
+            return explanation
+        # S5 (METHOD 2.9 second level): one record by its ID, also over MCP alone: the record itself and, unless a
+        # version is asked for, only the latest version, with this record's usage, whether its pack carried it and the
+        # change-log lines that name it.
+        if version is None:
+            versions = sorted(versions, key=lambda candidate: candidate["number"])[-1:]
+        explanation["record"] = card
+        explanation["version_usage"] = [dict(version=candidate["number"], ctx_id=candidate.get("ctx_id"), origin=candidate.get("origin"),
+                                              usages=[usage for usage in candidate.get("usages", []) if usage.get("item_id") == record_id],
+                                              carried=record_id in json.dumps(constraints(candidate) or {}),
+                                              changelog=[line for line in candidate.get("changelog") or [] if record_id in json.dumps(line)])
                                         for candidate in versions]
         return explanation
+
+    def _record_card(self, owner: str, record_id: str) -> dict | None:
+        """One ledger record for explain (S5): its words, whose it is (consider's layer words), the message it comes from
+        (packs.message: also an imported long-term entry's), its status, what replaced it and the record in effect now,
+        its relations and the agent's entries that give way to it. None for an ID that is no ledger record."""
+        for table, name in RECORD_TABLES:
+            if self._has(table, owner, record_id):
+                found = self.store.get(table, owner, record_id)
+                break
+        else:
+            return None
+        events = {event["id"]: event for event in self.store.all("events", owner) if "received" in event}
+        basis = (found.get("source") or {}).get("basis")
+        code = ("user" if found["decided_by"] == "user" else "agent") if name == "decision" else consider.basis_layer(basis) if basis else None
+        items = self.store.all("items", owner) if name == "item" else []
+        replaced_by = ([item["id"] for item in items if record_id in item.get("relations", {}).get("supersedes", [])] if name == "item" else
+                       [found["superseded_by"]] if found.get("superseded_by") else [])
+        current, seen = record_id, {record_id}
+        while True:  # the end of the replacement chain: the record in effect now
+            following = ([item["id"] for item in items if current in item.get("relations", {}).get("supersedes", [])] if name == "item" else
+                         [self.store.get(table, owner, current).get("superseded_by")] if name == "decision" else [])
+            following = [entry for entry in following if entry and entry not in seen]
+            if not following:
+                break
+            current = following[-1]
+            seen.add(current)
+        text = (f"{found['question']} → {found['choice']}" if name == "decision" else found.get("text") or found.get("question"))
+        card = dict(id=record_id, table=name, status=found["status"], text=text, quote=found.get("quote"), basis=basis,
+                    layer=consider.words(self.language)["layer"][code] if code else None, said=packs.message(found, events),
+                    subject=found.get("subject"), scope=packs.bare_scope(found.get("scope")), superseded_by=replaced_by,
+                    current=current, relations=found.get("relations") or {})
+        card.update({key: found[key] for key in RECORD_FIELDS[name] if found.get(key) is not None})
+        conflicted = [item["id"] for item in items if record_id in item.get("relations", {}).get(consider.CONFLICTS_USER, [])]
+        if conflicted:
+            card["conflicted_by"] = conflicted
+        return card

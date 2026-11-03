@@ -491,3 +491,28 @@ def test_a10c_the_hard_nodes_own_lookup_backs_its_latest_departure(tmp_path, wit
     path.write_text("\n".join(json.dumps(event, ensure_ascii=False) for event in events[:3] + extra + events[3:]) + "\n", encoding="utf-8")
     window = checks.run_checks(run)["turns"]["turn1"]["only_inside_window"]
     assert window["ok"] is ok, window  # without the node's connection (the replay's result shape) the line has no lookup
+
+
+# --- S5b: a text of zero-width characters is no part (s5_mcponly_r1 question 1) -----------------------------------------------
+
+def test_s5b_a_zero_width_text_is_no_first_part_but_an_extra_text(tmp_path):
+    # bad sample: the host sent U+200D alone, then the second part 93 s later; two_parts counted the U+200D as the first part
+    run = turn_stream(tmp_path, "zwj", "\u200d")  # turn returned a first_part draft, as in the replay
+    found = results(run)
+    assert not found["two_parts"]["ok"] and "first part missing" in found["two_parts"]["detail"], found["two_parts"]
+    assert not found["no_extra_text"]["ok"] and "U+200D" in found["no_extra_text"]["detail"], found["no_extra_text"]
+    assert not found["clock_in_first_part"]["ok"]
+
+
+def test_s5b_zero_width_characters_and_spaces_are_no_part_either(tmp_path):
+    # bad sample: U+200B, U+2060, U+FEFF and spaces, then the second part: still no first part
+    invisible = "\u200b \u2060\ufeff"
+    run = turn_stream(tmp_path, "zws", invisible)
+    found = results(run)
+    assert not found["two_parts"]["ok"] and "first part missing" in found["two_parts"]["detail"], found["two_parts"]
+    assert not found["no_extra_text"]["ok"]
+    # control: sent before a real first part, it is one text too many and the first part is the real one
+    run = stream(tmp_path, "zws-first", [("2026-10-31T23:12:05Z", invisible), ("2026-10-31T23:12:40Z", GOOD_FIRST),
+                                          ("2026-10-31T23:14:30Z", GOOD_SECOND)])
+    found = results(run)
+    assert not found["no_extra_text"]["ok"] and not found["two_parts"]["ok"] and found["clock_in_first_part"]["ok"]

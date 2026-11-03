@@ -163,6 +163,20 @@ class Store:
             raise ValueError("Unknown storage table")
 
     @contextmanager
+    def attempt(self):
+        """A write undone as a whole when it fails, also inside an open transaction (whose nesting is flat): a turn's
+        record the ledger refuses leaves nothing half-written while the message itself is kept (S5)."""
+        with self.transaction():
+            self.connection.execute("SAVEPOINT attempt")
+            try:
+                yield
+            except BaseException:
+                self.connection.execute("ROLLBACK TO attempt")
+                self.connection.execute("RELEASE attempt")
+                raise
+            self.connection.execute("RELEASE attempt")
+
+    @contextmanager
     def preview(self):
         with self.transaction():
             self.connection.execute("SAVEPOINT preview_changes")
