@@ -65,7 +65,7 @@ def test_the_plans_train_sentence_says_whether_the_plans_own_way_still_holds(mak
     found = query(service, "latest_departure", origin="gym-north", destination="airport")
     planned = next(line for line in found["sentences"] if line.startswith("计划里的 22:53 REX 7 赶得上"))
     # bad sample (mcponly_r1 question 1 after S4h): the latest way alone, nothing on the plan's 21:45 way the first part gave
-    assert planned == ("计划里的 22:53 REX 7 赶得上：22:10 关门出来（按存的营业时间），走到 Wien Matzleinsdorfer Platz 坐 22:33 的 D；"
+    assert planned == ("计划里的 22:53 REX 7 赶得上：22:10 关门出来（按存的营业时间），走到 Wien Matzleinsdorfer Platz，换 1 次车：22:33 D（往 Hauptbahnhof）Wien Matzleinsdorfer Platz → Wien Hauptbahnhof 22:45，换 22:53 REX 7（往 Flughafen Wien）Wien Hauptbahnhof → Flughafen Wien Bahnhof 23:15；23:15 到；"
                        "计划的 21:45 出门那条（存的走法）也赶得上，想早走就照它")
     # the sentence passes on a line the host marks 核过 (the 21:45 is the stored time, marked so), and so does the answer
     sent = draft(found["first_line"], f"主选（核过）：{planned}。", "以上交通时刻按时刻表，不是实时。")
@@ -97,7 +97,7 @@ def test_a_second_part_that_drops_the_first_parts_time_without_saying_so_is_refu
                                          "坐 22:33 的 D 去 Hbf。", note)
     assert second_checks(service, changed)["first_times_followed"] == [
         "第一段首行说了 21:45，第二段没再提，也没说改了 | "
-        "照 latest_departure 的句子写第一段那条还用不用（“计划的 21:45 出门那条也赶得上…”），或加一行“和第一段不同：21:45 那条……”"]
+        "可以改得更好（不改也能发）：照 latest_departure 的句子写第一段那条还用不用（“计划的 21:45 出门那条也赶得上…”），或加一行“和第一段不同：21:45 那条……”"]
     # the “继续” turn's request_id names the same question and its first part
     assert "first_times_followed" in second_checks(service, changed, request_id="q2")
     # controls: the time said again, or the change said, passes; without the turn's first part nothing is checked
@@ -115,7 +115,7 @@ def test_a_second_part_with_looked_up_rides_says_they_are_the_timetables(make, t
     ride = "最晚火车怎么走（核过）：00:33 D Wien Matzleinsdorfer Platz → Wien Hauptbahnhof 00:45，00:53 REX 7 → Flughafen Wien Bahnhof 01:15。"
     bare = draft(found["first_line"], ride, at="21:01")
     assert problems(service, bare)["timetable_said"] == [
-        "写了这一趟查到的车次时刻，没说是按时刻表还是实时 | 加一行照 latest_departure 的 note 写，例如“以上交通时刻按时刻表，不是实时。”"]
+        "写了这一趟查到的车次时刻，没说是按时刻表还是实时 | 可以改得更好（不改也能发）：加一行照 latest_departure 的 note 写，例如“以上交通时刻按时刻表，不是实时。”"]
     # the command line runs the same check (ns_off checked with --question and was let through)
     question = tmp_path / "question.txt"
     question.write_text(FIRST, encoding="utf-8")

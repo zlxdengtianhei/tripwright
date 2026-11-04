@@ -41,7 +41,7 @@ def test_a_first_part_may_end_the_reply_with_later_and_nothing_after_it(make):
     assert stop([first["text"]], minute)[0] is not None
     # bad samples: a status line after later, or between the first part and later, in the same text
     after = first_checks(service, ends + "\n" + STATUS, "q1")
-    assert set(after) == {"no_status_line", "ends_with_later"}
+    assert set(after) == {"no_status_line"}  # 11-04: what follows later is the Stop hook's (ends_with_later is gone)
     before = first_checks(service, first["text"] + "\n" + STATUS + "\n" + first["later"], "q1")
     assert set(before) == {"no_status_line"}
     for text in (ends + "\n" + STATUS, first["text"] + "\n" + STATUS + "\n" + first["later"]):

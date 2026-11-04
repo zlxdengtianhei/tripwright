@@ -220,7 +220,8 @@ def test_without_a_deadline_the_answer_is_tonights_last_connection_and_the_next_
     node = found["hard_node"]
     assert (node["anchor_id"], node["deadline"], node["external"]["anchor_id"], node["external"]["time"]) == ("hn-queue", "plan", "hn-desk", "07:05")
     # a12b: the plan's own train, found among this lookup's departures
-    assert found["sentences"][1] == "计划里的 22:53 REX 7 赶得上：22:30 出门"
+    # 11-04: with the whole way, ride by ride (direction, where to get off and change)
+    assert found["sentences"][1] == "计划里的 22:53 REX 7 赶得上：22:30 出门，换 1 次车：22:33 D（往 Hauptbahnhof）Wien Matzleinsdorfer Platz → Wien Hauptbahnhof 22:45，换 22:53 REX 7（往 Flughafen Wien）Wien Hauptbahnhof → Flughafen Wien Bahnhof 23:15；23:15 到"
     # A16: the counter's time and the plan's margin, a line each
     assert found["sentences"][2:4] == ["之后要守：明早 07:05 证件柜台关（存档，没核）", "你计划留的余量：明早 05:45 前，到证件柜台排队"]
     # A14: the plan's margin (05:45) gets no latest departure of its own; this line is for the counter behind it (07:05).
@@ -336,11 +337,14 @@ def test_turn_drafts_the_first_part_from_stored_data_and_next_says_send_it_first
     assert turn["next"].startswith("这一问没给 points：first_part 只按存的计划写") and (
         "先把 first_part.text 原样发给用户（只可改称呼和语言），再照 steps 往下做。用户只看到第一段和第二段两条消息：第一段之前、两段之间不发任何状态句。"
         in turn["next"])
-    assert "latest_departure 只给 origin 和 destination" in turn["next"] and "第二段过了 check_answer 才发，只发一次" in turn["next"]
+    assert "latest_departure 只给 origin 和 destination" in turn["next"] and "第二段过了 check_answer 才发（ok:true；只剩提示就照原样发），只发一次" in turn["next"]
     # the draft passes the first part's checks; a9b's English status line does not
     assert query(service, "check_answer", text=first["text"], part="first")["ok"]
     bad = query(service, "check_answer", text=STATUS_LINE, part="first")
-    assert not bad["ok"] and [entry["check"] for entry in bad["problems"]] == ["clock_in_first_part"]
+    # 11-04: no clock in the first two lines is a hint of check_answer; the hooks still take it for no first part
+    assert [(entry["check"], entry["severity"]) for entry in bad["problems"]] == [("clock_in_first_part", "hint")]
+    from tripwright.render.check_answer import first_part_shape
+    assert first_part_shape(STATUS_LINE, 21 * 60 + 1)
 
 
 def test_a_question_that_is_not_about_the_latest_gets_the_plan_draft(make):

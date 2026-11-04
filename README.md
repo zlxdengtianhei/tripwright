@@ -60,7 +60,8 @@ TRIPWRIGHT_PROVIDERS=live uv run tripwright --repo ./my-trips serve --stdio
 **Answers.**
 
 - Answer quality is still being evaluated. Independent reviewers check answers against a fixed standard, and the answers have not passed yet.
-- In Claude Code (checked on 2026-11-03 with replays of real questions), the transport facts and the two-part shape held in every round, and the first part arrived within half a minute. The assistant sometimes adds one status line, such as "checking the restaurants now", before or after the second part. The service tells it not to, but cannot stop it.
+- In Claude Code (checked on 2026-11-04 with replays of real questions, judged on content by reviewers who did not build it): two errors in the service's own ready-made sentences were found and fixed. A ride to the planned train named only the first bus, so the assistant wrote it as a direct ride; and "trains all night" hid a two-hour gap. The first part arrives within half a minute.
+- The assistant still sometimes combines correct facts wrongly: for example it puts an event at the wrong venue, or gives a "be back by" time without the walk to the platform. It may also add one status line, such as "checking the restaurants now". The service gives the facts and tells it not to do this, but cannot stop it.
 - Other clients (Codex, the command line without the service) are usable but less tested: Codex sometimes sends both parts in one reply.
 - Your assistant's model writes the answer. The service has no checking model of its own.
 

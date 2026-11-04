@@ -254,7 +254,8 @@ def test_a_hungry_question_gets_two_named_places_with_the_source_of_their_hours(
     assert check(hungry, plain + MEALS.replace("Fergeterminal Grill", "Kiosk Fjordblick"), request_id="hungry")["ok"]  # a page says so
     no_hours = check(hungry, plain + MEALS.replace(" · 营业到 24:00", ""), request_id="hungry")
     assert "Fergeterminal Grill（没写营业时间）" in no_hours["problems"][0]["why"]
-    assert check(hungry, plain)["ok"] is False  # without request_id the latest question counts: the hungry one
+    # 11-04: meals_named is a hint; the draft passes with it listed
+    assert "meals_named" in failing(check(hungry, plain)) and check(hungry, plain)["ok"]  # without request_id: the hungry one
     seed_question = check(hungry, plain, request_id="seed")
     assert seed_question["ok"], seed_question["problems"]  # not a hungry question: no meal check
 
@@ -271,14 +272,11 @@ def test_internal_words_stay_out_of_the_answer(trip, line, words):
     assert check(trip, GOOD_SECOND + "\n柜台 23:10 关，计划 22:20 到。")["ok"]
 
 
-def test_the_first_part_keeps_to_eight_lines(trip):
+def test_the_first_part_is_not_held_to_a_number_of_lines(trip):
+    # 11-04 (checker audit: the card judges content, not line counts): first_part_lines is gone
     head = "计划里 21:30 出门，坐 21:35 的车去码头（存档，没核）。\n按现在 20:45 算，你在 Nordkai 附近。"
-    place = "\nFergeterminal\n渡轮码头 · 今晚在这坐船 · Google 地图搜 Fergeterminal"
-    eight = head + place + "".join(f"\n第 {n} 件事。" for n in range(3, 9))
-    assert check(trip, eight, "first")["ok"]  # place lines do not count
-    nine = eight + "\n第 9 件事。"
-    result = check(trip, nine, "first")
-    assert failing(result) == {"first_part_lines": [11]} and "第一段正文 9 行" in result["problems"][0]["why"]
+    nine = head + "".join(f"\n第 {n} 件事。" for n in range(3, 10))
+    assert check(trip, nine, "first")["ok"] and failing(check(trip, nine, "first")) == {}
 
 
 # --- the first part before any lookup (PreToolUse) -------------------------------------------------------------------------
@@ -540,10 +538,10 @@ def test_the_replay_script_runs_the_a7_checks_apart(tmp_path):
     (run / "turn1.json").write_text(json.dumps({"message": "我饿了，最晚几点去码头？"}, ensure_ascii=False), encoding="utf-8")
     report = script.run_checks(run)
     assert set(report["turns"]["turn1"]) == {"two_parts", "no_extra_text", "later_when_no_subagents", "clock_in_first_part", "title_time_not_later", "no_tags", "first_line_times_checked",
-                                             "plan_heading", "checked_needs_tool", "fallback_later", "only_inside_window", "denied_needs_coverage", "count_needs_continuous", "direct_needs_one_ride", "checked_has_evidence"}
+                                             "checked_needs_tool", "fallback_later", "only_inside_window", "denied_needs_coverage", "count_needs_continuous", "direct_needs_one_ride", "checked_has_evidence"}
     # A10 adds frame_matches_server and first_part_copied; this stream has no framed lookup and no turn call
     assert {name: result["ok"] for name, result in report["more"]["turn1"].items()} == dict(
-        first_part_lines=False, internal_words=False, unreachable_needs_lookup=False, meals_named=False,
+        internal_words=False, unreachable_needs_lookup=False, meals_named=False,
         frame_matches_server=True, first_part_copied=True)
     assert report["passed"] is False
 
@@ -618,16 +616,16 @@ def test_check_answer_without_any_message_reads_no_question(tmp_path, monkeypatc
 NINE_LINES = FIRST + "".join(f"\n第 {n} 件事。" for n in range(4, 10))
 
 
-def test_stop_asks_only_a_first_parts_shape_and_first_part_the_whole_check(workspace, tmp_path, monkeypatch, capsys):
-    """D-47: a first part of 9 lines, or with an internal word, ends the turn; a status line does not. Before the main
-    agent's own lookup the first-part hook still asks for the whole check."""
+def test_both_hooks_ask_only_a_first_parts_shape(workspace, tmp_path, monkeypatch, capsys):
+    """D-47: a first part of 9 lines, or with an internal word, ends the turn; a status line does not. 11-04 (checker
+    audit): the first-part hook asks the same shape before the main agent's own lookup (it once denied lookups for an
+    internal word or a ninth line, and the host wrote its first part again)."""
     now = time.time()
     for number, text in enumerate([NINE_LINES, FIRST.replace("没核：21:35 这班车", "没核：21:35 这班车（计划目标 22:20）")]):
-        assert checks.first_part_problems(text, 20 * 60 + 45) and not checks.first_part_shape(text, 20 * 60 + 45)
+        assert not checks.first_part_shape(text, 20 * 60 + 45)
         path = record(tmp_path / f"shape{number}.jsonl", [asked("最晚几点去码头？", now - 20), DISPATCH, said(text, now - 5)])
         assert stop_hook(workspace, dict(transcript_path=str(path)), monkeypatch, capsys) is None, number
-        denied = first_hook(workspace, lookup(path, "WebSearch", session_id=f"w{number}", tool_input={"query": "ferry"}), monkeypatch, capsys)
-        assert denied["permissionDecision"] == "deny" and ("first_part_lines" if number == 0 else "internal_words") in denied["permissionDecisionReason"]
+        assert first_hook(workspace, lookup(path, "WebSearch", session_id=f"w{number}", tool_input={"query": "ferry"}), monkeypatch, capsys) is None
     for number, text in enumerate([STATUS_LINE, "<thinking>最晚 21:30 出门</thinking>\n按现在 20:45 算。"]):
         path = record(tmp_path / f"status{number}.jsonl", [asked("最晚几点去码头？", now - 20), DISPATCH, said(text, now - 5)])
         assert stop_hook(workspace, dict(transcript_path=str(path)), monkeypatch, capsys)["decision"] == "block", number
@@ -730,7 +728,9 @@ def test_stop_gives_way_after_three_blocks_of_a_question_whatever_their_reasons(
 ])
 def test_a_second_part_has_its_heading_with_the_time(trip, draft, why):
     found = [entry for entry in check(trip, draft)["problems"] if entry["check"] == "second_heading"]
-    assert [entry["why"] for entry in found] == [why] and found[0]["fix"] == "第一行写 `# 第二段 · …（HH:MM）`"
+    # 11-04: a hint (the Stop hook also tells a passed draft by its digest)
+    assert [entry["why"] for entry in found] == [why] and found[0]["fix"] == "可以改得更好（不改也能发）：第一行写 `# 第二段 · …（HH:MM）`"
+    assert found[0]["severity"] == "hint"
 
 
 def test_a_second_part_heading_may_follow_a_write_conflict_line(trip):
@@ -805,7 +805,7 @@ def test_without_question_or_request_id_check_answer_reads_only_a_recent_users_m
     refused = capsys.readouterr()
     assert code == 1 and refused.out == "" and "no turn of the last minutes" in refused.err and "--question" in refused.err
     unknown = over_mcp(asked_db, monkeypatch, text=PLAIN_SECOND)
-    assert unknown["ok"] and unknown["summary"] == "草稿可以发。" + UNKNOWN
+    assert unknown["ok"] and unknown["summary"] == "草稿可以发。别向用户提这次检查、核对或工具回执。" + UNKNOWN
     # the user asks again 10 minutes ago: that message is this question
     at_moment(asked_db, monkeypatch, NOW - timedelta(minutes=10), lambda service: service.turn("local", "饿了，路上能吃点什么？", "again"))
     fixed(monkeypatch, NOW)
@@ -818,7 +818,7 @@ def test_without_question_or_request_id_check_answer_reads_only_a_recent_users_m
     at_moment(asked_db, monkeypatch, NOW - timedelta(minutes=2), lambda service: service.turn("local", "那最晚几点出门？", "leave"))
     fixed(monkeypatch, NOW)
     plain = answer_check(asked_db, PLAIN_SECOND, tmp_path, monkeypatch, capsys)
-    assert plain["ok"] and plain["summary"] == "草稿可以发。"
+    assert plain["ok"] and plain["summary"] == "草稿可以发。别向用户提这次检查、核对或工具回执。"
 
 
 def test_the_question_given_is_this_question(asked_db, tmp_path, monkeypatch, capsys):
@@ -831,7 +831,7 @@ def test_the_question_given_is_this_question(asked_db, tmp_path, monkeypatch, ca
     assert fed["ok"], fed["problems"]
     # from standard input; a question without food is not checked for meals, and is not unknown
     calm = answer_check(asked_db, PLAIN_SECOND, tmp_path, monkeypatch, capsys, "--question", "-", stdin="最晚几点去机场？")
-    assert calm["ok"] and calm["summary"] == "草稿可以发。"
+    assert calm["ok"] and calm["summary"] == "草稿可以发。别向用户提这次检查、核对或工具回执。"
     # the words given win over the turn a request_id names
     assert answer_check(asked_db, PLAIN_SECOND, tmp_path, monkeypatch, capsys, "--request-id", "hungry", "--question", "-", stdin="最晚几点去机场？")["ok"]
     assert failing(answer_check(asked_db, PLAIN_SECOND, tmp_path, monkeypatch, capsys, "--request-id", "hungry")) == {"meals_named": [None]}

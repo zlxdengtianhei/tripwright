@@ -15,7 +15,7 @@ The user acts on your answer on a phone and sees two messages only: the first pa
 - 地名单独一行原文，下一行中文名与是什么、链接。换乘站、上车站在句中第一次出现时写“原文（中文名，是什么）”；服务端交通原句保留，用旁边的地名行解释，不往原句里塞字。
 - 能查到且不常变的事实先查好写准，包括目的地、按时刻表的车次与换乘、营业规则；不给用户重复核查任务。没核写“什么 → 后果”，操作放在最后。
 - 吃的给 2—3 处到时开着且有来源的店，含麦当劳、超市等常见选择；营业时间不明或已关的不推荐。先 `query(kind="open_places", arguments={"near": 地点编号, "at": 到达时刻, "text": "food"})`，不够两处就读店家、车站或机场官网，用 `web_evidence`（`type: "opening_hours"`）记原句；查不到就明说，不编开门时间。规则与活动也用 `web_evidence` 记原句；只有 `counts_as_checked` 才算工具核过。
-- 第二段发出前 `query(kind="check_answer", arguments={"text": 草稿全文, "part": "second", "request_id": 本问请求号})`；不通过按 `fix` 改，最多核两次。仍没依据的行删掉或写“没核：……”；只有读过真实网页才能写“网上说法（来源）”。通过后照抄那份草稿发出，一字不改，只发一次；没通过不发，改了重核。工具不在时主 agent 只跑第二段的 `check_answer`：`uvx --from ./tools/<tools 里的 wheel> tripwright --repo . query check_answer --part second --text-file -`，草稿从标准输入给；也不通就不标核过。
+- 第二段发出前 `query(kind="check_answer", arguments={"text": 草稿全文, "part": "second", "request_id": 本问请求号})`；`ok: false` 时按 `block` 的 `fix` 改（`hint` 可不改），最多核两次。仍没依据的行删掉或写“没核：……”；只有读过真实网页才能写“网上说法（来源）”。通过后照抄那份草稿发出，一字不改，只发一次；没通过不发，改了重核。工具不在时主 agent 只跑第二段的 `check_answer`：`uvx --from ./tools/<tools 里的 wheel> tripwright --repo . query check_answer --part second --text-file -`，草稿从标准输入给；也不通就不标核过。
 
 交通查询触发（Look up departures only under the triggers）：问最晚、末班用上面的 `latest_departure`；还有几班用 `transit` 的 `until` 连续查，“今晚”查到次日 `03:00`。没连续查全就照抄窗口限制，不据两次查询间的空档下结论。硬节点、点名某班、班距≥60分钟的车决定下一步时查；频繁市内交通无硬节点不逐班查，票能否用查规则。
 

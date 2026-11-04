@@ -108,13 +108,13 @@ def test_each_line_says_one_thing_once(make):
     through = next(line for line in said if line.startswith("03:00 前最后开的是"))
     assert re.search(r"03:00 之后也有车，下一班 凌晨 \d\d:\d\d 出门$", through)
     # no lookup words: the covered search is said by these lines, the plan's train “赶得上”
-    assert "计划里的 22:53 REX 7 赶得上：22:30 出门" in said
+    assert "计划里的 22:53 REX 7 赶得上：22:30 出门，换 1 次车：22:33 18 路（往 Hauptbahnhof）Wien Matzleinsdorfer Platz → Wien Hauptbahnhof 22:45，换 22:53 REX 7（往 Flughafen Wien）Wien Hauptbahnhof → Flughafen Wien Bahnhof 23:15；23:15 到" in said
     assert not any(re.search(r"连续查全|在这次的查询结果里|/人", line) for line in said)
     assert problems(service, second_part(said[0], *said[1:])) == {}
     # bad samples (the replay's lines): the lookup's words, a price per person for one traveller
     bad = problems(service, second_part(said[0], "从 21:01 到 03:00 连续查全，56 班；03:00 之后出发的没查",
                                         "计划里的 22:53 REX 7 在这次的查询结果里（22:30 出门）", "现场买：机场段补票 €2.30/人（估的）"))
-    assert len(bad["no_process_notes"]) == 2 and bad["per_person_alone"] == ["一个人出行，价钱后面写了“/人” | 去掉“/人”，照 tickets 的句子写"]
+    assert len(bad["no_process_notes"]) == 2 and bad["per_person_alone"] == ["一个人出行，价钱后面写了“/人” | 可以改得更好（不改也能发）：去掉“/人”，照 tickets 的句子写"]
     # control: fares for two people are per person
     pair = [dict(booking, subject=["p1", "p2"], fares=[dict(fare, subject=["p1", "p2"]) for fare in booking["fares"]]) for booking in TICKETS]
     two = make(bookings=pair)
@@ -165,8 +165,9 @@ def test_no_time_to_leave_is_later_than_the_origin_closes(make):
     # the plan's train leaves 23 minutes after closing: out at closing, then to the stop; the last train an hour later
     # is its boarding alone (the replay: “22:00 关门” beside “22:11 出门”)
     # S4h2: the plan's own way from the gym (21:45, the plan's tracks) is said beside it
-    assert "计划里的 22:53 REX 7 赶得上：22:10 关门出来（按存的营业时间），走到 Wien Matzleinsdorfer Platz 坐 22:33 的 D；计划的 21:45 出门那条（存的走法）这次没在结果里，照这条走" in said
-    assert said[0].endswith("火车最后一班 00:53 REX 7（最晚 00:33 在 Wien Matzleinsdorfer Platz 上车）")
+    assert "计划里的 22:53 REX 7 赶得上：22:10 关门出来（按存的营业时间），走到 Wien Matzleinsdorfer Platz，换 1 次车：22:33 D（往 Hauptbahnhof）Wien Matzleinsdorfer Platz → Wien Hauptbahnhof 22:45，换 22:53 REX 7（往 Flughafen Wien）Wien Hauptbahnhof → Flughafen Wien Bahnhof 23:15；23:15 到；计划的 21:45 出门那条（存的走法）这次没在结果里，照这条走" in said
+    # fix2 (11-04 quality judge): the stop is the tram's, so the words go on with the rides and where the train leaves
+    assert said[0].endswith("火车最后一班 00:53 REX 7（最晚 00:33 在 Wien Matzleinsdorfer Platz 上车：D 接 REX 7，Wien Hauptbahnhof 开）")
     assert said[1].startswith("这班火车怎么坐：00:33 在 Wien Matzleinsdorfer Platz 上车，换 1 次车：00:33 D")
     assert not any(re.search(r"2[2-3]:[1-5]\d 出门|0\d:\d\d 出门", line) for line in said[:3])
     assert problems(service, second_part(said[0], *said[1:])) == {}
@@ -177,7 +178,7 @@ def test_no_time_to_leave_is_later_than_the_origin_closes(make):
     # control: no stored hours, nothing to hold the time to
     open_late = make()
     plain = query(open_late, "latest_departure", origin="gym-north", destination="airport")
-    assert "计划里的 22:53 REX 7 赶得上：22:30 出门；计划的 21:45 出门那条（存的走法）这次没在结果里，照这条走" in plain["sentences"] and plain["origin_closes"] is None
+    assert "计划里的 22:53 REX 7 赶得上：22:30 出门，换 1 次车：22:33 D（往 Hauptbahnhof）Wien Matzleinsdorfer Platz → Wien Hauptbahnhof 22:45，换 22:53 REX 7（往 Flughafen Wien）Wien Hauptbahnhof → Flughafen Wien Bahnhof 23:15；23:15 到；计划的 21:45 出门那条（存的走法）这次没在结果里，照这条走" in plain["sentences"] and plain["origin_closes"] is None
     assert "leave_before_closing" not in problems(open_late, second_part(plain["first_line"], "计划里的 22:53 REX 7 赶得上：22:30 出门"))
 
 

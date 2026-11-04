@@ -25,7 +25,7 @@ from test_a8_transit_facts import NIGHT, local
 from test_a10_frame import DESK, QUEUE, REX, Evening, airport_plan, fixed, problems, query, second_part
 from tripwright.providers.transitous import TransitousProvider
 from tripwright.query import QueryRouter
-from tripwright.render.check_answer import check_draft, second_length_problems
+from tripwright.render.check_answer import check_draft
 from tripwright.render.first_part import draft
 from tripwright.service import Tripwright
 from tripwright.storage import Store
@@ -292,12 +292,10 @@ Burger Beispiel, Wien Hauptbahnhof
 我可以帮你起草询问内容（英语、德语）"""
 
 
-def test_a_second_part_over_twelve_body_lines_is_refused():
-    found = second_length_problems(LONG)
-    assert [entry["check"] for entry in found] == ["second_part_lines"]
-    assert found[0]["why"].startswith("第二段正文 17 行，超过 12 行")
-    assert second_length_problems(SHORT) == []  # control: places, links and the plan's items are not counted
-    assert "second_part_lines" in {entry["check"] for entry in check_draft(LONG, "second", 21 * 60 + 52)}
+def test_a_second_part_is_not_refused_for_its_length():
+    # 11-04 (checker audit: the card judges content, not line counts): second_part_lines is gone; 17 body lines pass
+    for text in (LONG, SHORT):
+        assert "second_part_lines" not in {entry["check"] for entry in check_draft(text, "second", 21 * 60 + 52)}
 
 
 # --- a12b: from the A12 self-replay ------------------------------------------------------------------------------------------
@@ -331,7 +329,7 @@ def test_the_plans_own_train_is_said_to_be_in_these_results_or_not(make):
     """Replay: “和第一段不同：计划里写的 22:42 RJX 19959 这次没查到，以下面的班次为准” — that lookup's departures had it."""
     service = make(today=[REX, RJX])
     found = query(service, "latest_departure", origin="hbf", destination="airport")
-    found_line = "计划里的 22:53 REX 7 赶得上：22:53 出门"
+    found_line = "计划里的 22:53 REX 7 赶得上：22:53 出门，不用换车：22:53 REX 7（往 Flughafen Wien）Wien Hauptbahnhof → Flughafen Wien Bahnhof 23:15；23:15 到"
     missing = next(sentence for sentence in found["sentences"] if sentence.startswith("计划里的 22:42"))
     assert found_line in found["sentences"]
     assert missing.startswith("计划里的 22:42 RJX 19959 这次没在时刻表数据里找到（可能没收录，或车次号不同）：要坐它，先在 ")
@@ -339,7 +337,8 @@ def test_the_plans_own_train_is_said_to_be_in_these_results_or_not(make):
     assert [(ride["anchor_id"], ride["found"]) for ride in found["plan_rides"]] == [("hn-rex", True), ("hn-rjx", False)]
     # another number for the same kind of train at that minute is the plan's train, said so
     renamed = query(make(today=[dict(REX, line="REX 22779")]), "latest_departure", origin="hbf", destination="airport")
-    assert "计划里的 22:53 REX 22779 赶得上（时刻表里叫 REX 7）：22:53 出门" in renamed["sentences"]
+    assert ("计划里的 22:53 REX 22779 赶得上（时刻表里叫 REX 7）：22:53 出门，不用换车：22:53 REX 7（往 Flughafen Wien）Wien Hauptbahnhof "
+            "→ Flughafen Wien Bahnhof 23:15；23:15 到") in renamed["sentences"]
     # bad samples (the replay's line): a found train called not found; a missing one with “以下面的为准”
     bad = problems(service, second_part(found["first_line"], "和第一段不同：计划里写的 22:53 REX 7 这次没查到，以下面的班次为准。"))
     assert bad["missing_ride_found"][0].startswith("说 22:53 REX 7 没查到，这一问的查询结果里有这班（22:53 出门）")

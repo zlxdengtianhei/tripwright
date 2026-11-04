@@ -472,6 +472,10 @@ def stations(plan: dict | None, origin: str, destination: str) -> list[dict]:
     return list({place["id"]: place for place in usable}.values())[:2]
 
 
+def by_ride(itinerary: Itinerary) -> bool:
+    return any(leg.mode != "walk" for leg in itinerary.legs)
+
+
 def by_rail(itinerary: Itinerary) -> bool:
     return any(leg.mode in RAIL for leg in itinerary.legs)
 
@@ -500,12 +504,13 @@ def plan_rides(plan: dict | None, destination: str, found: list[Itinerary], star
     """The plan's own trains to this destination (boarding nodes with a line) that leave inside the searched span, and
     whether this lookup found each (a12b replay: the 22:42 RJX was among the departures, the compact result did not show
     it, and the answer said “这次没查到，以下面的班次为准”). A ride at that minute with the same line, or the same kind of
-    train under another number (“时刻表里叫 …”), is found, with when to set off (leave_words: from an origin that
-    closes first, out at closing, A16); else the sentence says the timetable data did not have it and where to check
-    it, never that it is gone. S4h2: when the plan stores its own way from `origin` to that train (the first part's
-    “计划里是 21:45 … 出门”), leaving at another time than the one found, the sentence says whether a connection leaving
-    then is in these results too (`way`), so the two parts do not give two ways unexplained; its time is the stored one,
-    marked so."""
+    train under another number (“时刻表里叫 …”), is found, with the whole way from the origin (way_sentence: when to
+    set off, every ride with its direction, where to get off and change, the arrival; 11-04 quality judge: “走到 Wien
+    Brigittaplatz 坐 22:16 的 5B” named no stop to get off, and answers wrote “5B 到 Hauptbahnhof”, where 5B never
+    goes); else the sentence says the timetable data did not have it and where to check it, never that it is gone.
+    S4h2: when the plan stores its own way from `origin` to that train (the first part's “计划里是 21:45 … 出门”),
+    leaving at another time than the one found, the sentence says whether a connection leaving then is in these results
+    too (`way`), so the two parts do not give two ways unexplained; its time is the stored one, marked so."""
     said, place = LAST_SAY.get(language, LAST_SAY["en"]), match_place(plan, destination)
     told = []
     for day, anchor, instant in anchors(plan):
@@ -523,7 +528,7 @@ def plan_rides(plan: dict | None, destination: str, found: list[Itinerary], star
             sentence = said["plan_missing"].format(time=time, line=anchor["line"], app=named)
         else:
             itinerary, leg = match
-            leave = leave_words(views.connection_view(itinerary, tz, language), closes, tz, language, ride=True)
+            leave = way_sentence(views.connection_view(itinerary, tz, language), language, closes, tz, app or said["app"])
             sentence = said["plan_found" if line_key(leg.line) == want else "plan_found_as"].format(
                 time=time, line=anchor["line"], found=leg.line, leave=leave)
         way = planned_leave(plan, day, anchor, origin, tz) if match is not None else None
@@ -773,14 +778,17 @@ FEED_REGIONS = {"at": "at-rural", "ch": "ch", "de": "de"}
 SAY = {"zh": dict(target="要 {plan_by} 前到，最晚 ", partial="要 {plan_by} 前到，可以坐：", after="误了 {board} 那班，之后还有 {count} 班赶得上 {bound}；最早的：",
                   none_after="误了 {board} 那班，之后没有赶得上 {bound} 的班次{basis}",
                   miss="要是误了 {board} 那班，就赶不上 {plan_by}{basis}", unknown_after="误了 {board} 那班之后还有没有赶得上的，没查到",
-                  last="赶得上 {bound} 的最后一班是 {board} {line}（{leave}）", next="；再下一班 {board} 开，{reach} 到，过了 {bound}",
+                  last="赶得上 {bound} 的最后一班是 {board} {line}（{leave}）", last_rides="赶得上 {bound} 的最后一班是 {board} 出发{rides}（{leave}）",
+                  next="；再下一班 {board} 开，{reach} 到，过了 {bound}",
                   basis="{basis}", none_reach="要 {plan_by} 前到，查到的班次都赶不上{basis}",
                   only_limit="要是 {limit} 前到也行，还能坐：", reached="查到 {reached} 为止；之后的没查",
                   empty="{start} 起没查到班次；不能说没车，也不能说“最后一班”"),
        "en": dict(target="To arrive by {plan_by}, at the latest: ", partial="To arrive by {plan_by}, you can take: ", after="If you miss the {board}, {count} more arrive by {bound}; the first: ",
                   none_after="If you miss the {board}, nothing after it arrives by {bound}{basis}",
                   miss="If you miss the {board}, you will not make {plan_by}{basis}", unknown_after="Whether anything after the {board} arrives in time was not found",
-                  last="The last one that arrives by {bound} is the {board} {line} ({leave})", next="; the next leaves {board} and arrives {reach}, after {bound}",
+                  last="The last one that arrives by {bound} is the {board} {line} ({leave})",
+                  last_rides="The last one that arrives by {bound} starts at {board}{rides} ({leave})",
+                  next="; the next leaves {board} and arrives {reach}, after {bound}",
                   basis="{basis}", none_reach="To arrive by {plan_by}: none of the connections found makes it{basis}",
                   only_limit="If {limit} is late enough: ", reached="Searched up to {reached}; nothing after it was searched",
                   empty="No departures found from {start}: do not say there is none, or \"the last one\""),
@@ -934,9 +942,11 @@ def latest_sentences(result: dict, target: dict, connections: list[Itinerary], s
     if covered and in_time:
         last = views.connection_view(max(in_time, key=lambda itinerary: itinerary.depart), tz, language)
         following = next((itinerary for itinerary in usable if itinerary.depart > aware(last["leave_at"])), None)
-        text = said["last"].format(bound=bound, board=(last["boards"] or {}).get("time") or last["leave"],
-                                   line=(last["boards"] or {}).get("line") or "",
-                                   leave=leave_words(last, closes, tz, language)).replace("  ", " ").replace(" （", "（")
+        # fix2b: a connection with changes is never named by its first ride (“最后一班是 23:03 D”: the tram to the train)
+        rides = boarded_rides(last, language)
+        text = said["last_rides" if rides else "last"].format(bound=bound, board=(last["boards"] or {}).get("time") or last["leave"],
+                                                              line=(last["boards"] or {}).get("line") or "", rides=rides,
+                                                              leave=leave_words(last, closes, tz, language)).replace("  ", " ").replace(" （", "（")
         if following is not None:
             nxt = views.connection_view(following, tz, language)
             text += said["next"].format(board=(nxt["boards"] or {}).get("time") or nxt["leave"], reach=nxt["reach"], bound=bound)
@@ -1238,6 +1248,9 @@ SERVICE_END = "03:00"  # "tonight" ends at this local time; the night's last dep
 LAST_SPAN = timedelta(hours=6)  # the continuous search starts at most this long before tonight's end
 LAST_PAGES = 8  # route searches (of the daily budget) one last-connection answer may use
 NIGHT_GAP = timedelta(hours=2)  # "the last one tonight" only when the next departure is at least this much later
+# 11-04 quality judge: “夜里一直有车到机场” while nothing left between the 00:53 train and the 02:52 U1 to the airport bus.
+# “All night” only when no two departures in a row (tonight's and the next after it) are further apart than this.
+SERVICE_HOLE = timedelta(minutes=60)
 NODE_HOURS = 36  # the destination's hard node that still binds lies within this after now
 # A16 (quality judge 8, 3 of 3 runs): one line said one thing at most once. The first line no longer carries the next
 # time to keep (“…（最晚 00:13 出门）；之后要守的时间：你计划明早 05:45 前到（留的余量）：…05:45 前到…（计划留的余量；…）”):
@@ -1263,7 +1276,10 @@ LAST_SAY = {"zh": dict(last="今晚最后一班：{sentence}", regular="不用�
                        app="交通 App", step="按你先去{name}算（你说的“{said}”）",
                        leave="{leave} 出门", latest="最晚 {leave} 出门", closing="{closes} 关门出来（按存的营业时间），走到 {stop}",
                        closing_ride="{closes} 关门出来（按存的营业时间），走到 {stop} 坐 {board} 的 {line}", board="{board} 在 {stop} 上车",
-                       latest_board="最晚 {board} 在 {stop} 上车", reach="，{reach} 到"),
+                       latest_board="最晚 {board} 在 {stop} 上车", reach="，{reach} 到", boarded="：{lines}，{stop} 开",
+                       way_unknown="；之后怎么换车没查到，在 {app}搜 {origin} → {destination}",
+                       gap="今晚到 {destination} 的车夜里有空档：{before}；之后要等到 {when}{after}（{lines}，{reach} 到）",
+                       gap_rail="火车最后一班 {board}（{leave}）", gap_last="空档前最后一班 {board}（{leave}）", gap_join=" 接 "),
             "en": dict(last="Tonight's last connection: {sentence}", regular="The last one without an extra ticket: {sentence}",
                        rail="The last train, {board}: {sentence}", rail_how="How to take that train: {sentence}",
                        through="The last one before {until} is — {sentence}; services go on after {until}, the next: {next}",
@@ -1286,7 +1302,12 @@ LAST_SAY = {"zh": dict(last="今晚最后一班：{sentence}", regular="不用�
                        step="Counted from {name}, where you go next (you said “{said}”)",
                        leave="leave {leave}", latest="leave by {leave}", closing="out at closing, {closes} (stored opening hours), walk to {stop}",
                        closing_ride="out at closing, {closes} (stored opening hours), walk to {stop} for the {board} {line}", board="board at {stop} at {board}",
-                       latest_board="board at {stop} by {board}", reach=", arrive {reach}")}
+                       latest_board="board at {stop} by {board}", reach=", arrive {reach}", boarded=": {lines}, which leaves {stop}",
+                       way_unknown="; how to go on from there was not found: search {origin} → {destination} in {app}",
+                       gap="Services to {destination} stop for a while tonight: {before}; the next one after that: {when}{after} "
+                           "({lines}, arrive {reach})",
+                       gap_rail="the last train {board} ({leave})", gap_last="the last one before the gap {board} ({leave})",
+                       gap_join=" then ")}
 
 
 def tonight_end(arguments: dict, start: datetime, tz: ZoneInfo) -> datetime:
@@ -1383,6 +1404,21 @@ def first_ride(view: dict) -> dict | None:
     return next((leg for leg in view["legs"] if not leg["walk"]), None)
 
 
+def ride_chain(view: dict, language: str) -> str:
+    """A connection's rides by line, in order: “U6 接 S1 接 VAB 5”."""
+    said = LAST_SAY.get(language, LAST_SAY["en"])
+    return said["gap_join"].join(leg["line"] or leg["mode"] for leg in named_lines(view, language)["legs"] if not leg["walk"])
+
+
+def boarded_rides(view: dict, language: str) -> str:
+    """“：U4 接 FlixBus N877，Vienna Central Station 开”: every ride of a connection with changes and where its last
+    ride leaves; "" for one ride."""
+    rides = [leg for leg in view["legs"] if not leg["walk"]]
+    if len(rides) < 2:
+        return ""
+    return LAST_SAY.get(language, LAST_SAY["en"])["boarded"].format(lines=ride_chain(view, language), stop=rides[-1]["from"])
+
+
 def origin_closes(plan: dict | None, origin: str, start: datetime, tz: ZoneInfo) -> datetime | None:
     """When the lookup's origin closes, from its stored opening_hours, if it is open at `start` (the user may be inside
     until then); None when it stores no hours, is closed already or is no place of the trip. Its `hours` sentence is not
@@ -1398,32 +1434,63 @@ def origin_closes(plan: dict | None, origin: str, start: datetime, tz: ZoneInfo)
 
 
 def leave_words(view: dict, closes: datetime | None, tz: ZoneInfo, language: str, *, latest: bool = False,
-                ride: bool = False) -> str:
+                ride: bool = False, named: bool = False, way: bool = False) -> str:
     """When to set off on a connection: “{leave} 出门” (“最晚 …” with `latest`). From an origin closing before that (A16):
     out at closing and walk to the first stop when its ride leaves within CLOSE_WAIT of the closing (`ride`: naming that
-    ride), else the first ride's boarding alone."""
+    ride), else the first ride's boarding alone. With `named` (the sentence names the connection's last ride,
+    train_ride), words that name the first ride's stop go on with every ride and where the named one leaves when
+    the two are not one ride (boarded_rides; 11-04 quality judge, 3 of 3 runs: “空档前最后一班 01:25 FlixBus N877（最晚
+    00:56 在 Wien Friedensbrücke 上车）” was answered “在 Wien Friedensbrücke 上 FlixBus”; the U4 boards there). With
+    `way` (no other line of the answer says how to take this connection), every form of the words does."""
     said = LAST_SAY.get(language, LAST_SAY["en"])
     board = first_ride(view)
     if closes is None or board is None or aware(view["leave_at"]) <= closes:
-        return said["latest" if latest else "leave"].format(leave=view["leave"])
+        return said["latest" if latest else "leave"].format(leave=view["leave"]) + (boarded_rides(view, language) if way else "")
     if aware(board["depart_at"]) - closes <= CLOSE_WAIT:
         line = named_lines(dict(view, legs=[board]), language)["legs"][0]["line"] or ""
-        return said["closing_ride" if ride and line else "closing"].format(closes=views.clock(closes, tz), stop=board["from"],
+        text = said["closing_ride" if ride and line else "closing"].format(closes=views.clock(closes, tz), stop=board["from"],
                                                                             board=board["depart"], line=line)
-    return said["latest_board" if latest else "board"].format(board=board["depart"], stop=board["from"])
+    else:
+        text = said["latest_board" if latest else "board"].format(board=board["depart"], stop=board["from"])
+    return text + (boarded_rides(view, language) if named or way else "")
 
 
 def connection_sentence(view: dict, language: str, closes: datetime | None = None, tz: ZoneInfo | None = None, *,
-                        latest: bool = False) -> str:
-    """views.sentence with tram lines named, and the time to set off as leave_words says it (A16; “最晚 …” with
-    `latest`)."""
-    text = views.sentence(named_lines(view, language), language)
+                        latest: bool = False, toward: bool = False) -> str:
+    """views.sentence with tram lines named (with `toward`, each ride's direction), and the time to set off as
+    leave_words says it (A16; “最晚 …” with `latest`)."""
+    text = views.sentence(named_lines(view, language), language, toward)
     lead = views.words(language)["leave"].split("{changes}")[0].format(leave=view["leave"])  # “22:11 出门，”
     late = closes is not None and aware(view["leave_at"]) > closes
     if first_ride(view) is None or not text.startswith(lead) or not (late or latest):
         return text
     head = leave_words(view, closes, tz, language, latest=latest)
     return (head if language == "zh" else head[:1].upper() + head[1:]) + lead[-1 if language == "zh" else -2:] + text[len(lead):]
+
+
+def chain_break(view: dict) -> int | None:
+    """The first leg of a connection that does not start where the leg before it ends; None when they all join up."""
+    legs = view["legs"]
+    return next((index for index in range(1, len(legs))
+                 if str(legs[index - 1]["to"]).casefold() != str(legs[index]["from"]).casefold()), None)
+
+
+def way_sentence(view: dict, language: str, closes: datetime | None, tz: ZoneInfo, app: str) -> str:
+    """The whole way of a connection from where the user sets off (11-04 quality judge): when to set off, every ride
+    with its direction, where to get off and change, the arrival. Where its legs do not join up, the rides up to there
+    and that the rest was not found, with what to search in `app`; it never reads as a direct ride."""
+    broken = chain_break(view)
+    if broken is None:
+        return connection_sentence(view, language, closes, tz, toward=True)
+    said, legs = LAST_SAY.get(language, LAST_SAY["en"]), view["legs"]
+    rides = [leg for leg in named_lines(dict(view, legs=legs[:broken]), language)["legs"] if not leg["walk"]]
+    head = leave_words(view, closes, tz, language)
+    shown = views.words(language)["then"].join(views.leg_line(leg, language, True) for leg in rides)
+    rest = next((leg for leg in legs[broken:] if not leg["walk"]), legs[broken])
+    named = app + (" " if language == "zh" and app[-1:].isascii() else "")
+    unknown = said["way_unknown"].format(app=named, origin=legs[broken - 1]["to"], destination=rest["from"])
+    return (head if language == "zh" else head[:1].upper() + head[1:]) + ("，" + shown if language == "zh" and shown else
+                                                                         ", " + shown if shown else "") + unknown
 
 
 def lookup_failed(why: str, language: str) -> dict:
@@ -1626,7 +1693,11 @@ class QueryRouter:
         latest = max(tonight, key=lambda itinerary: (itinerary.depart, -itinerary.arrive.timestamp()), default=None)
         following = next((itinerary for itinerary in usable if itinerary.depart > until), None)
         night_break = bool(span["covered"] and latest and following and following.depart - latest.depart >= NIGHT_GAP)
-        all_night = bool(latest and span["covered"] and following and not night_break)
+        series = [itinerary for itinerary in tonight if by_ride(itinerary)] + ([following] if following else [])
+        hole = max(((before, after) for before, after in zip(series, series[1:]) if after.depart - before.depart > SERVICE_HOLE),
+                   key=lambda pair: pair[1].depart - pair[0].depart, default=None)
+        all_night = bool(latest and span["covered"] and following and not night_break and hole is None)
+        gap = hole if latest and span["covered"] and following and not night_break else None
         tickets = stored_tickets(plan, start.astimezone(tz).date().isoformat(), language)
         closes = origin_closes(plan, arguments["origin"], start, tz)
 
@@ -1670,6 +1741,13 @@ class QueryRouter:
         hard = await self._node_latest(owner, arguments, plan, node_after(plan, arguments["destination"], start), tz, start, at, language,
                                        morning=not step)
         rail_board = f"{train_ride(rail)['depart']} {train_ride(rail)['line'] or ''}".strip() if rail else None
+        gap_before = gap_after = gap_last = None
+        gap_rail = bool(gap and rail_last is not None and gap[0] is rail_last)
+        if gap:
+            gap_last, gap_after = view(gap[0]), view(gap[1])
+            gap_before = said["gap_rail" if gap_rail else "gap_last"].format(
+                board=f"{train_ride(gap_last)['depart']} {train_ride(gap_last)['line'] or ''}".strip(),
+                leave=leave_words(gap_last, closes, tz, language, latest=True, named=True, way=not gap_rail))
         reports, offer = trip_sources(self.store, owner, plan, region, language)
         ends = (end_name(plan, arguments["origin"], meta.get("origin")), end_name(plan, arguments["destination"], meta.get("destination")))
         checking = how_to_check(main, ends, region, notes, language, reports)
@@ -1693,15 +1771,22 @@ class QueryRouter:
             lines.append(said["last"].format(sentence=told(last, True)) + said["next"].format(next=next_text))
             if regular:
                 lines.append(said["regular"].format(sentence=told(regular, True)))
+        elif gap:
+            # 11-04: services stop for a while before tonight's end: the last one before the gap and the first after it
+            lines.append(said["gap"].format(destination=arrival_name(plan, arguments["destination"], meta.get("destination"), last, language),
+                                            before=gap_before, when=day_word(aware(gap_after["leave_at"]), start, tz, language),
+                                            after=leave_words(gap_after, closes, tz, language), lines=ride_chain(gap_after, language),
+                                            reach=gap_after["reach"]))
         elif last and span["covered"] and nxt:
             # services run on past tonight's end (A10 replay): no hurry is the answer, with the last train; the next time
             # to keep has a line of its own (A16), never “03:00 前最后开的是 02:43” as the first line
             lines.append(said["all_night"].format(destination=arrival_name(plan, arguments["destination"], meta.get("destination"), last, language))
-                         + (said["all_night_rail"].format(board=rail_board, leave=leave_words(rail, closes, tz, language, latest=True))
+                         + (said["all_night_rail"].format(board=rail_board, leave=leave_words(rail, closes, tz, language, latest=True, named=True))
                             if rail else ""))
         if rail and span["covered"]:
-            # all night, the first line named the last train already: this line says how to take it (A12, said once)
-            lines.append(said["rail_how"].format(sentence=told(rail)) if all_night else
+            # all night (or the gap's last one is the train), the first line named the last train already: this line says
+            # how to take it (A12, said once)
+            lines.append(said["rail_how"].format(sentence=told(rail)) if all_night or gap_rail else
                          said["rail"].format(board=rail_board, sentence=told(rail, True)))
         if last and span["covered"] and nxt and not night_break:
             lines.append(said["through"].format(until=views.clock(until, tz), sentence=told(last), next=next_text))
@@ -1737,7 +1822,7 @@ class QueryRouter:
             demo_marked(result, language)
         backed = [entry for entry in (last, regular) if entry] if night_break else []
         backed += [rail] if rail else []
-        frame = frame_of("last_connection", [last, regular, rail], result["first_line"], arguments,
+        frame = frame_of("last_connection", [last, regular, rail, gap_last, gap_after], result["first_line"], arguments,
                          last=[time for entry in backed for time in (entry["leave"], (entry["boards"] or {}).get("time")) if time]
                          + ([train_ride(rail)["depart"]] if rail else []))
         # what a later turn may quote from this lookup (A12: the first part of the next question, marked “查过”)
@@ -1751,9 +1836,13 @@ class QueryRouter:
         frame["party"] = (tickets or {}).get("party")
         late = bool(closes and rail and aware(rail["leave_at"]) > closes)
         frame["told"] = dict(all_night=all_night, night_break=night_break, until=views.stamp(until, tz),
+                             gap=dict(before=dict(train_ride(gap_last), rail=gap_rail,
+                                                  leave=None if closes and gap[0].depart > closes else gap_last["leave"]),
+                                      after=dict(train_ride(gap_after), leave=gap_after["leave"])) if gap else None,
                              origin=resolved["origin"]["place"], destination=resolved["destination"]["place"],
                              rail=dict(train_ride(rail), leave=None if late else rail["leave"]) if rail else None,
-                             last=dict(last["boards"], leave=last["leave"]) if last and night_break and last.get("boards") else None)
+                             last=dict(last["boards"], leave=last["leave"], lines=[leg["line"] or leg["mode"] for leg in last["legs"] if not leg["walk"]],
+                                       last_from=train_ride(last)["from"]) if last and night_break and last.get("boards") else None)
         expiring = [sourced.valid_until for sourced in sources if sourced.valid_until is not None]
         rows = departure_rows(found, tz, until)
         for row, itinerary in zip(rows, sorted(found, key=lambda itinerary: itinerary.depart)):

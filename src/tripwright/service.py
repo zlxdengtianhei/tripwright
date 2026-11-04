@@ -40,6 +40,8 @@ LATER = first_part.LATER
 # a first part that says a second part follows (the hooks' word list, render.check_answer.PROMISE)
 PROMISES_SECOND = re.compile(r"第二段|核完再发|second part", re.I)
 UNKNOWN_QUESTION = "本问原话不明，吃的检查没做。"
+# 11-04 (quality card v2, question 4): “自动核对没通过”, “Non-blocking notice; commit.” reached the user
+NO_MENTION = "别向用户提这次检查、核对或工具回执。"
 UNKNOWN_POINTS = "这一问的 turn 没给 points（或没给 request_id），没核第一段有没有逐件回应、写没写在哪。"  # A12
 UNKNOWN_LISTED = 8  # stored place IDs `next` names when a place in points is not recognized (S4h-a)
 # explain(record_id) (S5): the ledger tables a record ID is looked up in, and the fields each adds to the record
@@ -492,7 +494,10 @@ class Tripwright:
                          "time to keep, and the second part opens with its first_line." if en else
                          "问最晚、末班：query latest_departure 只给 origin 和 destination（不给 anchor_id、by、board_at），"
                          "服务端连续查到今晚最后一班并给之后要守的时间；第二段首行照抄它的 first_line。")
-        parts.append("Send the second part once, only after check_answer passes it." if en else "第二段过了 check_answer 才发，只发一次。")
+        # 11-04: a draft with hints only passes as it is; the user never hears of the check (quality card v2, question 4)
+        parts.append("Send the second part once, only after check_answer passes it (ok: true; with hints only, send it as it is); "
+                     "never mention the check or tool receipts to the user." if en else
+                     "第二段过了 check_answer 才发（ok:true；只剩提示就照原样发），只发一次；不向用户提检查、核对或工具回执。")
         if points:
             parts.append("The second part answers each point too; tickets as the stored tickets say (points[].facts.tickets)." if en
                          else "第二段也逐件回应 points；讲票照存的票说（points 里的 tickets）。")
@@ -705,17 +710,25 @@ class Tripwright:
         problems = checks.check_draft(arguments["text"], arguments["part"], local.hour * 60 + local.minute, found,
                                       question=question, places=(plan or {}).get("places", []), points=points,
                                       here=packs.plan_here(plan, local, packs.asker(plan, speaker), self.language), first=first)
-        count = len(problems)
-        summary = ("草稿可以发。" if not problems else f"要改 {count} 处再发：" + "；".join(
-            f"第 {entry['line']} 行 {entry['why']}" if entry["line"] else entry["why"] for entry in problems))
+        # 11-04: only a blocking finding (a contradiction with the results, the stored conditions or the clock, a check
+        # claimed without evidence) holds the draft; hints may be taken or left, and a draft with hints only passes
+        blocks = checks.blocking(problems)
+        hints = [entry for entry in problems if entry not in blocks]
+
+        def listed(entries):
+            return "；".join(f"第 {entry['line']} 行 {entry['why']}" if entry["line"] else entry["why"] for entry in entries)
+
+        summary = (f"要改 {len(blocks)} 处再发：{listed(blocks)}" + (f"。另有 {len(hints)} 处可以改得更好，不改也行" if hints else "")
+                   if blocks else f"可以照原样发；{len(hints)} 处可以改得更好，不改也行：{listed(hints)}" if hints else "草稿可以发")
+        summary += "。" + NO_MENTION
         if question is None and arguments["part"] == "second":
             summary = summary.rstrip("。") + "。" + UNKNOWN_QUESTION
         if arguments["part"] == "first" and not (points or {}).get("given"):
             summary = summary.rstrip("。") + "。" + UNKNOWN_POINTS
-        result = dict(kind="check_answer", ok=not problems, part=arguments["part"], problems=problems, summary=summary,
+        result = dict(kind="check_answer", ok=not blocks, part=arguments["part"], problems=problems, summary=summary,
                       now=self.clock(owner, at.isoformat()),
                       evidence=dict(since=since.isoformat(), ids=sorted(found["ids"]), windows=[checks.hhmm(end) for end in sorted(set(found["windows"]))]))
-        if not problems and arguments["part"] == "second":
+        if not blocks and arguments["part"] == "second":
             # What passed is what must be sent (A7): the Stop hook compares the text the host sends with this one.
             digest = checks.draft_digest(arguments["text"])
             remembered = remember_answer(self.answers_path(), arguments.get("request_id"), arguments["text"], digest, at.isoformat(), zone=name)

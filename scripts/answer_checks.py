@@ -11,7 +11,6 @@ Reads `turn<N>.stream.jsonl` in a run directory written by `host_replay.py` and 
 - first_line_times_checked: every time in the first part's first line, except the clock time and a check stamp
   ("HH:MM 查的", "MM-DD HH:MM 在 … 查的"),
   appears again in the second part on a line that says 核过, 网上说法, 搜索摘要, 没核, 和第一段不同 or 不变, or under such a heading.
-- plan_heading: the second part puts the full plan under a Markdown heading "完整安排" (the user asked for it to stand out).
 - checked_needs_tool: "核过" appears only in a turn where a Tripwright lookup ran (the `query` tool, or the tripwright
   command line from Bash); what a web page says is 网上说法, not 核过.
 - fallback_later: on a line with "误了", the fallback named after it does not leave before the choice that was missed
@@ -25,7 +24,7 @@ Reads `turn<N>.stream.jsonl` in a run directory written by `host_replay.py` and 
 - checked_has_evidence: every line that says 核过 matches this turn's evidence: an evidence ID it names, a time that a
   transit or latest_departure result holds, or words of a `web_evidence` claim or quote that counts as checked.
 
-A7 adds four under the report's "more": first_part_lines (at most 8 body lines; place lines do not count),
+A7 adds three under the report's "more" (11-04: first_part_lines and plan_heading are gone, as in check_answer):
 internal_words (外部截止, 计划目标, evidence IDs, field names), unreachable_needs_lookup (赶不上 and the like need a
 latest_departure result, and a plain one must not name a departure the tool lists as reachable) and meals_named (a
 hungry question gets two named places to eat with their hours and a source: the trip's places or a recorded page).
@@ -412,7 +411,6 @@ def check_turn(shown: list[tuple[int, str]], lookup: bool = False, found: dict |
     results["no_tags"] = outcome([entry for _, text in bare for entry in checks.tag_problems(text)])
     results["first_line_times_checked"] = (outcome(checks.first_line_problems(first[1], second[1], first[0])) if first and second
                                            else dict(ok=False, detail="a part is missing"))
-    results["plan_heading"] = outcome(checks.heading_problems(second[1])) if second else dict(ok=False, detail="no second part")
     claimed = [line for _, text in bare for line in lines_of(text) if CHECKED_WORD.search(line)]
     results["checked_needs_tool"] = dict(ok=lookup or not claimed,
                                          detail=("a Tripwright lookup ran" if lookup else f"no Tripwright lookup; 核过 on {len(claimed)} lines")
@@ -429,14 +427,13 @@ def check_turn(shown: list[tuple[int, str]], lookup: bool = False, found: dict |
 
 
 def more_checks(shown: list[tuple[int, str]], found: dict, question: str | None, places: list[dict], draft: str | None = None) -> dict[str, dict]:
-    """The A7 checks on a turn, kept apart from the ten above so their names stay as they were: the first part's 8 lines,
-    no internal words in either part, a cannot-reach sentence backed by latest_departure, two named places to eat with
+    """The A7 checks on a turn, kept apart from the ones above so their names stay as they were: no internal words in
+    either part, a cannot-reach sentence backed by latest_departure, two named places to eat with
     the source of their hours when the question is hungry. A10: the second part's first line keeps the service's frame,
     and the first part is turn's first_part sent as it is."""
     first, second = parts(shown, draft)
     found = dict(checks.NO_EVIDENCE, **found)
-    results = {"first_part_lines": outcome(checks.first_length_problems(first[1])) if first else dict(ok=False, detail="no first part"),
-               "internal_words": outcome([entry for _, text in shown for entry in checks.internal_problems(without_later(text)[0])])}
+    results = {"internal_words": outcome([entry for _, text in shown for entry in checks.internal_problems(without_later(text)[0])])}
     results["unreachable_needs_lookup"] = outcome(checks.unreachable_problems(second[1], found)) if second else dict(ok=False, detail="no second part")
     results["meals_named"] = outcome(checks.meal_problems(second[1], question, found, places)) if second else dict(ok=False, detail="no second part")
     results["frame_matches_server"] = (outcome(checks.frame_problems(second[1], second[0], found["lookups"])) if second

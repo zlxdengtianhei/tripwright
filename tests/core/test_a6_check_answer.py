@@ -111,12 +111,18 @@ def test_good_drafts_pass_and_problems_have_their_shape(trip):
     first = check(trip, GOOD_FIRST, "first")
     second = check(trip, GOOD_SECOND, request_id="q1")
     assert first["ok"] and second["ok"], (first["problems"], second["problems"])
-    assert second["summary"] == "草稿可以发。" and second["now"]["time"] == "20:45" and second["now"]["timezone"] == "Europe/Oslo"
+    assert second["summary"] == "草稿可以发。别向用户提这次检查、核对或工具回执。" and second["now"]["time"] == "20:45" \
+        and second["now"]["timezone"] == "Europe/Oslo"
     assert len(second["evidence"]["ids"]) == 2  # the latest departure and the page quote; not the snippet
-    bad = check(trip, GOOD_SECOND.replace("## 完整安排", "完整安排："))
-    entry = bad["problems"][0]
-    assert set(entry) == {"check", "line", "text", "why", "fix"} and (entry["line"], entry["text"]) == (7, "完整安排：")
-    assert bad["summary"].startswith("要改 1 处再发：第 7 行 完整安排没有 Markdown 标题")
+    # 11-04: a hint leaves the draft as it is (ok, passed); a block holds it
+    hinted = check(trip, GOOD_SECOND.replace("（20:45）", "（21:10）"), request_id="q1")
+    entry = hinted["problems"][0]
+    assert set(entry) == {"check", "line", "text", "why", "fix", "severity"} and (entry["line"], entry["severity"]) == (1, "hint")
+    assert hinted["ok"] and hinted["passed"] and hinted["summary"].startswith("可以照原样发；1 处可以改得更好，不改也行：第 1 行 写的 21:10")
+    bad = check(trip, GOOD_SECOND + "\n核过：码头咖啡开到 23:00。")
+    entry = next(entry for entry in bad["problems"] if entry["severity"] == "block")
+    assert (entry["check"], entry["line"]) == ("checked_has_evidence", 9) and not bad["ok"] and "passed" not in bad
+    assert bad["summary"].startswith("要改 1 处再发：第 9 行 “核过”对不上证据")
 
 
 # --- second part: each check, bad and good -----------------------------------------------------------------------------
@@ -132,7 +138,9 @@ def test_a_checked_line_without_matching_evidence_is_refused(trip, line, why):
     result = check(trip, GOOD_SECOND.replace("核过：最晚 21:30 出门", line + "\n核过：最晚 21:30 出门"))
     problems = [entry for entry in result["problems"] if entry["check"] == "checked_has_evidence"]
     assert [entry["line"] for entry in problems] == [3] and why in problems[0]["why"], result["problems"]
-    assert problems[0]["fix"].startswith("改成“网上说法（来源）”")
+    # 11-04: a line without a time (“15 分钟一班”) is a hint; a time no evidence has blocks
+    assert problems[0]["severity"] == ("hint" if "15 分钟" in line else "block")
+    assert problems[0]["fix"].removeprefix("可以改得更好（不改也能发）：").startswith("改成“网上说法（来源）”")
     # rewritten as the fix says, it passes
     assert check(trip, GOOD_SECOND.replace("核过：最晚 21:30 出门", line.replace("核过", "网上说法") + "\n核过：最晚 21:30 出门"))["ok"]
 
@@ -184,9 +192,10 @@ def test_a_fallback_leaves_after_the_missed_choice(trip, line, ok):
         assert result["problems"][0]["fix"].startswith("后备换成比")
 
 
-@pytest.mark.parametrize("heading, ok", [("完整安排：", False), ("**完整安排**", False), ("## 完整安排", True)])
-def test_the_full_plan_has_a_markdown_heading(trip, heading, ok):
-    assert ("plan_heading" not in failing(check(trip, GOOD_SECOND.replace("## 完整安排", heading)))) is ok
+@pytest.mark.parametrize("heading", ["完整安排：", "**完整安排**", "## 完整安排"])
+def test_the_full_plan_needs_no_markdown_heading(trip, heading):
+    # 11-04 (checker audit: a heading is form, not content): plan_heading is gone
+    assert check(trip, GOOD_SECOND.replace("## 完整安排", heading))["ok"]
 
 
 @pytest.mark.parametrize("extra, check_name", [
@@ -209,22 +218,26 @@ def test_the_title_time_is_not_later_than_now(trip):
 
 # --- first part ---------------------------------------------------------------------------------------------------------
 
-@pytest.mark.parametrize("head, problem", [
-    ("最晚 21:30 出门。\n按你还在码头算（计划里这时你在这）。", "前两行没有接近现在 20:45 的时刻"),  # replays r10, r11
-    ("最晚 21:30 出门。\n按现在 19:40 算。", "写的现在 19:40 和钟 20:45 差超过 5 分钟"),  # r9: "now" from the plan
-    ("最晚 21:30 出门。\n按现在 20:45 算（latest_departure 没跑）。", "证据号或字段名：latest_departure"),
-    (GOOD_FIRST, None),
-    ("不用现在就走，计划里 21:30 出门（存档，没核）。\n按现在 20:47 算。", None),  # "现在" as a word is not a clock claim
+@pytest.mark.parametrize("head, problem, severity", [
+    ("最晚 21:30 出门。\n按你还在码头算（计划里这时你在这）。", "前两行没有接近现在 20:45 的时刻", "hint"),  # replays r10, r11
+    ("最晚 21:30 出门。\n按现在 19:40 算。", "写的现在 19:40 和钟 20:45 差超过 5 分钟", "block"),  # r9: "now" from the plan
+    ("最晚 21:30 出门。\n按现在 20:45 算（latest_departure 没跑）。", "证据号或字段名：latest_departure", "hint"),
+    (GOOD_FIRST, None, None),
+    ("不用现在就走，计划里 21:30 出门（存档，没核）。\n按现在 20:47 算。", None, None),  # "现在" as a word is not a clock claim
     # A16 (quality judge 8, off_r1): a last or latest time before this question's lookup, unless an earlier one is quoted
-    ("最晚 21:30 出门。\n按现在 20:45 算。", "第一段写了“最晚”和时刻：这一问还没查过"),
-    ("计划里存的最后一班是 23:53 REX。\n按现在 20:45 算。", "第一段写了“最后一班”和时刻：这一问还没查过"),
-    ("去码头：今晚最后一班 23:05 REX 7，Nordkai 开（20:30 查过）\n按现在 20:45 算。", None),
+    ("最晚 21:30 出门。\n按现在 20:45 算。", "第一段写了“最晚”和时刻：这一问还没查过", "hint"),
+    ("计划里存的最后一班是 23:53 REX。\n按现在 20:45 算。", "第一段写了“最后一班”和时刻：这一问还没查过", "hint"),
+    ("去码头：今晚最后一班 23:05 REX 7，Nordkai 开（20:30 查过）\n按现在 20:45 算。", None, None),
 ])
-def test_the_first_part_names_the_clock_and_no_internal_words(trip, head, problem):
+def test_the_first_part_names_the_clock_and_no_internal_words(trip, head, problem, severity):
+    # 11-04: only a wrong “now” blocks; the rest are hints
     result = check(trip, head, "first")
-    assert result["ok"] is (problem is None), result["problems"]
+    # r10/r11 also say the plan has the user at the quay while it has them at the café: that place blocks
+    assert result["ok"] is (severity != "block" and "计划里这时你在这" not in head), result["problems"]
     if problem:
-        assert any(problem in entry["why"] for entry in result["problems"]), result["problems"]
+        assert any(problem in entry["why"] and entry["severity"] == severity for entry in result["problems"]), result["problems"]
+    else:
+        assert not result["problems"], result["problems"]
 
 
 def test_wrong_arguments_name_their_field(trip):
@@ -241,7 +254,7 @@ def test_the_command_line_prints_what_the_mcp_tool_returns(tmp_path, monkeypatch
     path = tmp_path / "a6.sqlite3"
     seed(path)
     draft = tmp_path / "second.md"
-    draft.write_text(GOOD_SECOND.replace("## 完整安排", "完整安排："), encoding="utf-8")
+    draft.write_text(GOOD_SECOND + "\n核过：码头咖啡开到 23:00。", encoding="utf-8")
     store = Store(path)
     service = Tripwright(store, query_router=QueryRouter(store, mode="synthetic"))
     try:
@@ -292,7 +305,7 @@ def test_check_answer_over_real_stdio_and_the_command_line(tmp_path):
     assert json.loads(run.stdout)["problems"] == found["result"]["problems"]
     # S4h-b: without --request-id the command line takes the latest turn (the seed turn the MCP call named) and says so
     assert "using the latest turn's request_id 'seed'" in run.stderr
-    assert run.stderr.strip().splitlines()[-1].startswith("要改 3 处再发")
+    assert run.stderr.strip().splitlines()[-1].startswith("要改 2 处再发")  # 11-04: the timeless 核过 line (5) is a hint
 
 
 # --- latest_departure compact -------------------------------------------------------------------------------------------

@@ -29,7 +29,7 @@ WORDS = {
                then="，换 ", direct="不用换车", changes="换 {count} 次车", leave="{leave} 出门，{changes}：{rides}；{reach} 到",
                walk_only="步行 {minutes} 分钟，{leave} 出门，{reach} 到", timetable="按时刻表，不是实时", live="实时",
                some_live="{lines} 是实时，其余按时刻表", basis="（{basis}）",
-               resolved="{end}按 {name} 查（你写的是 {said}）", origin="起点", destination="终点"),
+               resolved="{end}按 {name} 查（你写的是 {said}）", origin="起点", destination="终点", toward="（往 {headsign}）"),
     "en": dict(walk="walk {minutes} min ({depart}–{arrive})", ride="{depart} {line}{origin} → {destination} {arrive}",
                cancelled=" (cancelled)", none="No connections found in this span; do not say there is no service (this area or date may not be in the data)",
                departures="{count} found departing {start}–{end}; nothing searched after {end}",
@@ -37,7 +37,8 @@ WORDS = {
                then=", then ", direct="no change", changes="{count} change(s)", leave="Leave {leave}, {changes}: {rides}; arrive {reach}",
                walk_only="Walk {minutes} min, leave {leave}, arrive {reach}", timetable="timetable, not real time", live="real time",
                some_live="{lines} real time, the rest timetable", basis=" ({basis})",
-               resolved="{end} looked up as {name} (you wrote {said})", origin="Start", destination="Destination"),
+               resolved="{end} looked up as {name} (you wrote {said})", origin="Start", destination="Destination",
+               toward=" (toward {headsign})"),
 }
 
 
@@ -72,11 +73,15 @@ def leg_view(leg: Leg, zone: tzinfo) -> dict:
     return view
 
 
-def leg_line(leg: dict, language: str) -> str:
+def leg_line(leg: dict, language: str, toward: bool = False) -> str:
+    """One leg; with `toward`, a ride with a destination sign says which way it runs (“5B（往 Praterstern）”: the
+    quality judge of 11-04 found a bus that stops both ways named without its direction)."""
     said = words(language)
     if leg["walk"]:
         return said["walk"].format(**leg)
-    text = said["ride"].format(depart=leg["depart"], line=f"{leg['line']} " if leg["line"] else "", origin=leg["from"],
+    sign = said["toward"].format(headsign=leg["headsign"]) if toward and leg.get("headsign") else ""
+    named = f"{leg['line']}{sign}" if leg["line"] else sign.strip()
+    text = said["ride"].format(depart=leg["depart"], line=named + ("" if named.endswith("）") else " ") if named else "", origin=leg["from"],
                                destination=leg["to"], arrive=leg["arrive"])
     return text + (said["cancelled"] if leg["cancelled"] else "")
 
@@ -156,14 +161,14 @@ def result_note(connections: list[dict], language: str = "zh") -> str | None:
     return said["timetable"] if not live else (said["live"] if len(live) == len(rides) else said["mixed"])
 
 
-def sentence(view: dict, language: str = "zh") -> str:
-    """One connection as a host copies it: when to leave, how many changes, every ride (time, line, from, to, arrival),
-    the arrival, and whether the times are the timetable or real time."""
+def sentence(view: dict, language: str = "zh", toward: bool = False) -> str:
+    """One connection as a host copies it: when to leave, how many changes, every ride (time, line, from, to, arrival;
+    with `toward` its direction), the arrival, and whether the times are the timetable or real time."""
     said = words(language)
     rides = [leg for leg in view["legs"] if not leg["walk"]]
     if not rides:
         return said["walk_only"].format(minutes=view["minutes"], leave=view["leave"], reach=view["reach"])
-    shown = said["then"].join(leg_line(leg, language) for leg in rides)
+    shown = said["then"].join(leg_line(leg, language, toward) for leg in rides)
     changes = said["direct"] if len(rides) == 1 else said["changes"].format(count=len(rides) - 1)
     text = said["leave"].format(leave=view["leave"], changes=changes, rides=shown, reach=view["reach"])
     return text + basis_suffix(rides, language)

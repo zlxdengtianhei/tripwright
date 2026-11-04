@@ -39,7 +39,7 @@ def test_after_go_on_the_first_thing_turn_says_is_to_write_nothing_before_the_se
     assert going_on["second_part_due"]["request_id"] == "q1"
     # bad sample (s5_ns_on_r1, s5_mcponly_r2: “Now running the lookups: …”, “先说一下：……马上发。” before the second part)
     assert list(going_on)[0] == "do_first"
-    assert going_on["do_first"] == "这一轮在第二段之前不写任何字：查、核、过 check_answer 之后只发第二段这一条，发完结束这一轮。"
+    assert going_on["do_first"] == "这一轮在第二段之前不写任何字：查、核、过 check_answer 之后只发第二段这一条，发完结束这一轮；不提检查和工具回执。"
 
 
 def test_a_turn_without_points_says_first_to_call_turn_again(make):
@@ -74,7 +74,7 @@ def test_the_stop_hook_after_go_on_opens_with_nothing_before_the_second_part(mak
     minute = 21 * 60 + 1
     # the host looked something up after “继续” and stopped without a second part
     reason, verdict = stop_decision(dict(last_assistant_message=""), {}, continued(ends), lambda _: minute)
-    assert reason.startswith("这一轮在第二段之前不写任何字：查、核、过 check_answer 之后只发第二段这一条，发完结束这一轮。"), reason
+    assert reason.startswith("这一轮在第二段之前不写任何字：查、核、过 check_answer 之后只发第二段这一条，发完结束这一轮；不提检查和工具回执。"), reason
     # bad sample (s5_mcponly_r2): a status line sent after “继续” is still pushed, with the same sentence first
     reason, _ = stop_decision(dict(last_assistant_message="先说一下：都查完了，正在核对第二段，马上发。"), {},
                               continued(ends, "先说一下：都查完了，正在核对第二段，马上发。"), lambda _: minute)

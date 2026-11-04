@@ -156,7 +156,7 @@ def test_a_shorter_coverage_claim_against_tonights_search_is_refused(make):
     query(service, "transit", origin="hbf", destination="airport", when=local("21:01").isoformat(), until=local("01:00").isoformat())
     # bad sample (on_r2): the transit window to 01:00 read against the last-connection search to 03:00
     bad = problems(service, second_part(found["first_line"], "没核：01:00 之后的火车没查，不能说 00:53 之后没有火车。"))
-    assert bad["coverage_said_short"] == ["说 01:00 之后没查，这一问连续查到了 03:00 | 照 latest_departure 的窗口句写“连续查到 03:00”；"
+    assert bad["coverage_said_short"] == ["说 01:00 之后没查，这一问连续查到了 03:00 | 可以改得更好（不改也能发）：照 latest_departure 的窗口句写“连续查到 03:00”；"
                                           "别拿另一次更短的查询说之后没查"]
     # controls: the server's window sentence (nothing searched after 03:00) and its other sentences pass
     assert problems(service, second_part(found["first_line"], *found["sentences"][1:])) == {}

@@ -1435,3 +1435,24 @@ Field table (one row per model field; `tests/core/test_b3f_field_table.py` keeps
   - 没填 basis 的条目算 agent 层。宿主若把用户的话记成不填 basis，这些条目会被标“我的推断”，挡不住 agent 推断的覆盖，也不再是宽包必需。提醒写在 `write_back` 和 `turn` 的工具说明里，服务端不核。
   - 同一 `request_id` 不能带改好的 `record` 重发（会报复用），只能放进 `propose`。没有提案的快问，写回就多一次只改账本的 `propose`＋`commit`，在第一段之后、第二段之前。
   - 包里的“细节”行仍是行程仓路径（盘点 tw-6），云端读细节要靠 `explain(record_id)` 与 `state(view='day')`。
+
+## 11-04：服务写的句子说全说准，检查分轻重（2026-11-04，worker impl-content；主会话 191cd345 派）
+
+依据：用户 11-04 01:26 改的判法（看内容对不对、引导对不对、防没防住内容错，不做死板的规则匹配、不要固定格式）；判卡 v2 的两份非作者判词（判词 a 的 A、B 两段）；检查器盘点 `checker-audit.md`（32 个问题码的逐条建议与探针）。
+
+- **一、计划车的句子写整段走法（`query.plan_rides`、`query.way_sentence`、`providers.connections.leg_line` 的 `toward`）。**
+  - 现象：“计划里的 22:42 RJX 19959 赶得上：22:00 关门出来（按存的营业时间），走到 Wien Brigittaplatz 坐 22:16 的 5B”。12 轮第 1 问都受影响，9 轮补成“5B 到 Hauptbahnhof”；5B 只跑 Heiligenstadt—Praterstern，要在 Praterstern 换 U1。
+  - 为什么没有分段：分段一直在。`plan_rides` 匹配到的是这次查询里的整条连接（`match[0]`，步行、5B、U1、RJX 都在），句子却只取了 `leave_words(..., ride=True)`，即出门与第一程上车；精简结果又把这条连接删掉（`plan_rides` 里的 `itinerary`），`connections` 也只在 `detail: full` 里有。所以宿主手里只有那半句。
+  - 改：句子写 `way_sentence`：出门（起点先关门时照 A16 写关门出来）、换几次车、每一程线路加终点牌方向（“5B（往 Praterstern）”，只在这一句里写，别的交通句不动，免得全仓句子和黄金样本都变）、上下车站与时刻、到达。腿首尾接不上时只写接得上的几程，接“之后怎么换车没查到，在 <App> 搜 <断处> → <下一程上车站>”。真实 Transitous 数据的腿都接得上；这一支是保底，测试用缺 U1 的假数据。
+- **二、“夜里一直有车”只在没有空档时说（`query._last_connection`、`SERVICE_HOLE`、`render.first_part.go_line`、`packs.stored_frame`）。**
+  - 现象：首行“今晚不用赶：夜里一直有车到机场”；00:53 末班火车之后到 02:52 才有 U1 接机场大巴。原来的判法只看“今晚截止前最后一班”和“截止后第一班”隔没隔 2 小时（`NIGHT_GAP`），不看窗口里面。
+  - 改：把今晚查到的、坐车的出发（加截止后第一班）排好，相邻两班隔超过 60 分钟就算空档；有空档不说“一直有车”，首行写最长的那段：空档前最后一班（是火车就写“火车最后一班”）与空档后第一班的出门、线路、到达。取最长而不是最早的一段，是因为一晚上可能早早有一段 70 分钟的小空档，读的人最要知道的是夜里那段。空档之后的那班要用 `leave_words`（起点关门时写上车）；第一段（`turn`）照存的框写“夜里有空档，……之后要等到 HH:MM 的 线路 才再有车”。
+  - 顺手查了服务写的其它“直达、只剩、没有车了”：期限框的“之后没有赶得上的班次”“误了就赶不上”都只在 `covers_target` 时说；“不用换车”按程数生成；第一段的“今晚最后一班”只在夜断（`night_break`）时说。没有找到同类说过头的。期限框的“赶得上 HH:MM 的最后一班是 HH:MM 线路”点名的是第一程的线路，读起来像那一程是最后一班；不是事实错，没改，记在这里。
+- **三、检查分轻重（`render.check_answer`：`problem(..., severity)`、`BLOCKING`、`graded`、`blocking`；`service.check_answer`）。**
+  - 每条问题带 `severity`。照盘点：留着拦 10 个（8 个收窄，收窄掉的那一支在函数里自己标 `HINT`），改提示 18 个，删 4 个（`first_part_lines`、`ends_with_later`、`plan_heading`、`second_part_lines`，连 `scripts/answer_checks.py` 的同名分项）。`ok` 只看 `block`；只剩提示的第二段照样写 `passed` 与草稿指纹。提示的 `fix` 前加“可以改得更好（不改也能发）：”。
+  - 收窄怎么判：`checked_has_evidence` 漏掉的时刻都带“约、大约、about”一类（`approximate_times`）或行里没有时刻时算提示，证据号不算数、写成核过的起点关门时刻仍拦；`fallback_later` 两个时刻都是这一问查到的出发（`departures`）才拦；`missing_ride_found` 在“的站台没查到”“查不到实时晚点”这类说的是车的某样东西时算提示（`ABOUT`）；其余照盘点。
+  - 跟盘点不同的一处：`direct_needs_one_ride` 加了一支“某程车到 X，查到的同一程只到别处、X 要换车后才到”（`reach_problems`）。盘点里没有这一条；它防的正是判词 a 的 A 段（“坐 22:16 的 5B 到 Wien Hauptbahnhof”），属于“把要换乘说成直达”，所以归在同一个码下，拦。站名按时刻表原名、去掉城市名的短名和地点表里同名地点的中文名（去括号）认；有任何一条连接里这程车自己就到 X，就不拦。
+- **四、钩子（`stop_decision`、`first_part_decision`）。** Stop 钩子认第二段：标题，或等于这一问某份过核草稿的指纹；所以 `second_heading` 能降成提示。没标题也没过核的第二段，钩子认不出是第二段，照旧推“在后台派 researcher 核查，再写第二段”。PreToolUse 钩子改用 `first_part_shape`（和 Stop 钩子同），`first_part_problems` 删掉。
+- **五、给宿主的话。** 常驻第一条、`turn.next`、`DO_DUE`、`check_answer.summary`、`query` 工具说明、l0 角色那一行。两处字节上限卡得很紧：instructions ≤3,600（改前 3,586；`test_a_changed_step_reaches_every_place_only_through_the_build` 还要往里加 11 字节，所以实际只能到 3,589），主 SKILL ≤12,225（改前 12,217）。所以常驻一条只加“nor talk of checks”，同句“only when you send it”缩成“once sent”，开头一句缩成“go on when its check holds”；第 7 步不改字（只剩提示 `ok` 就是 true，提示的 `fix` 自己写“不改也能发”）；“工具回执”写在 `next` 与 `summary` 里。改后 instructions 3,587，主 SKILL 12,225。
+- **测试。** `tests/core/test_v2_content.py`（4 条）、`tests/core/test_v2_checker.py`（8 条）；坏样本在改前的代码上红，记录见交回的 REPLY。改了的旧测试只改断言里的新句子、新字段和被删的检查。
+- **限制。** 检查仍靠字面找句子，过了不等于说对了，内容质量照判卡 v2 判。`reach_problems` 只认“到、→、开往、去往、to”后面紧跟的站名，换一种说法（“5B 一直坐到总站”）认不出；也认不出没在任何连接里的线路。盘点里的漏判 H（“唯一能坐的是 22:16 S7”而查到 22:42 RJX）没修。

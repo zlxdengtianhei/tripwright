@@ -286,7 +286,6 @@ SNAKE = re.compile(r"(?<![\w/.=-])[a-z]+(?:_[a-z0-9]+)+(?![\w/.=-])")  # field n
 LINK_TARGET = re.compile(r"\]\([^)]*\)|https?://\S+")
 SECOND_TITLE = re.compile(r"^#+\s*第二段")
 MARKED = ("核过", "网上说法", "搜索摘要", "没核", "和第一段不同", "仍没核", "没找到", "查不到")
-PLAN_HEADING = re.compile(r"^#{1,6}\s*完整安排")
 CHECKED_WORD = re.compile(r"(?<!没)核过")
 ONLY = re.compile(r"唯一|只有这一班|只有一班|最后一班|最后一个|末班|首班|头班|之前没有|之后没有|之后再没有|再没有别的|没有更晚|更晚的没有"
                   r"|没有(?:火车|车|巴士|公交|班次|别的车)|没车|最晚|只剩|别指望")
@@ -341,8 +340,10 @@ def shares_words(line: str, texts: list[str], size: int = 4) -> bool:
     return any(bare[i:i + size] in pool for i in range(len(bare) - size + 1) if not re.fullmatch(r"[\W\d]+", bare[i:i + size]))
 
 
-def problem(check: str, line: int | None, text: str, why: str, fix: str) -> dict:
-    return dict(check=check, line=line, text=text, why=why, fix=fix)
+def problem(check: str, line: int | None, text: str, why: str, fix: str, severity: str | None = None) -> dict:
+    """One finding; `severity` set here only where one check's branches differ (check_draft gives the rest theirs)."""
+    found = dict(check=check, line=line, text=text, why=why, fix=fix)
+    return dict(found, severity=severity) if severity else found
 
 
 def clock_problems(text: str, clock: int) -> list[dict]:
@@ -356,7 +357,7 @@ def clock_problems(text: str, clock: int) -> list[dict]:
     found = []
     if not near:
         found.append(problem("clock_in_first_part", where[0], where[1], f"前两行没有接近现在 {hhmm(clock)} 的时刻",
-                             f"第二行写“按现在 {hhmm(clock)} 算”，再写要靠的条件（在哪）"))
+                             f"第二行写“按现在 {hhmm(clock)} 算”，再写要靠的条件（在哪）", HINT))
     if wrong:
         found.append(problem("clock_in_first_part", where[0], where[1], f"写的现在 {'、'.join(wrong)} 和钟 {hhmm(clock)} 差超过 {CLOCK_SLACK} 分钟",
                              f"现在写成 {hhmm(clock)}；用户的说法和钟对不上时照钟，在这行点明"))
@@ -444,19 +445,11 @@ def second_heading_problems(text: str) -> list[dict]:
     return []
 
 
-def heading_problems(text: str) -> list[dict]:
-    """Second part: the full plan sits under a Markdown heading "完整安排" (the user asked for it to stand out)."""
-    lines = numbered(text)
-    if any(PLAN_HEADING.match(line) for _, line in lines):
-        return []
-    plain = next(((number, line) for number, line in lines if line.strip("*#- ").startswith("完整安排")), (None, ""))
-    return [problem("plan_heading", plain[0], plain[1], "完整安排没有 Markdown 标题",
-                    "把完整安排的标题写成单独一行“## 完整安排”" if plain[0] else "完整安排前加一行“## 完整安排”")]
-
-
-def fallback_problems(text: str) -> list[dict]:
+def fallback_problems(text: str, departures: set[int] | None = None) -> list[dict]:
     """On a line with "误了", the fallback named after it leaves after the choice that was missed: the time right after
-    "误了", else the last time in the same clause before it ("04:45 的大巴误了"), else the line's first time."""
+    "误了", else the last time in the same clause before it ("04:45 的大巴误了"), else the line's first time. With
+    `departures` (the lookups' departure times), only two departures found block (11-04 audit: “误了 07:05 柜台截止…
+    所以 06:50 前要到” names a deadline and a time to be there, no fallback); the rest is a hint."""
     found = []
     for number, line in numbered(text):
         at = line.find("误了")
@@ -470,8 +463,9 @@ def fallback_problems(text: str) -> list[dict]:
         fallback = next((match for match in after if match is not missed
                          and match.start() > (missed.end() if missed and missed.start() > at else at)), None)
         if missed and fallback and ahead(clock_minutes(fallback), clock_minutes(missed)) < 0:
+            rides = departures is None or {clock_minutes(missed), clock_minutes(fallback)} <= departures
             found.append(problem("fallback_later", number, line, f"误了 {missed.group(0)} 之后的后备 {fallback.group(0)} 比它早开",
-                                 f"后备换成比 {missed.group(0)} 晚开的班次（latest_departure 的 fallback）；没有就写没有"))
+                                 f"后备换成比 {missed.group(0)} 晚开的班次（latest_departure 的 fallback）；没有就写没有", None if rides else HINT))
     return found
 
 
@@ -650,7 +644,7 @@ def window_problems(text: str, clock: int, windows: list[int], lookups: list[dic
                 subject = clock_minutes(named[0]) if named else subject
                 if not earlier_backed(lookups, claim, subject, set(said), clock):
                     found.append(problem("only_inside_window", number, line, f"说“{claim}” {hhmm(subject)}，查询不是从它之前查起的",
-                                         f"写成“查到的最早一班是 {hhmm(subject)}”；要说“{claim}”，先从更早查起，并写出“前一班 HH:MM”"))
+                                         f"写成“查到的最早一班是 {hhmm(subject)}”；要说“{claim}”，先从更早查起，并写出“前一班 HH:MM”", HINT))
                 continue
             bound = max(bounds, key=lambda time: ahead(time, clock)) if bounds and bounds != set(said) else None
             arrive_by = None
@@ -813,7 +807,7 @@ def coverage_problems(text: str, clock: int, lookups: list[dict]) -> list[dict]:
     return found
 
 
-def direct_problems(text: str, lookups: list[dict]) -> list[dict]:
+def direct_problems(text: str, lookups: list[dict], places: list[dict] = ()) -> list[dict]:
     """A sentence that says 直达 or 不用换车 (not marked 没核 or 网上说法) names a connection the lookups found with one
     ride (A8: "13A 直达" was 13A, then a change): matched by its leaving or boarding time, or its last ride's time, or
     without a time by its first line."""
@@ -843,7 +837,83 @@ def direct_problems(text: str, lookups: list[dict]) -> list[dict]:
                                      f"把每一程写出来：{rides}"))
             else:
                 found.append(problem("direct_needs_one_ride", number, line, f"说“{word.group(0)}”，这一趟的查询里对不上这班车",
-                                     "照工具给的句子写每一程，或去掉“直达”"))
+                                     "照工具给的句子写每一程，或去掉“直达”", HINT))
+    return found + reach_problems(text, lookups, places)
+
+
+# 11-04 (quality judge a, 9 of 12 runs): “走到 Wien Brigittaplatz 坐 22:16 的 5B，到 Wien Hauptbahnhof 换 RJX”: the lookup's
+# 5B ends at Praterstern and the U1 goes on to the station. A ride said to go to a stop that, in every connection with
+# that ride, only a later ride reaches, is a change said as a direct ride.
+REACH_MARK = re.compile(r"(?:到|→|->|开往|去往|\bto\b)\s*", re.I)
+REACH_STOP = re.compile(r"换乘?|转乘?|下车|再坐|\bthen\b|\bchange\b", re.I)
+TARGET_END = re.compile(r"[，,。；;！？!?（(）)]")
+
+
+def stop_aliases(name: str, places: list[dict]) -> set[str]:
+    """A stop as an answer may write it: its timetable name, without the city in front (“Wien Hauptbahnhof” →
+    “Hauptbahnhof”), and the trip's name for a place stored under that name (brackets left out)."""
+    bare = str(name or "").strip()
+    found = {bare.casefold()}
+    if " " in bare:
+        found.add(bare.split(" ", 1)[1].casefold())
+    for place in places or []:
+        local = str(place.get("name_local") or "").split(",")[0].strip().casefold()
+        if local and local == bare.casefold() and place.get("name"):
+            found.add(re.sub(r"（[^（）]*）|\([^()]*\)", "", place["name"]).strip().casefold())
+    return {alias for alias in found if len(alias) >= 2}
+
+
+def names_stop(target: str, aliases: set[str]) -> bool:
+    phrase = re.sub(r"\s+", " ", target.casefold()).strip()
+    lead = re.match(r"[⺀-鿿]+", phrase)
+    return any(alias in phrase for alias in aliases) or bool(lead and len(lead.group(0)) >= 2 and any(lead.group(0) in alias for alias in aliases))
+
+
+def line_pattern(line: str) -> re.Pattern | None:
+    if not line or not line.strip():
+        return None
+    if re.fullmatch(r"\d{1,3}", line.strip()):
+        return re.compile(r"(?<![\w:.])" + re.escape(line.strip()) + r"\s*路")  # a tram number is said as a route (“18 路”)
+    return re.compile(r"(?<![\w])" + re.escape(line.strip()) + r"(?![\w])", re.I)
+
+
+def reach_problems(text: str, lookups: list[dict], places: list[dict] = ()) -> list[dict]:
+    """A ride said to take the user to a stop (“坐 22:16 的 5B 到 Wien Hauptbahnhof”) that the lookups reach only after a
+    change in every connection with that ride (the time before the line, when written, picks the ride)."""
+    found = []
+    connections = [connection for lookup in lookups or [] for connection in lookup["connections"] if not connection["cancelled"]]
+    for number, line in numbered(text):
+        for sentence in (part.strip() for part in re.split(r"[。！？；;!?]", line)):
+            if any(mark in sentence for mark in NOT_CLAIMED):
+                continue
+            direct, changed = set(), {}
+            for connection in connections:
+                for index, ride in enumerate(connection["rides"]):
+                    pattern = line_pattern(str(ride.get("line") or ""))
+                    for match in pattern.finditer(sentence) if pattern else ():
+                        timed = re.search(r"((?:[01]?\d|2[0-3])[:：][0-5]\d)\s*(?:的\s*)?$", sentence[:match.start()])
+                        if timed and clock_minutes(CLOCK.search(timed.group(1))) != ride["depart"]:
+                            continue
+                        head = REACH_STOP.split(sentence[match.end():], 1)[0]
+                        mark = REACH_MARK.search(head)
+                        if mark is None:
+                            continue
+                        target = TARGET_END.split(head[mark.end():], 1)[0]
+                        key = (match.start(), ride.get("line"))
+                        if names_stop(target, stop_aliases(ride["to"], places)):
+                            direct.add(key)
+                            continue
+                        later = next((other for other in connection["rides"][index + 1:] if names_stop(target, stop_aliases(other["to"], places))), None)
+                        if later is not None:
+                            changed.setdefault(key, (ride, connection["rides"][index + 1:connection["rides"].index(later) + 1], target.strip()))
+            for key, (ride, after, target) in changed.items():
+                if key in direct:
+                    continue
+                rides = "，换 ".join(f"{hhmm(other['depart'])} {other['line'] or ''} {other['from']} → {other['to']}".replace("  ", " ") for other in after)
+                found.append(problem("direct_needs_one_ride", number, line,
+                                     f"说 {ride['line']} 到 {target}，但工具查到 {ride['line']} 只到 {ride['to']}，要再换车：{rides}",
+                                     f"写出在 {ride['to']} 下车，再换 {rides}"))
+                break
     return found
 
 
@@ -883,6 +953,14 @@ def stored_times(line: str) -> set[int]:
     return found
 
 
+APPROXIMATE = re.compile(r"(?:约|大约|大概|差不多|估计|\babout|\baround|\bapprox\.?|~)\s*$", re.I)
+
+
+def approximate_times(line: str) -> set[int]:
+    """The times a line gives as worked out, not read from a result: “约 23:00”, “about 23:00”."""
+    return {clock_minutes(match) for match in CLOCK.finditer(line) if APPROXIMATE.search(line[max(0, match.start() - 6):match.start()])}
+
+
 def evidence_problems(text: str, found: dict) -> list[dict]:
     """Every line that says 核过 (or a list item under a bare 核过 label) matches this trip's evidence: it names an evidence
     ID that counts, or every time it states is in a transit or latest_departure result or in a counted web quote or
@@ -902,6 +980,7 @@ def evidence_problems(text: str, found: dict) -> list[dict]:
         named = set(EVIDENCE_ID.findall(line))
         times = acted_times(line) - stored_times(line)
         missing = times - found["times"] - web_times
+        derived = missing <= approximate_times(line)
         if named and named <= found["ids"]:
             continue
         if times and not missing:
@@ -919,7 +998,10 @@ def evidence_problems(text: str, found: dict) -> list[dict]:
             why = f"时刻 {'、'.join(hhmm(time) for time in sorted(missing))} 不在这一趟工具查到的结果里"
         else:
             why = "这一趟没有对得上的工具证据（交通查询、最晚出发或算核过的网页证据）"
-        problems.append(problem("checked_has_evidence", number, line, "“核过”对不上证据：" + why, fix))
+        # 11-04 audit: a time worked out from checked ones (“走到柜台约 23:00”) or a line without one (“约 29 分钟”) is
+        # not a false claim of a check; a time no evidence has, or an evidence ID that does not count, is
+        hint = not named - found["ids"] and not closing and (not missing or derived)
+        problems.append(problem("checked_has_evidence", number, line, "“核过”对不上证据：" + why, fix, HINT if hint else None))
     return problems
 
 
@@ -1016,7 +1098,7 @@ def unreachable_problems(text: str, found: dict) -> list[dict]:
             continue
         if not found.get("latest"):
             problems.append(problem("unreachable_needs_lookup", number, line, f"说“{word.group(0)}”，这一趟没有最晚出发的查询结果撑",
-                                    "先用 latest_departure 查（它给各种走法的候选）；查不到就写“没查到，现场确认”，不写成事实"))
+                                    "先用 latest_departure 查（它给各种走法的候选）；查不到就写“没查到，现场确认”，不写成事实", HINT))
             continue
         if CONDITIONAL.search(line):
             continue
@@ -1139,22 +1221,6 @@ def frame_problems(text: str, clock: int, lookups: list[dict]) -> list[dict]:
     return []
 
 
-FIRST_LINES = 8
-
-
-def first_length_problems(text: str) -> list[dict]:
-    """The first part has at most 8 body lines; place name lines and their explanation lines do not count, nor does the
-    line that ends a reply with it (`first_part.later`, S4a2)."""
-    skipped = {number for block in place_blocks(text) for number in (block["line"], block["line"] + 1)}
-    skipped |= {number for number, line in numbered(text) if is_later(line)}
-    body = [(number, line) for number, line in numbered(text) if number not in skipped and not line.startswith("#")]
-    if len(body) <= FIRST_LINES:
-        return []
-    number, line = body[FIRST_LINES]
-    return [problem("first_part_lines", number, line, f"第一段正文 {len(body)} 行，超过 {FIRST_LINES} 行（地名行、说明行不算）",
-                    "只留答案、按现在几点算、要靠的条件、没核的一两件；其余放第二段")]
-
-
 # --- A12: the first part answers this question's points; the second part is short -------------------------------------------
 # quality judge 6: the first part was the same airport template for “饿了、想看万圣节、是不是要赶去机场” (A); “07:05 证件柜台关”
 # went out as a fact (6); the second part ran to about 20 body lines (F, quality card 3). The turn keeps the points the host
@@ -1248,6 +1314,7 @@ def archived_problems(text: str, record: dict | None) -> list[dict]:
 # departures of that very lookup; a train not in the results is not gone either
 MISSING = re.compile(r"没查到|查不到|没找到|没有这班|这班没了")
 INSTEAD = re.compile(r"以下面的?(?:班次|车次)?为准")
+ABOUT = re.compile(r"\s*(?!这班|那班|这趟|那趟|班次|车次|车|了|的)[^\s，,。；;！？!?）)]")  # what follows 没查到: another thing
 SPAN_AFTER = re.compile(r"\s*(?:那班|这班)?\s*(?:之后|以后|后|之前|以前|前)")  # “误了 22:53 那班之后…没查到”: later ones, not that one
 PIECES = re.compile(r"[，,。；;！？!?]")
 MISSING_FIX = ("照 latest_departure 的句子写：在结果里的写“计划里的 HH:MM 线路 赶得上：…”；不在的写“这次没在时刻表数据里找到，"
@@ -1262,11 +1329,15 @@ def missing_ride_problems(text: str, lookups: list[dict]) -> list[dict]:
     for number, line in numbered(text):
         if line.startswith("#") or not MISSING.search(line):
             continue
-        hit = None
-        said = [match for piece in PIECES.split(line) if MISSING.search(piece) for match in CLOCK.finditer(piece)
+        hit, part = None, False
+        said = [(match, piece) for piece in PIECES.split(line) if MISSING.search(piece) for match in CLOCK.finditer(piece)
                 if not SPAN_AFTER.match(piece, match.end())]
-        for match in said:
+        for match, piece in said:
             minute, named = clock_minutes(match), LINE_AFTER.match(match.string, match.end())
+            # 11-04 audit: “22:42 RJX 的站台没查到” did not find the platform; the train was found
+            gone = MISSING.search(piece, (named or match).end())
+            part = bool(gone and (re.search(r"的\s*\S", piece[(named or match).end():gone.start()])
+                                  or ABOUT.match(piece, gone.end())))  # “22:42 查不到实时晚点”: the delays were not found
             hit = next(((ride, connection) for lookup in lookups or [] for connection in lookup["connections"] for ride in connection["rides"]
                         if ride["depart"] == minute and (named is None or named.group(1).casefold() in str(ride.get("line") or "").casefold().split())),
                        None)
@@ -1275,7 +1346,8 @@ def missing_ride_problems(text: str, lookups: list[dict]) -> list[dict]:
         if hit:
             ride, connection = hit
             found.append(problem("missing_ride_found", number, line, f"说 {hhmm(ride['depart'])} {ride.get('line') or ''} 没查到，这一问的查询结果里有这班"
-                                 + (f"（{hhmm(connection['leave'])} 出门）" if connection.get("leave") is not None else ""), MISSING_FIX))
+                                 + (f"（{hhmm(connection['leave'])} 出门）" if connection.get("leave") is not None else ""), MISSING_FIX,
+                                 HINT if part else None))
         elif said and INSTEAD.search(line):
             found.append(problem("missing_ride_found", number, line, "说那班没查到，又说以下面的为准：读的人会以为那班没了", MISSING_FIX))
     return found
@@ -1432,38 +1504,36 @@ def short_coverage_problems(text: str, clock: int, lookups: list[dict]) -> list[
     return found
 
 
-SECOND_LINES = 12
-URL = re.compile(r"https?://")
-
-
-def second_length_problems(text: str) -> list[dict]:
-    """The second part has at most 12 body lines (quality card 3): place name lines and their explanation lines, lines
-    with a link and the items under “## 完整安排” do not count (its 没核 lines do)."""
-    skipped = {number for block in place_blocks(text) for number in (block["line"], block["line"] + 1)}
-    body, section = [], ""
-    for number, line in numbered(text):
-        if line.startswith("#"):
-            section = line
-            continue
-        if number in skipped or URL.search(line) or (PLAN_HEADING.match(section) and not line.startswith(UNCHECKED)):
-            continue
-        body.append((number, line))
-    if len(body) <= SECOND_LINES:
-        return []
-    number, line = body[SECOND_LINES]
-    return [problem("second_part_lines", number, line, f"第二段正文 {len(body)} 行，超过 {SECOND_LINES} 行（地名行、说明行、"
-                    "带链接的行和“完整安排”各项不算）", "首行答所问，再写和第一段不同的与没核的一两件；同一件事只说一次；"
-                    "走法、时刻放进“## 完整安排”，每项一行")]
-
-
-FIRST_CHECKS = ("clock_in_first_part", "no_tags", "internal_words", "no_process_notes", "first_part_lines", "answers_each_point",
+FIRST_CHECKS = ("clock_in_first_part", "no_tags", "internal_words", "no_process_notes", "answers_each_point",
                 "place_in_first_lines", "archived_marked", "assumed_place_matches_plan", "latest_needs_lookup", "per_person_alone",
-                "no_status_line", "ends_with_later")
+                "no_status_line")
 SECOND_CHECKS = ("second_heading", "frame_matches_server", "checked_has_evidence", "only_inside_window", "direct_needs_one_ride",
                  "unreachable_needs_lookup", "denied_needs_coverage", "count_needs_continuous",
-                 "fallback_later", "plan_heading", "meals_named", "title_time_not_later", "no_tags", "internal_words",
-                 "no_process_notes", "second_part_lines", "missing_ride_found", "search_matches_main", "coverage_said_short",
+                 "fallback_later", "meals_named", "title_time_not_later", "no_tags", "internal_words",
+                 "no_process_notes", "missing_ride_found", "search_matches_main", "coverage_said_short",
                  "leave_before_closing", "per_person_alone", "first_times_followed", "timetable_said")
+# 11-04 (the user: judge an answer by its content, not a fixed form; checker audit): a finding blocks only when the draft
+# contradicts this question's tool results, the stored conditions or the clock, claims a check it has no evidence for,
+# says a change as a direct ride, or says an unsearched span is certain. Everything else is a hint: the draft may go out
+# as it is. A check whose branches differ sets the hint branch itself (problem(..., HINT)).
+BLOCK, HINT = "block", "hint"
+BLOCKING = frozenset({"clock_in_first_part", "assumed_place_matches_plan", "checked_has_evidence", "only_inside_window",
+                      "direct_needs_one_ride", "unreachable_needs_lookup", "denied_needs_coverage", "fallback_later",
+                      "missing_ride_found", "leave_before_closing"})
+HINT_FIX = "可以改得更好（不改也能发）："
+
+
+def graded(found: list[dict]) -> list[dict]:
+    """Each finding with its severity (BLOCKING, unless its branch set one); a hint's fix reads as a way to do better."""
+    out = []
+    for entry in found:
+        severity = entry.get("severity") or (BLOCK if entry["check"] in BLOCKING else HINT)
+        out.append(dict(entry, severity=severity, fix=HINT_FIX + entry["fix"] if severity == HINT else entry["fix"]))
+    return out
+
+
+def blocking(found: list[dict]) -> list[dict]:
+    return [entry for entry in found if entry.get("severity", BLOCK) == BLOCK]
 
 
 def check_draft(text: str, part: str, clock: int, found: dict | None = None, *, question: str | None = None,
@@ -1475,18 +1545,20 @@ def check_draft(text: str, part: str, clock: int, found: dict | None = None, *, 
     part the turn drafted for this question (S4h2)."""
     found = dict(NO_EVIDENCE, **(found or {}))
     if part == "first":
-        return (clock_problems(text, clock) + tag_problems(text) + internal_problems(text) + note_problems(text) + first_length_problems(text)
-                + point_problems(text, points) + archived_problems(text, points) + plan_place_problems(text, here)
-                + unlooked_latest_problems(text) + party_problems(text, [], points) + later_problems(text))
-    return (second_heading_problems(text) + frame_problems(text, clock, found["lookups"]) + evidence_problems(text, found)
-            + window_problems(text, clock, found["windows"], found["lookups"])
-            + direct_problems(text, found["lookups"]) + unreachable_problems(text, found)
-            + coverage_problems(text, clock, found["lookups"])
-            + fallback_problems(text) + heading_problems(text) + meal_problems(text, question, found, places)
-            + title_problems(text, clock) + tag_problems(text) + internal_problems(text) + note_problems(text)
-            + second_length_problems(text) + missing_ride_problems(text, found["lookups"]) + search_problems(text, found["lookups"])
-            + short_coverage_problems(text, clock, found["lookups"]) + closing_problems(text, found["lookups"])
-            + party_problems(text, found["lookups"], points) + followed_problems(text, first, clock) + timetable_problems(text, found))
+        return graded(clock_problems(text, clock) + tag_problems(text) + internal_problems(text) + note_problems(text)
+                      + point_problems(text, points) + archived_problems(text, points) + plan_place_problems(text, here)
+                      + unlooked_latest_problems(text) + party_problems(text, [], points) + later_problems(text))
+    departures = {time for lookup in found["lookups"] for connection in lookup["connections"]
+                  for time in (connection["leave"], connection["board"], *(ride["depart"] for ride in connection["rides"])) if time is not None}
+    return graded(second_heading_problems(text) + frame_problems(text, clock, found["lookups"]) + evidence_problems(text, found)
+                  + window_problems(text, clock, found["windows"], found["lookups"])
+                  + direct_problems(text, found["lookups"], places) + unreachable_problems(text, found)
+                  + coverage_problems(text, clock, found["lookups"])
+                  + fallback_problems(text, departures) + meal_problems(text, question, found, places)
+                  + title_problems(text, clock) + tag_problems(text) + internal_problems(text) + note_problems(text)
+                  + missing_ride_problems(text, found["lookups"]) + search_problems(text, found["lookups"])
+                  + short_coverage_problems(text, clock, found["lookups"]) + closing_problems(text, found["lookups"])
+                  + party_problems(text, found["lookups"], points) + followed_problems(text, first, clock) + timetable_problems(text, found))
 
 
 # --- A7: what was sent is what was checked (the Stop hook) ----------------------------------------------------------------
@@ -1582,10 +1654,15 @@ def stop_decision(payload: dict, answers: dict, transcript: list[dict], minute_a
     asked, shown = turn_texts(transcript)
     sent = payload.get("last_assistant_message") if isinstance(payload.get("last_assistant_message"), str) else None
     text = sent if sent is not None else (shown[-1][1] if shown else None)
-    if text and is_second_part(text):
-        passed = [entry for entry in answers.values() if isinstance(entry, dict) and (asked is None or entry.get("wall", 0) >= asked)]
-        digest = draft_digest(text)
-        if any(entry.get("sha256") == digest for entry in passed):
+    passed = [entry for entry in answers.values() if isinstance(entry, dict) and (asked is None or entry.get("wall", 0) >= asked)]
+    digests = {entry.get("sha256") for entry in passed}
+
+    def second(shown_text: str) -> bool:
+        # 11-04: the heading is a hint now; a draft that passed is a second part with or without it
+        return is_second_part(shown_text) or draft_digest(shown_text) in digests
+
+    if text and second(text):
+        if draft_digest(text) in digests:
             return None, "matches a passed draft"
         reason = BLOCK_REASON if passed else NEVER_REASON
         verdict = "differs from the passed draft" if passed else "no passed draft for this question"
@@ -1593,7 +1670,7 @@ def stop_decision(payload: dict, answers: dict, transcript: list[dict], minute_a
         if minute_at is None:
             return None, "not a second part"
         texts = shown + ([(None, sent)] if sent and sent.strip() and not any(sent.strip() == shown_text.strip() for _, shown_text in shown) else [])
-        if any(is_second_part(shown_text) for _, shown_text in texts):
+        if any(second(shown_text) for _, shown_text in texts):
             return None, "not a second part; this question's second part was sent"
         looked = turn_lookups(transcript)
         due = answers_later(transcript)
@@ -1658,15 +1735,9 @@ def status_lines(text: str) -> list[tuple[int, str]]:
 
 
 def later_problems(text: str) -> list[dict]:
-    """A first part with first_part.later ends with it; no first part carries a status line."""
-    found = [problem("no_status_line", number, line, f"第一段里有状态句：{line.strip()}",
-                     "删掉这一行：用户只看到第一段和第二段，不看进度") for number, line in status_lines(text)]
-    marks = [number for number, line in numbered(text) if is_later(line)]
-    after = [(number, line) for number, line in numbered(text) if marks and number > marks[0] and line.strip()]
-    if after:
-        found.append(problem("ends_with_later", after[0][0], after[0][1], "“回我一句“继续””那一行之后还写了字",
-                             "以那一行结束这一轮，后面不写别的"))
-    return found
+    """No first part carries a status line (what follows first_part.later is the Stop hook's, later_ending)."""
+    return [problem("no_status_line", number, line, f"第一段里有状态句：{line.strip()}",
+                    "删掉这一行：用户只看到第一段和第二段，不看进度") for number, line in status_lines(text)]
 
 
 def later_ending(texts: list[tuple]) -> str | None:
@@ -1916,15 +1987,10 @@ def turn_lookups(transcript: list[dict]) -> list[str]:
     return made
 
 
-def first_part_problems(text: str, clock: int) -> list[dict]:
-    """The first part's checks: the clock in the first two lines, no tags or tool states, no internal words, 8 lines."""
-    return clock_problems(text, clock) + tag_problems(text) + internal_problems(text) + first_length_problems(text)
-
-
 def first_part_shape(text: str, clock: int) -> list[dict]:
-    """What makes a text a first part for the Stop hook (D-47): the clock in the first two lines, no tags or tool
-    states. Internal words and length are left to check_answer and the replay checks: holding a turn for them made the
-    host write its first part twice (v2e: 9 of 25 stops)."""
+    """What makes a text a first part for both hooks (D-47; the PreToolUse hook too since 11-04): the clock in the first
+    two lines, no tags or tool states. Internal words are left to check_answer: holding a turn for them made the host
+    write its first part twice (v2e: 9 of 25 stops)."""
     return clock_problems(text, clock) + tag_problems(text)
 
 
@@ -1952,7 +2018,7 @@ def first_part_decision(payload: dict, transcript: list[dict], minute_at, denied
     return reason, f"blocked {payload.get('tool_name')}: " + ("no text yet" if last is None else ", ".join(entry["check"] for entry in last))
 
 
-def first_part_sent(shown: list[tuple[float | None, str]], minute_at, problems=first_part_problems) -> list[dict] | None:
+def first_part_sent(shown: list[tuple[float | None, str]], minute_at, problems=first_part_shape) -> list[dict] | None:
     """[] when one of the shown texts passes `problems` (the first part's checks) at the clock of its moment; else the
     last text's failing checks, or None when nothing was shown."""
     last = None

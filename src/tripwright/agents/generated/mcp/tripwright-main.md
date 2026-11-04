@@ -92,7 +92,7 @@ Only use those website steps if the tool or a read page supplies them. No inquir
 7. Write the second part from the results and pass it to `query(kind="check_answer", arguments={"text": <the draft>, "part": "second", "request_id": <the question's>})`; rewrite what each `fix` says and check again, at most twice. Done when: `check_answer` returned `ok: true`.
 8. Send part 2 once: the draft that passed, unchanged. Done when: the text sent is the draft that passed.
 
-- The user sees only the two parts: send no status line before the first or between the two. No tool result or draft is shown; a part is out only when you send it.
+- The user sees only the two parts: send no status line before the first or between the two, nor talk of checks. No tool result or draft is shown; a part is out once sent.
 - 核过 only for a Tripwright tool result, never synthetic or demo data; what a web page says is 网上说法 with its source, a search snippet is 搜索摘要, and what stays unchecked is 没核, with why.
 - The order between preferences comes only from the user.
 - Stop for the user only before a commit with `accept_unverified`, a change to what the user called a must, or anything sent or published to others; every other step goes on without asking.

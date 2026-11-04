@@ -886,7 +886,7 @@ def stored_frame(store: Store, owner: str, destination: str, at: str, zone: str)
         told = ((record.get("value") or {}).get("frame") or {}).get("told")
         if not told or told.get("destination") != destination or aware(told["until"]) <= now_at or aware(record["fetched_at"]) > now_at:
             continue
-        ride = told.get("rail") or told.get("last")
+        ride = told.get("rail") or told.get("last") or (told.get("gap") or {}).get("before")
         if not ride or aware(ride.get("depart_at") or ride["at"]) <= now_at:
             continue
         found.append((aware(record["fetched_at"]), record["id"], told, ride))
@@ -894,9 +894,9 @@ def stored_frame(store: Store, owner: str, destination: str, at: str, zone: str)
         return None
     fetched, evidence_id, told, ride = max(found, key=lambda entry: entry[0])
     return dict(evidence_id=evidence_id, fetched=fetched.astimezone(tz).strftime("%H:%M"), origin=told.get("origin"),
-                all_night=told["all_night"], train=bool(told.get("rail")),
+                all_night=told["all_night"], train=bool(told.get("rail")), gap=told.get("gap"),
                 ride=dict(time=ride.get("depart") or ride.get("time"), line=ride.get("line"), stop=ride.get("from") or ride.get("stop"),
-                          leave=ride.get("leave")))
+                          leave=ride.get("leave"), lines=ride.get("lines"), last_from=ride.get("last_from")))
 
 
 def point_facts(store: Store, owner: str, plan: dict | None, points: list[dict], anchors: list[dict], at: str,

@@ -63,7 +63,7 @@ def test_a_good_answer_passes_every_check(tmp_path):
     run = stream(tmp_path, "good", [("2026-10-31T23:12:40Z", GOOD_FIRST), ("2026-10-31T23:14:30Z", GOOD_SECOND)])
     assert {name: result["ok"] for name, result in results(run).items()} == dict.fromkeys(
         ["two_parts", "no_extra_text", "later_when_no_subagents", "clock_in_first_part", "title_time_not_later", "no_tags", "first_line_times_checked",
-         "plan_heading", "checked_needs_tool", "fallback_later", "only_inside_window", "denied_needs_coverage", "count_needs_continuous", "direct_needs_one_ride", "checked_has_evidence"], True)
+         "checked_needs_tool", "fallback_later", "only_inside_window", "denied_needs_coverage", "count_needs_continuous", "direct_needs_one_ride", "checked_has_evidence"], True)
     assert checks.main([str(run)]) == 0 and (run / "answer_checks.json").is_file()
 
 
@@ -169,11 +169,12 @@ def test_a_fallback_must_leave_after_the_missed_choice(tmp_path, line, ok):
     assert results(run)["fallback_later"]["ok"] is ok
 
 
-@pytest.mark.parametrize("heading, ok", [("完整安排：", False), ("**完整安排**", False), ("## 完整安排", True), ("# 完整安排（从现在起）", True)])
-def test_the_full_plan_has_a_heading(tmp_path, heading, ok):
+@pytest.mark.parametrize("heading", ["完整安排：", "**完整安排**", "## 完整安排", "# 完整安排（从现在起）"])
+def test_the_full_plan_is_not_scored_by_its_heading(tmp_path, heading):
+    # 11-04 (checker audit): plan_heading is gone from check_answer and from these scores
     second = GOOD_SECOND.replace("## 完整安排", heading)
     run = stream(tmp_path, "heading", [("2026-10-31T23:12:40Z", GOOD_FIRST), ("2026-10-31T23:14:30Z", second)])
-    assert results(run)["plan_heading"]["ok"] is ok
+    assert "plan_heading" not in results(run)
 
 
 @pytest.mark.parametrize("to, ok", [("00:45", False), ("01:30", True), (None, False), ("2026-11-01T01:30:00+01:00", True)])

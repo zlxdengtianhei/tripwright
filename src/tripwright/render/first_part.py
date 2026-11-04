@@ -45,9 +45,9 @@ DO_FIRST = dict(zh="先把 first_part.text 原样发出，作为这一轮的第�
                 en="Send first_part.text as it is as this reply's first and only message, its last line first_part.later, then end the "
                    "reply; call no other tool and write nothing before it. If you dispatch a researcher in the background (step 3), "
                    "dispatch it first and leave out the later line; its report brings the second part.")
-DO_DUE = dict(zh="这一轮在第二段之前不写任何字：查、核、过 check_answer 之后只发第二段这一条，发完结束这一轮。",
+DO_DUE = dict(zh="这一轮在第二段之前不写任何字：查、核、过 check_answer 之后只发第二段这一条，发完结束这一轮；不提检查和工具回执。",
               en="Write nothing before the second part in this reply: look up, check, pass check_answer, then send only the second "
-                 "part as one message and end the reply.")
+                 "part as one message and end the reply; never mention the check or tool receipts.")
 DO_POINTS = dict(zh="先补 points（照 next 的第一句），用同一个 request_id 再调一次 turn；这之前不写字，再照那次的 do_first 做。",
                  en="First fix points as next's first sentence says and call turn again with the same request_id; write nothing "
                     "before that, then do what that turn's do_first says.")
@@ -128,7 +128,10 @@ POINT_WORDS = {
                assumed="按现在 {clock} 算，假设你在{place}（计划里这时在这；不在的话说一声）",
                nowhere="按现在 {clock} 算，你没说在哪，先按计划说",
                go="去{place}：", night="今晚不用赶，夜里一直有车", train="；火车最后一班 {time} {line}，{stop} 开",
-               last="今晚最后一班 {time} {line}，{stop} 开", leave="，最晚 {leave} 出门", looked="（{fetched} 查过）",
+               gap="夜里有空档，{kind}最后一班 {time} {line}，{stop} 开{leave}；之后要等到 {after} 的 {after_line} 才再有车",
+               gap_rail="火车", gap_last="空档前",
+               last="今晚最后一班 {time} {line}，{stop} 开", last_rides="今晚最后一班 {time} 在 {stop} 上车：{lines}，{last_from} 开",
+               rides_join=" 接 ", leave="，最晚 {leave} 出门", looked="（{fetched} 查过）",
                go_check="几点出发要查，第二段给。", go_planned="计划里是{when}{time} 在 {stop} 坐 {line}（存档，没核）；几点出门、怎么走，第二段核完给。",
                go_way="计划里是 {leave} 从 {origin} 出门{arrive}，坐{when}{time} {line}（存档，没核）；还有没有更晚的车，第二段核完给。",
                arrive="，{arrive} 到 {stop}", way="怎么走（存档，没核）：{how}", tonight="今晚 ",
@@ -143,7 +146,10 @@ POINT_WORDS = {
                assumed="As of {clock}, assuming you are at{place} (where the plan has you now; say if not)",
                nowhere="As of {clock}; you did not say where you are, so this follows the plan",
                go="To {place}: ", night="no need to hurry tonight, services run all night",
+               gap="services stop for a while tonight: {kind} {time} {line} leaves {stop}{leave}; the next one is not until the "
+                   "{after} {after_line}", gap_rail="the last train", gap_last="the last one before the gap",
                train="; the last train {time} {line} leaves {stop}", last="tonight's last one {time} {line} leaves {stop}",
+               last_rides="tonight's last one boards at {stop} at {time}: {lines}, which leaves {last_from}", rides_join=" then ",
                leave=", leave by {leave}", looked=" (checked at {fetched})", go_check="when to leave needs checking; part 2 follows.",
                go_planned="the plan stores the {time} {line} from {stop}{when} (archived, not checked); when to leave and how follow in part 2.",
                go_way="the plan has you leave {origin} at {leave}{arrive} for the {time} {line}{when} (archived, not checked); "
@@ -180,8 +186,19 @@ def go_line(point: dict, where: dict | None, said: dict) -> str:
         return head + (text if head else text[:1].upper() + text[1:])
     ride = frame["ride"]
     leave = said["leave"].format(leave=ride["leave"]) if where and frame["origin"] and frame["origin"] == where.get("place") and ride.get("leave") else ""
-    if frame["all_night"]:
+    gap = frame.get("gap")
+    if gap:
+        # 11-04 quality judge: “夜里一直有车” while nothing left for two hours after the last train
+        before, after = gap["before"], gap["after"]
+        here = said["leave"].format(leave=before["leave"]) if where and frame["origin"] and frame["origin"] == where.get("place") and before.get("leave") else ""
+        text = said["gap"].format(kind=said["gap_rail" if before.get("rail") else "gap_last"], time=before["depart"], leave=here,
+                                  line=before.get("line") or "", stop=before["from"], after=after["depart"], after_line=after.get("line") or "")
+    elif frame["all_night"]:
         text = said["night"] + (said["train"].format(time=ride["time"], line=ride["line"] or "", stop=ride["stop"]) + leave if frame["train"] else "")
+    elif len(ride.get("lines") or []) > 1:
+        # fix2b: a last one with changes is not named by its first ride (“今晚最后一班 00:33 D”: the tram to the train)
+        text = said["last_rides"].format(time=ride["time"], stop=ride["stop"], lines=said["rides_join"].join(ride["lines"]),
+                                         last_from=ride["last_from"]) + leave
     else:
         text = said["last"].format(time=ride["time"], line=ride["line"] or "", stop=ride["stop"]) + leave
     return head + re.sub(r"  +", " ", text) + said["looked"].format(fetched=frame["fetched"])

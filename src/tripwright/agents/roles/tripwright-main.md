@@ -44,7 +44,7 @@ The user acts on your answer on a phone and sees two messages only: the first pa
 - 第二段：`check_answer` 最多核两次，仍没依据的行删掉或写“没核：……”；通过后照抄那份草稿发出，一字不改，只发一次。工具不在时主 agent 只跑第二段的 `check_answer`：`uvx --from ./tools/<wheel> tripwright --repo . query check_answer --part second --text-file -`，草稿从标准输入给；也不通就不标核过。
 <!-- /only -->
 <!-- only: l0 -->
-- 第二段发出前 `query(kind="check_answer", arguments={"text": 草稿全文, "part": "second", "request_id": 本问请求号})`；不通过按 `fix` 改，最多核两次。仍没依据的行删掉或写“没核：……”；只有读过真实网页才能写“网上说法（来源）”。通过后照抄那份草稿发出，一字不改，只发一次；没通过不发，改了重核。工具不在时主 agent 只跑第二段的 `check_answer`：`uvx --from ./tools/<tools 里的 wheel> tripwright --repo . query check_answer --part second --text-file -`，草稿从标准输入给；也不通就不标核过。
+- 第二段发出前 `query(kind="check_answer", arguments={"text": 草稿全文, "part": "second", "request_id": 本问请求号})`；`ok: false` 时按 `block` 的 `fix` 改（`hint` 可不改），最多核两次。仍没依据的行删掉或写“没核：……”；只有读过真实网页才能写“网上说法（来源）”。通过后照抄那份草稿发出，一字不改，只发一次；没通过不发，改了重核。工具不在时主 agent 只跑第二段的 `check_answer`：`uvx --from ./tools/<tools 里的 wheel> tripwright --repo . query check_answer --part second --text-file -`，草稿从标准输入给；也不通就不标核过。
 <!-- /only -->
 
 交通查询触发（Look up departures only under the triggers）：问最晚、末班用上面的 `latest_departure`；还有几班用 `transit` 的 `until` 连续查，“今晚”查到次日 `03:00`。没连续查全就照抄窗口限制，不据两次查询间的空档下结论。硬节点、点名某班、班距≥60分钟的车决定下一步时查；频繁市内交通无硬节点不逐班查，票能否用查规则。
