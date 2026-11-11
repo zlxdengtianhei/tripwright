@@ -29,13 +29,11 @@ Only someone who has the connector address `https://<your-domain>/mcp/<key>`. Th
 - **Choose the key yourself:** `TRIPWRIGHT_URL_KEY`, at least 32 characters, only letters, digits, `-` and `_`. When both are set, this one wins and the log says so.
 - **New key:** delete `remote/url-key` (or change `TRIPWRIGHT_URL_KEY`) and restart; then replace the address in each client.
 
-The code also has GitHub sign-in (OAuth) and header tokens. Both are off by default, and we do not recommend them for a personal deployment; [REMOTE_AUTH.md](REMOTE_AUTH.md) and the source describe them.
-
 ## Docker on your own computer
 
 The commands are in [SETUP.md step 1](SETUP.md#docker-a-computer-that-stays-on). You need Docker Desktop (macOS, Windows) or Docker Engine with Compose (Linux), and the source. Reference:
 
-- **All settings live in `deploy/.env`,** copied from `.env.example`, which already sets `TRIPWRIGHT_URL_KEY_GENERATE=1` and `TRIPWRIGHT_PUBLIC_URL=http://localhost:8000`. If you prefer YAML, set `TRIPWRIGHT_REMOTE_CONFIG=/data/remote.yaml` in `.env` and write `data/remote.yaml` after `personal.example.yaml` or `remote.example.yaml`.
+- **All settings live in `deploy/.env`,** copied from `.env.example`, which already sets `TRIPWRIGHT_URL_KEY_GENERATE=1` and `TRIPWRIGHT_PUBLIC_URL=http://localhost:8000`.
 - **The data folder is `deploy/data`.** The key is `deploy/data/remote/url-key`. On Linux the container runs as UID 10001, so first run `sudo chown 10001:10001 data`; Docker Desktop on macOS and Windows does not need it.
 - **`TRIPWRIGHT_PUBLIC_URL`:** keep `http://localhost:8000` when only clients on this computer connect (Claude Code, Codex, Cursor). The host and port in every client's address must match it exactly (`localhost`, not `127.0.0.1`), or the service answers 421. Claude (also Claude Desktop) and ChatGPT connect from their providers' cloud, so they need a tunnel; put the tunnel's `https://…` address here, and use it in the clients on this computer too. The tunnels are listed in SETUP.md step 1.
 - **Another port** (when 8000 is taken): set `TRIPWRIGHT_PORT=<port>` in `.env` and use the same port in `TRIPWRIGHT_PUBLIC_URL`.
@@ -142,9 +140,9 @@ ssh <server> 'cd /opt/tripwright/app/deploy && docker-compose --env-file /opt/tr
 
 ## Health, readiness and logs
 
-- `GET /healthz` returns 200 while the process runs; the body lists each tenant's status. Container and platform health checks use it.
-- `GET /readyz` returns 200 only when every tenant is open, its remote answered and no write is stuck. Otherwise it returns 503, and each tenant has `status` (`ok`, `starting`, `error`, `blocked`), `kind` (the problem), `hint` (how to fix it), `unsynced` and `oldest_unsynced_age_seconds` (how long the oldest unpushed write has waited). With a repository, a ready tenant shows `"storage":"remote"`; without one, `"storage":"local"`.
-- At start the service opens each tenant in the background and runs `git ls-remote` and `git push --dry-run`, which finds a read-only key (`TRIPWRIGHT_CHECK_PUSH=0` turns that off). Writes left from before a restart are then pushed without waiting for a request.
+- `GET /healthz` returns 200 while the process runs; the body lists the personal repository's status under `tenants.personal`. Container and platform health checks use it.
+- `GET /readyz` returns 200 only when the personal repository is open, its remote answered and no write is stuck. Otherwise it returns 503, and `tenants.personal` has `status` (`ok`, `starting`, `error`, `blocked`), `kind` (the problem), `hint` (how to fix it), `unsynced` and `oldest_unsynced_age_seconds` (how long the oldest unpushed write has waited). With a repository, it shows `"storage":"remote"`; without one, `"storage":"local"`.
+- At start the service opens the personal repository in the background and runs `git ls-remote` and `git push --dry-run`, which finds a read-only key (`TRIPWRIGHT_CHECK_PUSH=0` turns that off). Writes left from before a restart are then pushed without waiting for a request.
 - When a write cannot be pushed, the write receipt and `state(view="sync")` carry `blocked: {kind, since, hint}`.
 - The log (`docker compose logs tripwright`) has one line per event: the data folder's state, a tenant that failed to open and why, a write that is stuck or recovered, committer errors, and unexpected errors in a tool. It never shows tokens, keys or connector addresses.
 

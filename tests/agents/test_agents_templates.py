@@ -14,7 +14,8 @@ from tripwright.agents import ROLES, user_repo_files
 from tripwright.agents.assemble import AGENTS, GENERATED, ROOT
 
 TEMPLATES = ROOT / AGENTS / "templates"
-MANIFEST = json.loads((ROOT / "tests/contracts/manifest.json").read_text(encoding="utf-8"))
+C_OUTPUTS = ["AGENTS.md", "CLAUDE.md", ".claude/agents/*.md", ".codex/agents/*.toml",
+             ".claude/skills/*/**", ".agents/skills/*/**", ".mcp.json", ".claude/settings.json"]
 
 
 def agents_md() -> str:
@@ -93,7 +94,7 @@ def test_settings_allow_the_road_tools_read_only_shell_commands_and_only_tripwri
 
 def test_init_files_are_exactly_block_c_user_repo_outputs_and_load_in_a_trip_repository(tmp_path):
     files = user_repo_files()
-    patterns = [entry["path"] for entry in MANIFEST["user_repo"] if entry["generator"] == "C"]
+    patterns = C_OUTPUTS
     assert all(any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns) for path in files)
     assert all(any(fnmatch.fnmatchcase(path, pattern) for path in files) for pattern in patterns)
     assert files["CLAUDE.md"] == b"@AGENTS.md\n"

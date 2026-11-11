@@ -1,9 +1,9 @@
-"""Verify a deployment's HTTPS endpoint and MCP tools without persisting or displaying the token.
+"""Verify a deployment's HTTPS endpoint and MCP tools without persisting or displaying the URL key.
 
     .venv/bin/python deploy/check_https.py --url https://trip.example.org [--ssh my-server] [--env-file PATH]
 
-The token is TRIPWRIGHT_CHECK_TOKEN from this process's environment, or (with --ssh) the first token of the server's
-root-only env file, read over SSH into memory. Arguments fall back to TRIPWRIGHT_PUBLIC_URL and TRIPWRIGHT_SSH.
+The key is TRIPWRIGHT_CHECK_KEY from this process's environment, or (with --ssh) the server's explicit key or generated
+key file, read over SSH into memory. Arguments fall back to TRIPWRIGHT_PUBLIC_URL and TRIPWRIGHT_SSH.
 """
 from __future__ import annotations
 
@@ -33,18 +33,19 @@ def target(argv=None) -> argparse.Namespace:
     return arguments
 
 
-def remote_token(arguments) -> str:
-    if os.environ.get("TRIPWRIGHT_CHECK_TOKEN"):
-        return os.environ["TRIPWRIGHT_CHECK_TOKEN"]
+def remote_key(arguments) -> str:
+    if os.environ.get("TRIPWRIGHT_CHECK_KEY"):
+        return os.environ["TRIPWRIGHT_CHECK_KEY"]
     if not arguments.ssh:
-        raise SystemExit("Set TRIPWRIGHT_CHECK_TOKEN or give --ssh to read a token from the server")
+        raise SystemExit("Set TRIPWRIGHT_CHECK_KEY or give --ssh to read the URL key from the server")
     # SSH stdout is a private pipe captured in memory, never inherited by the
     # terminal. No secret appears in command arguments or a local file.
-    source = f"""import json, shlex, sys
+    source = f"""import shlex, sys
 from pathlib import Path
-line = next(line for line in Path({arguments.env_file!r}).read_text().splitlines() if line.startswith('TRIPWRIGHT_TOKENS='))
-tokens = json.loads(shlex.split(line)[0].partition('=')[2])
-sys.stdout.write(next(iter(tokens)))
+lines = Path({arguments.env_file!r}).read_text().splitlines()
+line = next((line for line in lines if line.startswith('TRIPWRIGHT_URL_KEY=')), None)
+key = shlex.split(line)[0].partition('=')[2] if line else ''
+sys.stdout.write(key or Path('/opt/tripwright/data/remote/url-key').read_text())
 """
     result = subprocess.run(
         ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", arguments.ssh, "python3 -c " + shlex.quote(source)],
@@ -54,7 +55,7 @@ sys.stdout.write(next(iter(tokens)))
         check=False,
     )
     if result.returncode or not result.stdout:
-        raise SystemExit("Could not read the server token over SSH; no credential was displayed")
+        raise SystemExit("Could not read the server URL key over SSH; no credential was displayed")
     return result.stdout.decode()
 
 
@@ -66,11 +67,8 @@ async def main(arguments) -> None:
         ready = await client.get(base + "/readyz")
         rejected = await client.get(base + "/mcp")
         assert rejected.status_code == 401, rejected.status_code
-        assert rejected.headers.get("www-authenticate", "").startswith("Bearer")
-    async with httpx2.AsyncClient(
-        headers={"Authorization": "Bearer " + remote_token(arguments)}, timeout=30
-    ) as client:
-        async with streamable_http_client(base + "/mcp", http_client=client) as streams:
+    async with httpx2.AsyncClient(timeout=30) as client:
+        async with streamable_http_client(base + "/mcp/" + remote_key(arguments), http_client=client) as streams:
             async with ClientSession(*streams) as session:
                 initialized = await session.initialize()
                 listing = await session.list_tools()

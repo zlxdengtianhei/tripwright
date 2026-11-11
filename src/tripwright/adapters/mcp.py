@@ -1,19 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import hmac
 import logging
 import os
 import threading
-import time
 import inspect
-from collections import deque
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from importlib.resources import files
 from importlib.metadata import version
-from importlib import import_module
 from functools import wraps
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal
@@ -258,42 +253,6 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
     return server
 
 
-class BearerIdentity:
-    def __init__(self, app, tokens: dict[str, str], *, rate_per_minute: int = 120):
-        if not tokens or any(not isinstance(token, str) or not token or not isinstance(owner, str) or not owner for token, owner in tokens.items()):
-            raise ValueError("HTTP requires a nonempty token-to-user mapping")
-        self.app = app
-        self.tokens = {hashlib.sha256(token.encode()).digest(): owner for token, owner in tokens.items()}
-        self.rate_per_minute = rate_per_minute
-        self.hits: dict[str, deque] = {}
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
-            return await self.app(scope, receive, send)
-        authorization = next((value.decode("latin1") for key, value in scope.get("headers", []) if key.lower() == b"authorization"), "")
-        scheme, separator, credential = authorization.partition(" ")
-        owner = None
-        if separator and scheme.casefold() == "bearer":
-            digest = hashlib.sha256(credential.encode()).digest()
-            owner = next((candidate for token, candidate in self.tokens.items() if hmac.compare_digest(token, digest)), None)
-        if owner is None:
-            await send({"type": "http.response.start", "status": 401, "headers": [(b"www-authenticate", b"Bearer"), (b"content-type", b"text/plain")]})
-            return await send({"type": "http.response.body", "body": b"Bearer authentication required"})
-        current = time.monotonic()
-        hits = self.hits.setdefault(owner, deque())
-        while hits and current - hits[0] >= 60:
-            hits.popleft()
-        if len(hits) >= self.rate_per_minute:
-            await send({"type": "http.response.start", "status": 429, "headers": [(b"retry-after", b"60")]})
-            return await send({"type": "http.response.body", "body": b"Rate limit exceeded"})
-        hits.append(current)
-        token = request_user.set(owner)
-        try:
-            await self.app(scope, receive, send)
-        finally:
-            request_user.reset(token)
-
-
 def refreshing(app, service: "Tripwright", *, wait: float = 15.0):
     """Before an authenticated request is answered: note the activity, and when the server was idle (it stopped
     polling the remote), fetch once so the answer sees changes made elsewhere meanwhile. A slow remote delays the
@@ -309,12 +268,10 @@ def refreshing(app, service: "Tripwright", *, wait: float = 15.0):
     return middleware
 
 
-def http_app(service: "Tripwright", tokens: dict[str, str], *, host: str = "127.0.0.1",
-             authenticator: Callable | None = None, include_web: bool = True, transport_security=None,
-             health: bool = False):
+def http_app(service: "Tripwright", *, host: str = "127.0.0.1", transport_security=None):
+    """The MCP transport mounted by remote.app after that one entry has checked the URL key."""
     from starlette.applications import Starlette
-    from starlette.responses import JSONResponse
-    from starlette.routing import Mount, Route
+    from starlette.routing import Mount
 
     server = create_server(service, local_user=None, manage_jobs=False)
     transport = server.streamable_http_app(stateless_http=True, json_response=True, max_request_body_size=1024 * 1024,
@@ -322,27 +279,8 @@ def http_app(service: "Tripwright", tokens: dict[str, str], *, host: str = "127.
     committer = service.committer
     if committer is not None:
         committer.active_window = float(os.environ.get("TRIPWRIGHT_ACTIVE_WINDOW") or 600)
-    # Activity is noted only for requests that passed authentication: probes and strangers keep an idle server idle.
     answered = refreshing(transport, service)
-    authenticated = authenticator(answered) if authenticator is not None else BearerIdentity(answered, tokens)
-    routes = []
-    if include_web:
-        try:
-            web = import_module("tripwright.adapters.web")
-        except ModuleNotFoundError as error:
-            if error.name != "tripwright.adapters.web":
-                raise
-        else:
-            routes.append(Mount("/r", app=web.web_app(service, tokens)))
-    if health:
-        async def healthz(request):
-            # Liveness plus whether writes are stuck; no secrets or paths.
-            sync = service.committer.status() if service.committer is not None else {}
-            return JSONResponse(dict(status="ok", unsynced=sync.get("unsynced", 0), blocked=sync.get("blocked")),
-                                headers={"Cache-Control": "no-store"})
-
-        routes.append(Route("/healthz", healthz))
-    routes.append(Mount("/", app=authenticated))
+    routes = [Mount("/", app=answered)]
 
     @asynccontextmanager
     async def lifespan(app):

@@ -39,10 +39,10 @@ async def health(app) -> str:
         return (await client.get("/healthz")).text + (await client.get("/readyz")).text
 
 
-def started(config, key_file, *, keys=None):
+def started(config, key_file, *, explicit_key=None):
     """One start: run the lifespan, sign in with whatever key the file holds, return (key, health bodies)."""
     async def run():
-        app = create_app(config, {}, keys=keys, warm=False, key_file=key_file)
+        app = create_app(config, key=explicit_key, warm=False, key_file=key_file)
         async with app.router.lifespan_context(app):
             key = key_file.read_text().strip()
             assert "state" in await tools_at(app, f"https://trip.example/mcp/{key}")
@@ -52,7 +52,7 @@ def started(config, key_file, *, keys=None):
 
 def test_the_first_start_generates_a_600_key_that_signs_in_and_is_never_logged(remote_config, caplog):
     caplog.set_level(logging.DEBUG)
-    config = remote_config.model_copy(update={"oauth": False})
+    config = remote_config
     key_file = urlkey.key_file(config.data_dir, SWITCH_ON)
     assert key_file == config.data_dir / "url-key" and not key_file.exists()
     key, bodies, remote = started(config, key_file)
@@ -69,7 +69,7 @@ def test_the_first_start_generates_a_600_key_that_signs_in_and_is_never_logged(r
 
 
 def test_a_restart_reads_the_same_key_and_a_deleted_file_gives_a_new_one(remote_config, caplog):
-    config = remote_config.model_copy(update={"oauth": False})
+    config = remote_config
     key_file = urlkey.key_file(config.data_dir, SWITCH_ON)
     first, _, _ = started(config, key_file)
     caplog.clear()
@@ -96,7 +96,7 @@ def test_an_explicit_key_wins_and_the_log_says_so(remote_config, tmp_path, monke
     from tripwright import cli
 
     seen = {}
-    for name in ("TRIPWRIGHT_REMOTE_CONFIG", "TRIPWRIGHT_REPO_URL", "TRIPWRIGHT_TOKENS", "TRIPWRIGHT_URL_KEYS"):
+    for name in ("TRIPWRIGHT_REPO_URL",):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("RAILWAY_PUBLIC_DOMAIN", "trip.up.railway.app")
     monkeypatch.setenv("TRIPWRIGHT_DATA_DIR", str(tmp_path / "railway"))
@@ -116,8 +116,7 @@ def test_serve_with_only_the_switch_generates_the_key_on_railway(tmp_path, monke
     from tripwright import cli
 
     seen = {}
-    for name in ("TRIPWRIGHT_REMOTE_CONFIG", "TRIPWRIGHT_REPO_URL", "TRIPWRIGHT_TOKENS", "TRIPWRIGHT_URL_KEY",
-                 "TRIPWRIGHT_URL_KEYS"):
+    for name in ("TRIPWRIGHT_REPO_URL", "TRIPWRIGHT_URL_KEY"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("RAILWAY_PUBLIC_DOMAIN", "trip.up.railway.app")
     monkeypatch.setenv("TRIPWRIGHT_DATA_DIR", str(tmp_path / "remote"))
@@ -154,42 +153,35 @@ def test_the_switch_off_reads_and_makes_nothing(value, tmp_path):
 
 @pytest.mark.parametrize("content", ["", "short-key\n", "x" * 31, "a" * 40 + " b", "ключ" * 10])
 def test_a_broken_key_file_stops_the_start_with_the_fix_and_without_its_content(remote_config, content):
-    config = remote_config.model_copy(update={"oauth": False})
+    config = remote_config
     key_file = config.data_dir / "url-key"
     config.data_dir.mkdir(parents=True)
     key_file.write_text(content, encoding="utf-8")
     key_file.chmod(0o600)
     with pytest.raises(ValueError, match="delete the file and restart") as refused:
-        create_app(config, {}, warm=False, key_file=key_file)
+        create_app(config, warm=False, key_file=key_file)
     assert not content.strip() or content.strip() not in str(refused.value)
 
 
 def test_a_key_file_others_can_read_is_narrowed_to_600(remote_config, caplog):
     caplog.set_level(logging.DEBUG)
-    config = remote_config.model_copy(update={"oauth": False})
+    config = remote_config
     key_file = config.data_dir / "url-key"
     config.data_dir.mkdir(parents=True)
     key_file.write_text("k" * 43 + "\n")
     key_file.chmod(0o644)
-    app = create_app(config, {}, warm=False, key_file=key_file)
+    app = create_app(config, warm=False, key_file=key_file)
     assert stat.S_IMODE(key_file.stat().st_mode) == 0o600 and len(app.state.remote.url_keys) == 1
     assert any("permissions are now 600" in line for line in server_lines(caplog))
 
 
-def test_the_generated_key_needs_the_local_identity(remote_config):
-    config = remote_config.model_copy(update={"oauth": False, "token_tenants": {"someone": "personal"}})
-    with pytest.raises(ValueError, match="identity `local`"):
-        create_app(config, {}, warm=False, key_file=config.data_dir / "url-key")
-    assert not (config.data_dir / "url-key").exists()
-
-
 def test_an_unwritable_data_directory_fails_the_start_and_says_why(remote_config, caplog):
     caplog.set_level(logging.DEBUG)
-    config = remote_config.model_copy(update={"oauth": False})
+    config = remote_config
     # Root ignores chmod, so the data directory is made unusable by being a regular file.
     config.data_dir.write_text("not a directory")
     key_file = config.data_dir / "url-key"
-    app = create_app(config, {}, warm=False, key_file=key_file)
+    app = create_app(config, warm=False, key_file=key_file)
 
     async def run():
         async with app.router.lifespan_context(app):

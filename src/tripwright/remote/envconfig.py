@@ -22,7 +22,7 @@ VARIABLES = ("TRIPWRIGHT_PUBLIC_URL", "TRIPWRIGHT_REPO_URL", "RAILWAY_PUBLIC_DOM
 
 
 def wanted(environ=os.environ) -> bool:
-    """Whether the environment describes a remote deployment (and no YAML file was named)."""
+    """Whether the environment describes a remote deployment."""
     return any(environ.get(name) for name in VARIABLES)
 
 
@@ -55,7 +55,7 @@ def write_private(path: Path, text: str):
 
 def github_known_hosts(fetch=None) -> str:
     """GitHub's SSH host keys from its HTTPS-verified meta API, for github.com and [ssh.github.com]:443 (the same
-    source deploy/REMOTE_AUTH.md uses: no key is trusted on first SSH contact)."""
+    source deploy/SETUP.md uses: no key is trusted on first SSH contact)."""
     if fetch is None:
         request = urllib.request.Request("https://api.github.com/meta", headers={"User-Agent": "tripwright-setup"})
         with urllib.request.urlopen(request, timeout=15) as response:
@@ -94,22 +94,17 @@ def config_from_env(environ=os.environ, *, fetch_keys=None) -> RemoteConfig:
 
     TRIPWRIGHT_PUBLIC_URL (default https://$RAILWAY_PUBLIC_DOMAIN); TRIPWRIGHT_DATA_DIR (default /data/remote);
     TRIPWRIGHT_REPO_URL (optional: without it the trips are a local repository on the volume; a GitHub address goes
-    over port 443 unless TRIPWRIGHT_GITHUB_PORT_22=1); TRIPWRIGHT_BRANCH (main); TRIPWRIGHT_GITHUB_LOGINS (comma-separated
-    accounts allowed to sign in with GitHub; none turns GitHub sign-in off); TRIPWRIGHT_DEPLOY_KEY (the private key, multi-line);
-    TRIPWRIGHT_KNOWN_HOSTS (optional; GitHub's keys are fetched when it is not given)."""
+    over port 443 unless TRIPWRIGHT_GITHUB_PORT_22=1); TRIPWRIGHT_BRANCH (main); TRIPWRIGHT_DEPLOY_KEY (the private key,
+    multi-line); TRIPWRIGHT_KNOWN_HOSTS (optional; GitHub's keys are fetched when it is not given)."""
     public = environ.get("TRIPWRIGHT_PUBLIC_URL") or (
         "https://" + environ["RAILWAY_PUBLIC_DOMAIN"] if environ.get("RAILWAY_PUBLIC_DOMAIN") else None)
     if not public:
         raise ValueError("Set TRIPWRIGHT_PUBLIC_URL (the service's HTTPS address) or give a domain to the Railway service")
     data_dir = Path(environ.get("TRIPWRIGHT_DATA_DIR") or "/data/remote")
-    tenant = environ.get("TRIPWRIGHT_TENANT") or "personal"
-    logins = [login.strip() for login in (environ.get("TRIPWRIGHT_GITHUB_LOGINS") or "").replace(";", ",").split(",") if login.strip()]
     repo = (environ.get("TRIPWRIGHT_REPO_URL") or "").strip() or None
-    settings = dict(branch=environ.get("TRIPWRIGHT_BRANCH") or "main", owner="local")
+    settings = dict(branch=environ.get("TRIPWRIGHT_BRANCH") or "main")
     if repo:
         settings.update(repo_url=resolved(repo, environ))
         if not Path(settings["repo_url"]).is_absolute():  # a path is a repository on this machine: no key, no network
             settings.update(ssh_files(data_dir / "ssh", settings["repo_url"], environ, fetch_keys))
-    return RemoteConfig(public_url=public, data_dir=data_dir, secrets_file=data_dir.parent / "remote-secrets.env",
-                        oauth=bool(logins), accounts={login: tenant for login in logins},
-                        tenants={tenant: settings}, token_tenants={"local": tenant})
+    return RemoteConfig(public_url=public, data_dir=data_dir, **settings)

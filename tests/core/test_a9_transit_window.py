@@ -22,8 +22,10 @@ import httpx
 import pytest
 
 import tripwright.events as events_module
+import tripwright.repo.snapshot as snapshot_module
 import tripwright.service as service_module
 import tripwright.storage as storage_module
+import tripwright.versions as versions_module
 from test_a8_transit_facts import NIGHT, Night, local, second, vienna_plan
 from tripwright.providers.transitous import TransitousProvider
 from tripwright.query import QueryRouter
@@ -44,7 +46,7 @@ COUNT_GOOD = "误了 22:53 之后还有 23:23、23:53、00:23、00:53 四班（�
 
 
 def fixed(monkeypatch, moment: datetime):
-    for module in (service_module, storage_module, events_module):
+    for module in (service_module, storage_module, events_module, versions_module, snapshot_module):
         monkeypatch.setattr(module, "now", lambda: moment.isoformat())
 
 

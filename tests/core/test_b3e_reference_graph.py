@@ -475,9 +475,9 @@ def test_each_description_field_of_the_locked_block_may_change(service, shape, n
     service.commit("alice", draft["draft_id"], draft["draft_id"], accept_unverified=True)
 
 
-def test_the_description_whitelist_is_the_documented_table():
-    """Widening this table weakens every lock; it changes only together with this test and docs/DECISIONS-impl.md B3f
-    (which replaced the B3e table: no channel, deadline, refund terms, hours, price, rain flag, priority or people)."""
+def test_the_description_whitelist_is_the_expected_table():
+    """Widening this table weakens every lock; it changes only together with this test and locks.FIELDS
+    (no channel, deadline, refund terms, hours, price, rain flag, priority or people)."""
     assert {model_name: names for model_name, names in DESCRIPTION.items() if names} == {
         "Place": {"notes", "reason", "links", "checked", "hours_source"},  # A7: where opening hours were read
         "Booking": {"why_now"},

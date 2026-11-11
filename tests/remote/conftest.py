@@ -14,6 +14,4 @@ def remote_config(tmp_path):
     subprocess.run(["git", "init", "--quiet", "--bare", "-b", "main", str(remote)], check=True)
     seed = init(tmp_path / "seed", trip="2030-06-fjord", remote=str(remote))
     seed.git.run("push", "--quiet", "origin", "main")
-    return RemoteConfig(public_url="https://trip.example", data_dir=tmp_path / "remote",
-                        secrets_file=tmp_path / "secrets.env", accounts={"owner": "personal"},
-                        tenants={"personal": {"repo_url": str(remote)}}, token_tenants={"local": "personal"})
+    return RemoteConfig(public_url="https://trip.example", data_dir=tmp_path / "remote", repo_url=str(remote))

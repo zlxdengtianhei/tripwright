@@ -29,10 +29,8 @@ from tripwright.trip import Block, Day, Trip, field_type, reference_fields, refe
 # What each field of the trip model is to a user lock. A description field changes nothing the user gets (where, which
 # entrance, when, with whom, what it costs, how to buy, what happens if missed, the ticket's state) and changes freely.
 # External facts and the user's choices are protected alike; the class says what a correction may cite (evidence backs
-# external facts only). The reason for each row is in docs/DECISIONS-impl.md B3f, and
-# tests/core/test_b3f_field_table.py keeps that table, this one and the model equal: a field the model gains is
-# protected, and the test fails, until it is classified here. Rows added later sit in their own section of that file
-# (Anchor.deadline: A3; Anchor.where: A11).
+# external facts only). tests/core/test_b3f_field_table.py keeps this table and the model equal: a field the model
+# gains is protected, and the test fails, until it is classified here.
 DESCRIPTION_FIELD, EXTERNAL, CHOICE = "description", "external", "choice"
 D, E, C = DESCRIPTION_FIELD, EXTERNAL, CHOICE
 FIELDS = {

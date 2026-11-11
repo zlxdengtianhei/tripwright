@@ -10,11 +10,6 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
-from starlette.applications import Starlette
-from starlette.routing import Mount
-from starlette.testclient import TestClient
-
-from tripwright.adapters.web import ResultLinks, web_app
 from tripwright.demo import run_demo
 from tripwright.service import Tripwright
 from tripwright.site import Policy, PrivacyError, build_site
@@ -54,13 +49,6 @@ def replace_title(service, owner, title):
     version = service.state(owner)
     version["plan"]["title"] = title
     service.store.put("versions", owner, version)
-
-
-def check_job(service):
-    current = service.state("demo")
-    turn = service.turn("demo", "Please check the full current itinerary", "views-check")
-    return service.propose("demo", ctx_id=turn["ctx_id"], base_version=current["number"],
-                           idempotency_key="views-check", plan=current["plan"], usages=current["usages"])
 
 
 def test_site_has_every_day_version_checks_and_decisions(service, tmp_path):
@@ -176,100 +164,6 @@ def test_module_entry_uses_committed_example(service, tmp_path):
     assert len(list(output.glob("20*.html"))) == len(service.state("demo")["plan"]["days"])
 
 
-def test_invalid_and_revoked_links_are_404(service):
-    links = ResultLinks()
-    link = links.issue("demo")
-    with TestClient(web_app(service, links)) as client:
-        assert client.get("/r/invalid").status_code == 404
-        assert client.get("/r/" + link).status_code == 200
-        links.revoke(link)
-        assert client.get("/r/" + link).status_code == 404
-
-
-def test_link_expiry_and_live_mapping_revocation(service, monkeypatch):
-    links = ResultLinks()
-    link = links.issue("demo", ttl=10)
-    monkeypatch.setattr("tripwright.adapters.web.time.time", lambda: 10**12)
-    with TestClient(web_app(service, links)) as client:
-        assert client.get("/r/" + link).status_code == 404
-    mapping = {"independent-view-capability": "demo"}
-    with TestClient(web_app(service, mapping)) as client:
-        assert client.get("/r/independent-view-capability").status_code == 200
-        del mapping["independent-view-capability"]
-        assert client.get("/r/independent-view-capability").status_code == 404
-
-
-def test_result_is_current_owner_only_and_strictly_read_only(service, monkeypatch):
-    run_demo(service, owner="other", output=lambda *args: None)
-    replace_title(service, "other", "OTHER_OWNER_PRIVATE_PLAN")
-    service.turn("other", "OTHER_OWNER_PRIVATE_FIRST_RESPONSE", "other-response")
-    check_job(service)
-    service.jobs.run_once("demo")
-    links = ResultLinks()
-    link = links.issue("demo")
-    tables = ("contexts", "versions", "inbox", "jobs", "drafts", "events", "profiles")
-    before = {table: service.store.all(table, "demo") for table in tables}
-
-    def reject_write(*args, **kwargs):
-        pytest.fail("Result page attempted a write or marked a result retrieved")
-
-    monkeypatch.setattr(service.store, "put", reject_write)
-    monkeypatch.setattr(service, "result", reject_write)
-    with TestClient(web_app(service, links, now=trip_time(service))) as client:
-        response = client.get("/r/" + link)
-        assert response.status_code == 200
-        text = str(Text(response.text))
-        assert f"Version {service.state('demo')['number']}" in text
-        assert "First response material" in text
-        assert "Second response: differences first" in text
-        assert "Current version: today" in text
-        assert "Complete candidate itinerary checked in this result" in text
-        assert "OTHER_OWNER_PRIVATE" not in response.text
-        assert response.headers["cache-control"] == "no-store, private"
-        assert response.headers["referrer-policy"] == "no-referrer"
-        assert client.post("/r/" + link).status_code == 405
-    assert {table: service.store.all(table, "demo") for table in tables} == before
-
-
-def test_pending_second_response_and_mount(service):
-    check_job(service)
-    links = ResultLinks()
-    link = links.issue("demo")
-    app = Starlette(routes=[Mount("/r", app=web_app(service, links))])
-    with TestClient(app) as client:
-        response = client.get("/r/" + link)
-        assert response.status_code == 200
-        text = str(Text(response.text))
-        assert "Verification pending" in text
-        assert "Expected" in text
-        assert "No completion time supplied" in text
-        assert "Most recent available result (earlier job)" in text
-
-
-def test_empty_identity_and_failed_job(service):
-    draft = check_job(service)
-    job = service.store.get("jobs", "demo", draft["job_id"])
-    job.update(status="failed", error="internal error detail that must not appear")
-    service.store.put("jobs", "demo", job)
-    links = ResultLinks()
-    with TestClient(web_app(service, links)) as client:
-        response = client.get("/r/" + links.issue("demo"))
-        assert "Verification failed" in response.text
-        assert "internal error detail" not in response.text
-        assert client.get("/r/" + links.issue("empty-owner")).status_code == 404
-
-
-def test_stale_inbox_is_labelled(service):
-    draft = check_job(service)
-    service.jobs.run_once("demo")
-    service.commit("demo", draft["draft_id"], "views-new-version", accept_unverified=True)
-    links = ResultLinks()
-    with TestClient(web_app(service, links)) as client:
-        response = client.get("/r/" + links.issue("demo"))
-    assert response.status_code == 200
-    assert "This result is stale" in response.text
-
-
 def test_pages_workflow_is_manual_and_homepage_has_local_commands():
     root = Path(__file__).resolve().parents[2]
     workflow = (root / ".github/workflows/pages.yml").read_text()
@@ -305,36 +199,6 @@ def test_memory_page_lists_long_term_content_with_status_and_origin(service, tmp
 def test_site_without_memory_has_no_memory_page(service, tmp_path):
     output = build_site(service, "demo", tmp_path / "site", now=trip_time(service))
     assert not (output / "memory.html").exists() and 'href="memory.html"' not in (output / "index.html").read_text()
-
-
-def result_text(service):
-    links = ResultLinks()
-    with TestClient(web_app(service, links, now=trip_time(service))) as client:
-        response = client.get("/r/" + links.issue("demo"))
-    assert response.status_code == 200
-    return response.text
-
-
-def test_result_page_shows_the_pack_the_host_got_and_the_repository_day_view(service):
-    service.turn("demo", "What do we do this afternoon?", "result-pack", scenario="quick")
-    html = result_text(service)
-    text = str(Text(html))
-    latest = max(service.store.all("contexts", "demo"), key=lambda item: (item["created_at"], item["id"]))
-    assert "Answer outline: quick" in text and "Constraint pack given to the host" in text
-    assert f"约束包 {latest['id']}｜快问" in text and latest["pack"]["required"]["items"]["ids"][0] in text
-    assert "写法" not in text.split("Constraint pack given to the host")[1].split("Second response")[0]  # no writing rules
-    day = service.state("demo", view="day", date=service.state("demo")["plan"]["days"][0]["date"])["text"]
-    for line in day.splitlines()[1:3]:
-        assert line.lstrip("# ") in text
-    assert "Google 地图搜 Example Oslo Gallery" in text
-    assert 'href="https://www.google.com/maps/search/?api=1&amp;query=Example%20Oslo%20Gallery"' in html
-
-
-def test_result_page_without_a_stored_pack_says_so(service):
-    for context in service.store.all("contexts", "demo"):
-        context.pop("pack", None)
-        service.store.put("contexts", "demo", context)
-    assert "This material has no stored pack" in str(Text(result_text(service)))
 
 
 def test_view_text_is_escaped_and_only_https_links_become_anchors():

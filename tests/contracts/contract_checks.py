@@ -1,7 +1,7 @@
-"""Checks that the contract sample agrees with itself and with docs/CONTRACTS.md.
+"""Checks that the product-behavior sample agrees with itself.
 
 Each function returns a list of problems so tests can assert an empty list for the sample
-and a non-empty list for a deliberately broken copy. Nothing here implements block A, B or C.
+and a non-empty list for a deliberately broken copy.
 """
 from __future__ import annotations
 
@@ -467,59 +467,6 @@ def disposition_problems(pack: dict, usages: list[dict], plan: dict) -> list[str
             chosen.append({plans.get(block) for block in usage.get("block_ids", [])})
         if len(chosen) == 2 and chosen[0] & chosen[1]:
             problems.append(f"{order['between']}: squeezed preferences must land in different options")
-    return problems
-
-
-# --- 4 写域与生成文件 --------------------------------------------------------
-
-def glob_regex(pattern: str) -> re.Pattern:
-    expression = ""
-    index = 0
-    while index < len(pattern):
-        if pattern.startswith("**", index):
-            expression += ".*"
-            index += 2
-        elif pattern[index] == "*":
-            expression += "[^/]*"
-            index += 1
-        else:
-            expression += re.escape(pattern[index])
-            index += 1
-    return re.compile(expression + r"\Z")
-
-
-def owners(manifest: dict, path: str) -> list[str]:
-    return [name for name, domain in manifest["domains"].items() if any(glob_regex(pattern).match(path) for pattern in domain["paths"])]
-
-
-def manifest_problems(manifest: dict, files: list[str], contracts: str) -> list[str]:
-    problems = []
-    for path in files:
-        found = owners(manifest, path)
-        if len(found) != 1:
-            problems.append(f"{path}: owned by {found or 'nobody'}")
-    for probe in manifest["probes"]:
-        found = owners(manifest, probe["path"])
-        if found != [probe["owner"]]:
-            problems.append(f"probe {probe['path']}: owned by {found}, expected {probe['owner']}")
-    for entry in manifest["generated_in_repo"]:
-        found = owners(manifest, entry["path"].replace("*", "x"))
-        if found != [entry["generator"]]:
-            problems.append(f"generated {entry['path']} lies in {found}, not its generator {entry['generator']}")
-        for source in entry["sources"]:
-            if not owners(manifest, source.replace("*", "x")):
-                problems.append(f"source {source} of {entry['path']} has no owner")
-    for entry in manifest["user_repo"]:
-        for source in entry["sources"]:
-            if entry["generator"] != "user" and entry["generator"] not in owners(manifest, source.replace("*", "x")):
-                problems.append(f"user-repo {entry['path']}: source {source} is outside generator {entry['generator']}")
-    for path in files + [probe["path"] for probe in manifest["probes"]]:
-        if path.endswith(".tmpl") and owners(manifest, path) != ["C"]:
-            problems.append(f"{path}: templates are written by C only")
-    for name, domain in manifest["domains"].items():
-        for pattern in domain["paths"]:
-            if f"`{pattern}`" not in contracts:
-                problems.append(f"{name} glob {pattern} is not listed in docs/CONTRACTS.md")
     return problems
 
 

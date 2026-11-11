@@ -63,23 +63,22 @@ async def stdio(directory: Path):
 
 
 async def http(directory: Path):
-    import json
-
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         port = listener.getsockname()[1]
-    environment = dict(os.environ, TRIPWRIGHT_TOKENS=json.dumps({"smoke-only-a": "alice", "smoke-only-b": "bob"}))
+    key = "smoke-only-" + "k" * 40
+    environment = dict(os.environ, TRIPWRIGHT_URL_KEY=key)
     process = subprocess.Popen([sys.executable, "-m", "tripwright.cli", "--db", str(directory / "http.sqlite3"),
                                 "serve", "--http", "--port", str(port)], env=environment,
                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-    address = f"http://127.0.0.1:{port}/mcp"
+    address = f"http://127.0.0.1:{port}/mcp/{key}"
     try:
         async with httpx2.AsyncClient() as client:
             for attempt in range(100):
                 if process.poll() is not None:
                     raise RuntimeError("HTTP server exited: " + process.stderr.read())
                 try:
-                    response = await client.get(address)
+                    response = await client.get(address.rsplit("/", 1)[0])
                 except httpx2.TransportError:
                     await asyncio.sleep(0.05)
                 else:
@@ -87,16 +86,11 @@ async def http(directory: Path):
                     break
             else:
                 raise RuntimeError("HTTP server did not start")
-        async with httpx2.AsyncClient(headers={"Authorization": "Bearer smoke-only-a"}) as client:
+        async with httpx2.AsyncClient() as client:
+            assert (await client.get(address + "wrong")).status_code == 404
             async with streamable_http_client(address, http_client=client) as streams:
                 await check(*streams, "http")
-        async with httpx2.AsyncClient(headers={"Authorization": "Bearer smoke-only-b"}) as client:
-            async with streamable_http_client(address, http_client=client) as streams:
-                async with ClientSession(*streams) as session:
-                    await session.initialize()
-                    state = await session.call_tool("state", {"view": "export"})
-                    assert state.structured_content["records"]["events"] == []
-        print("http: unauthenticated request rejected; bearer users remain isolated across connections")
+        print("http: missing and wrong URL keys rejected; keyed MCP connection OK")
     finally:
         process.terminate()
         try:

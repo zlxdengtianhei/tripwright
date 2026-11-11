@@ -87,7 +87,7 @@ TRIPWRIGHT_PROVIDERS=live uv run tripwright --repo ./my-trips serve --stdio
 
 Your trip repository and runtime database store your messages, preferences, facts, decisions and evidence. The client app, the Git host, the person who runs the deployment and each data source handle data under their own terms. This is not a promise that only your computer can see the data.
 
-The code stores the OAuth state apart from the deploy key of the private repository. Runtime errors, the reverse proxy and the client can still write diagnostic logs. There is no guarantee yet that message bodies are removed from every log. If you run a deployment, limit who can read the logs and the data, and do not log request bodies, sign-in callbacks or credentials. Do not put tokens, private keys or unreviewed personal trips in a public repository.
+The code stores the URL key apart from the deploy key of the private repository. Runtime errors, the reverse proxy and the client can still write diagnostic logs. There is no guarantee yet that message bodies are removed from every log. If you run a deployment, limit who can read the logs and the data, and do not log request bodies or credentials. Do not put keys, private keys or unreviewed personal trips in a public repository.
 
 ## Example, development and license
 

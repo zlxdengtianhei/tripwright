@@ -15,8 +15,7 @@ services:
     init: true
     user: "10001:10001"
     stop_grace_period: 40s
-    # The configuration comes from deploy/.env (TRIPWRIGHT_PUBLIC_URL, TRIPWRIGHT_URL_KEY_GENERATE, optional repository);
-    # TRIPWRIGHT_REMOTE_CONFIG=/data/remote.yaml there uses a YAML file instead.
+    # The configuration comes from deploy/.env (TRIPWRIGHT_PUBLIC_URL, TRIPWRIGHT_URL_KEY_GENERATE, optional repository).
     env_file:
       - path: .env
         required: false

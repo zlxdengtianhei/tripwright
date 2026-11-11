@@ -115,27 +115,29 @@ async def over_stdio(directory: Path) -> dict:
 
 
 async def over_http(directory: Path) -> dict:
-    seeded(directory / "http.sqlite3", "alice")
+    seeded(directory / "http.sqlite3", "local")
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         port = listener.getsockname()[1]
-    variables = dict(environment(), TRIPWRIGHT_TOKENS=json.dumps({"b3g-admission-token": "alice"}))
+    key = "b3g-admission-" + "k" * 40
+    variables = dict(environment(), TRIPWRIGHT_URL_KEY=key)
     process = subprocess.Popen([sys.executable, "-m", "tripwright.cli", "--db", str(directory / "http.sqlite3"), "serve", "--http", "--port", str(port)],
                                env=variables, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-    address = f"http://127.0.0.1:{port}/mcp"
+    base = f"http://127.0.0.1:{port}/mcp"
+    address = base + "/" + key
     try:
         async with httpx2.AsyncClient() as client:
             for _ in range(1200):  # up to a minute on a loaded machine
                 if process.poll() is not None:
                     raise RuntimeError("HTTP server exited: " + process.stderr.read())
                 try:
-                    if (await client.get(address)).status_code == 401:
+                    if (await client.get(base)).status_code == 401:
                         break
                 except httpx2.TransportError:
                     await asyncio.sleep(0.05)
             else:
                 raise RuntimeError("HTTP server did not start")
-        async with httpx2.AsyncClient(headers={"Authorization": "Bearer b3g-admission-token"}) as client:
+        async with httpx2.AsyncClient() as client:
             async with streamable_http_client(address, http_client=client) as streams:
                 async with ClientSession(*streams) as session:
                     await session.initialize()

@@ -1,10 +1,9 @@
 import asyncio
 from pathlib import Path
 
-import pytest
 import yaml
 
-from tripwright.adapters.mcp import BearerIdentity, create_server, request_user
+from tripwright.adapters.mcp import create_server
 
 
 def test_tool_contract_is_exactly_seven_with_annotations_and_no_user_parameter(service):
@@ -19,41 +18,6 @@ def test_tool_contract_is_exactly_seven_with_annotations_and_no_user_parameter(s
     proposal = next(tool for tool in tools if tool.name == "propose").model_dump(by_alias=True)
     assert "Trip" in proposal["inputSchema"]["$defs"]
     assert "Changes" in proposal["inputSchema"]["$defs"]
-
-
-def test_bearer_identity_only_comes_from_token_and_is_reset():
-    received = []
-
-    async def app(scope, receive, send):
-        received.append(request_user.get())
-        await send({"type": "http.response.start", "status": 200, "headers": []})
-        await send({"type": "http.response.body", "body": b"OK"})
-
-    middleware = BearerIdentity(app, {"test-only-token": "alice"}, rate_per_minute=1)
-
-    async def request(headers):
-        messages = []
-
-        async def receive():
-            return {"type": "http.request", "body": b""}
-
-        async def send(message):
-            messages.append(message)
-
-        await middleware({"type": "http", "headers": headers}, receive, send)
-        return messages[0]["status"]
-
-    assert asyncio.run(request([])) == 401
-    assert asyncio.run(request([(b"authorization", b"Bearer wrong"), (b"user_id", b"alice")])) == 401
-    assert asyncio.run(request([(b"authorization", b"Bearer test-only-token"), (b"user_id", b"bob")])) == 200
-    assert received == ["alice"]
-    assert request_user.get() is None
-    assert asyncio.run(request([(b"authorization", b"Bearer test-only-token")])) == 429
-
-
-def test_empty_http_mapping_is_rejected():
-    with pytest.raises(ValueError, match="nonempty"):
-        BearerIdentity(None, {})
 
 
 def test_skill_frontmatter_and_seven_tool_workflow():

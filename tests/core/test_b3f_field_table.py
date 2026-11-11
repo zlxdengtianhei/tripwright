@@ -1,15 +1,10 @@
-"""B3f (D-36): every field of the trip model has one class for user locks, and the lock follows that table and nothing
-else. The table in docs/DECISIONS-impl.md B3f must equal `locks.FIELDS` and cover every model field, so a field the
-model gains turns this file red until someone classifies it (meanwhile the lock protects it). Lock cases are generated
-from the table over the fictional trip of test_b3e_reference_graph: for every field of every model, an agent changes
-it on an object a lock holds; a protected field (external fact or choice) is refused at propose naming the field and at
-commit with `accept_unverified=True`, a description field commits. Fictional people, places and tickets only."""
+"""B3f: every trip-model field has one lock class in `locks.FIELDS`; generated cases check that class against
+propose and commit. A new model field turns these tests red until it is classified, and the lock protects it meanwhile.
+Fictional people, places and tickets only."""
 from __future__ import annotations
 
 import json
-import re
 from copy import deepcopy
-from pathlib import Path
 
 import pytest
 from pydantic import ValidationError, create_model
@@ -19,23 +14,7 @@ from tripwright import locks
 from tripwright.locks import CHOICE, DESCRIPTION_FIELD, EXTERNAL, FIELDS
 from tripwright.trip import Place, Trip, trip_models
 
-DOC = Path(__file__).resolve().parents[2] / "docs" / "DECISIONS-impl.md"
 CLASSES = (DESCRIPTION_FIELD, EXTERNAL, CHOICE)
-
-
-OLD_VOLUMES = sorted((DOC.parent / "history").glob("*-DECISIONS-impl.md"))
-
-def documented() -> list[tuple[str, str, str, str]]:
-    """Table rows also arrive in later sections that appended them (A3, A7, A11); since the 11-04 tidy those
-    sections live verbatim in docs/history/*-DECISIONS-impl.md, so read them there too. The 2026-1031 volume
-    holds only pre-B3f sections; scanning it whole adds no rows today (its sections carry no table rows)."""
-    rows: list[tuple[str, str, str, str]] = []
-    for path in [DOC, *OLD_VOLUMES]:
-        text = path.read_text(encoding="utf-8")
-        if "# Implementation decisions — B3f" in text:
-            text = text[text.index("# Implementation decisions — B3f"):]
-        rows += re.findall(r"^\| (\w+)\.(\w+) \| (\w+) \| (.+?) \|$", text, re.M)
-    return rows
 
 
 def unclassified(models) -> set[tuple[str, str]]:
@@ -59,19 +38,6 @@ def test_a_field_the_model_gains_is_reported_and_protected_until_classified():
     assert unclassified([extended]) == {("Place", "wifi")}
     assert locks.field_class("Place", "wifi") is None and not locks.described("Place", "wifi")
     assert locks.differences(dict(id="x", wifi="free"), dict(id="x", wifi="paid"), extended, "place:x") == ["place:x/wifi"]
-
-
-def test_the_documented_table_equals_the_code_with_a_reason_per_row():
-    rows = documented()
-    keys = [(model, name) for model, name, _, _ in rows]
-    assert len(keys) == len(set(keys)), "a field has two rows"
-    assert {(model, name): kind for model, name, kind, _ in rows} == {
-        (model, name): kind for model, fields in FIELDS.items() for name, kind in fields.items()}
-    assert all(len(reason.split()) >= 2 for *_, reason in rows), "a row without a reason"
-    counts = {kind: sum(1 for _, _, row_kind, _ in rows if row_kind == kind) for kind in CLASSES}
-    # A3 added Anchor.deadline (choice); A7 Place.opening_hours (external) and Place.hours_source (description); A11
-    # Anchor.where (external)
-    assert counts == {DESCRIPTION_FIELD: 14, EXTERNAL: 21, CHOICE: 76}, counts
 
 
 def test_judge_five_exemptions_are_protected_and_description_names_no_person():

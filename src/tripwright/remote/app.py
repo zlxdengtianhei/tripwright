@@ -1,4 +1,4 @@
-"""One remote HTTP entry point; authentication chooses a server-configured tenant."""
+"""One personal HTTP entry point: /mcp/<URL key>."""
 from __future__ import annotations
 
 import asyncio
@@ -15,17 +15,14 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from mcp.server.transport_security import TransportSecuritySettings
-
 from starlette.applications import Starlette
-from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.routing import Mount, Route
 
 from tripwright.adapters.mcp import http_app, request_user
 from tripwright.remote import urlkey
-from tripwright.remote.config import RemoteConfig, credentials
-from tripwright.remote.setup import GitHubSetup
-from tripwright.remote.tenants import HINTS, TenantProblem, Tenants
+from tripwright.remote.config import RemoteConfig
+from tripwright.remote.tenants import HINTS, PersonalRepository, TenantProblem
 from tripwright.remote.volume import check_volume
 from tripwright.repo.git import GitError
 
@@ -33,163 +30,110 @@ log = logging.getLogger("tripwright.remote")
 URL_KEY_MIN = 32  # characters; a connector URL's key is the whole credential
 
 
-def url_keys() -> dict[str, str]:
-    """The URL-key login, on only when the deployer sets it: TRIPWRIGHT_URL_KEYS (a key-to-identity JSON mapping, like
-    TRIPWRIGHT_TOKENS) or TRIPWRIGHT_URL_KEY (one key for the identity `local`). A key the service generates itself
-    (TRIPWRIGHT_URL_KEY_GENERATE=1) comes from remote.urlkey instead and is added by create_app(key_file=...)."""
-    import json
-
-    keys = {}
-    if os.environ.get("TRIPWRIGHT_URL_KEYS"):
-        try:
-            keys = json.loads(os.environ["TRIPWRIGHT_URL_KEYS"])
-            if not isinstance(keys, dict):
-                raise ValueError
-        except (ValueError, TypeError):
-            raise ValueError("TRIPWRIGHT_URL_KEYS must contain a key-to-identity JSON mapping") from None
-    if os.environ.get("TRIPWRIGHT_URL_KEY"):
-        keys[os.environ["TRIPWRIGHT_URL_KEY"]] = "local"
-    return keys
+def url_key() -> str | None:
+    """The one key from TRIPWRIGHT_URL_KEY, or None when it is generated from the data volume instead."""
+    return os.environ.get("TRIPWRIGHT_URL_KEY") or None
 
 
-def _credential_map(config: RemoteConfig, given: dict[str, str], what: str, *, minimum: int = 1) -> dict[bytes, str]:
-    if any(not isinstance(secret, str) or len(secret) < minimum or not isinstance(owner, str) or
-           owner not in config.token_tenants for secret, owner in given.items()):
-        raise ValueError(f"Every {what} needs at least {minimum} characters and a configured token_tenants identity")
-    if what == "URL key" and any(not secret.replace("-", "").replace("_", "").isalnum() for secret in given):
-        raise ValueError("A URL key may contain only letters, digits, '-' and '_'")
-    return {hashlib.sha256(secret.encode()).digest(): config.token_tenants[owner] for secret, owner in given.items()}
-
-
-def _match(stored: dict[bytes, str], secret: str) -> str | None:
-    """Constant-time over every stored digest, so timing tells nothing about which or how much matched."""
+def _match(stored: dict[bytes, str], secret: str) -> bool:
     digest = hashlib.sha256(secret.encode()).digest()
-    found = None
-    for candidate, tenant in stored.items():
-        if hmac.compare_digest(digest, candidate):
-            found = tenant
-    return found
+    return any(hmac.compare_digest(digest, candidate) for candidate in stored)
 
 
 class Remote:
-    def __init__(self, config: RemoteConfig, tokens: dict[str, str], *, host: str = "127.0.0.1", github_client=None,
-                 keys: dict[str, str] | None = None):
-        if any(not isinstance(token, str) or not token or not isinstance(owner, str) or
-               owner not in config.token_tenants for token, owner in tokens.items()):
-            raise ValueError("Every bearer token needs a configured token_tenants identity")
+    def __init__(self, config: RemoteConfig, *, host: str = "127.0.0.1", key: str | None = None, service=None):
         self.config = config
-        self.tokens = {hashlib.sha256(token.encode()).digest(): config.token_tenants[owner] for token, owner in tokens.items()}
-        self.url_keys = _credential_map(config, keys or {}, "URL key", minimum=URL_KEY_MIN)
-        self.health = {tenant: dict(status="starting") for tenant in config.tenants}
+        self.url_keys: dict[bytes, str] = {}
+        if key is not None:
+            self.add_url_key(key)
+        self.health = dict(status="starting")
         self.started = datetime.now(timezone.utc)
         self.volume: dict = {}
         self.host = host
-        self.github_client = github_client
-        self.tenants = Tenants(config)
-        self.provider = None
-        self.oauth_app = None
-        self.apps = {}
+        self.repository = PersonalRepository(config, service=service)
+        self.ready = None
+        self.stop = None
+        self.lifetime = None
         self.lock = asyncio.Lock()
-        self.lifetimes: list[tuple[asyncio.Event, asyncio.Task]] = []
-        self.hits: dict[str, deque] = {}
-        self.setup = GitHubSetup(config, self.static_identity, http_client=github_client)
+        self.hits: deque = deque()
 
     def add_url_key(self, key: str) -> None:
-        self.url_keys = {**self.url_keys, **_credential_map(self.config, {key: "local"}, "URL key", minimum=URL_KEY_MIN)}
+        if not isinstance(key, str) or len(key) < URL_KEY_MIN:
+            raise ValueError(f"A URL key needs at least {URL_KEY_MIN} characters")
+        if not key.isascii() or not key.replace("-", "").replace("_", "").isalnum():
+            raise ValueError("A URL key may contain only ASCII letters, digits, '-' and '_'")
+        self.url_keys = {hashlib.sha256(key.encode()).digest(): "personal"}
 
-    def static_identity(self, authorization: str) -> str | None:
-        scheme, _, credential = authorization.partition(" ")
-        if scheme.casefold() != "bearer" or not credential:
-            return None
-        return _match(self.tokens, credential)
-
-    def oauth(self):
-        if self.provider is None and self.config.oauth:
-            values = credentials(self.config)
-            if values["TRIPWRIGHT_GITHUB_CLIENT_ID"] and values["TRIPWRIGHT_GITHUB_CLIENT_SECRET"]:
-                from tripwright.remote.auth import create_provider
-
-                self.provider = create_provider(self.config, values, github_client=self.github_client)
-                self.oauth_app = Starlette(routes=self.provider.get_routes("/mcp"))
-        return self.provider
-
-    async def tenant_app(self, tenant_id):
+    async def personal_app(self):
         async with self.lock:
-            ready = self.apps.get(tenant_id)
+            ready = self.ready
             if ready is None:
                 ready = asyncio.get_running_loop().create_future()
-                self.apps[tenant_id] = ready
-                stop = asyncio.Event()
+                self.ready = ready
+                self.stop = asyncio.Event()
 
                 async def lifetime():
                     try:
                         # Opening and the transport task group belong to this task.
                         # Cancelling an HTTP request cannot start a second writer.
                         try:
-                            service = await asyncio.to_thread(self.tenants.open, tenant_id)
+                            service = await asyncio.to_thread(self.repository.open)
                         except Exception as error:
-                            self.failed(tenant_id, error)
+                            self.failed(error)
                             raise
-                        if self.health[tenant_id].get("status") != "ok":
-                            self.health[tenant_id] = dict(status="ok", checked_at=_stamp())
+                        if self.health.get("status") != "ok":
+                            self.health = dict(status="ok", checked_at=_stamp())
                         security = TransportSecuritySettings(enable_dns_rebinding_protection=True,
                             allowed_hosts=[urlsplit(self.config.public_url).netloc], allowed_origins=[self.config.public_url])
-                        child = http_app(service, {}, host=self.host, authenticator=lambda app: app,
-                                         include_web=False, transport_security=security)
+                        child = http_app(service, host=self.host, transport_security=security)
                         async with child.router.lifespan_context(child):
                             ready.set_result(child)
-                            await stop.wait()
+                            await self.stop.wait()
                     except Exception as error:
                         if not ready.done():
                             ready.set_exception(error)
-                            self.apps.pop(tenant_id, None)
+                            self.ready = None
                         else:
                             raise
 
-                task = asyncio.create_task(lifetime(), name="tripwright-tenant-" + tenant_id)
-                self.lifetimes = [(event, existing) for event, existing in self.lifetimes if not existing.done()]
-                self.lifetimes.append((stop, task))
+                self.lifetime = asyncio.create_task(lifetime(), name="tripwright-personal")
         return await asyncio.shield(ready)
 
     # --- startup checks and health ------------------------------------------------------
 
-    def failed(self, tenant_id: str, error: Exception):
+    def failed(self, error: Exception):
         kind = error.kind if isinstance(error, TenantProblem) else "other"
         detail = error.detail if isinstance(error, TenantProblem) else f"{type(error).__name__}: {error}"
-        self.health[tenant_id] = dict(status="error", kind=kind, hint=HINTS.get(kind, HINTS["other"]),
-                                      checked_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
-        log.error("tenant %s cannot open: %s: %s", tenant_id, kind, " | ".join(str(detail).strip().splitlines()[-3:])[-400:])
+        self.health = dict(status="error", kind=kind, hint=HINTS.get(kind, HINTS["other"]),
+                           checked_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+        log.error("personal repository cannot open: %s: %s", kind, " | ".join(str(detail).strip().splitlines()[-3:])[-400:])
 
-    async def warm(self, tenant_id: str):
-        """Open the tenant now (its committer starts pushing writes left from before a restart, without waiting for a
-        request), then check that the remote answers and takes a push. Each failure is logged once by kind."""
+    async def warm(self):
+        """Open the repository now, then check that its remote answers and takes a push."""
         try:
-            await self.tenant_app(tenant_id)
+            await self.personal_app()
         except Exception:
             return  # failed() logged it and keeps it for /readyz; the next request tries again
-        service = self.tenants.opened[tenant_id][1]
-        repository = service.repository
+        repository = self.repository.service.repository
         if not repository.remote():
-            self.health[tenant_id] = dict(status="ok", storage="local", checked_at=_stamp())
-            log.info("tenant %s ready (local repository only)", tenant_id)
+            self.health = dict(status="ok", storage="local", checked_at=_stamp())
+            log.info("personal repository ready (local repository only)")
             return
         write = os.environ.get("TRIPWRIGHT_CHECK_PUSH", "1") != "0"
         kind, detail = await asyncio.to_thread(repository.git.probe, repository.remote(), repository.branch, write=write)
         if kind == "ok":
-            self.health[tenant_id] = dict(status="ok", storage="remote", checked_at=_stamp())
-            log.info("tenant %s ready: remote answers%s", tenant_id, " and accepts pushes" if write else "")
+            self.health = dict(status="ok", storage="remote", checked_at=_stamp())
+            log.info("personal repository ready: remote answers%s", " and accepts pushes" if write else "")
         else:
-            self.health[tenant_id] = dict(status="error", kind=kind, hint=HINTS.get(kind, HINTS["other"]), checked_at=_stamp(),
-                                          checked_mono=time.monotonic())
-            log.error("tenant %s remote check failed: %s: %s", tenant_id, kind,
-                      " | ".join(detail.strip().splitlines()[-3:])[-400:])
+            self.health = dict(status="error", kind=kind, hint=HINTS.get(kind, HINTS["other"]), checked_at=_stamp(),
+                               checked_mono=time.monotonic())
+            log.error("personal remote check failed: %s: %s", kind, " | ".join(detail.strip().splitlines()[-3:])[-400:])
 
-    def tenant_health(self, tenant_id: str) -> dict:
-        view = dict(self.health[tenant_id])
-        opened = self.tenants.opened.get(tenant_id)
-        if opened is not None and view.get("status") != "starting":
-            committer = opened[1].committer
-            status = committer.status()
+    def personal_health(self) -> dict:
+        view = dict(self.health)
+        service = self.repository.service
+        if service is not None and view.get("status") != "starting":
+            status = service.committer.status()
             oldest = status.get("oldest_unsynced_at")
             view["unsynced"] = status["unsynced"]
             view["oldest_unsynced_age_seconds"] = (
@@ -198,29 +142,28 @@ class Remote:
                 view.update(status="blocked", kind=status["blocked"]["kind"], hint=status["blocked"]["hint"],
                             since=status["blocked"]["since"])
             elif view.get("status") == "error" and view.get("kind") in ("auth", "protected", "network", "behind", "other"):
-                # The startup check failed and something later proved the remote works: a push for any kind, a fetch
-                # for a network problem (a fetch proves nothing about write access).
+                # A later push or fetch proved that the remote works again.
                 since = view.get("checked_mono", 0)
-                if committer.pushed_at > since or (view["kind"] == "network" and committer.reachable and committer.last_poll > since):
+                if service.committer.pushed_at > since or (view["kind"] == "network" and service.committer.reachable
+                                                           and service.committer.last_poll > since):
                     view = dict(status="ok", storage="remote", recovered=True)
         view.pop("checked_mono", None)
         return view
 
     def readiness(self) -> dict:
-        tenants = {tenant: self.tenant_health(tenant) for tenant in self.config.tenants}
-        return dict(ready=all(view["status"] == "ok" for view in tenants.values()), tenants=tenants,
+        view = self.personal_health()
+        return dict(ready=view["status"] == "ok", tenants={"personal": view},
                     started_at=self.started.isoformat(timespec="seconds"), volume=self.volume.get("state"))
 
     async def healthz(self, request):
-        """Liveness: 200 while the process serves; the body summarises each tenant (no secrets, no paths)."""
+        """Liveness: 200 while the process serves; the body keeps the existing health shape."""
         report = self.readiness()
         return JSONResponse(dict(status="ok", ready=report["ready"],
                                  tenants={tenant: view["status"] for tenant, view in report["tenants"].items()}),
                             headers={"Cache-Control": "no-store"})
 
     async def readyz(self, request):
-        """Readiness: 200 only when every tenant opened, its remote answered and no write is blocked; 503 otherwise,
-        each tenant with its status, problem kind, fix and the age of its oldest unpushed write."""
+        """Readiness: 200 only when the repository opened, its remote answered and no write is blocked."""
         report = self.readiness()
         return JSONResponse(report, status_code=200 if report["ready"] else 503, headers={"Cache-Control": "no-store"})
 
@@ -229,48 +172,31 @@ class Remote:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return
-        request = Request(scope, receive)
-        tenant_id = None
-        if scope["path"].startswith("/mcp/") and scope["path"] != "/mcp/" and self.url_keys:
-            # URL-key login: /mcp/<key> is the whole credential. Never logged (uvicorn's access log is off).
-            tenant_id = _match(self.url_keys, scope["path"][len("/mcp/"):].rstrip("/"))
-            if tenant_id is None:
-                return await PlainTextResponse("Not found", status_code=404)(scope, receive, send)
-            scope = dict(scope, path="/mcp", raw_path=b"/mcp")
-        elif scope["path"] not in ("/mcp", "/mcp/"):
-            if self.oauth() is not None:
-                return await self.oauth_app(scope, receive, send)
-            return await JSONResponse({"error": "GitHub OAuth is not configured"}, status_code=503)(scope, receive, send)
-        authorization = request.headers.get("authorization", "")
-        if tenant_id is None:
-            tenant_id = self.static_identity(authorization)
-        if tenant_id is None and self.oauth() is not None:
-            scheme, _, token = authorization.partition(" ")
-            if scheme.casefold() == "bearer" and token:
-                verified = await self.provider.verify_token(token)
-                login = (verified.claims or {}).get("login") if verified else None
-                if isinstance(login, str):
-                    tenant_id = self.config.accounts.get(login.casefold())
-        if tenant_id is None:
-            challenge = 'Bearer resource_metadata="' + self.config.public_url + '/.well-known/oauth-protected-resource/mcp"'
-            return await PlainTextResponse("Bearer authentication required", status_code=401,
-                                           headers={"WWW-Authenticate": challenge})(scope, receive, send)
+        path = scope["path"]
+        if path in ("/mcp", "/mcp/"):
+            return await PlainTextResponse("URL key required", status_code=401)(scope, receive, send)
+        if not path.startswith("/mcp/"):
+            return await PlainTextResponse("Not found", status_code=404)(scope, receive, send)
+        # /mcp/<key> is the whole credential. Never logged (uvicorn's access log is off).
+        key = path[len("/mcp/"):].rstrip("/")
+        if not key or "/" in key or not _match(self.url_keys, key):
+            return await PlainTextResponse("Not found", status_code=404)(scope, receive, send)
+        scope = dict(scope, path="/mcp", raw_path=b"/mcp")
         current = time.monotonic()
-        hits = self.hits.setdefault(tenant_id, deque())
-        while hits and hits[0] <= current - 60:
-            hits.popleft()
-        if len(hits) >= 120:
+        while self.hits and self.hits[0] <= current - 60:
+            self.hits.popleft()
+        if len(self.hits) >= 120:
             return await PlainTextResponse("Rate limit exceeded", status_code=429,
                                            headers={"Retry-After": "60"})(scope, receive, send)
-        hits.append(current)
+        self.hits.append(current)
         try:
-            child = await self.tenant_app(tenant_id)
+            child = await self.personal_app()
         except (GitError, ValueError, OSError, TimeoutError, subprocess.TimeoutExpired) as error:
             kind = error.kind if isinstance(error, TenantProblem) else "other"
-            return await JSONResponse({"error": "Tenant repository is unavailable; ask the operator to check its deploy key and configuration",
+            return await JSONResponse({"error": "Trip repository is unavailable; ask the operator to check its deploy key and configuration",
                                        "kind": kind, "hint": HINTS.get(kind, HINTS["other"])},
                                       status_code=503)(scope, receive, send)
-        identity = request_user.set(self.config.tenants[tenant_id].owner)
+        identity = request_user.set("local")
         try:
             await child(scope, receive, send)
         finally:
@@ -281,26 +207,17 @@ def _stamp() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def create_app(config: RemoteConfig, tokens: dict[str, str], *, host: str = "127.0.0.1", github_client=None,
-               keys: dict[str, str] | None = None, warm: bool = True, key_file: Path | None = None):
-    """Serve setup, OAuth metadata, /healthz and /readyz. At startup every tenant opens in the background (so pending
-    writes are pushed after a restart) and its remote is checked; a request for a tenant still opening waits for it.
-    With key_file (TRIPWRIGHT_URL_KEY_GENERATE=1) the URL key of the identity `local` is read from that file, or created
-    at startup just after the data directory is checked (so a first start still reports the directory as new)."""
-    # Validate the file's permissions at startup, before accepting any request.
-    values = credentials(config)
-    remote = Remote(config, tokens, host=host, github_client=github_client, keys=keys)
+def create_app(config: RemoteConfig, *, host: str = "127.0.0.1", key: str | None = None, warm: bool = True,
+               key_file: Path | None = None, service=None):
+    """Serve /mcp/<key>, /healthz and /readyz for one person, with the same entry for env-configured and local HTTP use."""
+    remote = Remote(config, host=host, key=key, service=service)
     create_key = False
     if key_file is not None:
-        if "local" not in config.token_tenants:
-            raise ValueError(f"{urlkey.SWITCH} signs in as the identity `local`: map it in token_tenants")
         create_key = not key_file.exists()
         if not create_key:  # a broken file stops the start here, with the reason, before serving anything
             remote.add_url_key(urlkey.ensure(key_file))
-    if config.oauth and not (values["TRIPWRIGHT_GITHUB_CLIENT_ID"] and values["TRIPWRIGHT_GITHUB_CLIENT_SECRET"]):
-        log.warning("oauth is on but the GitHub client ID or secret is missing: GitHub sign-in answers 503 until they are set")
     if remote.url_keys or key_file is not None:
-        log.warning("URL-key login is on: anyone with the connector URL has full access to its trips")
+        log.warning("URL-key login is on: anyone with the connector URL has full access to the trips")
 
     @asynccontextmanager
     async def lifespan(app):
@@ -311,22 +228,20 @@ def create_app(config: RemoteConfig, tokens: dict[str, str], *, host: str = "127
             except (OSError, ValueError) as error:
                 log.error("cannot create the URL key in %s: %s", key_file, getattr(error, "strerror", None) or error)
                 raise
-        warming = [asyncio.create_task(remote.warm(tenant), name="tripwright-warm-" + tenant)
-                   for tenant in config.tenants] if warm else []
+        warming = asyncio.create_task(remote.warm(), name="tripwright-warm-personal") if warm else None
         try:
             yield
         finally:
-            for task in warming:
-                task.cancel()
-            await asyncio.gather(*warming, return_exceptions=True)
-            for stop, _ in remote.lifetimes:
-                stop.set()
-            try:
-                await asyncio.gather(*(task for _, task in remote.lifetimes))
-            finally:
-                remote.tenants.close()
+            if warming is not None:
+                warming.cancel()
+                await asyncio.gather(warming, return_exceptions=True)
+            if remote.stop is not None:
+                remote.stop.set()
+            if remote.lifetime is not None:
+                await asyncio.gather(remote.lifetime, return_exceptions=True)
+            remote.repository.close()
 
-    app = Starlette(routes=[Route("/healthz", remote.healthz), Route("/readyz", remote.readyz), *remote.setup.routes(),
-                            Mount("/", app=remote)], lifespan=lifespan)
+    app = Starlette(routes=[Route("/healthz", remote.healthz), Route("/readyz", remote.readyz), Mount("/", app=remote)],
+                    lifespan=lifespan)
     app.state.remote = remote
     return app

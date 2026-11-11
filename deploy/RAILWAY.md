@@ -50,8 +50,6 @@ Changes take effect after a redeploy (`railway up --detach`, or Redeploy in the 
 | `RAILWAY_RUN_UID` | no | Set `0` only when the log says "cannot give /data to UID 10001"; the service then runs as root. Normally the entrypoint gives the volume to UID 10001 as root and then drops to that user |
 | `TRIPWRIGHT_PROVIDERS` | do not set | Real transport data by default; `synthetic` is for demonstrations only |
 
-The code also has GitHub sign-in (`TRIPWRIGHT_GITHUB_LOGINS` and related variables) and header tokens (`TRIPWRIGHT_TOKENS`). Both are off by default, and we do not recommend them for a personal deployment: the key in the address is the one gate. [REMOTE_AUTH.md](REMOTE_AUTH.md) and the source describe them.
-
 ## Sleep (optional, off by default)
 
 - Without sleep, nothing needs setting. Idle, the service sends nothing and uses almost no CPU.
@@ -79,6 +77,6 @@ At Railway's prices (memory about $10 per GB a month, vCPU about $20 per vCPU a 
 ## Troubleshooting
 
 - **The deploy or the health check fails:** read the Deploy Logs. The usual causes are a missing volume or a missing `RAILWAY_DOCKERFILE_PATH`.
-- **`/readyz` is not ready:** `kind` and `hint` give the reason for each tenant, and the log has one line with details ([SETUP.md troubleshooting](SETUP.md#troubleshooting)).
+- **`/readyz` is not ready:** `kind` and `hint` give the reason for the personal repository, and the log has one line with details ([SETUP.md troubleshooting](SETUP.md#troubleshooting)).
 - **A write receipt or `state(view="sync")` says `blocked`:** the write is saved on the service, not lost. After you fix what `hint` says, the service pushes it.
 - **The log shows `data directory … is new and empty` after the first start:** the volume was not attached or was replaced, and the writes that were not pushed are lost.

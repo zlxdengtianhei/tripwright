@@ -11,7 +11,7 @@ from pathlib import Path
 
 log = logging.getLogger("tripwright.remote")
 SWITCH = "TRIPWRIGHT_URL_KEY_GENERATE"
-EXPLICIT = ("TRIPWRIGHT_URL_KEY", "TRIPWRIGHT_URL_KEYS")
+EXPLICIT = ("TRIPWRIGHT_URL_KEY",)
 FILE_NAME = "url-key"
 MINIMUM = 32  # the same floor as a key the deployer sets (remote.app.URL_KEY_MIN)
 ON, OFF = {"1", "true", "yes", "on"}, {"", "0", "false", "no", "off"}

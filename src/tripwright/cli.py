@@ -475,23 +475,12 @@ def environment_config() -> bool:
     return wanted()
 
 
-def http_tokens() -> dict[str, str]:
-    try:
-        tokens = json.loads(os.environ.get("TRIPWRIGHT_TOKENS", "{}"))
-        if not isinstance(tokens, dict) or any(not isinstance(token, str) or not token or
-                                              not isinstance(owner, str) or not owner for token, owner in tokens.items()):
-            raise ValueError
-    except (ValueError, TypeError):
-        raise ValueError("TRIPWRIGHT_TOKENS must contain a token-to-user JSON mapping") from None
-    return tokens
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="tripwright", description="Travel planning with a scoped requirements ledger and committed versions.")
     parser.add_argument("--db", default=os.environ.get("TRIPWRIGHT_DB", str(Path.home() / ".local/share/tripwright/tripwright.sqlite3")))
     parser.add_argument("--repo", default=os.environ.get("TRIPWRIGHT_REPO"),
                         help="Trip repository folder: its files are the canonical records; the index lives in <repo>/.tripwright/")
-    parser.add_argument("--local-user", default="local", help="Local CLI/stdio identity; HTTP always uses the bearer mapping")
+    parser.add_argument("--local-user", default="local", help="Local CLI/stdio identity")
     commands = parser.add_subparsers(dest="command", required=True)
     serve = commands.add_parser("serve", help="Expose exactly seven MCP tools")
     transports = serve.add_mutually_exclusive_group(required=True)
@@ -499,8 +488,6 @@ def main(argv: list[str] | None = None) -> int:
     transports.add_argument("--http", action="store_true")
     serve.add_argument("--port", type=int, default=int(os.environ.get("PORT") or 8000), help="Default: $PORT, else 8000")
     serve.add_argument("--host", default="127.0.0.1")
-    serve.add_argument("--remote-config", default=os.environ.get("TRIPWRIGHT_REMOTE_CONFIG"),
-                       help="HTTP: operator YAML mapping GitHub accounts to tenant repositories; secrets stay in env or a mode-600 file")
     commands.add_parser("demo", help="Run the fictional vertical slice in a temporary database")
     hook = commands.add_parser("hook", help="Claude Code hooks: stop blocks a second part that differs from what check_answer passed; "
                                             "first-part denies lookups until the first part is sent")
@@ -607,16 +594,14 @@ def main(argv: list[str] | None = None) -> int:
         return run_first_part(arguments)
     if arguments.command == "serve" and arguments.http:
         server_logging()
-    if arguments.command == "serve" and arguments.http and (arguments.remote_config or environment_config()):
-        from tripwright.remote.app import create_app, url_keys
-        from tripwright.remote.config import load_config
+    if arguments.command == "serve" and arguments.http and environment_config():
+        from tripwright.remote.app import create_app, url_key
         from tripwright.remote.envconfig import config_from_env
         from tripwright.remote.urlkey import key_file
 
         try:
-            config = load_config(arguments.remote_config) if arguments.remote_config else config_from_env()
-            app = create_app(config, http_tokens(), host=arguments.host, keys=url_keys(),
-                             key_file=key_file(config.data_dir))
+            config = config_from_env()
+            app = create_app(config, host=arguments.host, key=url_key(), key_file=key_file(config.data_dir))
             serve_http(app, arguments)
         except (ValueError, OSError, GitError) as error:
             print(f"tripwright: {error}", file=sys.stderr)
@@ -629,13 +614,15 @@ def main(argv: list[str] | None = None) -> int:
     if arguments.command in ("check", "status"):
         return read_repository(arguments)
     try:
+        volume = (Path(arguments.repo).expanduser().resolve() / ".tripwright" if arguments.repo
+                  else Path(arguments.db).expanduser().resolve().parent)
         if arguments.command == "serve":
-            from tripwright.remote.volume import check_volume
+            if arguments.stdio:
+                # The marker goes beside the database: in a trip repository that is the ignored .tripwright/ folder.
+                from tripwright.remote.volume import check_volume
 
-            # The marker goes beside the database: in a trip repository that is the ignored .tripwright/ folder.
-            check_volume(Path(arguments.repo).expanduser().resolve() / ".tripwright" if arguments.repo
-                         else Path(arguments.db).expanduser().resolve().parent)
-            # A served instance answers other people's questions: live data unless the demo data is asked for by name.
+                check_volume(volume)
+            # A served instance answers questions with live data unless the demo data is asked for by name.
             store, service = open_service(arguments, providers=os.environ.get("TRIPWRIGHT_PROVIDERS") or "live")
         else:
             store, service = open_service(arguments)
@@ -658,9 +645,13 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(dict(trip=arguments.trip, write=opened["write"], pending=opened.get("memory", {}).get("pending", [])),
                              ensure_ascii=False, indent=2))
         else:
-            from tripwright.adapters.mcp import http_app
+            from tripwright.remote.app import create_app, url_key
+            from tripwright.remote.config import RemoteConfig
+            from tripwright.remote.urlkey import key_file
 
-            serve_http(http_app(service, http_tokens(), host=arguments.host, health=True), arguments)
+            config = RemoteConfig(public_url=f"http://{arguments.host}:{arguments.port}", data_dir=volume)
+            app = create_app(config, host=arguments.host, key=url_key(), key_file=key_file(config.data_dir), service=service)
+            serve_http(app, arguments)
     except (ValueError, OSError, GitError) as error:
         print(f"tripwright: {error}", file=sys.stderr)
         return 1

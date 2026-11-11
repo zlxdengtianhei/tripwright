@@ -13,9 +13,3 @@ def test_cli_export_and_import_round_trip(seeded, tmp_path, capsys):
         assert Tripwright(restored).state("alice") == seeded.state("alice")
     finally:
         restored.close()
-
-
-def test_http_cli_refuses_missing_bearer_mapping(tmp_path, monkeypatch, capsys):
-    monkeypatch.delenv("TRIPWRIGHT_TOKENS", raising=False)
-    assert main(["--db", str(tmp_path / "trip.sqlite3"), "serve", "--http"]) == 1
-    assert "token-to-user" in capsys.readouterr().err

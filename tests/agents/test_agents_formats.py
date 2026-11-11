@@ -1,7 +1,7 @@
 """Host agent files follow the formats the hosts document (Claude Code subagents, Codex custom agents, skills).
 
 Formats were read from code.claude.com/docs/en/sub-agents and learn.chatgpt.com/docs/agent-configuration/subagents
-on 2026-10-31 (see docs/DECISIONS-impl.md, 角色与装配（C）).
+on 2026-10-31.
 """
 import tomllib
 

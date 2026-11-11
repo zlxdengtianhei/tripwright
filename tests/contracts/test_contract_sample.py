@@ -1,4 +1,4 @@
-"""The contract sample agrees with docs/CONTRACTS.md and with itself.
+"""The product-behavior sample agrees with itself.
 
 Every promise has a passing check on the sample and a failing check on a broken copy.
 """

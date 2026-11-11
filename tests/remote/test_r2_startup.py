@@ -4,9 +4,7 @@ without a repository keeps a local one, and the URL-key login."""
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import shutil
 import subprocess
 import time
 
@@ -16,14 +14,14 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 from tripwright.remote.app import create_app
-from tripwright.remote.config import RemoteConfig, Tenant
-from tripwright.remote.tenants import Tenants
+from tripwright.remote.config import RemoteConfig
+from tripwright.remote.tenants import PersonalRepository
 from tripwright.remote.volume import MARKER, check_volume
 
 KEY = "k" * 20 + "-urlkey-fixture-0123456789"
 
 
-def closed(registry: Tenants):
+def closed(registry: PersonalRepository):
     for _, service in registry.opened.values():
         service.jobs.stop()
         service.committer.stop()
@@ -31,25 +29,25 @@ def closed(registry: Tenants):
 
 
 def remote_log(config: RemoteConfig) -> str:
-    return subprocess.run(["git", "log", "--format=%B", "main"], cwd=config.tenants["personal"].repo_url,
+    return subprocess.run(["git", "log", "--format=%B", "main"], cwd=config.repo_url,
                           capture_output=True, text=True, check=True).stdout
 
 
 def test_tenants_serve_live_data_unless_synthetic_is_named(remote_config, monkeypatch):
     monkeypatch.delenv("TRIPWRIGHT_PROVIDERS", raising=False)
     monkeypatch.delenv("TRIPWRIGHT_TRANSITOUS_USAGE", raising=False)
-    registry = Tenants(remote_config)
+    registry = PersonalRepository(remote_config)
     try:
-        service = registry.open("personal")
+        service = registry.open()
         assert service.query_router.mode == "live"
         # The 720-a-day counter is on the data volume, not in a read-only HOME.
         assert service.query_router.transit.routing.path == remote_config.data_dir / "transitous-routing.log"
     finally:
         closed(registry)
     monkeypatch.setenv("TRIPWRIGHT_PROVIDERS", "synthetic")
-    registry = Tenants(remote_config.model_copy(update={"data_dir": remote_config.data_dir.with_name("other")}))
+    registry = PersonalRepository(remote_config.model_copy(update={"data_dir": remote_config.data_dir.with_name("other")}))
     try:
-        assert registry.open("personal").query_router.mode == "synthetic"
+        assert registry.open().query_router.mode == "synthetic"
     finally:
         closed(registry)
 
@@ -59,7 +57,7 @@ def test_serve_http_without_remote_config_is_live_by_default(tmp_path, monkeypat
 
     seen = {}
     monkeypatch.delenv("TRIPWRIGHT_PROVIDERS", raising=False)
-    monkeypatch.setenv("TRIPWRIGHT_TOKENS", json.dumps({"t" * 40: "local"}))
+    monkeypatch.setenv("TRIPWRIGHT_URL_KEY", "t" * 40)
     monkeypatch.setattr(cli, "serve_http", lambda app, arguments: seen.setdefault("app", app))
     original = cli.open_service
 
@@ -68,19 +66,24 @@ def test_serve_http_without_remote_config_is_live_by_default(tmp_path, monkeypat
         return original(arguments, providers=providers)
     monkeypatch.setattr(cli, "open_service", recorded)
     assert cli.main(["--db", str(tmp_path / "data" / "t.sqlite3"), "serve", "--http"]) == 0
+
+    async def started():
+        async with seen["app"].router.lifespan_context(seen["app"]):
+            pass
+    asyncio.run(started())
     assert seen["providers"] == "live" and (tmp_path / "data" / MARKER).exists()
 
 
 def test_startup_opens_the_tenant_and_pushes_what_a_crash_left_without_any_request(remote_config):
-    crashed = Tenants(remote_config)
-    service = crashed.open("personal")
+    crashed = PersonalRepository(remote_config)
+    service = crashed.open()
     receipt = service.turn("local", "Acknowledged, then the process died.", "before-crash", scenario="quick")
     assert receipt["write"]["state"] == "received"
     crashed.close()  # killed: no committer stop, no flush
     assert receipt["write"]["op_id"] not in remote_log(remote_config)
 
     async def run():
-        app = create_app(remote_config, {"fixture-pat": "local"})
+        app = create_app(remote_config, key=KEY)
         async with app.router.lifespan_context(app):
             deadline = time.monotonic() + 10
             while receipt["write"]["op_id"] not in remote_log(remote_config) and time.monotonic() < deadline:
@@ -100,10 +103,10 @@ def test_startup_opens_the_tenant_and_pushes_what_a_crash_left_without_any_reque
 
 def test_a_broken_tenant_is_logged_by_kind_and_shown_on_readyz_while_healthz_stays_up(remote_config, tmp_path, caplog):
     caplog.set_level(logging.INFO, logger="tripwright")
-    broken = remote_config.model_copy(update={"tenants": {"personal": Tenant(repo_url=str(tmp_path / "missing.git"))}})
+    broken = remote_config.model_copy(update={"repo_url": str(tmp_path / "missing.git")})
 
     async def run():
-        app = create_app(broken, {"fixture-pat": "local"})
+        app = create_app(broken, key=KEY)
         async with app.router.lifespan_context(app):
             async with httpx2.AsyncClient(base_url=remote_config.public_url, transport=httpx2.ASGITransport(app=app)) as client:
                 for _ in range(50):
@@ -117,7 +120,7 @@ def test_a_broken_tenant_is_logged_by_kind_and_shown_on_readyz_while_healthz_sta
                 assert str(tmp_path) not in ready.text, "no local paths or Git output on a public endpoint"
                 health = await client.get("/healthz", headers={"Host": "healthcheck.railway.app"})
                 assert health.status_code == 200 and health.json()["tenants"] == {"personal": "error"}
-                answer = await client.post("/mcp", headers={"Authorization": "Bearer fixture-pat"}, json={})
+                answer = await client.post("/mcp/" + KEY, json={})
                 assert answer.status_code == 503 and answer.json()["kind"] == "auth"
     asyncio.run(run())
     lines = [record.message for record in caplog.records if "cannot open" in record.message]
@@ -125,9 +128,9 @@ def test_a_broken_tenant_is_logged_by_kind_and_shown_on_readyz_while_healthz_sta
 
 
 def test_the_startup_probe_finds_a_read_only_key_and_passes_a_writable_remote(remote_config, tmp_path):
-    registry = Tenants(remote_config)
+    registry = PersonalRepository(remote_config)
     try:
-        git = registry.open("personal").repository.git
+        git = registry.open().repository.git
         assert git.probe("origin", "main") == ("ok", "")
         assert git.probe("origin", "no-such-branch")[0] == "branch"
         script = tmp_path / "fake-ssh"
@@ -141,8 +144,8 @@ def test_the_startup_probe_finds_a_read_only_key_and_passes_a_writable_remote(re
 
 
 def test_a_leftover_index_lock_blocks_commits_and_reopening_the_tenant_clears_it(remote_config):
-    tenants = Tenants(remote_config)
-    service = tenants.open("personal")
+    tenants = PersonalRepository(remote_config)
+    service = tenants.open()
     lock = service.repository.root / ".git" / "index.lock"
     lock.write_text("")
     service.turn("local", "Written before the lock.", "locked", scenario="quick")
@@ -153,9 +156,9 @@ def test_a_leftover_index_lock_blocks_commits_and_reopening_the_tenant_clears_it
     service.jobs.stop()
     tenants.close()  # the process dies; the lock stays on disk
     assert lock.exists()
-    again = Tenants(remote_config)
+    again = PersonalRepository(remote_config)
     try:
-        reopened = again.open("personal")
+        reopened = again.open()
         assert not lock.exists()
         assert reopened.committer.flush()["pushed"] == "ok"
         assert "blocked" not in reopened.state("local", "sync")
@@ -175,11 +178,10 @@ def test_volume_marker_tells_a_new_directory_from_a_kept_one(tmp_path, caplog):
 
 
 def test_a_tenant_without_a_repository_keeps_a_local_one_and_says_so(tmp_path):
-    config = RemoteConfig(public_url="http://localhost:8000", data_dir=tmp_path / "data", secrets_file=tmp_path / "s.env",
-                          oauth=False, accounts={}, tenants={"personal": {}}, token_tenants={"local": "personal"})
-    registry = Tenants(config)
+    config = RemoteConfig(public_url="http://localhost:8000", data_dir=tmp_path / "data")
+    registry = PersonalRepository(config)
     try:
-        service = registry.open("personal")
+        service = registry.open()
         noted = service.turn("local", "No GitHub here.", "local-only", scenario="quick")
         service.committer.flush()
         sync = service.state("local", "sync")
@@ -190,8 +192,7 @@ def test_a_tenant_without_a_repository_keeps_a_local_one_and_says_so(tmp_path):
     finally:
         closed(registry)
     with pytest.raises(ValueError):
-        RemoteConfig(public_url="http://trip.example", data_dir=tmp_path, secrets_file=tmp_path / "s.env", oauth=False,
-                     accounts={}, tenants={"personal": {}})
+        RemoteConfig(public_url="http://trip.example", data_dir=tmp_path)
 
 
 async def tools_at(app, url, headers=None):
@@ -203,12 +204,44 @@ async def tools_at(app, url, headers=None):
                 return sorted(tool.name for tool in (await session.list_tools()).tools)
 
 
-def test_url_key_login_opens_the_tenant_and_a_wrong_or_missing_key_does_not(remote_config, caplog):
-    caplog.set_level(logging.DEBUG)
-    config = remote_config.model_copy(update={"oauth": False})
+def test_an_existing_personal_data_directory_opens_in_place_from_environment(remote_config):
+    from tripwright.remote import urlkey
+    from tripwright.remote.envconfig import config_from_env
+    from tripwright.repo.workspace import init
+
+    data = remote_config.data_dir
+    mirror = data / "tenants" / "personal" / "mirror"
+    init(mirror, remote=remote_config.repo_url)
+    key_file = data / "url-key"
+    key_file.parent.mkdir(parents=True, exist_ok=True)
+    key_file.write_text(KEY + "\n")
+    key_file.chmod(0o600)
+    deploy_key, known_hosts = data / "ssh" / "deploy_key", data / "ssh" / "known_hosts"
+    deploy_key.parent.mkdir(mode=0o700)
+    deploy_key.write_text("fixture-private-key\n")
+    known_hosts.write_text("example.test fixture-host-key\n")
+    deploy_key.chmod(0o600)
+    known_hosts.chmod(0o600)
+    before = {path: path.read_bytes() for path in (key_file, deploy_key, known_hosts)}
+    environ = {"TRIPWRIGHT_PUBLIC_URL": remote_config.public_url, "TRIPWRIGHT_DATA_DIR": str(data),
+               "TRIPWRIGHT_REPO_URL": remote_config.repo_url, "TRIPWRIGHT_BRANCH": "main", urlkey.SWITCH: "1"}
+    config = config_from_env(environ)
 
     async def run():
-        app = create_app(config, {"fixture-pat": "local"}, keys={KEY: "local"}, warm=False)
+        app = create_app(config, warm=False, key_file=urlkey.key_file(data, environ))
+        async with app.router.lifespan_context(app):
+            assert "state" in await tools_at(app, f"https://trip.example/mcp/{KEY}")
+            assert app.state.remote.repository.service.repository.root == mirror
+    asyncio.run(run())
+    assert mirror.is_dir() and all(path.read_bytes() == content for path, content in before.items())
+
+
+def test_url_key_login_opens_the_tenant_and_a_wrong_or_missing_key_does_not(remote_config, caplog):
+    caplog.set_level(logging.DEBUG)
+    config = remote_config
+
+    async def run():
+        app = create_app(config, key=KEY, warm=False)
         async with app.router.lifespan_context(app):
             assert "state" in await tools_at(app, f"https://trip.example/mcp/{KEY}")
             async with httpx2.AsyncClient(base_url="https://trip.example", transport=httpx2.ASGITransport(app=app)) as client:
@@ -216,7 +249,7 @@ def test_url_key_login_opens_the_tenant_and_a_wrong_or_missing_key_does_not(remo
                 assert wrong.status_code == 404
                 bare = await client.post("/mcp", json={})
                 assert bare.status_code == 401
-        plain = create_app(config.model_copy(update={"data_dir": config.data_dir.with_name("plain")}), {"fixture-pat": "local"}, warm=False)
+        plain = create_app(config.model_copy(update={"data_dir": config.data_dir.with_name("plain")}), warm=False)
         async with plain.router.lifespan_context(plain):
             async with httpx2.AsyncClient(base_url="https://trip.example", transport=httpx2.ASGITransport(app=plain)) as client:
                 assert (await client.post("/mcp/" + KEY, json={})).status_code != 200, "off unless the deployer sets a key"
@@ -225,4 +258,4 @@ def test_url_key_login_opens_the_tenant_and_a_wrong_or_missing_key_does_not(remo
                    if record.name.startswith(("tripwright", "uvicorn", "mcp.server", "starlette"))]
     assert server_side and not any(KEY in line for line in server_side)
     with pytest.raises(ValueError):
-        create_app(config, {}, keys={"short": "local"})
+        create_app(config, key="short")
