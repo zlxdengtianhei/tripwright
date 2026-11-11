@@ -311,3 +311,8 @@ footer .wrap { display: grid; gap: 6px; }
 
 /* visually hidden */
 .vh { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Hero picture: a real example trip page */
+.hero-shot { margin: 36px 0 0; }
+.hero-shot img { display: block; width: 100%; max-width: 760px; height: auto; margin: 0 auto; border-radius: var(--radius); box-shadow: var(--shadow); }
+.hero-shot figcaption { max-width: 760px; margin: 10px auto 0; font-size: .88rem; color: var(--muted); }

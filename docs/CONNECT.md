@@ -29,7 +29,7 @@ TRIPWRIGHT_PROVIDERS=live uv run tripwright --repo ./my-trips serve --stdio
 
 The service returns, for each message, the memories to consider, the questions about musts, the transport facts as sentences to quote, check guidance and the change record. The full way of working is the MCP prompt `tripwright-main`; clients that let you choose prompts can load it, and local clients also find the matching skill. A prompt being available does not mean that the client loads it or follows it.
 
-The client itself calls `turn`, uses the memories it gets, quotes the transport sentences and sends the two parts of the answer. A client that cannot continue in the background may need the user to reply "continue" before the second part. The remote service has no verifying model of its own.
+The client itself calls `turn`, uses the memories it gets, quotes the transport sentences and sends the two parts of the answer. One reply or two: in a chat app (Claude, ChatGPT) the default is one message that holds both parts; for a quick question on the road, the first part (from the stored plan) comes first and the checked part follows in the same message. In Claude Code the two parts are two messages. Setting `TRIPWRIGHT_REPLY_FLOW` at deployment (see [deploy/README.md](../deploy/README.md)) makes chat apps send two messages too. The remote service has no verifying model of its own.
 
 `turn` records the message, and `propose` and `commit` change the plan. A client that allows only read-only tools (ChatGPT Pro, for example) cannot complete this chain: reading the plan with `state` does not record the request.
 

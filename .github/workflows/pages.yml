@@ -20,6 +20,14 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+      - name: Build the example trip pages
+        run: |
+          uv sync
+          uv run python -m tripwright.site.example examples/trip-2026-10-central-europe.yaml homepage/example
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

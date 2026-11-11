@@ -8,6 +8,11 @@
 <title>tripwright</title>
 <meta name="description" content="An open-source trip-planning MCP server that you deploy for yourself: relevant memories each turn, sourced transport facts, and recorded plan changes. Remote HTTP and local stdio.">
 <meta name="color-scheme" content="light dark">
+<meta property="og:title" content="tripwright: your preferences, in every plan">
+<meta property="og:description" content="An open-source trip-planning server for AI assistants that you deploy for yourself.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://zlxdengtianhei.github.io/tripwright/assets/social-preview.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="assets/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' width='64' height='64'%3E%3Crect width='64' height='64' rx='14' fill='%2312897f'/%3E%3Cpath d='M15 34 27 46 49 19' fill='none' stroke='%23fff' stroke-width='5.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='15' cy='34' r='5' fill='%23fff'/%3E%3Ccircle cx='49' cy='19' r='6.5' fill='%2312897f' stroke='%23fff' stroke-width='4'/%3E%3C/svg%3E">
 <script src="assets/site.js"></script>
@@ -41,6 +46,7 @@
       <p class="pitch en">tripwright is a trip-planning service for AI assistants over the Model Context Protocol (MCP). It brings relevant preferences and decisions into each turn, supplies sourced transport facts, and records what changed and why. Your chosen AI assistant writes the answer.</p>
       <div class="cta">
         <a class="btn primary" href="#where"><span class="zh">查看连接方式</span><span class="en">Ways to connect</span></a>
+        <a class="btn" href="example/"><span class="zh">看示例行程</span><span class="en">See an example trip</span></a>
         <a class="btn" href="#start"><span class="zh">本地试用</span><span class="en">Try locally</span></a>
       </div>
       <ul class="facts">
@@ -57,8 +63,14 @@
         <p><span class="zh">先说与第一段的不同。交通逐程写清，保留数据范围；计划若改了，说明改动与理由。</span><span class="en">Start with what changed. Give each transport leg and its data limits. Explain accepted plan changes and their reasons.</span></p>
         <div class="pending"><b><span class="zh">怎么查、怎么问</span><span class="en">How to check, how to ask</span></b><br><span class="zh">拿不到的实时信息：给 App、搜索内容、步骤和链接。要问人时，先提供起草邀请。</span><span class="en">For missing live information: the app, search, steps and link. When asking a person is needed, offer a draft first.</span></div>
       </div></div>
-      <p class="note"><span class="zh">回答结构示意，不是行程输出或出行建议。有的客户端不能自己接着发第二段，这时第一段末尾会请你回一句“继续”。</span><span class="en">A structure illustration, not a trip output or travel advice. Some clients cannot send Part 2 on their own; there, Part 1 ends by asking you to reply “go on”.</span></p>
+      <p class="note"><span class="zh">回答结构示意，不是行程输出或出行建议。在聊天 App 里，两段默认在同一条消息里；在 Claude Code 里是两条消息。</span><span class="en">A structure illustration, not a trip output or travel advice. In chat apps, both parts arrive in one message by default; in Claude Code they are two messages.</span></p>
     </aside>
+  </div>
+  <div class="wrap">
+    <figure class="hero-shot">
+      <img src="assets/hero.png" width="1600" height="1350" alt="Three phone screens of a real 8-day trip page made by tripwright: the route and the list of days; one day's key times and places to go; the same day's transport legs with a map" loading="lazy">
+      <figcaption><span class="zh">一趟真实的 8 天行程（2026 年 10 月）和 tripwright 生成的页面；画面是英文版，页面右上角可切中文。人名已换成代号，住处只写到城区。<a href="example/">打开完整示例 →</a></span><span class="en">A real 8-day trip (October 2026) as the page tripwright makes. Names are replaced with codes, and places to stay show only the district. <a href="example/">Open the full example →</a></span></figcaption>
+    </figure>
   </div>
 </section>
 
