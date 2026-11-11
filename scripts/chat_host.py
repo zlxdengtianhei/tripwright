@@ -31,6 +31,9 @@ Example (from the repository root):
       --scenario scripts/chat_scenarios/s1_first_use_en.yaml --model group/glm --instructions on \\
       --out runs/example
 
+Every metrics.json records `commit` (full HEAD, with `+dirty` when the worktree differs) and `reply_flow`; both are
+null with --mcp-url because the remote server's values are unknown. --reanalyze preserves them and never invents them
+for old runs. `chat_host.py --summary DIR...` prints a Markdown table of runs and their per-message measurements.
 `chat_host.py --reanalyze DIR...` recomputes the per-message figures of finished runs from their transcript.json.
 
 Exit status: 0 when the run finished (a message that hit the round limit is recorded as failed in metrics, status
@@ -409,6 +412,44 @@ def redacted_argv(argv: list[str]) -> list[str]:
     return [argument.split("/mcp/", 1)[0] + "/mcp/***" if "/mcp/" in argument else argument for argument in argv]
 
 
+def source_commit(repo: Path) -> str | None:
+    """The script repository's HEAD and dirtiness, or None outside a git repository."""
+    try:
+        head = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+        dirty = subprocess.run(["git", "-C", str(repo), "status", "--porcelain"], capture_output=True, text=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return head + ("+dirty" if dirty else "")
+
+
+def summary(directories: list[str]) -> int:
+    """Print one row per run; absent provenance stays visibly different from present JSON null."""
+    counts = {key: {} for key in ("commit", "reply_flow")}
+    print("| run | commit | reply_flow | model | scenario | instructions | status | messages |")
+    print("|---|---|---|---|---|---|---|---|")
+    for name in directories:
+        data = json.loads((Path(name) / "metrics.json").read_text(encoding="utf-8"))
+        labels = {key: ("—" if key not in data else "null" if data[key] is None else str(data[key])) for key in counts}
+        for key, label in labels.items():
+            counts[key][label] = counts[key].get(label, 0) + 1
+        commit = labels["commit"]
+        if commit.endswith("+dirty"):
+            commit = commit[:-6][:7] + "+dirty"
+        elif commit not in ("—", "null"):
+            commit = commit[:7]
+        messages = []
+        for number, item in enumerate(data.get("messages") or [], 1):
+            tools = " → ".join(item.get("tool_order") or []) or "—"
+            messages.append(f"{number}: {item.get('seconds_to_reply')}s; tools={tools}; "
+                            f"errors={len(item.get('tool_errors') or [])}; first_part_before_query={item.get('first_part_before_query')}")
+        cells = [Path(name).name, commit, labels["reply_flow"], data.get("model"), data.get("scenario"),
+                 data.get("instructions"), data.get("status"), "<br>".join(messages)]
+        print("| " + " | ".join("—" if cell is None else str(cell) for cell in cells) + " |")
+    print("Counts: " + "; ".join(f"{key}: " + ", ".join(f"{label} × {count}" for label, count in values.items())
+                                for key, values in counts.items()))
+    return 0
+
+
 def reanalyze(directories: list[str]) -> int:
     """`chat_host.py --reanalyze DIR...`: recompute the per-message figures of finished runs from their transcript.json
     (after message_metrics changed); everything else in metrics.json stays."""
@@ -428,6 +469,8 @@ def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv and argv[0] == "--reanalyze":
         return reanalyze(argv[1:])
+    if argv and argv[0] == "--summary":
+        return summary(argv[1:])
     arguments = parse(argv)
     out = Path(arguments.out)
     if (out / "metrics.json").exists() and json.loads((out / "metrics.json").read_text()).get("status", "").startswith("completed"):
@@ -437,7 +480,9 @@ def main(argv: list[str] | None = None) -> int:
     for stale in ("metrics.json", "transcript.json", "partial_transcript.json"):
         (out / stale).unlink(missing_ok=True)
     started = datetime.now().astimezone().isoformat(timespec="seconds")
-    run_info = dict(started=started, argv=redacted_argv(sys.argv[1:]))
+    run_info = dict(started=started, argv=redacted_argv(sys.argv[1:]),
+                    commit=None if arguments.mcp_url else source_commit(REPO),
+                    reply_flow=None if arguments.mcp_url else arguments.reply_flow)
     partial: list[dict] = []
     with tempfile.TemporaryDirectory(prefix="chat-host-") as scratch:
         try:
