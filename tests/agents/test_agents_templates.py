@@ -131,3 +131,13 @@ def test_the_registered_server_name_is_the_one_the_subagents_restrict():
     denied = {entry.split("__")[1] for agent in agents_dir.iterdir() for line in agent.read_text(encoding="utf-8").splitlines()
               if line.startswith("disallowedTools:") for entry in line.split(":", 1)[1].split(",") if entry.strip().startswith("mcp__")}
     assert denied == set(servers) == {"tripwright"}
+
+
+def test_every_path_the_wheel_force_includes_exists():
+    """A removed skill folder left in pyproject.toml fails the wheel build, which no other test runs."""
+    import tomllib
+    from pathlib import Path
+
+    root = Path(__file__).parents[2]
+    included = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
+    assert [path for path in included if not (root / path).exists()] == []

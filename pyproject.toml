@@ -30,8 +30,6 @@ packages = ["src/tripwright"]
 [tool.hatch.build.targets.wheel.force-include]
 "examples/fjord_demo.yaml" = "tripwright/examples/fjord_demo.yaml"
 "skills/tripwright-main" = "tripwright/skills/tripwright-main"
-"skills/tripwright-requirements" = "tripwright/skills/tripwright-requirements"
-"skills/tripwright-verifier" = "tripwright/skills/tripwright-verifier"
 "skills/tripwright-researcher" = "tripwright/skills/tripwright-researcher"
 
 [tool.pytest.ini_options]
