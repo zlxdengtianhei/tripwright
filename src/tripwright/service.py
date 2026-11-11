@@ -57,6 +57,10 @@ SEND_AND_END = dict(
        "reply; before sending it call no other tool and write nothing else. If you can dispatch a background researcher: "
        "the one thing you may do first is dispatch it in the background; then send first_part.text as it is all the same "
        "(without the later line) and add no “still checking” sentence; when its report returns, write the second part.")
+# A first part quotes stored text as written. On a trip stored in Chinese an English one came out half Chinese
+# (2026-11-11), so the host translates that one; every other first part is still sent as it is.
+SEND_IN_ENGLISH = SEND_AND_END["en"].replace("as it is all the same", "that way all the same").replace(
+    "as it is", "in English (translate its stored text; keep names, times and numbers as written)")
 AFTER_FIRST = dict(zh="用户回了话、或 researcher 的报告回来之后照这里做，不再调 turn：",
                    en="After the user replies or the researcher's report returns, do this without calling turn again: ")
 # explain(record_id) (S5): the ledger tables a record ID is looked up in, and the fields each adds to the record
@@ -382,7 +386,8 @@ class Tripwright:
             # Claude reads the first fields first: the immediate action and both service-written headings lead.
             if first and self._reply_flow() == "two":
                 first = dict(first, later=first_part.LATER[language])
-                response = dict(next=SEND_AND_END[language], first_part=first, second_part_title=second_title,
+                send = SEND_IN_ENGLISH if language == "en" and message_language(first["text"]) == "zh" else SEND_AND_END[language]
+                response = dict(next=send, first_part=first, second_part_title=second_title,
                                 after_first_part=AFTER_FIRST[language] + instructions, **response)
             else:
                 response = dict(next=instructions, first_part=first, second_part_title=second_title, **response)

@@ -100,3 +100,55 @@ def test_next_opens_with_the_reply_language_for_an_english_message_and_never_for
 
     assert english["next"].startswith("Reply in English: translate the stored text you use; keep place names as written.")
     assert "Reply in English" not in chinese["next"] and "Reply in English" not in str(chinese.get("after_first_part") or "")
+
+
+# --- the first part of an English answer on a trip stored in Chinese ------------------------------------------------------
+def chinese_trip(service, plan, monkeypatch, anchor_text="值机柜台关闭（虚构）"):
+    """The demo day with one stored key time in Chinese, on a clock at noon of that day."""
+    import time
+
+    monkeypatch.setenv("TRIPWRIGHT_NOW", "2030-06-10T12:00:00+02:00")
+    monkeypatch.setenv("TRIPWRIGHT_NOW_SET_AT", str(time.time()))
+    plan["days"][0]["anchors"] = [dict(id="desk", time="21:30", text=anchor_text, subject=["p1", "p2", "p3"], place="oslo-cafe")]
+    turn = service.turn("alice", "创建示例行程。", "seed")
+    draft = service.propose("alice", ctx_id=turn["ctx_id"], base_version=0, plan=plan, idempotency_key="seed")
+    service.commit("alice", draft["draft_id"], "seed", accept_unverified=True)
+    return service
+
+
+def gallery(service, text, said):
+    return service.turn("alice", text, None, scenario="quick", points=[dict(kind="do", said=said, place="oslo-art")])
+
+
+def test_an_english_first_part_names_a_stored_place_by_its_local_name_and_a_chinese_one_by_its_chinese_name(service, plan, monkeypatch):
+    chinese_trip(service, plan, monkeypatch)
+
+    english = gallery(service, "Is the gallery open now?", "the gallery")["first_part"]["lines"][1]
+    chinese = gallery(service, "画廊现在开着吗？", "画廊")["first_part"]["lines"][1]
+
+    assert english == "the gallery: Example Oslo Gallery, hours not stored (stored)"
+    assert chinese == "画廊：奥斯陆虚构画廊，营业时间没存（存的）"
+
+
+def test_a_first_part_with_stored_chinese_is_sent_in_english_and_any_other_first_part_as_it_is(service, plan, monkeypatch):
+    from tripwright.service import SEND_AND_END
+
+    chinese_trip(service, plan, monkeypatch)
+    english = gallery(service, "Is the gallery open now?", "the gallery")
+    chinese = gallery(service, "画廊现在开着吗？", "画廊")
+
+    assert HAN.search(english["first_part"]["text"])  # the stored key time keeps its Chinese words
+    assert english["next"].startswith("Send first_part.text in English (translate its stored text; keep names, times and "
+                                      "numbers as written) as this reply's first and only message")
+    assert "as it is" not in english["next"]
+    assert chinese["next"] == SEND_AND_END["zh"]
+
+
+def test_an_english_first_part_without_stored_chinese_is_sent_as_it_is(service, plan, monkeypatch):
+    from tripwright.service import SEND_AND_END
+
+    chinese_trip(service, plan, monkeypatch, anchor_text="Check-in desk closes (fictional)")
+    english = gallery(service, "Is the gallery open now?", "the gallery")
+
+    assert not HAN.search(english["first_part"]["text"])
+    assert english["next"] == SEND_AND_END["en"]

@@ -919,6 +919,9 @@ def point_facts(store: Store, owner: str, plan: dict | None, points: list[dict],
                      coords=tuple(planned["coords"]) if planned.get("coords") else None) if planned else None
     tickets = stored_tickets(plan, now["date"], language)
     upcoming = [anchor for anchor in anchors if not anchor.get("passed")]
+    def named(row):  # an English line names a place as its go and at lines do, by the local name
+        return row if language == "zh" else dict(row, name=short_name(row, language, plan))
+
     told = []
     for point in points:
         if point["kind"] == "at":
@@ -940,11 +943,11 @@ def point_facts(store: Store, owner: str, plan: dict | None, points: list[dict],
             here = (coordinates(plan, point["place"]) if point.get("place") else None) or (where or {}).get("coords")
             rows = [row for row in place_rows(plan, here, local, POINT_KM, [], language)
                     if str(row.get("kind") or "").casefold() in FOOD_KINDS] if here else []
-            facts = dict(near=here is not None, stored=len(rows), open=[row for row in rows if row["open"] is True])
+            facts = dict(near=here is not None, stored=len(rows), open=[named(row) for row in rows if row["open"] is True])
             keys += [name for row in facts["open"] for name in (short_name(row, language, plan), row["name_local"])]
         elif point["kind"] == "do":
             here = (where or {}).get("coords")
-            facts = dict(places=[place_row(place, here, local, language)] if place else [])
+            facts = dict(places=[named(place_row(place, here, local, language))] if place else [])
         elif point["kind"] == "ticket":
             facts = dict(tickets=tickets)
         else:

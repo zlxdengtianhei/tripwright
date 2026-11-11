@@ -103,10 +103,11 @@ def checked_points(points: list | None) -> list[dict] | None:
 
 
 def spaced(*parts: str) -> str:
-    """Words joined the way the answer writes them: a space only where a Latin letter or digit meets another word."""
+    """Words joined the way the answer writes them: a space only where a Latin letter or digit meets another word (not
+    before a comma)."""
     text = parts[0]
     for part in parts[1:]:
-        joined = text and part and not text[-1].isspace() and not part[0].isspace()
+        joined = text and part and not text[-1].isspace() and not part[0].isspace() and part[0] != ","
         text += (" " if joined and (text[-1].isascii() and text[-1].isalnum() or part[0].isascii() and part[0].isalnum()) else "") + part
     return text
 
