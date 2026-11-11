@@ -9,7 +9,7 @@ You are the agent setting up a personal Tripwright service. Do the work for the 
 
 - **Docker** is simplest for coding clients on that computer. Claude, ChatGPT and phone apps also need an HTTPS tunnel.
 - **Railway** needs no always-on computer and gives a stable HTTPS address. It can cost money.
-- GitHub is optional. Without it, Tripwright keeps a local Git repository on its data volume; make backups.
+- Assume the user has a GitHub account and recommend a private repository for the trips (section 3). Without one the service still works; the trips are then kept only in a local Git repository on its data volume.
 
 Only the user may do these things; wait when one is needed. Everything else is the agent's job.
 
@@ -65,7 +65,16 @@ railway ssh -- tripwright address
 The root Dockerfile is detected automatically; set neither a Dockerfile variable nor a key-generation switch. Keep the volume at `/data`. Check `https://<your-domain>/readyz` for `"ready":true`, then run the MCP initialize check above with `address=$(railway ssh -- tripwright address)`.
 Railway offers a trial and paid plans; show the user [current pricing](https://railway.com/pricing) before any payment. A limited trial can restrict outbound network access.
 
-## 3. Optional: three commands to connect a private repository
+## 3. Recommended: three commands to connect a private repository
+
+Tell the user what this step does: with a private GitHub repository, everything the service records about a trip (the plan, preferences, what was said on the road) is also saved in the user's own account. Without it, all of that is kept only on the server.
+
+Look at where you are running before you recommend it:
+
+- **You can run commands where the service runs** (Claude Code, Codex, Cursor or another coding agent with a shell; for Railway, a shell where `railway` is logged in): run `gh auth status`. If `gh` is logged in, or the user will run `gh auth login`, recommend connecting now and run the commands below.
+- **You cannot** (a chat app is guiding the setup, or `gh` is not available on that machine): do not walk the user through the commands by hand. Tell them where to do it: start Claude Code or Codex on the computer that runs the service (for Railway, any computer where `railway` is logged in) and give it this section.
+
+If the user skips this step, or set the service up another way, say it plainly: “Your trips, private details included, are kept only on the server: in the Docker volume `tripwright-data`, or in the Railway volume. Nothing is uploaded to GitHub. They are copied to your private repository only after you connect one; you can do that later, and the existing trips go with it.” Then show the backup command in section 5.
 
 Ask for the GitHub owner and use `tripwright-trips` as the repository name. If needed, ask the user to run `gh auth login`. Create an **empty** private repository:
 
@@ -87,6 +96,8 @@ railway ssh -- tripwright repo connect git@github.com:<owner>/tripwright-trips.g
 Check `/readyz` for `"storage":"remote"`. Other SSH Git hosts work too; set `TRIPWRIGHT_KNOWN_HOSTS` when the service cannot obtain their host keys itself.
 
 ## 3A. Optional: three commands for public trip pages
+
+Public trip pages need GitHub: this guide publishes them through a public GitHub repository with GitHub Pages, and the service makes no public page until this step is done. A user who wants a page to share must connect it; the private repository of section 3 is not needed for it.
 
 Ask the user first: this makes a public repository in their account that holds only the trip pages (it is not the private trip repository and not the Tripwright code repository), anyone with a page's link can read that trip page, and after this step every trip gets a page unless the user turns it off. The public repository receives only the scanned pages; the trips themselves stay in the private repository, or on the service's volume when there is none. Then create a separate **empty public** repository, enable Pages from `/` on `main`, and add the distinct public-page deploy key:
 ```bash

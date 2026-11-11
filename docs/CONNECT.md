@@ -2,7 +2,7 @@
 
 There are two ways:
 
-- **Your own service (remote).** Deploy it with [deploy/SETUP.md](../deploy/SETUP.md), then add its connector address, `https://<your-domain>/mcp/<key>`, to each app with [deploy/CLIENTS.md](../deploy/CLIENTS.md). The service speaks MCP over Streamable HTTP, and the key in the address is the only sign-in. Every app that connects to the same service sees the same trips. There is no public Tripwright service and no sign-up.
+- **Your own service (remote).** Deploy it with [deploy/SETUP.md](../deploy/SETUP.md), then add its connector address, `https://<your-domain>/mcp/<key>`, to each app with [deploy/CLIENTS.md](../deploy/CLIENTS.md). The service speaks MCP over Streamable HTTP, and the key in the address is the only sign-in. Every app that connects to the same service sees the same trips. The trips are kept on the service's volume, and also in your private GitHub repository once the setup agent connects one (SETUP.md, section 3). There is no public Tripwright service and no sign-up.
 - **Local mode (stdio), without a service.** A client on your own computer starts Tripwright itself. This works only in clients that can start a local MCP server, such as Claude Code, Codex or Cursor, and only on that computer.
 
 ## Local mode
