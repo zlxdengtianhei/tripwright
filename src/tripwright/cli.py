@@ -255,8 +255,29 @@ def run_share(arguments) -> int:
             if not arguments.repository:
                 raise ValueError("share connect needs the public repository's SSH address")
             data_dir = use_data_directory(data_directory())
-            print(share_publish.connect(data_dir, arguments.repository, arguments.branch))
-            return 0
+            message = share_publish.connect(data_dir, arguments.repository, arguments.branch)
+            root = Path(arguments.repo) if arguments.repo else data_dir / "tenants/personal/mirror"
+            known = bool(arguments.repo) or (root / ".git").exists()
+            results = share_publish.republish(root, data_dir=data_dir, owner=arguments.local_user) if known else []
+            for item in results:
+                if item["status"] == "published":
+                    print(f"{item['trip']}: published — {item['url']}")
+                elif item["status"] == "off":
+                    print(f"{item['trip']}: public page is off (off: true in trips/{item['trip']}/share.yaml)")
+                elif item["status"] == "no_plan":
+                    print(f"{item['trip']}: no committed plan yet; its first committed plan will publish a page")
+                elif item["status"] == "blocked":
+                    print(f"{item['trip']}: not published — the privacy scan found {', '.join(item['categories'])} "
+                          f"in {item['files']} file(s); see tripwright share status")
+                else:
+                    print(f"{item['trip']}: not published — {item['reason']}; fix it and run this command again")
+            if not results:
+                print("No trips yet; the first committed plan will publish a page.")
+            published = sum(item["status"] == "published" for item in results)
+            turned_off = sum(item["status"] == "off" for item in results)
+            failed = sum(item["status"] in ("blocked", "error") for item in results)
+            print(f"{message} {published} published, {turned_off} off, {failed} not published.")
+            return 2 if failed else 0
         if arguments.action == "status":
             from tripwright.repo.workspace import Repository
 

@@ -14,7 +14,7 @@ Run one instance with one persistent volume at `/data`. Tripwright keeps its sta
 - `share/public/`, `share/build/`: disposable public clone and scanned builds;
 - the volume marker, routing counter and writes not pushed yet.
 
-Public-page settings live in each trip's committed `trips/<trip>/share.yaml`, not on this volume. Effective plan commits debounce for 20 seconds, then build, privacy-scan and update only that trip's random subdirectory. The public root has `robots.txt` and `.nojekyll`, never a trip index. Publication failures do not block plan commits; `tripwright share status` shows categories or a safe Git error, never a found value or connector credential.
+Public-page settings live in each trip's committed `trips/<trip>/share.yaml`, not on this volume. Effective plan commits debounce for 20 seconds, then build, privacy-scan and update only that trip's random subdirectory; `share connect` publishes every existing trip once when it connects. The public root has `robots.txt` and `.nojekyll`, never a trip index. Publication failures do not block plan commits; `tripwright share status` shows categories or a safe Git error, never a found value or connector credential.
 
 Do not run two instances on one volume. `repo connect` pushes local history to an empty remote, adopts a remote trip when local has none, and refuses to merge two trip histories. It checks another remote the same way; no manual mirror move is needed.
 

@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import threading
 import time
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -140,8 +140,37 @@ def connect(data_dir, repo_url: str, branch: str = "main", *, environ=os.environ
     shutil.rmtree(old, ignore_errors=True)
     write_json(connection_file(data_dir), dict(repo_url=repo_url, branch=branch, pages_url=pages_url(repo_url)))
     base = pages_url(repo_url) or "<public-pages-base>/"
-    return (f"Connected on {branch}. Public pages: {base}<path>/. Every trip in this deployment publishes after a commit; "
-            f"set off: true in trips/<trip>/share.yaml to disable and remove one.")
+    return (f"Connected on {branch}. Public pages: {base}<path>/. Every trip with a committed plan publishes when you "
+            f"connect and again after every plan commit; set off: true in trips/<trip>/share.yaml to disable and remove one.")
+
+
+@contextmanager
+def _publish_lock(data_dir):
+    """One cross-process lock from the public-path commit to the push: the service's background publisher and a
+    `share connect` in another process take turns instead of racing on the same public clone and trip repository."""
+    try:
+        import fcntl
+    except ImportError:  # a platform without flock publishes without the lock rather than failing
+        yield
+        return
+    folder = Path(data_dir) / "share"
+    folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+    handle = open(folder / "publish.lock", "a+")
+    deadline = time.monotonic() + 120
+    while True:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            break
+        except OSError:
+            if time.monotonic() >= deadline:
+                handle.close()
+                raise PublishError("Another publish has held the public repository for 120 seconds; try again later") from None
+            time.sleep(0.05)
+    try:
+        yield
+    finally:
+        fcntl.flock(handle, fcntl.LOCK_UN)
+        handle.close()
 
 
 def _clone(data_dir: Path, connection: dict) -> Path:
@@ -253,40 +282,41 @@ def publish(repo_root, *, trip: str | None = None, rev: str = "HEAD", data_dir=N
         trip = plan["id"]
         entries = repository.git.log(rev)
         version = (entries[0]["trailers"].get("Tripwright-Version") or [None])[-1] if entries else None
-        previous = _record(store, owner, trip)
         if connection is None:
             raise PublishError("No public repository: run tripwright share key and share connect")
-        settings = _settings(repository, trip, rev)
-        if settings.get("repository"):
-            return _record(store, owner, trip, ok=False, status="separate_repository", plan_version=version,
-                           error="A per-trip repository needs another deployment or manual publication; nothing was pushed")
-        if not settings.get("path") and not settings.get("off"):
-            rev, settings = _default_path(repository, trip, rev, settings, committer)
-        path = settings.get("path") or previous.get("path")
-        if not path:
-            return _record(store, owner, trip, ok=True, status="off", plan_version=version, changed=False)
-        old = previous.get("path")
-        clone = _clone(data_dir, connection)
-        _root_files(clone)
-        changed = False
-        if not settings.get("off"):
-            _, build = _roots(data_dir)
-            built = share_site(plan, build / trip, people=people, english=settings.get("english"),
-                               extras=dict(intro=settings.get("intro"), route=settings.get("route")), now=clock)
-            for name in {old, path} - {None}:
-                shutil.rmtree(clone / name, ignore_errors=True)
-            shutil.copytree(built["out"], clone / path)
-            findings = scan_tree(clone / path, built["rules"].zh)
-            if findings:
-                raise ShareBlocked(findings)
-        else:
-            for name in {old, path} - {None}:
-                shutil.rmtree(clone / name, ignore_errors=True)
-        commit = _commit(clone, "Update public trip page", clock)
-        if commit:
-            run(["git", "push", "--quiet", "origin", f"HEAD:{connection['branch']}"], cwd=clone,
-                env=_git_environment(data_dir, connection["repo_url"]))
-            changed = True
+        with _publish_lock(data_dir):
+            settings = _settings(repository, trip, rev)
+            if settings.get("repository"):
+                return _record(store, owner, trip, ok=False, status="separate_repository", plan_version=version,
+                               error="A per-trip repository needs another deployment or manual publication; nothing was pushed")
+            previous = _record(store, owner, trip)
+            if not settings.get("path") and not settings.get("off"):
+                rev, settings = _default_path(repository, trip, rev, settings, committer)
+            path = settings.get("path") or previous.get("path")
+            if not path:
+                return _record(store, owner, trip, ok=True, status="off", plan_version=version, changed=False)
+            old = previous.get("path")
+            clone = _clone(data_dir, connection)
+            _root_files(clone)
+            changed = False
+            if not settings.get("off"):
+                _, build = _roots(data_dir)
+                built = share_site(plan, build / trip, people=people, english=settings.get("english"),
+                                   extras=dict(intro=settings.get("intro"), route=settings.get("route")), now=clock)
+                for name in {old, path} - {None}:
+                    shutil.rmtree(clone / name, ignore_errors=True)
+                shutil.copytree(built["out"], clone / path)
+                findings = scan_tree(clone / path, built["rules"].zh)
+                if findings:
+                    raise ShareBlocked(findings)
+            else:
+                for name in {old, path} - {None}:
+                    shutil.rmtree(clone / name, ignore_errors=True)
+            commit = _commit(clone, "Update public trip page", clock)
+            if commit:
+                run(["git", "push", "--quiet", "origin", f"HEAD:{connection['branch']}"], cwd=clone,
+                    env=_git_environment(data_dir, connection["repo_url"]))
+                changed = True
         base = (connection.get("pages_url") or "").rstrip("/") + "/" if connection.get("pages_url") else None
         url = f"{base}{path}/" if base else path
         result = _record(store, owner, trip, ok=True, status="off" if settings.get("off") else "published",
@@ -303,6 +333,42 @@ def publish(repo_root, *, trip: str | None = None, rev: str = "HEAD", data_dir=N
         _record(store, owner, _failure_trip(store, owner, trip), ok=False, status="error",
                 plan_version=locals().get("version"), error=_reason(error))
         raise PublishError(_reason(error)) from None
+    finally:
+        if own_store:
+            store.close()
+
+
+def republish(repo_root, *, data_dir=None, owner: str = "local", store=None) -> list[dict]:
+    """`share connect`'s catch-up: every trip with a committed plan publishes once at its current head.
+
+    One entry per trip for the command to print; blocked findings stay categories and file counts, never values.
+    """
+    from tripwright.remote.connection import trips
+    from tripwright.repo import layout
+    from tripwright.repo.workspace import Repository
+    from tripwright.storage import Store
+
+    repository = Repository(repo_root, owner=owner)
+    own_store = store is None
+    store = store or Store(repository.state_path)
+    try:
+        results = []
+        for trip in trips(repository.git):
+            if f"{layout.trip_folder(trip)}/plan/places.yaml" not in repository.committed("HEAD", f"{layout.trip_folder(trip)}/plan"):
+                results.append(dict(trip=trip, status="no_plan"))
+                continue
+            try:
+                outcome = publish(repo_root, trip=trip, data_dir=data_dir, store=store, owner=owner)
+                entry = dict(trip=trip, status=outcome["status"], url=outcome.get("url"))
+                if not outcome["ok"]:
+                    entry["reason"] = outcome.get("error") or outcome["status"]
+            except ShareBlocked as blocked:
+                entry = dict(trip=trip, status="blocked", categories=sorted(blocked.findings),
+                             files=len({page for pages in blocked.findings.values() for page in pages}))
+            except PublishError as error:
+                entry = dict(trip=trip, status="error", reason=str(error))
+            results.append(entry)
+        return results
     finally:
         if own_store:
             store.close()

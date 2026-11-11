@@ -94,8 +94,8 @@ gh repo create <owner>/tripwright-pages --public && gh api -X POST repos/<owner>
 docker exec tripwright tripwright share key | gh repo deploy-key add - --allow-write -t tripwright-pages -R <owner>/tripwright-pages
 docker exec tripwright tripwright share connect git@github.com:<owner>/tripwright-pages.git
 ```
-On Railway, replace `docker exec tripwright` with `railway ssh --`. The last command verifies a push and prints the URL shape; no restart or token is needed.
-Every committed trip publishes after about 20 quiet seconds. Its first publish creates `trips/<trip>/share.yaml`; edit its random `path`, or set `off: true` to remove its page. Optional `english`, `intro` and `route` match the example file. `tripwright share status` shows the outcome; a failed publish is tried again after the next plan commit. A per-trip `repository` needs another deployment or manual publication.
+On Railway, replace `docker exec tripwright` with `railway ssh --`. The last command verifies a push, publishes every existing trip once (one line per trip) and prints the URL shape; no restart or token is needed.
+Every committed trip publishes after about 20 quiet seconds. Its first publish creates `trips/<trip>/share.yaml`; edit its random `path`, or set `off: true` to remove its page. Optional `english`, `intro` and `route` match the example file. `tripwright share status` shows the outcome; a failed publish is tried again by running `share connect` once more, or after the next plan commit. A per-trip `repository` needs another deployment or manual publication.
 
 ## 4. Add the address to each AI app
 
