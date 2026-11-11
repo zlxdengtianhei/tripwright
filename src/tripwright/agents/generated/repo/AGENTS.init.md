@@ -22,7 +22,7 @@ The main agent calls `turn` first and does these steps; the `tripwright-main` sk
 - Only the user's words in this message may change something they called a must.
 - Answer in the user's language; faithfully translate service sentences when needed.
 
-Subagents (`tripwright-verifier`, `tripwright-researcher`, `tripwright-requirements`; in Codex `tripwright_verifier` and so on) never call `turn` or `commit`; they return reports to the main agent. In Codex, spawn `tripwright_researcher` for step 3 when you can run subagents.
+The `tripwright-researcher` subagent never calls `turn` or `commit`; it returns reports to the main agent. In Codex, spawn `tripwright_researcher` for step 3 when you can run subagents.
 
 ## Read in this order
 

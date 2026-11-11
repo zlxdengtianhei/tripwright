@@ -900,7 +900,7 @@ class Tripwright:
                     not_recorded=draft.get("not_recorded", []), notice=notice, crowding=draft["checks"].get("crowding", []),
                     possible_contradictions=draft["checks"].get("possible_contradictions", []),
                     verify=dict(pack_id=draft["verify"]["pack"]["pack_id"], tokens=draft["verify"]["tokens"],
-                                how=f"state(view='pack', draft_id='{draft['id']}') returns the wide pack and the complete candidate for the verifier"))
+                                how=f"state(view='pack', draft_id='{draft['id']}') returns the wide pack and the complete candidate for review"))
 
     def commit(self, owner: str, draft_id: str, idempotency_key: str, *, accept_unverified: bool = False,
                wait: float | None = None) -> dict:

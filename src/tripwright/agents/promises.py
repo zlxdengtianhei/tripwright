@@ -21,8 +21,6 @@ SINGLE = "skills/tripwright-main/references/single-agent.md"
 # S4a: the server instructions are core.yaml's steps, so a promise names SERVER only for what those steps say.
 SERVER = f"{GENERATED}/server/instructions.md"
 AGENTS_MD = f"{GENERATED}/repo/AGENTS.init.md"
-VERIFIER = ("skills/tripwright-verifier/SKILL.md", f"{GENERATED}/claude/tripwright-verifier.md",
-            f"{GENERATED}/codex/tripwright_verifier.toml")
 RESEARCHER = ("skills/tripwright-researcher/SKILL.md", f"{GENERATED}/claude/tripwright-researcher.md",
               f"{GENERATED}/codex/tripwright_researcher.toml")
 # Mentioning a forbidden word in quotes, to forbid it, is allowed; using it is not.
@@ -56,7 +54,7 @@ PROMISES = (
     Promise("turn-records-this-message", MAIN_TEXTS + (SINGLE,),
             must=(r"`record`", r'`source\.event: "this"`')),
     # S4 after the third verdict: declarations hold only on overlap; undeclared overlap gives a non-blocking notice.
-    Promise("declarations-hold-only-on-overlap", (RECORDS, "skills/tripwright-requirements/SKILL.md"),
+    Promise("declarations-hold-only-on-overlap", (RECORDS,),
             must=(r"[Aa] declaration holds only where (?:the two records' )?people, dates and time windows overlap",
                   r"(?:both stay active|both stay)", r"both readings and the default", r"`?compatible_with`?"),
             must_not=(r"[Uu]ndeclared[^.\n]*(?:become|are made|turn) pending", r"[Uu]ndeclared[^.\n]*(?:\b(?<!non-)(?<!never )(?<!not )block(?:s|ed)?\b|refused)"),
@@ -69,8 +67,7 @@ PROMISES = (
             must=(r'turn\(new_trip="YYYY-MM-name"\)', r'state\(view="memory"\)', r'record=\{"carry"', r"`?not_used`?", r"tripwright sync")),
     Promise("new-trip-without-tools", (SINGLE,),
             must=(r"trips/<trip>/ledger/carry/<ID>\.yaml",)),
-    Promise("verifier-gets-the-wide-pack", VERIFIER, must=(r'state\(view="pack", draft_id',)),
-    Promise("locks-follow-identity", (RECORDS,) + VERIFIER,
+    Promise("locks-follow-identity", (RECORDS,),
             must=(r"(?:plan\.id|plan IDs?|plan ID)", r"(?:never display names|display name alone is not enough)")),
     Promise("transport-text-search-term-and-triggers", ALL_MAIN,
             must=(r"(?:exact term to type into the named app, in its original spelling|在哪个 App 搜什么（地名照原文）)",
@@ -145,17 +142,10 @@ PROMISES = (
                   r"never (?:by reading files|ask the user to (?:open or )?read a file)", r"“待确认”"),
             must_not=(r"(?:open|read|check) (?:the )?(?:profile )?files? (?:yourself )?to decide", r"待 A 定", r"［待[^］\n]*定"),
             bad_sample="Ask the user to open the profile files to decide which records apply."),
-    Promise("verifier-independent-input", VERIFIER,
-            must=(r"full text of every applicable source sentence", r"[Tt]he scenario checklist", r"complete candidate",
-                  r"not only what the first response listed as unchecked", r"已过期，需重算",
-                  r"`passed`: the result was fresh, every wide-pack group is `complete`, no disposition is `unaddressed`")),
-    Promise("verifier-stale-gives-no-conclusion", VERIFIER,
-            must=(r"`stale`: report only “已过期，需重算”", r"Give no conclusion from the old draft")),
     Promise("researcher-saved-first-with-provenance", RESEARCHER,
             must=(r"1\. The user's saved material, when it can hold the answer[\s\S]*2\. Live sources: (?:Tripwright's `query` for transport and weather, and )?the host's web search and fetch[\s\S]*3\. Only then the open web",
                   r"synthetic or demo is not a source", r"source", r"valid", r"Never fill a gap with a guess")),
-    # v2g: these rules travel in both the skill and MCP prompts, without a host-specific hook.
-    Promise("server-transport-sentences", ALL_MAIN + RESEARCHER + VERIFIER,
+    Promise("server-transport-sentences", ALL_MAIN + RESEARCHER,
             must=(r"sentences", r"how_to_check", r"coverage")),
     Promise("must-only-and-change-reasons", ALL_MAIN + (RECORDS, SINGLE),
             must=(r"must", r"changes\.revisions", r"changelog", r"这次没改成")),
@@ -174,9 +164,9 @@ PROMISES = (
     Promise("blocked-write-and-local-backup", MAIN_TEXTS + (RECORDS,),
             must=(r"write\.blocked", r"hint", r"storage\.kind", r"back up the data directory")),
     # A11: an online check-in stored as a node at the airport became “要 05:45 前到”; the plan's writers mark it
-    Promise("online-deadline-anchor", (RECORDS, "skills/tripwright-requirements/SKILL.md"),
+    Promise("online-deadline-anchor", (RECORDS,),
             must=(r"`where: online`", r"no latest departure")),
-    Promise("subagents-never-commit", VERIFIER + RESEARCHER + ("skills/tripwright-requirements/SKILL.md",),
+    Promise("subagents-never-commit", RESEARCHER,
             must=(r"`commit`",), must_not=(r"[Yy]ou (?:may|can|should) call `commit`",),
             bad_sample="When the check passes, you may call `commit` yourself."),
     # A12 (quality judge 6): the first part was the plan's template whatever was asked (A); a stored ticket went unused
