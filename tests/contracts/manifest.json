@@ -2,71 +2,359 @@
   "schema": "tripwright.manifest/1",
   "note": "docs/CONTRACTS.md 第 4 节的机读件。domains 是写域：仓里每个文件恰好属于一个。生成文件只在生成者的写域里；generator 指决定字节的块，writer 指把字节写进用户仓的块。",
   "domains": {
-    "A": {"name": "仓、状态与快照", "paths": [
-      "src/tripwright/repo/**", "src/tripwright/packs.py", "src/tripwright/storage.py", "src/tripwright/events.py",
-      "src/tripwright/ledger.py", "src/tripwright/consider.py", "src/tripwright/consider.yaml", "src/tripwright/versions.py", "src/tripwright/jobs.py", "src/tripwright/service.py",
-      "src/tripwright/cli.py", "src/tripwright/demo.py", "src/tripwright/adapters/__init__.py", "src/tripwright/adapters/mcp.py", "src/tripwright/remote/**",
-      "examples/**", "docs/FORMAT.md", "tests/repo/**", "tests/core/**", "tests/remote/**"]},
-    "B": {"name": "渲染与输出", "paths": [
-      "src/tripwright/render/**", "src/tripwright/site/**", "src/tripwright/adapters/web.py",
-      "tests/render/**", "tests/site/**"]},
-    "C": {"name": "角色、步骤与装配", "paths": [
-      "src/tripwright/agents/**", "src/tripwright/adapters/prompts.py", "skills/**", "tests/agents/**"]},
-    "core": {"name": "冻结核心：三块都不写，要改经主会话", "paths": [
-      "src/tripwright/__init__.py", "src/tripwright/checks.py", "src/tripwright/trip.py", "src/tripwright/usage.py",
-      "src/tripwright/evidence.py", "src/tripwright/locks.py", "src/tripwright/query.py", "src/tripwright/providers/**",
-      "src/tripwright/solver/**", "tests/providers/**", "tests/solver/**"]},
-    "main": {"name": "主会话与接缝负责人", "paths": [
-      "pyproject.toml", "uv.lock", "uv.toml", ".python-version", ".gitignore", ".github/**", "README.md", "README.zh-CN.md", "LICENSE",
-      "homepage/**", "scripts/**", "deploy/**", "docs/CONNECT.md", "docs/DATA_SOURCES.md", "docs/CONTRACTS.md", "tests/contracts/**", "tests/fixtures/contract_sample/**"]},
-    "shared_append": {"name": "各块只在末尾追加自己的节", "paths": ["docs/DECISIONS-impl.md"]}
+    "A": {
+      "name": "仓、状态与快照",
+      "paths": [
+        "src/tripwright/repo/**",
+        "src/tripwright/packs.py",
+        "src/tripwright/storage.py",
+        "src/tripwright/events.py",
+        "src/tripwright/ledger.py",
+        "src/tripwright/consider.py",
+        "src/tripwright/consider.yaml",
+        "src/tripwright/versions.py",
+        "src/tripwright/jobs.py",
+        "src/tripwright/service.py",
+        "src/tripwright/cli.py",
+        "src/tripwright/demo.py",
+        "src/tripwright/adapters/__init__.py",
+        "src/tripwright/adapters/mcp.py",
+        "src/tripwright/remote/**",
+        "examples/**",
+        "docs/FORMAT.md",
+        "tests/repo/**",
+        "tests/core/**",
+        "tests/remote/**"
+      ]
+    },
+    "B": {
+      "name": "渲染与输出",
+      "paths": [
+        "src/tripwright/render/**",
+        "src/tripwright/site/**",
+        "src/tripwright/adapters/web.py",
+        "tests/render/**",
+        "tests/site/**"
+      ]
+    },
+    "C": {
+      "name": "角色、步骤与装配",
+      "paths": [
+        "src/tripwright/agents/**",
+        "src/tripwright/adapters/prompts.py",
+        "skills/**",
+        "tests/agents/**"
+      ]
+    },
+    "core": {
+      "name": "冻结核心：三块都不写，要改经主会话",
+      "paths": [
+        "src/tripwright/__init__.py",
+        "src/tripwright/checks.py",
+        "src/tripwright/trip.py",
+        "src/tripwright/usage.py",
+        "src/tripwright/evidence.py",
+        "src/tripwright/locks.py",
+        "src/tripwright/query.py",
+        "src/tripwright/providers/**",
+        "src/tripwright/solver/**",
+        "tests/providers/**",
+        "tests/solver/**"
+      ]
+    },
+    "main": {
+      "name": "主会话与接缝负责人",
+      "paths": [
+        "pyproject.toml",
+        "uv.lock",
+        "uv.toml",
+        ".python-version",
+        ".gitignore",
+        ".github/**",
+        "README.md",
+        "README.zh-CN.md",
+        "LICENSE",
+        "homepage/**",
+        "scripts/**",
+        "deploy/**",
+        "docs/CONNECT.md",
+        "docs/DATA_SOURCES.md",
+        "docs/CONTRACTS.md",
+        "tests/contracts/**",
+        "tests/fixtures/contract_sample/**",
+        "docs/history/**",
+        "docs/CONTRACTS-queries.md"
+      ]
+    },
+    "shared_append": {
+      "name": "各块只在末尾追加自己的节",
+      "paths": [
+        "docs/DECISIONS-impl.md"
+      ]
+    }
   },
   "generated_in_repo": [
-    {"path": "skills/tripwright-main/SKILL.md", "generator": "C",
-     "sources": ["src/tripwright/agents/roles/tripwright-main.md", "src/tripwright/agents/steps/*.md", "src/tripwright/render/fragments/*.md"]},
-    {"path": "skills/tripwright-*/SKILL.md", "generator": "C",
-     "sources": ["src/tripwright/agents/roles/*.md", "src/tripwright/render/fragments/*.md"]},
-    {"path": "src/tripwright/agents/generated/**", "generator": "C",
-     "sources": ["src/tripwright/agents/roles/*.md", "src/tripwright/agents/steps/*.md", "src/tripwright/render/fragments/*.md"]}
+    {
+      "path": "skills/tripwright-main/SKILL.md",
+      "generator": "C",
+      "sources": [
+        "src/tripwright/agents/roles/tripwright-main.md",
+        "src/tripwright/agents/steps/*.md",
+        "src/tripwright/render/fragments/*.md"
+      ]
+    },
+    {
+      "path": "skills/tripwright-*/SKILL.md",
+      "generator": "C",
+      "sources": [
+        "src/tripwright/agents/roles/*.md",
+        "src/tripwright/render/fragments/*.md"
+      ]
+    },
+    {
+      "path": "src/tripwright/agents/generated/**",
+      "generator": "C",
+      "sources": [
+        "src/tripwright/agents/roles/*.md",
+        "src/tripwright/agents/steps/*.md",
+        "src/tripwright/render/fragments/*.md"
+      ]
+    }
   ],
   "user_repo": [
-    {"path": "tripwright.yaml", "generator": "A", "writer": "A", "sources": ["src/tripwright/repo/**"]},
-    {"path": "profile/**", "generator": "A", "writer": "A", "sources": ["src/tripwright/repo/**"]},
-    {"path": "trips/*/trip.yaml", "generator": "A", "writer": "A", "sources": ["src/tripwright/repo/**"]},
-    {"path": "trips/*/raw/**", "generator": "A", "writer": "A", "sources": ["src/tripwright/repo/**"]},
-    {"path": "trips/*/ledger/**", "generator": "A", "writer": "A", "sources": ["src/tripwright/repo/**"]},
-    {"path": "trips/*/plan/**", "generator": "A", "writer": "A", "sources": ["src/tripwright/repo/**"]},
-    {"path": "trips/*/evidence/**", "generator": "A", "writer": "A", "sources": ["src/tripwright/repo/**"]},
-    {"path": ".gitignore", "generator": "A", "writer": "A", "sources": ["src/tripwright/repo/**"]},
-    {"path": ".gitattributes", "generator": "A", "writer": "A", "sources": ["src/tripwright/repo/**"]},
-    {"path": ".tripwright/**", "generator": "A", "writer": "A", "sources": ["src/tripwright/repo/**"], "git": false},
-    {"path": "README.md", "generator": "B", "writer": "A", "sources": ["src/tripwright/render/**"]},
-    {"path": "trips/*/README.md", "generator": "B", "writer": "A", "sources": ["src/tripwright/render/**"]},
-    {"path": "trips/*/views/**", "generator": "B", "writer": "A", "sources": ["src/tripwright/render/**"]},
-    {"path": "AGENTS.md", "generator": "C", "writer": "A", "sources": ["src/tripwright/agents/templates/AGENTS.md.tmpl"]},
-    {"path": "CLAUDE.md", "generator": "C", "writer": "A", "sources": ["src/tripwright/agents/templates/CLAUDE.md.tmpl"]},
-    {"path": ".claude/agents/*.md", "generator": "C", "writer": "A", "sources": ["src/tripwright/agents/generated/claude/*.md"]},
-    {"path": ".codex/agents/*.toml", "generator": "C", "writer": "A", "sources": ["src/tripwright/agents/generated/codex/*.toml"]},
-    {"path": ".claude/skills/*/**", "generator": "C", "writer": "A", "sources": ["skills/**"]},
-    {"path": ".agents/skills/*/**", "generator": "C", "writer": "A", "sources": ["skills/**"]},
-    {"path": ".mcp.json", "generator": "C", "writer": "A", "sources": ["src/tripwright/agents/**"]},
-    {"path": ".claude/settings.json", "generator": "C", "writer": "A", "sources": ["src/tripwright/agents/templates/settings.json.tmpl"]},
-    {"path": "trips/*/research/**", "generator": "user", "writer": "user", "sources": [], "note": "原件；工具只追加"}
+    {
+      "path": "tripwright.yaml",
+      "generator": "A",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/repo/**"
+      ]
+    },
+    {
+      "path": "profile/**",
+      "generator": "A",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/repo/**"
+      ]
+    },
+    {
+      "path": "trips/*/trip.yaml",
+      "generator": "A",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/repo/**"
+      ]
+    },
+    {
+      "path": "trips/*/raw/**",
+      "generator": "A",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/repo/**"
+      ]
+    },
+    {
+      "path": "trips/*/ledger/**",
+      "generator": "A",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/repo/**"
+      ]
+    },
+    {
+      "path": "trips/*/plan/**",
+      "generator": "A",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/repo/**"
+      ]
+    },
+    {
+      "path": "trips/*/evidence/**",
+      "generator": "A",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/repo/**"
+      ]
+    },
+    {
+      "path": ".gitignore",
+      "generator": "A",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/repo/**"
+      ]
+    },
+    {
+      "path": ".gitattributes",
+      "generator": "A",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/repo/**"
+      ]
+    },
+    {
+      "path": ".tripwright/**",
+      "generator": "A",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/repo/**"
+      ],
+      "git": false
+    },
+    {
+      "path": "README.md",
+      "generator": "B",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/render/**"
+      ]
+    },
+    {
+      "path": "trips/*/README.md",
+      "generator": "B",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/render/**"
+      ]
+    },
+    {
+      "path": "trips/*/views/**",
+      "generator": "B",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/render/**"
+      ]
+    },
+    {
+      "path": "AGENTS.md",
+      "generator": "C",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/agents/templates/AGENTS.md.tmpl"
+      ]
+    },
+    {
+      "path": "CLAUDE.md",
+      "generator": "C",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/agents/templates/CLAUDE.md.tmpl"
+      ]
+    },
+    {
+      "path": ".claude/agents/*.md",
+      "generator": "C",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/agents/generated/claude/*.md"
+      ]
+    },
+    {
+      "path": ".codex/agents/*.toml",
+      "generator": "C",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/agents/generated/codex/*.toml"
+      ]
+    },
+    {
+      "path": ".claude/skills/*/**",
+      "generator": "C",
+      "writer": "A",
+      "sources": [
+        "skills/**"
+      ]
+    },
+    {
+      "path": ".agents/skills/*/**",
+      "generator": "C",
+      "writer": "A",
+      "sources": [
+        "skills/**"
+      ]
+    },
+    {
+      "path": ".mcp.json",
+      "generator": "C",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/agents/**"
+      ]
+    },
+    {
+      "path": ".claude/settings.json",
+      "generator": "C",
+      "writer": "A",
+      "sources": [
+        "src/tripwright/agents/templates/settings.json.tmpl"
+      ]
+    },
+    {
+      "path": "trips/*/research/**",
+      "generator": "user",
+      "writer": "user",
+      "sources": [],
+      "note": "原件；工具只追加"
+    }
   ],
   "probes": [
-    {"path": "src/tripwright/repo/outbox.py", "owner": "A"},
-    {"path": "src/tripwright/packs.py", "owner": "A"},
-    {"path": "tests/repo/test_replay.py", "owner": "A"},
-    {"path": "src/tripwright/render/pack.py", "owner": "B"},
-    {"path": "src/tripwright/render/fragments/writing.zh.md", "owner": "B"},
-    {"path": "src/tripwright/render/regions.yaml", "owner": "B"},
-    {"path": "tests/render/test_pack_golden.py", "owner": "B"},
-    {"path": "src/tripwright/agents/roles/tripwright-verifier.md", "owner": "C"},
-    {"path": "src/tripwright/agents/steps/1-receive.md", "owner": "C"},
-    {"path": "src/tripwright/agents/templates/AGENTS.md.tmpl", "owner": "C"},
-    {"path": "src/tripwright/agents/generated/claude/tripwright-verifier.md", "owner": "C"},
-    {"path": "src/tripwright/adapters/prompts.py", "owner": "C"},
-    {"path": "skills/tripwright-verifier/SKILL.md", "owner": "C"},
-    {"path": "tests/agents/test_assemble.py", "owner": "C"}
+    {
+      "path": "src/tripwright/repo/outbox.py",
+      "owner": "A"
+    },
+    {
+      "path": "src/tripwright/packs.py",
+      "owner": "A"
+    },
+    {
+      "path": "tests/repo/test_replay.py",
+      "owner": "A"
+    },
+    {
+      "path": "src/tripwright/render/pack.py",
+      "owner": "B"
+    },
+    {
+      "path": "src/tripwright/render/fragments/writing.zh.md",
+      "owner": "B"
+    },
+    {
+      "path": "src/tripwright/render/regions.yaml",
+      "owner": "B"
+    },
+    {
+      "path": "tests/render/test_pack_golden.py",
+      "owner": "B"
+    },
+    {
+      "path": "src/tripwright/agents/roles/tripwright-verifier.md",
+      "owner": "C"
+    },
+    {
+      "path": "src/tripwright/agents/steps/1-receive.md",
+      "owner": "C"
+    },
+    {
+      "path": "src/tripwright/agents/templates/AGENTS.md.tmpl",
+      "owner": "C"
+    },
+    {
+      "path": "src/tripwright/agents/generated/claude/tripwright-verifier.md",
+      "owner": "C"
+    },
+    {
+      "path": "src/tripwright/adapters/prompts.py",
+      "owner": "C"
+    },
+    {
+      "path": "skills/tripwright-verifier/SKILL.md",
+      "owner": "C"
+    },
+    {
+      "path": "tests/agents/test_assemble.py",
+      "owner": "C"
+    }
   ]
 }

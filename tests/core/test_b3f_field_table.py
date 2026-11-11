@@ -23,10 +23,19 @@ DOC = Path(__file__).resolve().parents[2] / "docs" / "DECISIONS-impl.md"
 CLASSES = (DESCRIPTION_FIELD, EXTERNAL, CHOICE)
 
 
+OLD_VOLUMES = sorted((DOC.parent / "history").glob("*-DECISIONS-impl.md"))
+
 def documented() -> list[tuple[str, str, str, str]]:
-    text = DOC.read_text(encoding="utf-8")
-    section = text[text.index("# Implementation decisions — B3f"):]
-    return re.findall(r"^\| (\w+)\.(\w+) \| (\w+) \| (.+?) \|$", section, re.M)
+    """Table rows also arrive in later sections that appended them (A3, A7, A11); since the 11-04 tidy those
+    sections live verbatim in docs/history/*-DECISIONS-impl.md, so read them there too. The 2026-1031 volume
+    holds only pre-B3f sections; scanning it whole adds no rows today (its sections carry no table rows)."""
+    rows: list[tuple[str, str, str, str]] = []
+    for path in [DOC, *OLD_VOLUMES]:
+        text = path.read_text(encoding="utf-8")
+        if "# Implementation decisions — B3f" in text:
+            text = text[text.index("# Implementation decisions — B3f"):]
+        rows += re.findall(r"^\| (\w+)\.(\w+) \| (\w+) \| (.+?) \|$", text, re.M)
+    return rows
 
 
 def unclassified(models) -> set[tuple[str, str]]:
