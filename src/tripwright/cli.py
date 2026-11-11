@@ -62,7 +62,7 @@ QUERY_FLAGS = (("--origin", "--from", "origin", str), ("--destination", "--to", 
                ("--date", None, "date", str), ("--timezone", None, "timezone", str), ("--text", None, "text", str),
                ("--limit", None, "limit", int), ("--url", None, "url", str), ("--quote", None, "quote", str),
                ("--claim", None, "claim", str), ("--type", None, "type", str), ("--read-from", None, "read_from", str),
-               ("--detail", None, "detail", str), ("--part", None, "part", str), ("--request-id", None, "request_id", str),
+               ("--detail", None, "detail", str),
                ("--near", None, "near", str), ("--at", None, "at", str), ("--km", None, "km", float))
 
 
@@ -82,38 +82,16 @@ def query_arguments(arguments) -> dict:
         given["action"] = arguments.action
     if arguments.no_quote_check:
         given["check_quote"] = False
-    if arguments.text_file == "-" and arguments.question_file == "-":
-        raise ValueError("--text-file - and --question - cannot both read standard input")
-    for option, name, key in (("--text-file", "text_file", "text"), ("--question", "question_file", "question")):
-        if getattr(arguments, name):
-            try:
-                given[key] = sys.stdin.read() if getattr(arguments, name) == "-" else Path(getattr(arguments, name)).read_text(encoding="utf-8")
-            except OSError as error:
-                raise ValueError(f"{option}: {error}") from None
     return given
 
 
 def run_query(arguments) -> int:
-    """Print the MCP query result as JSON on stdout and its one-line summary on stderr; refusals read as over MCP.
-
-    S4h-b (off_r1): `check_answer` without `--request-id` (and without `--question`) passed a draft the check never saw
-    this question's words for ("本问原话不明，吃的检查没做"). The CLI now takes the session's latest turn itself and says
-    on stderr which request_id it took; with no recorded turn at all it refuses with a command that names
-    `--request-id`."""
+    """Print the MCP query result as JSON on stdout and its one-line summary on stderr; refusals read as over MCP."""
     import asyncio
 
     try:
         given = query_arguments(arguments)
         store, service = open_service(arguments, providers=arguments.providers)
-        if arguments.kind == "check_answer" and not given.get("request_id") and not given.get("question"):
-            event = latest_turn(store, arguments.local_user)
-            if event is None:
-                raise ValueError("check_answer: this session has no turn of the last minutes to take a request_id from; pass this "
-                                 f"question's turn: {check_answer_command(arguments, given)} "
-                                 "(or its words with --question <file>)")
-            given["request_id"] = event["request_id"]
-            print(f"check_answer: using the latest turn's request_id '{event['request_id']}' "
-                  f"(received {event['receipt']['received_at']}); pass --request-id to name another one", file=sys.stderr)
     except (ValueError, OSError, GitError) as error:
         print(f"tripwright: {error}", file=sys.stderr)
         return 1
@@ -141,38 +119,6 @@ POINTS_EXAMPLE = ('for example --points \'[{"kind": "go", "said": "最晚几点�
 KIND_SYNONYMS = dict(deadline="go", route="go", time="go", latest_departure="go", transit="go", departure="go",
                      food="eat", meal="eat", event="do", activity="do", place="at", where="at")
 VALID_KINDS = ("at", "go", "eat", "do", "ticket", "other")
-
-
-def latest_turn(store: Store, owner: str) -> dict | None:
-    """The latest turn this session recorded (its event record), or None when there is none (S4h-b). System-channel
-    messages are not questions, and only a message of the last RECENT_QUESTION_MINUTES counts, as in the service's own
-    recent-question fallback (S4h2 replay, off_r1: with no turn for this question the CLI took one recorded on another
-    day, so the check held the draft to a question nobody had asked)."""
-    from datetime import timedelta
-
-    from tripwright.repo.snapshot import received_events
-    from tripwright.service import RECENT_QUESTION_MINUTES
-    from tripwright.storage import now
-    from tripwright.trip import aware
-
-    since = aware(now()) - timedelta(minutes=RECENT_QUESTION_MINUTES)
-    events = [event for event in received_events(store, owner) if event["received"].get("channel") != "system"
-              and aware(event["receipt"]["received_at"]) >= since]
-    return max(reversed(events), key=lambda event: aware(event["receipt"]["received_at"]), default=None)
-
-
-def check_answer_command(arguments, given: dict) -> str:
-    """This check_answer call as a whole command with `--request-id`, to paste (S4h-b)."""
-    parts = ["tripwright"]
-    if arguments.repo:
-        parts += ["--repo", arguments.repo]
-    parts += ["query", "check_answer", "--part", str(given.get("part") or "second")]
-    if arguments.text_file:
-        parts += ["--text-file", arguments.text_file]
-    else:
-        parts += ["--text", str(given.get("text") or "<draft>")]
-    parts += ["--request-id", "<request_id of this question's turn>"]
-    return shlex.join(parts)
 
 
 def first_part_command(arguments, points) -> str:
@@ -411,8 +357,8 @@ def main(argv: list[str] | None = None) -> int:
     connect.add_argument("repository")
     connect.add_argument("--branch", default="main")
     query = commands.add_parser("query", help="Look up transit, the latest departure for a deadline, record a web check, or "
-                                              "check an answer draft: the MCP query tool's JSON on stdout, a one-line summary on stderr")
-    query.add_argument("kind", choices=["transit", "latest_departure", "web_evidence", "check_answer", "open_places", "weather", "geocode",
+                                              "the MCP query tool's JSON on stdout, a one-line summary on stderr")
+    query.add_argument("kind", choices=["transit", "latest_departure", "web_evidence", "open_places", "weather", "geocode",
                                         "nearby", "saved", "opening"])
     query.add_argument("--arguments", help="The query arguments as one JSON object (flags below override its keys)")
     for flag, alias, key, kind in QUERY_FLAGS:
@@ -420,9 +366,6 @@ def main(argv: list[str] | None = None) -> int:
     query.add_argument("--action", choices=["stops"], help="transit: stops looks up stop names (with --text)")
     query.add_argument("--arrive-by", action="store_true", help="transit: --when is the arrival time")
     query.add_argument("--no-quote-check", action="store_true", help="web_evidence: do not fetch the page to look for the quote")
-    query.add_argument("--text-file", help="check_answer: the draft's file (- for standard input), instead of --text")
-    query.add_argument("--question", dest="question_file", help="check_answer: a file (- for standard input) with this question's words "
-                       "as the user sent them; without it or --request-id, the latest user message of the last 30 minutes")
     query.add_argument("--providers", choices=["live", "synthetic"], default=os.environ.get("TRIPWRIGHT_PROVIDERS", "live"),
                        help="live data (default) or the fictional demo data")
     first = commands.add_parser("first-part", help="Without the MCP tools: turn's first part from the stored trip (JSON on stdout; "

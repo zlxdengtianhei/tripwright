@@ -15,7 +15,7 @@ steps:
       Record what this message states, then use `propose` and `commit` for plan changes. Put choices the agent made in `changes.items` with basis `agent_inference`.
     done: "the commit was accepted, or there was nothing to write."
   - do: >-
-      Write `second_part_title` as the second heading. Its first sentence says what differs from the first part, or “Same as above, checked”; then give the rest. In Claude Code, `check_answer` may check this draft before sending it.
+      Write `second_part_title` as the second heading. Its first sentence says what differs from the first part, or “Same as above, checked”; then give the rest.
     done: "the second heading and differences sentence are present."
   - do: "Finish each reply; continue an unfinished second part after the user's next message or the researcher's report without calling `turn`."
     done: "each reply is complete, and continuation needs no stored continuation state."

@@ -1,5 +1,4 @@
-"""S4h-a (stage 4 exit judge: 6 replays, none passed; the hosts did not do as told and check_answer let it through). The
-service now checks this turn's arguments and shape instead of telling the host:
+"""S4h-a: the service checks this turn's arguments and shape instead of telling the host:
 
 1. A quick question whose turn asked for the latest departure keeps the service's frame: a lookup naming a hard node
    is refused with what to send (codex_r1 question 1: the plan's 05:45 queue as anchor_id, and the main choice became
@@ -9,8 +8,7 @@ service now checks this turn's arguments and shape instead of telling the host:
    question 1: “airport”); a place still not recognized is said in `next`.
 3. The “继续” turn carries the question it continues: its points (where the user goes next) and its frame reach the
    lookups after it (mcponly_r1 question 2: the last connection from the gym, not from the meal first).
-4. The stored closing of a lookup's origin may stand on a line that says 核过 when it says it is stored (every run's
-   first question: “22:00 关门出来” refused as not in the evidence, and the time to leave the gym dropped).
+4. The stored closing of a lookup's origin is marked as stored (every run's first question: “22:00 关门出来”).
 5. A shared answer another replay fetched before this replay's pinned clock began is not dated before it (ns_on,
    ns_off, mcponly question 2: “（20:51 查过）” for a lookup made at 21:05 after a question at 21:01).
 
@@ -28,7 +26,7 @@ import httpx
 import pytest
 
 from test_a8_transit_facts import DAY, NIGHT, local
-from test_a10_frame import REX, Evening, NEXT_DAY, airport_plan, fixed, problems, query, second_part
+from test_a10_frame import REX, Evening, NEXT_DAY, airport_plan, fixed, query
 from test_a12_first_part import ASKED, BUSES, FIRST, FOOD, NORTH, SECOND, SOUTH
 from test_a14_fixes import GO, LUNCH, TRACKS
 from test_a16_fixes import COUNTER, MARGIN, STATION_FOOD, WAYS, make  # noqa: F401 (make is a fixture)
@@ -172,26 +170,11 @@ def test_a_place_not_recognized_is_said_and_never_taken_for_the_plans(make):
 
 # --- 4. the stored closing on a line that says 核过 -----------------------------------------------------------------------------
 
-def test_the_stored_closing_time_may_stand_on_a_checked_line_when_it_says_so(make):
+def test_the_stored_closing_time_is_marked(make):
     service = make(places=(dict(NORTH, opening_hours=["Mo-Su 09:00-22:10"]), SOUTH, *FOOD))
     found = query(service, "latest_departure", origin="gym-north", destination="airport")
-    # bad sample (ns_on_r1, mcponly_r1, sub_on_r1 question 1): the service's sentence under the host's 核过 was refused for the
-    # closing time with “改成网上说法”, and the second part lost the time to leave the gym; now the fix keeps the time
-    old = "主选（核过，时刻表）：计划里的 22:53 REX 7 赶得上：22:10 关门出来，走到 Wien Matzleinsdorfer Platz 坐 22:33 的 D。"
-    assert problems(service, second_part(found["first_line"], old))["checked_has_evidence"] == [
-        "“核过”对不上证据：时刻 22:10 是起点存的关门时刻，不是查到的车 | 照 latest_departure 的句子写“22:10 关门出来（按存的营业时间）”，时刻留着"]
-    # the service's sentence says the closing is stored, and a checked line may carry it
     planned = next(line for line in found["sentences"] if line.startswith("计划里的 22:53 REX 7 赶得上"))
     assert planned == "计划里的 22:53 REX 7 赶得上：22:10 关门出来（按存的营业时间），走到 Wien Matzleinsdorfer Platz，换 1 次车：22:33 D（往 Hauptbahnhof）Wien Matzleinsdorfer Platz → Wien Hauptbahnhof 22:45，换 22:53 REX 7（往 Flughafen Wien）Wien Hauptbahnhof → Flughafen Wien Bahnhof 23:15；23:15 到；计划的 21:45 出门那条（存的走法）这次没在结果里，照这条走"
-    assert "checked_has_evidence" not in problems(service, second_part(found["first_line"], f"主选（核过，时刻表）：{planned}。"))
-    # the closing said as checked without its mark is refused, with the sentence that keeps it
-    bare = problems(service, second_part(found["first_line"], "主选：22:10 出门，走到 Wien Matzleinsdorfer Platz 坐 22:33 的 D，赶计划里的 22:53 REX 7（核过）。"))
-    assert bare["checked_has_evidence"] == ["“核过”对不上证据：时刻 22:10 是起点存的关门时刻，不是查到的车 | "
-                                            "照 latest_departure 的句子写“22:10 关门出来（按存的营业时间）”，时刻留着"]
-    # controls: a node's stored time marked so passes on a checked line; a time neither found nor marked is still refused
-    assert "checked_has_evidence" not in problems(service, second_part(found["first_line"], "核过：22:33 的 D 到总站，赶 22:53 REX 7；明早 07:05 证件柜台关（存档，没核）"))
-    made_up = problems(service, second_part(found["first_line"], "核过：22:41 的 D 到总站，赶 22:53 REX 7"))
-    assert made_up["checked_has_evidence"][0].startswith("“核过”对不上证据：时刻 22:41 不在这一趟工具查到的结果里")
 
 
 # --- 5. a shared answer from before this replay's clock began -------------------------------------------------------------------

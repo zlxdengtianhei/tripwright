@@ -9,7 +9,6 @@
   went, and the plan's next hard node at the destination with its own latest departure; no deadline is made up.
 - turn returns `first_part` (server-written from stored data, at most 8 lines, the clock on line 1, stored last/only
   claims as archive) and `next` says to send it as it is first.
-- check_answer's `frame_matches_server`: the second part's first-line “最晚/末班” names a time of this question's frame.
 - Synthetic data marks every sentence and summary as fictional.
 
 Offline: a fictional MOTIS (public Vienna stop names, made-up times). Each rule has a bad sample and a legal control."""
@@ -30,7 +29,6 @@ from tripwright.repo import snapshot as snapshot_module
 from test_a8_transit_facts import AIRPORT, DAY, HBF, NIGHT, STREET, leg, local, stop, vienna_plan
 from tripwright.providers.transitous import TransitousProvider
 from tripwright.query import ANCHOR_MEANINGS, QueryRouter, anchor_meaning
-from tripwright.render.check_answer import check_draft
 from tripwright.service import Tripwright
 from tripwright.storage import Store
 
@@ -156,13 +154,6 @@ def second_part(first: str, *rest: str, at: str = "21:01") -> str:
                       "以上交通时刻按时刻表，不是实时。"])  # S4h2: the timetable said once
 
 
-def problems(service, text: str) -> dict[str, list[str]]:
-    found = {}
-    for entry in query(service, "check_answer", text=text, part="second")["problems"]:
-        found.setdefault(entry["check"], []).append(entry["why"] + " | " + entry["fix"])
-    return found
-
-
 # --- 1. a hard node's meaning comes from its fields ----------------------------------------------------------------------
 
 def test_the_rule_table_reads_fields_never_ids():
@@ -229,27 +220,6 @@ def test_without_a_deadline_the_answer_is_tonights_last_connection_and_the_next_
     assert node["latest"]["leave"] == "04:29" and found["sentences"][4].startswith("明早直接从 起点 去：要 07:05 前到，可以坐：04:29 出门")
     assert found["sentences"][4].endswith("（今晚就到 Flughafen Wien 的话用不上）")
     assert "按时刻表，不是实时" in found["note"] and found["status"] == "sourced"
-    # every sentence the server wrote passes check_answer, its first line as the second part's first line
-    assert problems(service, second_part(first, *found["sentences"][1:])) == {}
-
-
-def test_a_first_line_in_another_frame_is_refused_with_the_servers_line(make):
-    service = make(today=[REX], tomorrow=[QUEUE, DESK])
-    boarding = query(service, "latest_departure", origin=STREET, destination="airport", anchor_id="hn-rex")
-    last = query(service, "latest_departure", origin=STREET, destination="airport")
-    # a9b's first line: the boarding node's time read as the airport deadline (here leave 22:37 for the 22:53)
-    leave = boarding["primary"]["leave"]
-    wrong = problems(service, second_part(WRONG_FRAME.format(leave=leave, reach="23:15")))
-    assert list(wrong)[0] == "frame_matches_server"
-    assert f"{leave}，这是赶某班车的时刻；这一问服务端定的框是今晚最后一班" in wrong["frame_matches_server"][0]
-    assert wrong["frame_matches_server"][0].endswith("首行照抄服务端的句子：" + last["first_line"])
-    # a time in no frame at all
-    assert "对不上" in problems(service, second_part("最晚 21:53 出门，22:41 到机场。"))["frame_matches_server"][0]
-    # controls: the server's line; and a deadline frame alone (no last-connection lookup) holds its own times
-    assert problems(service, second_part(last["first_line"])) == {}
-    alone = make(today=[REX], tomorrow=[QUEUE, DESK])
-    query(alone, "latest_departure", origin=STREET, destination="airport", anchor_id="hn-rex")
-    assert "frame_matches_server" not in problems(alone, second_part(boarding["sentences"][0]))
 
 
 def test_without_a_hard_node_no_deadline_is_made_up(make):
@@ -270,7 +240,6 @@ def test_a_last_coach_comes_with_the_last_one_without_an_extra_ticket(make):
     assert "（长途大巴 FlixBus N877 要单独买票）" in found["first_line"]
     assert found["sentences"][1].startswith("不用另买票的最后一班：最晚 00:53 出门，不用换车：00:53 REX 7")
     assert found["last_without_extra_ticket"]["ticket"]["need"] == "unknown"
-    assert problems(service, second_part(found["first_line"], *found["sentences"][1:])) == {}
     # control: without the coach the REX is the last one, and there is no second line
     plain = query(make(Evening()), "latest_departure", origin="hbf", destination="airport")
     assert plain["first_line"].startswith("今晚最后一班：最晚 00:53 出门") and not plain["sentences"][1].startswith("不用另买票")
@@ -295,14 +264,9 @@ def test_buses_all_night_are_said_and_the_last_train_is_named(make):
     # the 02:20 train-then-bus is no “last train” (the replay's mislabel); the 00:53 REX is
     assert found["tonight_ends_after_last"] is False and found["last_train"]["boards"]["time"] == "00:53"
     assert not any("火车最后一班" in sentence and "VAB 5" in sentence for sentence in found["sentences"])
-    assert problems(service, second_part(found["first_line"], *found["sentences"][1:])) == {}
-    assert problems(service, second_part(found["sentences"][1])) == {}  # the last train as the first line: in the frame
     # control: with no night buses the night has a break, and the first line is tonight's last train
     plain = query(make(Evening(trains=NIGHT), tomorrow=[QUEUE, DESK]), "latest_departure", origin="hbf", destination="airport")
     assert plain["first_line"].startswith("今晚最后一班：最晚 00:53 出门") and plain["last_train"] is None
-    # bad sample: the night's last bus called “末班” (buses run on after 03:00)
-    bad = problems(service, second_part("今晚末班 02:45 VAB 1（02:45 出门），03:15 到机场。"))
-    assert "only_inside_window" in bad and "工具查到 02:45 之后还有" in bad["only_inside_window"][0]
 
 
 def test_a_search_that_stops_before_tonights_end_never_says_the_last_one(make):
@@ -358,59 +322,10 @@ def test_synthetic_data_marks_every_sentence_and_summary(make):
     assert not any(mark in sentence for sentence in live["sentences"]) and mark not in live["summary"]
 
 
-def test_an_english_first_part_keeps_a_clock_the_first_part_check_reads():
-    """a10b: “As of 21:01: …” put a colon after the clock, which the clock pattern does not read as a time."""
-    from tripwright.render import first_part
-
-    anchors = [dict(QUEUE, date=NEXT_DAY, passed=False), dict(DESK, date=NEXT_DAY, passed=False)]
-    plan = airport_plan()
-    draft = first_part.draft("What is the latest I can leave for the airport?", dict(date=DAY, time="21:01"), anchors, plan, "en")
-    assert draft["lines"][0] == "As of 21:01, when to leave needs checking; part 2 follows."
-    assert check_draft(draft["text"], "first", 21 * 60 + 1) == []
-    bad = draft["text"].replace("As of 21:01,", "As of 21:01:")
-    assert [entry["check"] for entry in check_draft(bad, "first", 21 * 60 + 1)] == ["clock_in_first_part"]
-
-
 
 
 
 # --- 5. a deadline sentence: what leaves later but arrives after the deadline is no counterexample -------------------------
-
-def test_a_later_departure_that_misses_the_deadline_does_not_refute_at_the_latest(make):
-    """A10 replay turn1 L25, turn2 L17: “要 05:45 前到，最晚 04:56 出门” was refused for a 05:39 train arriving after 05:45."""
-    service = make(Evening(trains=NIGHT + ("05:30", "06:10")))  # 06:10: the window reaches 06:00
-    query(service, "transit", origin="hbf", destination="airport", when=local("04:00").isoformat(), until="06:00")
-    ride = "不用换车：04:52 REX 7 Wien Hauptbahnhof → Flughafen Wien Bahnhof 05:14；05:14 到"
-    assert problems(service, second_part(f"要 05:45 前到，最晚 04:52 出门，{ride}")) == {}  # 05:30 arrives 05:52: too late
-    # control: with a deadline the 05:30 makes, it does refute “at the latest 04:52”
-    bad = problems(service, second_part(f"要 06:00 前到，最晚 04:52 出门，{ride}"))
-    assert "only_inside_window" in bad and "04:52 之后还有 05:30 REX 7" in bad["only_inside_window"][0]
-
-
-# --- a10d: a denied claim is no claim; 最晚/末班 names the time next to it (A10 replay turn 1 L4, L32) ---------------------
-
-def test_a_denied_last_train_is_not_a_last_train_claim(make):
-    service = make(Evening())
-    query(service, "transit", origin="hbf", destination="airport", when=local("21:00").isoformat(), until="01:00")
-    # L4's shape: “23:53 不是末班” was read as the claim “末班 23:53” and refuted with 04:22
-    assert problems(service, second_part("和第一段不同：23:53 不是末班，之后还有 00:23 REX 7 和 00:53 REX 7。")) == {}
-    # control: the claim itself is refuted
-    bad = problems(service, second_part("23:53 是末班。"))
-    assert "only_inside_window" in bad and "23:53 之后还有 00:23 REX 7" in bad["only_inside_window"][0]
-
-
-def test_at_the_latest_names_the_time_and_line_next_to_it(make):
-    service = make(Evening(buses=("01:15",)))
-    query(service, "transit", origin="hbf", destination="airport", when=local("21:00").isoformat(), until="01:00")
-    # L32's shape: several times; “最晚” was read as the earliest (22:53) and refuted with 23:23, 23:53 …
-    assert problems(service, second_part("22:53 坐 REX 7，23:15 到机场（误了坐 23:23 REX 7，最晚 00:53 REX 7）。")) == {}
-    # controls: the time next to it is refuted by a later REX the same night; without the line, by the 01:15 bus;
-    # the 04:22 REX after the night break is the next day's, so it never refutes 00:53
-    later = problems(service, second_part("22:53 坐 REX 7（误了坐 23:23 REX 7，最晚 00:23 REX 7）。"))
-    assert "00:23 之后还有 00:53 REX 7" in later["only_inside_window"][0]
-    bus = problems(service, second_part("22:53 坐 REX 7（误了坐 23:23 REX 7，最晚 00:53 出门）。"))
-    assert "00:53 之后还有 01:15 VAB 1" in bus["only_inside_window"][0] and "04:22" not in bus["only_inside_window"][0]
-
 
 def test_the_mcp_tools_say_what_hosts_need_without_a_skill(make):
     """Harness neutral: the tool descriptions carry first_part, the last-connection frame and (a10d) the sync view's

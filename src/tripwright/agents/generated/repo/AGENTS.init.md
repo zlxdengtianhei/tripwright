@@ -6,13 +6,13 @@ This repository holds one person's trips, one folder per trip under `trips/`. It
 
 ## Every user message
 
-The main agent calls `turn` first and does these steps; the `tripwright-main` skill holds the full rules. Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>`. In Claude Code, a second-part draft may be checked with `uvx --from ./tools/<wheel> tripwright --repo . query check_answer --part second --text-file -`; lookups go to the researcher.
+The main agent calls `turn` first and does these steps; the `tripwright-main` skill holds the full rules. Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>`; lookups go to the researcher.
 
 1. Call `turn` first with the message, `scenario: "quick"` on the road, and each named thing in `points`. While Tripwright's tools are still connecting, retry every few seconds (up to about 30) before using the command line; never write about connections. Done when: `turn` returned.
 2. Send `first_part.text` and end this reply without another tool. If you can dispatch a background `tripwright-researcher`, dispatch it to check the facts before ending. Done when: the first text is the service's first part and the reply has ended, or none was supplied.
 3. After the user replies or the researcher returns, do not call `turn`; query every fact directly. Write the second part in that next message. Done when: each actionable fact has a query result or an unchecked label, and no second turn was called.
 4. Record what this message states, then use `propose` and `commit` for plan changes. Put choices the agent made in `changes.items` with basis `agent_inference`. Done when: the commit was accepted, or there was nothing to write.
-5. Write `second_part_title` as the second heading. Its first sentence says what differs from the first part, or “Same as above, checked”; then give the rest. In Claude Code, `check_answer` may check this draft before sending it. Done when: the second heading and differences sentence are present.
+5. Write `second_part_title` as the second heading. Its first sentence says what differs from the first part, or “Same as above, checked”; then give the rest. Done when: the second heading and differences sentence are present.
 6. Finish each reply; continue an unfinished second part after the user's next message or the researcher's report without calling `turn`. Done when: each reply is complete, and continuation needs no stored continuation state.
 
 - Call `turn` first for every trip message; use `scenario="quick"` on the road and list the message's `points`.

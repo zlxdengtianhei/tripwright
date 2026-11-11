@@ -10,4 +10,4 @@
 - 别的车次：`query(kind="transit")`，只引 `connections` 里车段的 `depart`、`arrive`（`boards`、`alights`），不引含步行的 `leave`、`reach`；说“唯一”“最后”“之前没有”，所说时刻要在 `window` 里。
 - 吃的：`query(kind="open_places", arguments={"near": 地点编号, "at": 到那里的时刻, "text": "food"})`，用 `open` 里的；不到两处，就读店家或车站、机场官网，用 `web_evidence`（`type: "opening_hours"`）记下营业时间原句再写。
 - 网页上的规则、营业时间、活动：先用 `query(kind="web_evidence", arguments={"url", "quote", "claim", "type"})` 记账，`quote` 是页面原句，不带时刻。回来 `counts_as_checked: true` 才写“核过”，带原句要点，不写证据号；只看到搜索摘要的，加 `"read_from": "search_snippet"` 记，写“网上说法”。
-- 这些查询都由 researcher 在第一段之后、在后台做；行程工具不在时它跑命令行，主 agent 只跑第二段的 `check_answer`。命令行也跑不通，就整段写“网上说法”，不标核过。
+- 这些查询都由 researcher 在第一段之后、在后台做；行程工具不在时它跑命令行。命令行也跑不通，就整段写“网上说法”，不标核过。

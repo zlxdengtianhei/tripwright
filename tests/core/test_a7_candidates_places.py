@@ -18,7 +18,6 @@ from a5_upstream import DAY, ZONE, Timetable, page_reader, z
 from test_a3_anchor_deadline import anchored_plan
 from tripwright.providers.transitous import TransitousProvider
 from tripwright.query import QueryRouter, match_place, stations
-from tripwright.render import check_answer as checks
 from tripwright.service import Tripwright
 from tripwright.storage import Store
 
@@ -153,12 +152,9 @@ def test_latest_departure_compares_the_coach_with_the_train_from_the_trips_stati
     assert [(ride["line"], ride["depart"]) for ride in train["rides"]] == [("T4", "21:10"), ("REX 7", "21:35")]
     assert train["ticket"]["need"] == "unknown"
     assert "别的走法：经 Nordkai 坐火车最晚 21:07 出门，21:58 到" in result["summary"]
-    # the evidence keeps every route, so check_answer knows the 21:35 train can be caught
+    # the evidence keeps every route
     stored = service.store.get("evidence", "local", result["evidence"]["id"])
     assert {tuple(entry["route"]) for entry in stored["value"]["candidates"]} == {("first_choice", "fastest"), ("via_station",)}
-    draft = "# 第二段（20:45）\n从 Kletterhalle Nord 赶不上 21:35 的火车，只能坐大巴。\n## 完整安排\n21:36 出门（按时刻表，不是实时）"
-    refused = query(service, "check_answer", text=draft, part="second")
-    assert [entry["check"] for entry in refused["problems"]] == ["unreachable_needs_lookup"]
 
 
 def test_the_full_result_has_every_leg_of_every_route_and_the_compact_one_stays_small(make):
@@ -219,12 +215,3 @@ def test_hours_read_on_a_page_are_written_into_the_place_through_evidence_and_a_
     listed = query(service, "open_places", near="Nordkai", text="food")
     assert {row["id"] for row in listed["open"]} == {"kaikafe", "kiosk"} and listed["unknown"] == []
     assert next(row for row in listed["open"] if row["id"] == "kiosk")["hours_source"]["evidence_id"] == recorded["evidence"]["id"]
-
-
-def test_stored_hours_are_a_source_for_the_meal_check():
-    places = plan_with()["places"]
-    text = ("# 第二段（20:45）\n## 完整安排\n21:30 出门\n## 吃的\nKaikafé Nord\n码头咖啡馆 · 开到 23:00 · Google 地图搜 Kaikafé Nord\n"
-            "Fergeterminal Grill\n渡轮站烤肉 · 营业到 21:00 · Google 地图搜 Fergeterminal Grill")
-    assert checks.meal_problems(text, "我饿了", checks.NO_EVIDENCE, places) == []
-    assert checks.meal_problems(text, "最晚几点走", checks.NO_EVIDENCE, []) == []  # not hungry: nothing to check
-    assert checks.meal_problems(text, "我饿了", checks.NO_EVIDENCE, [])[0]["check"] == "meals_named"

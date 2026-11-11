@@ -11,8 +11,7 @@ one line says the plan's stored service claims are not checked and part 2 gives 
 either). A question about the latest departure, the last service or making it in time opens with “几点出发要查，第二段给”
 (A16: no “最晚” before a lookup) and lists the known hard nodes; the real latest comes from the lookup in the second part. A node's time that no source
 checked (`checked` empty) says “（存档，没核）”, unless it is the plan's own target (A11: “07:05 证件柜台关” read as a
-fact); a node done online says nobody has to be there (A11 C). At most 8 lines; the first part checks of check_answer
-pass on it.
+fact); a node done online says nobody has to be there (A11 C). At most 8 lines.
 
 A12 (quality judge 6, A): that draft reads the plan, not the question. With the question's points (`turn(points=…)`, the
 host's reading of it) the draft answers each point from what the trip stores (point_draft), says on line 2 where the
@@ -40,9 +39,9 @@ LATER = dict(zh="要核过的第二段，回我一句“继续”。", en="Reply
 # S5b (Claude Code replays s5_ns_on, s5_mcponly): what turn says first (`do_first`, its first field), read at the moment
 # the host acts: the first part as the reply's only message; after “继续”, nothing before the second part;
 # without usable points, call turn again first.
-DO_DUE = dict(zh="这一轮在第二段之前不写任何字：查、核、过 check_answer 之后只发第二段这一条，发完结束这一轮；不提检查和工具回执。",
-              en="Write nothing before the second part in this reply: look up, check, pass check_answer, then send only the second "
-                 "part as one message and end the reply; never mention the check or tool receipts.")
+DO_DUE = dict(zh="这一轮在第二段之前不写任何字：查、核之后只发第二段这一条，发完结束这一轮；不提工具回执。",
+              en="Write nothing before the second part in this reply: look up and check, then send only the second part as one "
+                 "message and end the reply; never mention tool receipts.")
 NODES = 3  # hard nodes the draft names
 # a stored claim as packs.archived_claims rewrote it inside a node's text: left out of the draft
 ARCHIVED = re.compile(r"计划里写过“[^”]*”（存档[^）]*）。?|the plan stored \"[^\"]*\" \(archived[^)]*\)\.?")

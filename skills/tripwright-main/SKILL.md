@@ -23,7 +23,6 @@ Keep progress notes, tools, files and saving out of the answer.
 - 地名单独一行原文，下一行中文名与是什么、链接。换乘站、上车站在句中第一次出现时写“原文（中文名，是什么）”；服务端交通原句保留，用旁边的地名行解释，不往原句里塞字。
 - 能查到且不常变的事实先查好写准，包括目的地、按时刻表的车次与换乘、营业规则；不给用户重复核查任务。没核写“什么 → 后果”，操作放在最后。
 - 吃的给 2—3 处到时开着且有来源的店，含麦当劳、超市等常见选择；营业时间不明或已关的不推荐。先 `query(kind="open_places", arguments={"near": 地点编号, "at": 到达时刻, "text": "food"})`，不够两处就读店家、车站或机场官网，用 `web_evidence`（`type: "opening_hours"`）记原句；查不到就明说，不编开门时间。规则与活动也用 `web_evidence` 记原句；只有 `counts_as_checked` 才算工具核过。
-- 在 Claude Code 里发第二段前可以用 `check_answer` 核一遍；用了就照抄那份草稿发出，一字不改；仍没依据的行删掉或写“没核：……”。工具不在时主 agent 只跑第二段的 `check_answer`：`uvx --from ./tools/<wheel> tripwright --repo . query check_answer --part second --text-file -`，草稿从标准输入给；也不通就不标核过。
 - 核过只凭 Tripwright 的真实结果；Synthetic or demo evidence is not a source. 网页写“网上说法（来源）”，摘要写“搜索摘要”。
 
 交通查询触发（Look up departures only under the triggers）：问最晚、末班用上面的 `latest_departure`；还有几班用 `transit` 的 `until` 连续查，“今晚”查到次日 `03:00`。没连续查全就照抄窗口限制，不据两次查询间的空档下结论。硬节点、点名某班、班距≥60分钟的车决定下一步时查；频繁市内交通无硬节点不逐班查，票能否用查规则。
@@ -43,7 +42,7 @@ Keep progress notes, tools, files and saving out of the answer.
 2. Send `first_part.text` and end this reply without another tool. If you can dispatch a background `tripwright-researcher`, dispatch it to check the facts before ending. Done when: the first text is the service's first part and the reply has ended, or none was supplied.
 3. After the user replies or the researcher returns, do not call `turn`; query every fact directly. Write the second part in that next message. Done when: each actionable fact has a query result or an unchecked label, and no second turn was called.
 4. Record what this message states, then use `propose` and `commit` for plan changes. Put choices the agent made in `changes.items` with basis `agent_inference`. Done when: the commit was accepted, or there was nothing to write.
-5. Write `second_part_title` as the second heading. Its first sentence says what differs from the first part, or “Same as above, checked”; then give the rest. In Claude Code, `check_answer` may check this draft before sending it. Done when: the second heading and differences sentence are present.
+5. Write `second_part_title` as the second heading. Its first sentence says what differs from the first part, or “Same as above, checked”; then give the rest. Done when: the second heading and differences sentence are present.
 6. Finish each reply; continue an unfinished second part after the user's next message or the researcher's report without calling `turn`. Done when: each reply is complete, and continuation needs no stored continuation state.
 
 - Call `turn` first for every trip message; use `scenario="quick"` on the road and list the message's `points`.

@@ -22,7 +22,7 @@ TABLES = (
 
 # A pinned clock for replays and tests (A7): TRIPWRIGHT_NOW is the moment (ISO with offset) the clock shows when it is
 # first read, or at TRIPWRIGHT_NOW_SET_AT (Unix seconds) when that is set; from there it runs in real time, so a later
-# message is still later. Every "now" of the service reads it: turn, packs, lookups, check_answer, evidence times.
+# message is still later. Every "now" of the service reads it: turn, packs, lookups and evidence times.
 _PINNED_FROM: dict[str, float] = {}
 
 
@@ -75,39 +75,6 @@ def day_document(version: dict, day: dict) -> dict:
     checks = [check for check in version.get("checks", {}).get("checks", [])
               if check.get("details", {}).get("date") in (None, day["date"])]
     return dict(day, verification=dict(version=version["number"], checked_at=version.get("checks", {}).get("checked_at"), checks=checks))
-
-
-def answers_path(repo: str | Path | None = None, db: str | Path | None = None) -> Path | None:
-    """Where the second parts that passed check_answer are kept for the Stop hook (A7): beside the repository's index,
-    or beside a single database; None for an in-memory store. The hook reads this file without opening the trip."""
-    if repo:
-        return Path(repo).expanduser().resolve() / ".tripwright" / "answers.json"
-    if db and str(db) != ":memory:":
-        path = Path(db).expanduser()
-        return path.with_name(path.stem + ".answers.json")
-    return None
-
-
-def remember_answer(path: Path | None, request_id: str | None, text: str, digest: str, at: str, *, zone: str | None = None,
-                    keep: int = 50) -> bool:
-    """Record a second part that passed check_answer: its hash and full text, the service's moment and the wall clock
-    (the hook compares the wall clock with the transcript's), and the trip's zone it was checked in (the hooks read
-    the clock there). The latest `keep` entries stay; written atomically."""
-    if path is None:
-        return False
-    try:
-        data = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
-    except (OSError, ValueError):
-        data = {}
-    answers = data.get("answers") if isinstance(data.get("answers"), dict) else {}
-    answers[request_id or ""] = dict(request_id=request_id, sha256=digest, text=text, at=at, wall=time.time())
-    answers = dict(sorted(answers.items(), key=lambda item: item[1].get("wall", 0))[-keep:])
-    path.parent.mkdir(parents=True, exist_ok=True)
-    scratch = path.with_name(path.name + f".{os.getpid()}.tmp")
-    zone = zone or (data.get("zone") if isinstance(data.get("zone"), str) else None)
-    scratch.write_text(json.dumps(dict(answers=answers, **({"zone": zone} if zone else {})), ensure_ascii=False, indent=1), encoding="utf-8")
-    os.replace(scratch, path)
-    return True
 
 
 class Store:

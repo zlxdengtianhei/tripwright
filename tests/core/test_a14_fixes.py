@@ -1,7 +1,7 @@
 """A14 (quality judge 7): plain errors the verdict names, each with a bad sample in the replay's shape and a legal control.
 
 1. The assumed place came from the group's line (lunch, 11:40—13:30) while the user's own line had the gym (17:30—21:45)
-   at 21:01; check_answer now holds “计划里这时在这” to the plan's block of the moment.
+   at 21:01.
 2. The plan's margin (05:45 at the counter) and an online check-in got “要 05:45 前到，最晚 05:12 出门”; only a time to be
    there gets a latest departure.
 3. “怎么查” searched the night's last train while the first choice was the plan's 22:42 (3 of 3 runs).
@@ -19,12 +19,11 @@ import httpx
 import pytest
 
 from test_a8_transit_facts import NIGHT, STREET, local
-from test_a10_frame import DESK, QUEUE, REX, Evening, airport_plan, fixed, problems, query, second_part
+from test_a10_frame import DESK, QUEUE, REX, Evening, airport_plan, fixed, query
 from test_a12_first_part import BUSES, FOOD, NORTH, SOUTH
 from tripwright import packs
 from tripwright.providers.transitous import TransitousProvider
 from tripwright.query import QueryRouter
-from tripwright.render.check_answer import check_draft
 from tripwright.service import Tripwright
 from tripwright.storage import Store
 
@@ -68,23 +67,12 @@ def make(tmp_path, monkeypatch):
         store.close()
 
 
-def first_checks(service, text: str, request_id: str) -> dict[str, list[str]]:
-    found = {}
-    for entry in query(service, "check_answer", text=text, part="first", request_id=request_id)["problems"]:
-        found.setdefault(entry["check"], []).append(entry["why"])
-    return found
-
-
 # --- 1. the assumed place is the user's own block of the moment ----------------------------------------------------------
 
 def test_the_assumed_place_is_the_users_own_block_of_the_moment(make):
     service = make()
     turn = service.turn("local", "最晚几点出发去机场", "q1", scenario="quick", points=GO)
     assert turn["first_part"]["lines"][2] == "按现在 21:01 算，假设你在北边的岩馆（计划里这时在这；不在的话说一声）"
-    assert set(first_checks(service, turn["first_part"]["text"], "q1")) == {"clock_in_first_part"}
-    # bad sample (the replay's line): the group's lunch place, which the plan left at 13:30
-    bad = turn["first_part"]["text"].replace("北边的岩馆", "总站午饭店")
-    assert first_checks(service, bad, "q1")["assumed_place_matches_plan"] == ["写了“计划里这时在这”，计划里这时在北边的岩馆"]
     # controls: on the way the place is where the way starts; after it, where it ends; another person's own line
     plan = service.versions.current("local")["plan"]
     day = plan["days"][0]["date"]
@@ -121,16 +109,10 @@ def test_how_to_check_searches_the_first_choice_and_the_last_one_apart(make):
     assert "出发时间填 22:53" in text.splitlines()[0]
     assert text.splitlines()[1] == "误了主选，查末班：在 ÖBB App 搜 Wien Hauptbahnhof → Flughafen Wien Bahnhof，出发时间填 00:53。"
     assert found["how_to_check"]["last"]["clock"] == "00:53"
-    ending = ["## 怎么查、怎么问"]
-    assert problems(service, second_part(found["first_line"], *ending, *text.splitlines())) == {}
-    # bad sample (3 of 3 runs): the first choice is the plan's 22:53, the search is the last train's
-    bad = problems(service, second_part(found["first_line"], *ending, "出发前在 ÖBB App 搜 Wien Hauptbahnhof → Flughafen Wien Bahnhof，出发时间填 00:53。"))
-    assert bad["search_matches_main"][0].startswith("“怎么查”搜的是 00:53 从 Wien Hauptbahnhof 上车，这一问的主选第一程是 22:53 从 Wien Hauptbahnhof 上车")
     # control: without a train in the plan the first choice is the last train, and searching it is right
     plain = make(today=())
     last = query(plain, "latest_departure", origin="hbf", destination="airport")
     assert "出发时间填 00:53" in last["how_to_check"]["text"] and "误了主选" not in last["how_to_check"]["text"]
-    assert "search_matches_main" not in problems(plain, second_part(last["first_line"], *ending, last["how_to_check"]["text"]))
 
 
 # --- 4. the first part: the stored train first, one hard node ----------------------------------------------------------------
@@ -152,18 +134,6 @@ def test_the_first_part_gives_the_stored_train_first_and_one_hard_node(make):
 
 # --- 5. a coverage note that contradicts the search of tonight ----------------------------------------------------------------
 
-def test_a_shorter_coverage_claim_against_tonights_search_is_refused(make):
-    service = make(today=())
-    found = query(service, "latest_departure", origin="hbf", destination="airport")
-    query(service, "transit", origin="hbf", destination="airport", when=local("21:01").isoformat(), until=local("01:00").isoformat())
-    # bad sample (on_r2): the transit window to 01:00 read against the last-connection search to 03:00
-    bad = problems(service, second_part(found["first_line"], "没核：01:00 之后的火车没查，不能说 00:53 之后没有火车。"))
-    assert bad["coverage_said_short"] == ["说 01:00 之后没查，这一问连续查到了 03:00 | 可以改得更好（不改也能发）：照 latest_departure 的窗口句写“连续查到 03:00”；"
-                                          "别拿另一次更短的查询说之后没查"]
-    # controls: the server's window sentence (nothing searched after 03:00) and its other sentences pass
-    assert problems(service, second_part(found["first_line"], *found["sentences"][1:])) == {}
-
-
 # --- 6. no status line, no second part twice ---------------------------------------------------------------------------------
 
 def test_a_status_line_is_not_a_first_part(make, monkeypatch):
@@ -171,5 +141,3 @@ def test_a_status_line_is_not_a_first_part(make, monkeypatch):
     service = make()
     turn = service.turn("local", "最晚几点出发去机场", "q6", scenario="quick", points=GO)
     assert turn["next"].startswith("现在就把 first_part.text 发给用户（用户在等这第一段）；发出去之后再调 query。")
-    status = "第一部分已经在上面了：今晚不用急着去机场。吃的和万圣节活动我还在查，查完会发第二部分。"
-    assert [entry["check"] for entry in check_draft(status, "first", 21 * 60 + 52)] == ["clock_in_first_part", "no_status_line"]

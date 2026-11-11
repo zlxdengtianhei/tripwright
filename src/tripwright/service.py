@@ -19,8 +19,7 @@ from tripwright.query import QueryRouter, checked_arguments, lookup_failed
 from tripwright.render import first_part
 from tripwright.repo import files as repo_files, memory, notices, replay
 from tripwright.repo.outbox import Outbox
-from tripwright.repo.snapshot import received_events
-from tripwright.storage import Store, answers_path, encode, identifier, now, remember_answer
+from tripwright.storage import Store, encode, identifier, now
 from tripwright.trip import Trip, aware, input_problems, json_type, local_instant
 from tripwright.usage import checked_usages
 from tripwright.versions import Versions, ledger_only
@@ -29,10 +28,6 @@ from tripwright.versions import Versions, ledger_only
 # answer about imported long-term entries. Decisions lock plan parts and go through propose and commit.
 TURN_RECORDS = ("items", "facts", "relate", "carry", "pending_checks")
 SKELETON = {"quick": "quick", "status": "quick"}
-# check_answer (A6): evidence from this long before the question's turn backs a draft; a timetable older than this may
-# have changed (A2's refresh time), and the earlier questions of a conversation fall inside it.
-SESSION_HOURS = 6
-RECENT_QUESTION_MINUTES = 30  # check_answer without question or request_id: a user message this recent is the question
 FRAME_MINUTES = packs.STEP_MINUTES  # S4h-a: a quick latest question's frame holds for lookups this long after its turn
 FIRST_TITLES = dict(zh="按存的计划先说（时刻还没核）", en="From the stored plan first (times not checked yet)")
 SECOND_TITLES = dict(zh="核过之后", en="After checking")
@@ -49,10 +44,6 @@ SEND_AND_END = dict(
        "(without the later line) and add no “still checking” sentence; when its report returns, write the second part.")
 AFTER_FIRST = dict(zh="用户回了话、或 researcher 的报告回来之后照这里做，不再调 turn：",
                    en="After the user replies or the researcher's report returns, do this without calling turn again: ")
-UNKNOWN_QUESTION = "本问原话不明，吃的检查没做。"
-# 11-04 (quality card v2, question 4): “自动核对没通过”, “Non-blocking notice; commit.” reached the user
-NO_MENTION = "别向用户提这次检查、核对或工具回执。"
-UNKNOWN_POINTS = "这一问的 turn 没给 points（或没给 request_id），没核第一段有没有逐件回应、写没写在哪。"  # A12
 # explain(record_id) (S5): the ledger tables a record ID is looked up in, and the fields each adds to the record
 RECORD_TABLES = (("items", "item"), ("facts", "fact"), ("decisions", "decision"), ("pending_checks", "pending_check"),
                  ("undecided", "question"))
@@ -362,7 +353,7 @@ class Tripwright:
                                      person=packs.asker(plan, speaker, subject)) if points is not None and plan else None
             first = self._quick_first(text, scenario, response["now"], anchors, plan or None, told, language=language)
             second_title = SECOND_TITLES[language] if first else None
-            context.update(points=packs.point_record(told, anchors),
+            context.update(points=packs.point_record(told),
                            frame=dict(scenario=scenario, asks_latest=first_part.asks_latest(text)),
                            request_id=request_id, promises_second=bool(first), first_text=first["text"] if first else None,
                            continues=None)
@@ -639,8 +630,6 @@ class Tripwright:
         self.bound(owner)
         plan = self.versions.current(owner)["plan"]
         arguments = checked_arguments(kind, arguments, plan)
-        if kind == "check_answer":
-            return self.check_answer(owner, arguments)
         if kind == "transit" and arguments.get("action") == "plan_day":
             from tripwright.solver import prepare
 
@@ -712,81 +701,6 @@ class Tripwright:
                          f"{f'; {arguments[key]!r} is hard node {node!r}' if key != 'anchor_id' else ''}). The result gives "
                          f"tonight's last connection and the next time to keep after it with when to leave for it (hard_node); "
                          f"the second part opens with its first_line.")
-
-    def check_answer(self, owner: str, arguments: dict) -> dict:
-        """Check a host's draft of the first or second part before it is sent (A6, D-43): against the clock in the
-        trip's zone and the evidence of this conversation: from SESSION_HOURS before the turn named by request_id (else
-        before now) until now. Returns ok and one problem per failing line, each with how to rewrite it.
-
-        This question's words (for meals_named): `question` when given; else the message of the turn named by
-        request_id; else the latest message a user sent (not channel system) in the last RECENT_QUESTION_MINUTES. A host
-        cut off from the tools never recorded its turn, and the latest message may be a setup message or one of an
-        earlier conversation (D-48). With none, the meal check is not made and the summary says so."""
-        from tripwright.render import check_answer as checks
-
-        plan = self.versions.current(owner)["plan"]
-        name = (plan or {}).get("timezone") or (self.repository.timezone() if self.repository is not None else None) or "UTC"
-        at = aware(now())
-        local = at.astimezone(ZoneInfo(name))
-        start = at
-        # messages only: the change records a turn writes share the events table and carry no receipt (D-47)
-        events = received_events(self.store, owner)
-        question = arguments.get("question") if str(arguments.get("question") or "").strip() else None
-        points, speaker, first = None, None, None
-        if arguments.get("request_id"):
-            event = next((event for event in events if event.get("request_id") == arguments["request_id"]), None)
-            if event is None:
-                raise ValueError(f"Invalid query arguments: arguments.request_id: no turn with request_id {arguments['request_id']!r}")
-            start = aware(event["receipt"]["received_at"])
-            question = event["receipt"]["received_text"] if question is None else question
-            speaker = event["received"].get("speaker")
-            # A12: the points this question's turn kept (its latest context, a retried turn's included)
-            contexts = self.store.all("contexts", owner)
-            kept = [context for context in contexts if context.get("source_event") == event["id"] and "points" in context]
-            latest = sorted(kept, key=lambda context: aware(context["created_at"]))[-1] if kept else {}
-            points = latest.get("points")
-            # S4h2: the first part this question's turn drafted (a “继续” turn's is the continued question's)
-            first = latest.get("first_text") or next((context.get("first_text") for context in reversed(contexts)
-                                                      if latest.get("continues") and context.get("request_id") == latest["continues"]
-                                                      and context.get("first_text")), None)
-        elif question is None:  # the latest user message of the last minutes (the later recorded of two at one moment)
-            recent = [event for event in events if event["received"].get("channel") != "system"
-                      and aware(event["receipt"]["received_at"]) >= at - timedelta(minutes=RECENT_QUESTION_MINUTES)]
-            event = max(reversed(recent), key=lambda event: aware(event["receipt"]["received_at"]), default=None)
-            question = event["receipt"]["received_text"] if event is not None else None
-        since = start - timedelta(hours=SESSION_HOURS)
-        found = checks.evidence_found(self.store.all("evidence", owner), ZoneInfo(name), since, at + timedelta(minutes=1))
-        problems = checks.check_draft(arguments["text"], arguments["part"], local.hour * 60 + local.minute, found,
-                                      question=question, places=(plan or {}).get("places", []), points=points,
-                                      here=packs.plan_here(plan, local, packs.asker(plan, speaker), self.language), first=first)
-        # 11-04: only a blocking finding (a contradiction with the results, the stored conditions or the clock, a check
-        # claimed without evidence) holds the draft; hints may be taken or left, and a draft with hints only passes
-        blocks = checks.blocking(problems)
-        hints = [entry for entry in problems if entry not in blocks]
-
-        def listed(entries):
-            return "；".join(f"第 {entry['line']} 行 {entry['why']}" if entry["line"] else entry["why"] for entry in entries)
-
-        summary = (f"要改 {len(blocks)} 处再发：{listed(blocks)}" + (f"。另有 {len(hints)} 处可以改得更好，不改也行" if hints else "")
-                   if blocks else f"可以照原样发；{len(hints)} 处可以改得更好，不改也行：{listed(hints)}" if hints else "草稿可以发")
-        summary += "。" + NO_MENTION
-        if question is None and arguments["part"] == "second":
-            summary = summary.rstrip("。") + "。" + UNKNOWN_QUESTION
-        if arguments["part"] == "first" and not (points or {}).get("given"):
-            summary = summary.rstrip("。") + "。" + UNKNOWN_POINTS
-        result = dict(kind="check_answer", ok=not blocks, part=arguments["part"], problems=problems, summary=summary,
-                      now=self.clock(owner, at.isoformat()),
-                      evidence=dict(since=since.isoformat(), ids=sorted(found["ids"]), windows=[checks.hhmm(end) for end in sorted(set(found["windows"]))]))
-        if not blocks and arguments["part"] == "second":
-            # What passed is what must be sent (A7): the Stop hook compares the text the host sends with this one.
-            digest = checks.draft_digest(arguments["text"])
-            remembered = remember_answer(self.answers_path(), arguments.get("request_id"), arguments["text"], digest, at.isoformat(), zone=name)
-            result["passed"] = dict(sha256=digest, remembered=remembered,
-                                    notice="Send exactly this text: a Stop hook blocks a second part that differs from the one that passed.")
-        return result
-
-    def answers_path(self):
-        return answers_path(self.repository.root if self.repository is not None else None, None if self.repository is not None else self.store.path)
 
     def record_evidence(self, owner: str, before: set[str], *, key: str):
         """Evidence written by a lookup or a deep job is canonical (evidence/); an outbox operation carries it so a
