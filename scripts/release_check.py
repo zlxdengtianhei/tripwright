@@ -184,6 +184,11 @@ def codex_scenario(stem: str, model: str) -> tuple[dict, str]:
             if observed["exit_code"] != 0:
                 break
         successful = [tool for item in observations for tool in item["successful_tools"]]
+        if stem.startswith("s3_") and len(observations) == 1 and observations[0]["exit_code"] == 0 and "commit" not in successful:
+            observed, raw = codex_message(url, model, Path(scratch), "继续", thread)
+            observations.append(observed)
+            raw_parts.append(raw)
+            successful = [tool for item in observations for tool in item["successful_tools"]]
         if stem.startswith("s1_"):
             passed = bool(observations) and observations[0]["exit_code"] == 0 and s1_passed(observations[0])
             reason = "requires exit 0, a successful Tripwright call and fjord-friends or its title in the reply"

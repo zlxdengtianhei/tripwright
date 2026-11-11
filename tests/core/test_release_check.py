@@ -76,6 +76,54 @@ def test_s3_reads_state_afterwards_even_without_a_commit(monkeypatch):
     assert len(state_reads) == 2
 
 
+def test_s3_continues_in_the_same_thread_when_the_first_message_does_not_commit(monkeypatch):
+    calls, state_reads = [], iter((3, 4))
+
+    async def fake_state(url):
+        return next(state_reads)
+
+    def fake_message(url, model, cwd, text, thread=None):
+        calls.append((text, thread))
+        tool = "turn" if not calls or len(calls) == 1 else "commit"
+        lines = "\n".join((event("thread.started", thread_id="thread-1"),
+                           event("item.completed", item={"type": "mcp_tool_call", "server": "tripwright", "tool": tool,
+                                                         "status": "completed"})))
+        observed = release.parse_events(lines)
+        observed.update(seconds=0.1, exit_code=0)
+        return observed, ""
+
+    monkeypatch.setattr(release, "service", lambda: nullcontext("http://127.0.0.1/mcp/test"))
+    monkeypatch.setattr(release, "state_number_async", fake_state)
+    monkeypatch.setattr(release, "codex_message", fake_message)
+
+    check, _ = release.codex_scenario("s3_change_and_remember_zh", "test-model")
+
+    assert check["status"] == "passed"
+    assert calls[-1] == ("继续", "thread-1") and len(check["messages"]) == 2
+
+
+def test_s3_fails_after_continuing_when_neither_message_commits(monkeypatch):
+    calls = []
+
+    async def fake_state(url):
+        return 3
+
+    def fake_message(url, model, cwd, text, thread=None):
+        calls.append((text, thread))
+        observed = release.parse_events(event("thread.started", thread_id="thread-1"))
+        observed.update(seconds=0.1, exit_code=0)
+        return observed, ""
+
+    monkeypatch.setattr(release, "service", lambda: nullcontext("http://127.0.0.1/mcp/test"))
+    monkeypatch.setattr(release, "state_number_async", fake_state)
+    monkeypatch.setattr(release, "codex_message", fake_message)
+
+    check, _ = release.codex_scenario("s3_change_and_remember_zh", "test-model")
+
+    assert check["status"] == "failed"
+    assert calls[-1] == ("继续", "thread-1") and len(check["messages"]) == 2
+
+
 def test_saved_json_redacts_url_key(tmp_path):
     path = tmp_path / "result.json"
     release.write_json(path, {"url": "http://127.0.0.1:8000/mcp/private-key", "output": "GET /mcp/private-key HTTP/1.1"})
