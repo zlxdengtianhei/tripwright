@@ -39,6 +39,8 @@ def test_effective_commit_publishes_then_blocked_and_clean_versions(writer, tmp_
     changed["title"] = "Changed by an effective commit"
     version = change(writer, changed, "publish")
     record = outcome(writer, original["id"], "published", version)
+    assert writer.service.state(writer.owner, "sync")["public_pages"] == [
+        dict(trip=original["id"], status="published", url=record["url"], plan_version=version["id"])]
     page = subprocess.run(["git", "-C", str(bare), "show", f"main:{record['path']}/index.html"],
                           capture_output=True, text=True, check=True).stdout
     assert "Changed by an effective commit" in page

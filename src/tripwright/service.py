@@ -994,7 +994,11 @@ class Tripwright:
                         candidate=draft["plan"], checks=draft["checks"], changes=draft["changes"],
                         stale=self.versions.fresh(owner, draft.get("snapshot")))
         if view == "sync":
-            return self.committer.status() if self.committer else dict(canonical=None, unsynced=0, note="single-database mode")
+            sync = self.committer.status() if self.committer else dict(canonical=None, unsynced=0, note="single-database mode")
+            # site/publish.py records every attempt: where each trip's public page is, or why it is not there
+            pages = [{key: item[key] for key in ("trip", "status", "url", "plan_version", "blocked", "error") if item.get(key) is not None}
+                     for item in self.store.all("share", owner) if item.get("status") != "superseded"]
+            return dict(sync, public_pages=pages) if pages else sync
         if view == "decisions":
             return self.ledger.explain(owner)
         if view == "history":
