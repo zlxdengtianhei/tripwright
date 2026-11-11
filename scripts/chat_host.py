@@ -29,7 +29,7 @@ Example (from the repository root):
     uv run python scripts/chat_host.py \\
       --mcp-stdio "uv run python -m tripwright.cli serve --stdio" \\
       --scenario scripts/chat_scenarios/s1_first_use_en.yaml --model group/glm --instructions on \\
-      --out /root/work/tw-runs/example
+      --out runs/example
 
 `chat_host.py --reanalyze DIR...` recomputes the per-message figures of finished runs from their transcript.json.
 
