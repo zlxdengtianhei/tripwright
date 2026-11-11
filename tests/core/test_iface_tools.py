@@ -94,6 +94,18 @@ def test_first_part_only_for_a_quick_question_with_a_stored_answer(seeded):
     assert planned["first_part"] is None
 
 
+def test_a_stored_node_at_the_destination_supports_a_real_first_part(service, plan):
+    plan["days"][0]["anchors"] = [dict(id="home-train", time="23:00", text="Train home", subject=["p1"],
+                                      place="oslo-station", destination="oslo-station", line="DEMO")]
+    created = service.turn("alice", "Create")
+    draft = service.propose("alice", ctx_id=created["ctx_id"], base_version=0, plan=plan, idempotency_key="seed")
+    service.commit("alice", draft["draft_id"], "seed", accept_unverified=True)
+    result = service.turn("alice", "今晚最晚几点回车站？", scenario="quick",
+                          points=[dict(kind="go", said="回车站", place="oslo-station")])
+    assert result["first_part"] is not None and any("23:00" in line for line in result["first_part"]["lines"])
+    assert not any(line.endswith("第二段给。") for line in result["first_part"]["lines"])
+
+
 def test_partial_plan_patches_merge_by_date_and_id(seeded):
     turn = seeded.turn("alice", "Change the day and add records")
     current = seeded.state("alice", "plan")["plan"]

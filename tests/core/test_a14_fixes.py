@@ -145,7 +145,9 @@ def test_the_first_part_gives_the_stored_train_first_and_one_hard_node(make):
     assert "05:45" not in "\n".join(lines) and "07:15" not in "\n".join(lines)
     # control: without a train to the place the first line still says the latest follows in part 2
     bare = make(today=()).turn("local", "最晚几点出发去机场", "q5", scenario="quick", points=GO)["first_part"]
-    assert bare is None
+    assert bare["lines"][0] == "按存的计划先说（时刻还没核）"
+    assert "明早 07:05 证件柜台关（存档，没核）" in bare["lines"]
+    assert not any(line.endswith("第二段给。") for line in bare["lines"])
 
 
 # --- 5. a coverage note that contradicts the search of tonight ----------------------------------------------------------------

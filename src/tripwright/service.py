@@ -316,7 +316,8 @@ class Tripwright:
                             second_part_title=second_title,
                             next=self._next(considered, asked, recorded, first=first, second_title=second_title,
                                             latest=first_part.asks_latest(text),
-                                            unknown=self._unknown_places(plan, told, language=language), language=language))
+                                            unknown=self._unknown_places(plan, told, language=language), language=language,
+                                            scenario=scenario))
             if told is not None:
                 response["points"] = told
         if self.committer is not None:
@@ -333,7 +334,7 @@ class Tripwright:
         def useful(point):
             facts = point["facts"]
             if point["kind"] == "go":
-                return any(facts.get(key) for key in ("frame", "train", "way"))
+                return any(facts.get(key) for key in ("frame", "train", "way", "nodes"))
             if point["kind"] == "eat":
                 return bool(facts.get("stored"))
             if point["kind"] == "do":
@@ -441,7 +442,8 @@ class Tripwright:
         return (latest or {}).get("asked") or []
 
     def _next(self, considered: dict, asked: list[dict], recorded: dict, *, first: dict | None,
-              second_title: str | None, latest: bool = False, unknown: list[str] = (), language: str | None = None) -> str:
+              second_title: str | None, latest: bool = False, unknown: list[str] = (), language: str | None = None,
+              scenario: str | None = None) -> str:
         """Only this message's next actions, bounded for a chat tool result."""
         en = (language or self.language) == "en"
         parts = []
@@ -458,6 +460,10 @@ class Tripwright:
             parts.append("For tonight's latest, call query(kind='latest_departure', arguments={origin,destination}) and use "
                          "its first_line, sentences and window." if en else
                          "问今晚最晚：query(kind='latest_departure', arguments={origin,destination})，照它的 first_line、sentences 和 window 说。")
+        if scenario in ("plan", "replan"):
+            parts.append("For an actual plan edit, read state(view='day',date=...), edit its json, then propose(days=[json]) "
+                         "and commit; do not resend the whole trip." if en else
+                         "真要改计划：state(view='day',date=...)，改返回的 json，propose(days=[json])，再 commit；不重发整份行程。")
         refused = [line["fix"] for line in recorded.get("not_recorded", []) if line.get("part") == "record"]
         if refused:
             parts.append(("record: " if en else "record 没记：") + refused[0])

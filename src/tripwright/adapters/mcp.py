@@ -41,6 +41,17 @@ CHANGES_SCHEMA = {"type": "object", "additionalProperties": True, "properties": 
     "items": {"type": "array", "items": ITEM_SCHEMA},
 }}
 RecordArguments = Annotated[dict[str, Any], WithJsonSchema(CHANGES_SCHEMA)]
+UsageArguments = Annotated[list[dict[str, Any]], WithJsonSchema({
+    "type": "array", "items": {
+        "type": "object", "additionalProperties": False, "required": ["item_id", "status"],
+        "properties": {
+            "item_id": {"type": "string"},
+            "status": {"type": "string", "enum": ["used", "host_reported", "traded_off", "not_applicable"]},
+            "block_ids": {"type": "array", "items": {"type": "string"}},
+            "reason": {"type": "string"},
+        },
+    },
+})]
 
 
 request_user: ContextVar[str | None] = ContextVar("tripwright_user", default=None)
@@ -205,7 +216,7 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
     async def query(kind: Literal["transit", "latest_departure", "web_evidence", "check_answer", "open_places", "nearby", "weather", "opening",
                                   "saved", "geocode"],
                     arguments: dict[str, Any]) -> dict[str, Any]:
-        """Look up travel facts without changing the plan; use its returned sentences and search windows. arguments is an object. transit: {origin,destination,when,offset,arrive_by?,until?}; latest_departure: {origin,destination} for tonight's latest, optional anchor_id/by/board_at for a deadline; open_places: {near,at?,km?,text?}; web_evidence: {url,quote,claim,type,read_from}; weather: {place:{name,lat,lon},date}; nearby: {lat,lon,km?}; saved/geocode: {text}; opening: {place,date?}; check_answer: {text,part,request_id?}. Places accept IDs or stored names. Full nested shapes are validated by the service, which names any bad field. Every fact retains fetch time, validity and attribution. Unchecked or unavailable facts stay unverified."""
+        """Look up travel facts without changing the plan; use its returned sentences and search windows. arguments is an object. transit: {origin,destination,when,offset,arrive_by?,until?}; latest_departure: {origin,destination} for tonight's latest, optional anchor_id/by/board_at for a deadline; open_places: {near,at?,km?,text?}; web_evidence: {url,quote,claim,type,read_from}; weather (only when weather is asked): {place:{name,lat,lon},date}, place must be an object, never a string; nearby: {lat,lon,km?}; saved/geocode: {text}; opening: {place,date?}; check_answer (optional in Claude Code, not a default step): {text,part:first|second,request_id?}. Places accept IDs or stored names. Full nested shapes are validated by the service, which names any bad field. Every fact retains fetch time, validity and attribution. Unchecked or unavailable facts stay unverified."""
         return await (await opening.get_async()).query(identity(), kind, arguments)
 
     @server.tool(title="Propose plan or ledger changes against a context", annotations=write, structured_output=True)
@@ -213,8 +224,8 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
     def propose(ctx_id: str, base_version: int, idempotency_key: str, plan: dict[str, Any] | None = None,
                 days: list[dict[str, Any]] | None = None, places: list[dict[str, Any]] | None = None,
                 bookings: list[dict[str, Any]] | None = None, changes: RecordArguments | None = None,
-                usages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-        """Create a draft from turn's ctx_id/base_version. Use plan for a complete trip (shape state(view='plan').plan), or patch whole days by date and places/bookings by id; state(view='day').json is the day shape. Do not combine plan with patches. Omit plan for ledger-only changes. changes/usages are validated by the service; reuse IDs and this turn's source.event. Anything you chose or inferred that the user did not say belongs in changes.items with source.basis='agent_inference'. Only a user decision with must=true locks. Changing a user decision requires changes.revisions; changing a must, bought/booked item or hard node needs this user message's authority. Give reasons for trade-offs and resolve preference conflicts with the user. Returns draft_id, checks and refusals."""
+                usages: UsageArguments | None = None) -> dict[str, Any]:
+        """Create a draft from turn's ctx_id/base_version. Use plan for a complete trip (shape state(view='plan').plan), or patch whole days by date and places/bookings by id; for a day edit send days=[state(view='day').json], not the whole state result. Do not combine plan with patches. Omit plan for ledger-only changes. changes/usages are validated by the service; reuse IDs and this turn's source.event. Anything you chose or inferred that the user did not say belongs in changes.items with source.basis='agent_inference'. Only a user decision with must=true locks. Changing a user decision requires changes.revisions; changing a must, bought/booked item or hard node needs this user message's authority. Give reasons for trade-offs and resolve preference conflicts with the user. Returns draft_id, checks and refusals."""
         return ready().propose(identity(), ctx_id=ctx_id, base_version=base_version, idempotency_key=idempotency_key,
                                plan=plan, days=days, places=places, bookings=bookings, changes=changes, usages=usages)
 
@@ -234,7 +245,7 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
     @expose_errors
     def state(view: Literal["current", "plan", "day", "blank", "ledger", "decisions", "history", "profile", "memory", "pack", "sync", "export"] = "current",
               date: str | None = None, draft_id: str | None = None) -> dict[str, Any]:
-        """Read committed state. current/plan return the trip; day needs date=YYYY-MM-DD and returns text plus editable json; blank returns a minimal new-trip plan. Other views: ledger, decisions, history, profile, memory, pack (draft_id required), sync, export. No view writes."""
+        """Read committed state. current/plan return the trip; day needs date=YYYY-MM-DD and returns text plus editable json (send days=[json], not the whole result); blank returns a minimal new-trip plan. Other views: ledger, decisions, history, profile, memory, pack (draft_id required), sync, export. No view writes."""
         return ready().state(identity(), view, date, draft_id)
 
     @server.tool(title="Explain decisions, sources and preference use", annotations=read, structured_output=True)

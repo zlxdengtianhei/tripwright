@@ -260,8 +260,12 @@ def point_draft(question: str, now: dict, anchors: list[dict], plan: dict | None
     from tripwright.query import anchor_meaning
 
     going = {point["place"] for point in points if point["kind"] == "go"}
-    be_there = sorted((anchor for anchor in anchors if not anchor.get("passed") and anchor_meaning(anchor) == "arrival_deadline"
-                       and anchor.get("deadline") != "plan"), key=lambda anchor: (anchor.get("place") not in going, anchor["date"], anchor["time"]))
+    named_nodes = {anchor_id for point in points if point["kind"] == "go" for anchor_id in point["facts"].get("nodes", [])}
+    be_there = sorted((anchor for anchor in anchors if not anchor.get("passed")
+                       and ((anchor_meaning(anchor) == "arrival_deadline" and anchor.get("deadline") != "plan")
+                            or anchor["id"] in named_nodes)),
+                      key=lambda anchor: (not (anchor_meaning(anchor) == "arrival_deadline" and anchor.get("deadline") != "plan"),
+                                          anchor.get("place") not in going, anchor["date"], anchor["time"]))
     nodes = [node_line(anchor, plan, now["date"], words) for anchor in be_there[:1]] if len(lines) < LINES - 1 else []
     lines = list(dict.fromkeys([*lines[:LINES - 1], *nodes, said["tail"]]))
     return dict(text="\n".join(lines), lines=lines, asks_latest=asks_latest(question) or any(point["kind"] == "go" for point in points),
