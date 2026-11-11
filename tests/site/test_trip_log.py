@@ -93,6 +93,7 @@ def test_an_original_saying_is_a_timed_quote_but_a_retelling_is_not(tmp_path):
     start = html.index('<p class="retold">')
     retold = html[start:html.index("</p>", start)]
     assert "Retold" in retold and "转述" in retold and "Then asked for the time" in retold
+    assert '<span class="time">10:40</span>' in retold  # a retelling keeps its time
     assert "<blockquote" not in retold
 
 

@@ -434,7 +434,7 @@ SHARE_LOG = """{% extends 'base' %}{% block main %}
 <h2>{{ loop.index }}. {{ t(piece.title) }}</h2>
 <p class="meta">{{ t(piece.when) }}</p>
 <h3>{{ label('我在路上说的','What I said') }}</h3>
-{% for saying in piece.said %}{% if saying.retold %}<p class="retold">{{ t(saying.text) }} <span class="tag">{{ label('转述','Retold') }}</span></p>
+{% for saying in piece.said %}{% if saying.retold %}<p class="retold">{% if saying.time %}<span class="time">{{ saying.time }}</span> {% endif %}{{ t(saying.text) }} <span class="tag">{{ label('转述','Retold') }}</span></p>
 {% else %}<blockquote>{% if saying.time %}<span class="time">{{ saying.time }}</span> {% endif %}{{ t(saying.text) }}</blockquote>
 {% endif %}{% endfor %}
 <h3>{{ label('当时怎样处理','How it was handled then') }}</h3>
