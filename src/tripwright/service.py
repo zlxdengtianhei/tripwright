@@ -620,7 +620,8 @@ class Tripwright:
 
     async def query(self, owner: str, kind: str, arguments: dict) -> dict:
         self.bound(owner)
-        arguments = checked_arguments(kind, arguments)
+        plan = self.versions.current(owner)["plan"]
+        arguments = checked_arguments(kind, arguments, plan)
         if kind == "check_answer":
             return self.check_answer(owner, arguments)
         if kind == "transit" and arguments.get("action") == "plan_day":
@@ -630,7 +631,6 @@ class Tripwright:
             job = self.jobs.enqueue(owner, "plan_day", dict(day=day, timeout=min(300, max(0.01, float(arguments.get("timeout", 120))))),
                                     self.versions.current(owner)["number"], arguments["idempotency_key"])
             return dict(job_id=job["id"], status=job["status"], notice="Retrieve with result; cancel with result(cancel=true). Solver results require a separate plan proposal.")
-        plan = self.versions.current(owner)["plan"]
         draft_id = arguments.get("target", {}).get("draft_id")
         if draft_id:
             draft = self.store.get("drafts", owner, draft_id)

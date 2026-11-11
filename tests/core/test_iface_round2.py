@@ -1,6 +1,7 @@
 """Second chat-interface round: service-filled mechanics and permissive locations."""
 from __future__ import annotations
 
+import asyncio
 from copy import deepcopy
 
 import pytest
@@ -61,6 +62,25 @@ def test_omitted_revisions_are_filled_from_actual_decision_changes(seeded):
     revisions = seeded.store.get("drafts", "alice", draft["draft_id"])["changes"]["revisions"]
     assert len(revisions) == 1 and revisions[0]["filled_by"] == "service"
     assert "no preference precedence" in revisions[0]["reason"]
+
+
+def test_query_locations_accept_stored_ids_names_and_coordinate_objects(service, plan):
+    for index, place in enumerate(plan["places"]):
+        place["coords"] = [59.91 + index / 100, 10.75]
+    created = service.turn("alice", "Create")
+    draft = service.propose("alice", ctx_id=created["ctx_id"], base_version=0, plan=plan, idempotency_key="seed")
+    service.commit("alice", draft["draft_id"], "seed", accept_unverified=True)
+    place = plan["places"][0]
+    for value in (place["id"], place["name"], place["name_local"]):
+        result = asyncio.run(service.query("alice", "weather", dict(place=value, date="2030-06-10")))
+        assert "synthetic" in result["evidence"]["source"]
+    result = asyncio.run(service.query("alice", "weather", dict(place=dict(name="Custom", lat=59.91, lon=10.75), date="2030-06-10")))
+    assert "synthetic" in result["evidence"]["source"]
+    result = asyncio.run(service.query("alice", "transit", dict(origin=dict(name="Custom", lat=59.91, lon=10.75),
+                                                                  destination=place["id"], when="2030-06-10T20:30:00+02:00")))
+    assert result["connections"]
+    with pytest.raises(ValueError, match="unknown stored place.*oslo-art"):
+        asyncio.run(service.query("alice", "weather", dict(place="not-a-place", date="2030-06-10")))
 
 
 def test_shape_refusal_collects_all_argument_groups(seeded):
