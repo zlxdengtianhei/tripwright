@@ -13,6 +13,15 @@ def decision_for(turn, track, block, *, must=False):
                 locked_paths={f"/blocks/{block['id']}": block})
 
 
+def test_english_message_gets_english_first_part_and_next(seeded):
+    place = seeded.state("alice", "plan")["plan"]["places"][0]
+    result = seeded.turn("alice", "What about this place?", scenario="quick",
+                         points=[dict(kind="do", said=place["name_local"], place=place["id"])])
+    assert result["first_part"]["lines"][0].startswith("From the stored plan first")
+    assert "按现在" not in result["first_part"]["text"] and "第二段" not in result["first_part"]["text"]
+    assert result["next"].startswith("Send first_part.text")
+
+
 def test_turn_resolves_people_names_in_speaker_subject_and_record(seeded):
     result = seeded.turn("alice", "Mira is allergic to peanuts", speaker="mira", subject=["Mira"],
                          record=dict(items=[dict(kind="constraint", key="peanut", quote="allergic to peanuts",

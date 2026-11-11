@@ -318,9 +318,10 @@ class Tripwright:
             # silence settled is stored with this context first, so this turn does not ask it again.
             context.update(settled=recorded.get("defaulted", []))
             self.store.put("contexts", owner, context)
-            known = consider.sources(self.store, owner, plan or None, at=at, language=self.language)
-            asked = consider.asks(self.store, owner, plan or None, scenario=scenario, scope=scope, at=at, language=self.language, known=known)
-            considered = consider.build(self.store, owner, pack=shown["pack"], plan=plan or None, scenario=scenario, at=at, language=self.language)
+            language = "zh" if re.search(r"[\u4e00-\u9fff]", text) else "en"
+            known = consider.sources(self.store, owner, plan or None, at=at, language=language)
+            asked = consider.asks(self.store, owner, plan or None, scenario=scenario, scope=scope, at=at, language=language, known=known)
+            considered = consider.build(self.store, owner, pack=shown["pack"], plan=plan or None, scenario=scenario, at=at, language=language)
             context.update(pack=shown["pack"], asked=[dict(id=question["id"], scope=question.get("scope", {})) for question in asked])
             self.store.put("contexts", owner, context)
             anchors = self._hard_nodes(owner, plan, subject, scope, at)
@@ -343,10 +344,9 @@ class Tripwright:
                 response["memory"] = dict(pending=pending, ask="长期条目待确认：在对话里问用户这趟还用不用；按回答调 turn(record={carry:[{id,status}]})。")
                 asked.append(dict(id="memory", say=response["memory"]["ask"], default=packs.WORDS["zh"]["memory_default"],
                                   record=dict(carry=[dict(id=entry["id"], status="confirmed or not_used") for entry in pending])))
-            told = packs.point_facts(self.store, owner, plan or None, points, anchors, at, self.language,
+            told = packs.point_facts(self.store, owner, plan or None, points, anchors, at, language,
                                      person=packs.asker(plan, speaker, subject)) if points is not None and plan else None
-            first = self._quick_first(text, scenario, response["now"], anchors, plan or None, told)
-            language = "zh" if re.search(r"[\u4e00-\u9fff]", text) else "en"
+            first = self._quick_first(text, scenario, response["now"], anchors, plan or None, told, language=language)
             second_title = SECOND_TITLES[language] if first else None
             context.update(points=packs.point_record(told, anchors),
                            frame=dict(scenario=scenario, asks_latest=first_part.asks_latest(text)),
@@ -369,7 +369,7 @@ class Tripwright:
         return response
 
     def _quick_first(self, text: str, scenario: str, clock: dict, anchors: list[dict], plan: dict | None,
-                     told: dict | None) -> dict | None:
+                     told: dict | None, *, language: str | None = None) -> dict | None:
         """A quick first part only when stored data answers at least one named point."""
         if scenario != "quick" or told is None or not plan:
             return None
@@ -388,7 +388,7 @@ class Tripwright:
 
         if not any(useful(point) for point in told["points"]):
             return None
-        first = first_part.draft(text, clock, anchors, plan, self.language, told)
+        first = first_part.draft(text, clock, anchors, plan, language or self.language, told)
         kept = []
         for line in first["lines"]:
             if line.startswith(("没核：", "Not checked:")):
