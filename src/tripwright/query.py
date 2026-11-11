@@ -197,21 +197,13 @@ class Arguments(BaseModel):
         "open_places: where to measure from: a place of the trip (ID or name) or 'lat,lon'."))
     at: str | None = Field(default=None, description=(
         "open_places: open at this time (ISO with offset, or HH:MM with date); default now."))
-    # check_answer (A6)
-    part: Literal["first", "second"] | None = Field(default=None, description=(
-        "check_answer: which part the draft in `text` is."))
-    request_id: str | None = Field(default=None, description=(
-        "check_answer: the request_id of this question's turn; evidence from 6 hours before it on backs the draft."))
-    question: str | None = Field(default=None, description=(
-        "check_answer: this question's words as the user sent them (send it when its turn was not recorded); without it "
-        "and request_id, the question is the latest user message of the last 30 minutes, else unknown (no meal check)."))
 
 
 REQUIRED = {("transit", None): ("origin", "destination", "when"), ("transit", "stops"): ("text",),
             ("transit", "plan_day"): ("day", "idempotency_key"), ("weather", None): ("place", "date"),
             ("nearby", None): ("lat", "lon"), ("geocode", None): ("text",),
             ("latest_departure", None): ("origin", "destination"), ("web_evidence", None): ("url", "quote", "claim", "type"),
-            ("check_answer", None): ("text", "part"), ("open_places", None): ("near",)}
+            ("open_places", None): ("near",)}
 # A web check's time is the service's clock: a time the host writes is refused, not stored.
 HOST_TIMES = ("fetched_at", "checked_at", "recorded_at", "at", "time", "valid_until")
 SHAPES = {"arguments.target": "{block_id or anchor_id, date, fact, optional place_id and draft_id}",
@@ -266,7 +258,7 @@ def checked_arguments(kind: str, arguments, plan: dict | None = None) -> dict:
     except ValidationError as error:
         raise ValueError("Invalid query arguments: " + "; ".join(input_problems(error, "arguments", SHAPES))) from None
     problems = []
-    if parsed.target is not None and kind in ("latest_departure", "web_evidence", "check_answer", "open_places"):
+    if parsed.target is not None and kind in ("latest_departure", "web_evidence", "open_places"):
         problems.append(f"arguments.target binds transit or weather evidence to a plan fact; {kind} does not take it"
                         + (" (use arguments.anchor_id)" if kind == "latest_departure" else ""))
     if parsed.target is None:
@@ -973,7 +965,7 @@ def latest_sentences(result: dict, target: dict, connections: list[Itinerary], s
 
 def departure_rows(itineraries: list[Itinerary], tz: ZoneInfo, bound: datetime) -> list[dict]:
     """Every connection a latest_departure search found, slim, for the answer check: when it leaves, its rides, when it
-    arrives, whether it is in time (check_answer reads "the last one" and "nothing later" against these)."""
+    arrives, whether it is in time."""
     rows = []
     for itinerary in sorted(itineraries, key=lambda itinerary: itinerary.depart):
         rides = [leg for leg in itinerary.legs if leg.mode != "walk"]
@@ -1244,7 +1236,7 @@ def demo_marked(result: dict, language: str) -> dict:
 
 
 def frame_of(kind: str, shown: list[dict | None], first_line: str | None, arguments: dict, *, targets=(), last=()) -> dict:
-    """What check_answer holds a second part's first line to (A10): the frame (arrival_deadline, boarding_time or
+    """The frame for the second part's first line (arrival_deadline, boarding_time or
     last_connection), the times a “最晚/末班” there may name (each connection's leaving and boarding time and its rides'
     departures), the target times a “HH:MM 前” may name, the times of the last connections (last_connection) and the
     server's first line, which is the fix."""
@@ -1839,7 +1831,7 @@ class QueryRouter:
                          last=[time for entry in backed for time in (entry["leave"], (entry["boards"] or {}).get("time")) if time]
                          + ([train_ride(rail)["depart"]] if rail else []))
         # what a later turn may quote from this lookup (A12: the first part of the next question, marked “查过”)
-        # the connection “怎么查” searches (A14): check_answer holds the answer's search to it; A16: its first ride's stop
+        # the connection “怎么查” searches (A14); A16: its first ride's stop
         # and time, the origin's closing with the times to leave it, the party the stored fares are for
         frame["main"] = sorted({time for time in [main["leave"], *(leg["depart"] for leg in main["legs"] if not leg["walk"])] if time}) if main else []
         frame["main_first"] = dict(stop=first_ride(main)["from"], depart=first_ride(main)["depart"]) if main and first_ride(main) else None

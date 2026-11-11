@@ -24,7 +24,7 @@ own environment context (today's real date and the machine's zone) is left out, 
 only: the server's `now` and the `date` shim on PATH. Codex's JSONL events are kept as
 `turn<N>.codex.jsonl` and rewritten as `turn<N>.stream.jsonl` in the shape Claude Code writes (assistant text and
 tool_use blocks, user tool_result blocks; an MCP tool is named mcp__<server>__<tool>, a shell command is Bash), so
-`answer_checks.py` reads both hosts alike. Each turn after the first resumes the same Codex session.
+Each turn after the first resumes the same Codex session.
 
 A first part that ends with turn's `first_part.later` (4a, D-88: a host without subagents, an app with only the MCP
 connection, ends the reply there and gives the second part when the user says “继续”) is answered automatically: the
@@ -377,9 +377,6 @@ def main():
                                                "extra": " ".join(extra), "now": args.now,
                                                "turns": log, "commits": commits},
                                               ensure_ascii=False, indent=1))
-    # Mechanical checks on what the user saw (answer_checks.py writes answer_checks.json next to the turns).
-    checks = subprocess.run([sys.executable, str(Path(__file__).with_name("answer_checks.py")), str(out)], capture_output=True, text=True)
-    print(checks.stdout, end="", flush=True)
 
 
 if __name__ == "__main__":

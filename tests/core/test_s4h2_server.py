@@ -2,10 +2,7 @@
 
 1. The first question's two parts gave two ways (sub_on, ns_on, mcponly, codex): the first part the plan's “21:45 从 <岩馆>
    出门 … 坐 22:42 RJX”, the second part's main choice “22:00 关门出来 … 坐 22:16 的 5B”, and nothing said whether the plan's
-   way still held. The service's sentence for the plan's train now says it; check_answer asks the second part to say again
-   the time the first part's first line acts on, or what changed.
-2. A host with the command line only wrote its own second part and never said the times were the timetable's (ns_off,
-   both questions); check_answer asks for it whenever the second part gives rides this conversation looked up.
+   way still held. The service's sentence for the plan's train now says it.
 
 Offline: the fictional plan and MOTIS of test_a16_fixes (public Vienna stop names, made-up times), fictional places."""
 from __future__ import annotations
@@ -15,11 +12,10 @@ from datetime import datetime
 import httpx
 
 from test_a8_transit_facts import HBF, NIGHT, STREET, local
-from test_a10_frame import Evening, fixed, problems, query
+from test_a10_frame import Evening, fixed, query
 from test_a12_first_part import BUSES, FIRST, FOOD, NORTH, SOUTH
 from test_a14_fixes import GO
 from test_a16_fixes import WAYS, make  # noqa: F401 (make is a fixture)
-from tripwright import cli
 
 GO_ON = "继续"
 CLOSING = dict(NORTH, opening_hours=["Mo-Su 09:00-22:10"])  # the gym closes before the latest way to the plan's train
@@ -42,19 +38,6 @@ class TwoWays(Evening):
         return httpx.Response(200, json=body)
 
 
-def draft(*lines: str, at: str = "21:05") -> str:
-    """A second part in the replays' shape: title, the server's first line, the main choice, the full plan."""
-    return "\n".join([f"# 第二段 · 去机场核完了（{at}）", *lines, "## 完整安排", "- 22:10 出岩馆 → 22:33 D → Wien Hbf → 22:53 REX 7 → 机场"])
-
-
-def second_checks(service, text: str, request_id: str | None = "q1") -> dict[str, list[str]]:
-    found = {}
-    arguments = dict(text=text, part="second", **(dict(request_id=request_id) if request_id else {}))
-    for entry in query(service, "check_answer", **arguments)["problems"]:
-        found.setdefault(entry["check"], []).append(entry["why"] + " | " + entry["fix"])
-    return found
-
-
 # --- 1. the two parts' ways ----------------------------------------------------------------------------------------------------
 
 def test_the_plans_train_sentence_says_whether_the_plans_own_way_still_holds(make, monkeypatch):
@@ -67,9 +50,6 @@ def test_the_plans_train_sentence_says_whether_the_plans_own_way_still_holds(mak
     # bad sample (mcponly_r1 question 1 after S4h): the latest way alone, nothing on the plan's 21:45 way the first part gave
     assert planned == ("计划里的 22:53 REX 7 赶得上：22:10 关门出来（按存的营业时间），走到 Wien Matzleinsdorfer Platz，换 1 次车：22:33 D（往 Hauptbahnhof）Wien Matzleinsdorfer Platz → Wien Hauptbahnhof 22:45，换 22:53 REX 7（往 Flughafen Wien）Wien Hauptbahnhof → Flughafen Wien Bahnhof 23:15；23:15 到；"
                        "计划的 21:45 出门那条（存的走法）也赶得上，想早走就照它")
-    # the sentence passes on a line the host marks 核过 (the 21:45 is the stored time, marked so), and so does the answer
-    sent = draft(found["first_line"], f"主选（核过）：{planned}。", "以上交通时刻按时刻表，不是实时。")
-    assert second_checks(service, sent) == {}
     # control: the plan's way not among the connections found is said so, not as one that works
     single = make(tracks=WAYS, places=(CLOSING, SOUTH, *FOOD))
     fixed(monkeypatch, local("21:05"))
@@ -83,27 +63,3 @@ def test_the_plans_train_sentence_says_whether_the_plans_own_way_still_holds(mak
     assert "计划的 21:45" not in late
     other = query(service, "latest_departure", origin=STREET, destination="airport")
     assert not any("计划的 21:45" in line for line in other["sentences"])
-
-
-
-
-# --- 2. the timetable, said once -----------------------------------------------------------------------------------------------
-
-def test_a_second_part_with_looked_up_rides_says_they_are_the_timetables(make, tmp_path, capsys):
-    service = make(tracks=WAYS)
-    found = query(service, "latest_departure", origin=STREET, destination="airport")
-    # bad sample (ns_off_r1, both questions): the host's own second part, the rides of the lookup, no word on timetable or real time
-    ride = "最晚火车怎么走（核过）：00:33 D Wien Matzleinsdorfer Platz → Wien Hauptbahnhof 00:45，00:53 REX 7 → Flughafen Wien Bahnhof 01:15。"
-    bare = draft(found["first_line"], ride, at="21:01")
-    assert problems(service, bare)["timetable_said"] == [
-        "写了这一趟查到的车次时刻，没说是按时刻表还是实时 | 可以改得更好（不改也能发）：加一行照 latest_departure 的 note 写，例如“以上交通时刻按时刻表，不是实时。”"]
-    # the command line runs the same check (ns_off checked with --question and was let through)
-    question = tmp_path / "question.txt"
-    question.write_text(FIRST, encoding="utf-8")
-    code = cli.main(["--db", str(service.db_path), "query", "check_answer", "--part", "second", "--text", bare, "--question", str(question)])
-    assert code == 0 and "没说是按时刻表还是实时" in capsys.readouterr().err
-    # controls: the note (the service's, or in English) passes; a second part with no ride looked up is not asked for it
-    assert found["note"] == "以上交通时刻按时刻表，不是实时。"
-    assert "timetable_said" not in problems(service, draft(found["first_line"], ride, found["note"], at="21:01"))
-    assert "timetable_said" not in problems(service, draft(found["first_line"], ride, "The transit times above are timetable, not real time.", at="21:01"))
-    assert "timetable_said" not in problems(service, draft("吃：汉堡店开到 00:00（存的营业时间）。", at="21:01"))

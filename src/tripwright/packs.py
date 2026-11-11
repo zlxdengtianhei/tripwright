@@ -253,7 +253,7 @@ def node_timing(store: Store, owner: str, versions: list[dict], day: str, anchor
 
 # --- A9 (D-64): a stored "末班 / 只剩 / 最晚" sentence is archive, not a current fact -----------------------------------
 CLAIM_CLOCK = re.compile(r"(?<![\d:])([01]?\d|2[0-3])[:：]([0-5]\d)(?![\d:])")
-ARCHIVE_HOURS = 6  # a lookup this much older than now does not void a stored claim (same window as check_answer's)
+ARCHIVE_HOURS = 6  # a lookup this much older than now does not void a stored claim
 
 
 def claim_minutes(part: str) -> list[int]:
@@ -722,19 +722,6 @@ def plan_place(plan: dict | None, day: str, at_clock: str, person: str | None = 
     return block.get("place") or block.get("destination") or block.get("origin")
 
 
-def plan_here(plan: dict | None, local: datetime, person: str | None, language: str = "zh") -> dict | None:
-    """Where the plan has `person` at the local moment, as check_answer matches it in a line: {id, name, names}."""
-    from tripwright.query import name_head
-
-    found = plan_place(plan, local.date().isoformat(), local.strftime("%H:%M"), person) if plan else None
-    place = next((place for place in plan.get("places", []) if place["id"] == found), None) if found else None
-    if place is None:
-        return None
-    names = [place["id"], place.get("name") or "", short_name(place, language, plan), place.get("name_local") or "",
-             name_head(place.get("name_local") or "")]
-    return dict(id=place["id"], name=short_name(place, language, plan), names=[name for name in dict.fromkeys(names) if name])
-
-
 # A16 (quality judge 8): one run passed its own English rendering of the stored gym's name as the place and its first part
 # said “还不确定你在哪”; the other passed the ID. The service resolves the host's place or the user's words against the
 # stored names.
@@ -1007,16 +994,10 @@ def next_step(store: Store, owner: str, plan: dict | None, origin: str, destinat
     return step
 
 
-def point_record(told: dict | None, anchors: list[dict]) -> dict:
-    """What check_answer holds this question's first part to (A12), kept with the turn's context: whether points were
-    given, where the user is, each point with the words a line answering it names, and the stored times and estimated
-    prices that may appear only with their mark (a boarding node, an operator's or unmarked time no source checked)."""
-    archived = [dict(time=anchor["time"], text=anchor["text"]) for anchor in anchors if not anchor.get("passed")
-                and (anchor.get("line") or (anchor.get("deadline") != "plan" and not anchor.get("checked")))]
+def point_record(told: dict | None) -> dict:
+    """The points and next place a later lookup in this question uses."""
     if told is None:
-        return dict(given=False, archived=archived)
-    fares = {f"{fare['amount_per_person']:.2f}" for point in told["points"] for item in (point["facts"].get("tickets") or {}).get("items", [])
-             for fare in item["fares"] if fare.get("estimated") and fare.get("amount_per_person") is not None}
-    return dict(given=True, at={key: value for key, value in (told["at"] or {}).items() if key != "coords"} or None,
+        return {}
+    return dict(at={key: value for key, value in (told["at"] or {}).items() if key != "coords"} or None,
                 points=[dict(kind=point["kind"], said=point["said"], keys=point["keys"], place=point.get("place")) for point in told["points"]],
-                archived=archived, fares=sorted(fares), next=told.get("next"), party=told.get("party"))
+                next=told.get("next"))

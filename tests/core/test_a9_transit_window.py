@@ -4,9 +4,6 @@
   写明查到哪），返回连续覆盖（window.continuous/covered/until）、每班一句和一句总结（到 until 为止，再下一班另写）。
 - latest_departure 分清到达期限（by）与上车时刻（board_at）：target.meaning 写明；把中途站的上车时刻当 by 传，
   报错并给改法。
-- check_answer 的两个新检查：别指望/别靠/都误了（denied_needs_coverage）与 还有 N 班（count_needs_continuous）——
-  句中的时刻要落在本问某次查询的 [from, to] 里（两次查询的空档不算），计数句的区间要连续查过且查到的班次写全；
-  “这次没查到”不豁免结论句，存档/网上说法/没核 豁免。
 - turn 的硬节点与 pack 里，存档的“末班、只剩、最晚”标成“计划里写过…（存档，写于…，没核）”；这轮查到更晚的同方向
   车次就标作废；turn.next 提醒第一段不照用。
 
@@ -26,7 +23,7 @@ import tripwright.repo.snapshot as snapshot_module
 import tripwright.service as service_module
 import tripwright.storage as storage_module
 import tripwright.versions as versions_module
-from test_a8_transit_facts import NIGHT, Night, local, second, vienna_plan
+from test_a8_transit_facts import NIGHT, Night, local, vienna_plan
 from tripwright.providers.transitous import TransitousProvider
 from tripwright.query import QueryRouter
 from tripwright.service import Tripwright
@@ -37,13 +34,6 @@ DAY = "2026-11-04"
 HBF = "at-Railway-Current-Reference-Data-2026_Pat:49:1349"
 AIRPORT = "at-Railway-Current-Reference-Data-2026_Pat:43:4708"
 STREET = "48.1890,16.3520"  # a street in Margareten (coordinates: no stop lookup)
-
-# judgment 5, r2 第 1 问（已去个人信息）：存档的“末班”照抄，这次没查到就“别靠”
-DENIED_BAD = "计划里存的 23:53 末班 REX 这次没查到，别靠它们。"
-# judgment 5, off 第 1 问：23:13—23:30 的空档里漏了 23:23
-COUNT_BAD = "误了 22:53 之后火车还有 23:53、00:23、00:53 三班。"
-COUNT_GOOD = "误了 22:53 之后还有 23:23、23:53、00:23、00:53 四班（查到 01:00 为止）。"
-
 
 def fixed(monkeypatch, moment: datetime):
     for module in (service_module, storage_module, events_module, versions_module, snapshot_module):
@@ -80,13 +70,6 @@ def query(service, kind, **arguments):
     return asyncio.run(service.query("local", kind, arguments))
 
 
-def problems(service, text) -> dict[str, list[str]]:
-    found = {}
-    for entry in query(service, "check_answer", text=text, part="second")["problems"]:
-        found.setdefault(entry["check"], []).append(entry["why"] + " | " + entry["fix"])
-    return found
-
-
 # --- 1. until：连续覆盖的查法 ------------------------------------------------------------------------------------------
 
 def test_until_pages_until_the_window_is_covered_and_tells_every_departure(make):
@@ -108,11 +91,6 @@ def test_until_pages_until_the_window_is_covered_and_tells_every_departure(make)
     assert "Wien Hauptbahnhof → Flughafen Wien Bahnhof" in summary and "00:53 REX 7" in summary
     assert "再下一班 04:22 REX 7 开" in summary and "04:52" not in summary.split("再下一班")[1]
     assert "之间出发的车都在这里" in summary and "01:00 之后的没查" in summary  # A16: the user's words, not “连续查全”
-    # 总结句自己过 check_answer；坏样本（少写 23:23、数错）被拦
-    assert problems(service, second(found["summary"], at="21:01")) == {}
-    assert problems(service, second(COUNT_GOOD, at="21:01")) == {}
-    bad = problems(service, second(COUNT_BAD, at="21:01"))
-    assert list(bad) == ["count_needs_continuous"] and "23:23 REX 7 没写" in bad["count_needs_continuous"][0]
 
 
 def test_until_stops_at_the_daily_budget_and_says_how_far_it_got(make):
@@ -137,25 +115,6 @@ def test_until_needs_transit_and_a_later_time(make):
         query(service, "transit", origin=HBF, destination=AIRPORT, when=local("21:00").isoformat(), until="2026-11-04T20:00:00+01:00")
     with pytest.raises(ValueError, match="until"):
         query(service, "latest_departure", origin=HBF, destination=AIRPORT, by="23:59", date=DAY, until="23:00")
-
-
-def test_gaps_between_queries_and_times_outside_them_are_refused(make):
-    service = make(Night(), at="23:30")
-    # 判词 off 第 1 问的窗口：22:30—23:23、00:40 起，中间空档 23:23—00:40
-    query(service, "transit", origin=HBF, destination=AIRPORT, when=local("22:30").isoformat(), limit=2)
-    query(service, "transit", origin=HBF, destination=AIRPORT, when=local("00:40").isoformat(), limit=2)
-    bad = problems(service, second(DENIED_BAD, at="23:30"))
-    assert list(bad) == ["denied_needs_coverage"] and "23:53 落在这次查询的窗口外" in bad["denied_needs_coverage"][0]
-    assert "连续查法" in bad["denied_needs_coverage"][0]
-    bad = problems(service, second(COUNT_BAD, at="23:30"))
-    assert list(bad) == ["count_needs_continuous"]
-    # “没查到”不豁免结论；存档/没核的写法豁免
-    assert problems(service, second("计划里写过“误了 22:53，只剩 23:53 末班 REX”（存档，写于 11-01 13:49，没核）。", at="23:30")) == {}
-    # 对照：连续覆盖后同一处境的合法说法
-    query(service, "transit", origin=HBF, destination=AIRPORT, when=local("21:00").isoformat(), until="01:00")
-    assert problems(service, second(COUNT_GOOD, at="23:30")) == {}
-    bad = problems(service, second("别指望 23:53 那班。", at="23:30"))
-    assert "denied_needs_coverage" in bad and "工具查到 23:53 这班" in bad["denied_needs_coverage"][0]
 
 
 # --- 2. latest_departure：到达期限与上车时刻分清 -------------------------------------------------------------------------
@@ -212,10 +171,7 @@ def test_a_later_departure_found_this_session_voids_the_stored_claim(make):
     assert "作废" in node["text"]
 
 
-def test_pack_marks_the_claim_and_check_answer_lets_the_marked_form_pass(make):
+def test_pack_marks_the_claim_as_unchecked(make):
     service = make(Night(), at="21:01", anchors=[deepcopy(ARCHIVE_ANCHOR)])
     turn = service.turn("local", "今晚怎么去机场？", "q1")
     assert "没核" in turn["pack"]["markdown"]
-    # 宿主照抄标好的存档句进第二段：不当作现在的事实，check_answer 不拦
-    node = next(node for node in turn["hard_nodes"] if node["id"] == ARCHIVE_ANCHOR["id"])
-    assert problems(service, second(node["text"], at="21:01")) == {}

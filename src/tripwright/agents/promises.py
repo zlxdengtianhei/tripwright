@@ -112,11 +112,9 @@ PROMISES = (
     Promise("lookups-from-the-tools", ALL_MAIN + RESEARCHER, must=(r"latest_departure", r"web_evidence")),
     # v2d replays: the main agent that read the command in its own skill ran it before the first part, which was then lost.
     Promise("command-line-only-in-the-researcher", RESEARCHER, must=(r"tripwright --repo \. query", r"starts with `uvx --from \./tools/<wheel> tripwright --repo \. query`")),
-    # The main agent's one command line is the second part's check_answer (D-43); lookups stay with the researcher. A16:
-    # and the first part's draft (`first-part`, no lookup) when the tools are down.
-    Promise("main-agent-never-runs-the-command-line", ALL_MAIN, must=(r"(?:主 agent 只跑第二段的 `check_answer`|the main agent runs only the second part's `check_answer`)",),
-            # S4a2: and the share page's publish after an effective commit (step 6), which looks nothing up
-            must_not=(r"uvx --from (?![^\n]*?(?:query check_answer|tripwright --repo \. first-part))",),
+    # The main agent's only command line drafts the first part; lookups stay with the researcher.
+    Promise("main-agent-never-runs-the-command-line", ALL_MAIN, must=(r"tripwright --repo \. first-part",),
+            must_not=(r"uvx --from (?![^\n]*?tripwright --repo \. first-part)",),
             bad_sample="Without the MCP tools run `uvx --from ./tools/x.whl tripwright --repo . query transit`."),
     # Third quality verdict (D-44): the tools' words leaked into answers; a way not looked up was called impossible.
     Promise("tool-words-stay-out", ALL_MAIN, must=(r"(?:工具里的说法不进回答|The tools' words stay out of the answer)", r"(?:不写证据号|never the evidence ID)"),
@@ -133,8 +131,6 @@ PROMISES = (
             must_not=(r"first_part\.later", r"second_part_due"), bad_sample="first_part.later and second_part_due"),
     # D-48: the host sent true_from "this" (copied from source.event) and turn refused the record.
     Promise("record-times-with-offset", MAIN_TEXTS, must=(r'`true_from` an ISO time with offset, never "this"',)),
-    Promise("send-the-passed-draft", ALL_MAIN, must=(r"(?:照抄那份草稿发出，一字不改|send that draft exactly)",)),
-    Promise("claude-check-optional", MAIN_TEXTS, must=(r"check_answer", r"(?:may check|可以用|可以留|可以核)")),
     Promise("no-tool-steps-end-with-write-back", ("skills/tripwright-main/references/single-agent.md",),
             must=tuple(rf"### {number}\. [^\n]+\n(?:(?!\n### )[\s\S])*?写回仓" for number in range(0, 7))),
     Promise("new-trip-carry-over", (RECORDS, SINGLE),
@@ -153,7 +149,7 @@ PROMISES = (
             must=(r"怎么查、怎么问", r"我可以帮你起草询问内容", r"英语", r"当地语言")),
     Promise("unchecked-latest-example-defers-answer", ("skills/tripwright-main/references/examples.md",),
             must=(r"Good first part, before lookups:\n```text\n按现在 \d\d:\d\d 算：几点出发要查，第二段给。",)),
-    # A10 (D-67): the service drafts the first part and frames “最晚几点出发去 X”; part 2 goes once, after check_answer.
+    # A10 (D-67): the service drafts the first part and frames “最晚几点出发去 X”.
     Promise("first-part-from-turn", MAIN_TEXTS + (SERVER,), must=(r"first_part",)),
     Promise("last-connection-from-the-server", MAIN_TEXTS + RESEARCHER,
             must=(r"(?:只给 `origin`、`destination`|origin and destination only)",)),

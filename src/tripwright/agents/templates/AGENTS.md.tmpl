@@ -5,7 +5,7 @@ This repository holds one person's trips, one folder per trip under `trips/`. It
 
 ## Every user message
 
-The main agent calls `turn` first and does these steps; the `tripwright-main` skill holds the full rules. Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>`. In Claude Code, a second-part draft may be checked with `uvx --from ./tools/<wheel> tripwright --repo . query check_answer --part second --text-file -`; lookups go to the researcher.
+The main agent calls `turn` first and does these steps; the `tripwright-main` skill holds the full rules. Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>`; lookups go to the researcher.
 
 <!-- include: core steps -->
 

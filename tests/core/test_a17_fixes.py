@@ -14,7 +14,7 @@ import re
 
 from test_a12_first_part import FIRST
 from test_a14_fixes import GO
-from test_a16_fixes import WAYS, first_checks, make  # noqa: F401 (make is a fixture)
+from test_a16_fixes import WAYS, make  # noqa: F401 (make is a fixture)
 from tripwright import cli
 
 # the replay's two points for “今晚到明天 最晚几点出发机场 怎么走”, both to the airport
@@ -42,7 +42,6 @@ def test_points_of_one_kind_to_one_place_share_one_line(make, capsys):
     assert turn["lines"][3].startswith("怎么走（存档，没核）：")
     # both points are still answered, each with that line
     assert [point["line"] for point in turn["points"]] == [turn["lines"][1]] * 2
-    assert set(first_checks(service, turn["text"], "q1")) == {"clock_in_first_part"}
     # the command line's first part is the same
     code, out, _ = first_part(service, json.dumps(TWICE, ensure_ascii=False), capsys)
     assert code == 0 and out["first_part"]["text"] == turn["text"]

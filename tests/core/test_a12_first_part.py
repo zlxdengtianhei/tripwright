@@ -4,11 +4,10 @@ short. Each with a bad sample in the replay's shape and a legal control.
 - A: the first part was the plan's airport template whatever was asked. The user's second question (just out of a
   climbing gym, hungry, would like to see Halloween events in town, must they rush to the airport?) got the same lines as
   the first (“最晚几点去机场”), with the clock changed. Now the host passes the question's points to `turn`; the first part
-  answers each one from what the trip stores, line 2 says where the user is, and check_answer holds it to them.
+  answers each one from what the trip stores, and line 2 says where the user is.
 - E: a stored 24-hour ticket with its €2.30 airport supplement, while every connection said “票价和通票没查” and the
   answer said “市内票可能不够”. Now the lookup says the stored tickets once, and the routes say need=stored.
-- F: the second part ran to about 20 body lines. check_answer counts them as quality card 3 does; the server's sentences
-  say the last train and the next time to keep once.
+- F: the server's sentences say the last train and the next time to keep once.
 
 Offline: the fictional MOTIS of test_a10_frame (public Vienna stop names, made-up times), fictional gyms, places to eat
 and tickets."""
@@ -22,10 +21,9 @@ import httpx
 import pytest
 
 from test_a8_transit_facts import NIGHT, local
-from test_a10_frame import DESK, QUEUE, REX, Evening, airport_plan, fixed, problems, query, second_part
+from test_a10_frame import DESK, QUEUE, REX, Evening, airport_plan, fixed, query
 from tripwright.providers.transitous import TransitousProvider
 from tripwright.query import QueryRouter
-from tripwright.render.check_answer import check_draft
 from tripwright.render.first_part import draft
 from tripwright.service import Tripwright
 from tripwright.storage import Store
@@ -86,18 +84,10 @@ def make(tmp_path, monkeypatch):
         store.close()
 
 
-def checked(service, text: str, part: str = "first", request_id: str = "q2") -> dict[str, list[str]]:
-    found = {}
-    for entry in query(service, "check_answer", text=text, part=part, request_id=request_id)["problems"]:
-        found.setdefault(entry["check"], []).append(entry["why"])
-    return found
-
-
 def two_questions(service, monkeypatch):
     """The replay's order: the first question at 21:01 (its second part looked tonight up from the gym the plan has the
     user in), the second at 21:52."""
     first = service.turn("local", FIRST, "q1", scenario="quick", points=[dict(kind="go", said="最晚几点出发去机场", place="airport")])
-    first["checked"] = checked(service, first["first_part"]["text"], request_id="q1")
     query(service, "latest_departure", origin="gym-north", destination="airport")
     fixed(monkeypatch, local("21:52"))
     return first, service.turn("local", SECOND, "q2", scenario="quick", points=ASKED)
@@ -126,9 +116,6 @@ def test_the_first_part_answers_each_point_of_the_question(make, monkeypatch):
     # bad sample: the A11 first part, the plan's template with the second question's clock (what the replay's host sent)
     template = draft(SECOND, second["now"], second["hard_nodes"], service.versions.current("local")["plan"])["text"]
     assert template.startswith("按现在 21:52 算：几点出发要查，第二段给。\n计划里写过：22:53")
-    bad = checked(service, template)
-    assert bad["answers_each_point"] == ["这一问点名的“有点饿想吃点东西”、“市区万圣节活动”第一段没回应"]
-    assert bad["place_in_first_lines"] == ["用户说了在哪（“刚从第一个岩馆出来”），前两行没写"]
     # control: the first question (only when to leave for the airport): the plan's stored train first, archived, the real
     # latest from part 2 (A14), the assumed place from the user's own blocks, the next time to be at the airport
     assert first["first_part"]["lines"] == [
@@ -143,20 +130,13 @@ def test_the_first_part_answers_each_point_of_the_question(make, monkeypatch):
 
 
 
-def test_a_stored_time_or_price_quoted_without_its_mark_is_refused(make):
-    """Quality judge 6, on_r1: “07:05 Visa/Document check 柜台关” went out as a fact; the turn had it `checked: null`."""
+def test_stored_times_and_prices_are_marked(make):
     service = make(bookings=TICKETS)
     turn = service.turn("local", "还要守什么时间？票要补吗？", "q6", scenario="quick",
                         points=[dict(kind="ticket", said="票要补吗"), dict(kind="other", said="还要守什么时间")])
-    text = turn["first_part"]["text"]
     assert turn["first_part"]["lines"][0] == "按存的计划先说（时刻还没核）"
-    stored = next(line for line in turn["first_part"]["lines"] if line.startswith("票："))
-    bad = checked(service, text.replace("明早 07:05 证件柜台关（存档，没核）", "明早 07:05 证件柜台关")
-                  .replace(stored, "票：补机场段，€2.30 一人"), request_id="q6")
-    assert bad["archived_marked"] == ["“2.30”是存的、没核过，这行没标", "“07:05 证件柜台关”是存的、没核过，这行没标"]
-    # controls: the plan's own target needs no mark; the same words checked in part 2 are not this check's
-    assert "archived_marked" not in checked(service, "你计划明早 05:45 前到（留的余量）：到证件柜台排队", request_id="q6")
-    assert check_draft("明早 07:05 证件柜台关", "first", 21 * 60 + 1) == check_draft("明早 07:05 证件柜台关", "first", 21 * 60 + 1, points=None)
+    assert "明早 07:05 证件柜台关（存档，没核）" in turn["first_part"]["lines"]
+    assert any(line.startswith("票：") for line in turn["first_part"]["lines"])
 
 
 def test_points_are_refused_with_their_path(make):
@@ -267,12 +247,6 @@ Burger Beispiel, Wien Hauptbahnhof
 我可以帮你起草询问内容（英语、德语）"""
 
 
-def test_a_second_part_is_not_refused_for_its_length():
-    # 11-04 (checker audit: the card judges content, not line counts): second_part_lines is gone; 17 body lines pass
-    for text in (LONG, SHORT):
-        assert "second_part_lines" not in {entry["check"] for entry in check_draft(text, "second", 21 * 60 + 52)}
-
-
 # --- a12b: from the A12 self-replay ------------------------------------------------------------------------------------------
 
 def test_a_go_place_the_trip_does_not_store_is_never_named_with_the_users_words(make):
@@ -313,11 +287,3 @@ def test_the_plans_own_train_is_said_to_be_in_these_results_or_not(make):
     renamed = query(make(today=[dict(REX, line="REX 22779")]), "latest_departure", origin="hbf", destination="airport")
     assert ("计划里的 22:53 REX 22779 赶得上（时刻表里叫 REX 7）：22:53 出门，不用换车：22:53 REX 7（往 Flughafen Wien）Wien Hauptbahnhof "
             "→ Flughafen Wien Bahnhof 23:15；23:15 到") in renamed["sentences"]
-    # bad samples (the replay's line): a found train called not found; a missing one with “以下面的为准”
-    bad = problems(service, second_part(found["first_line"], "和第一段不同：计划里写的 22:53 REX 7 这次没查到，以下面的班次为准。"))
-    assert bad["missing_ride_found"][0].startswith("说 22:53 REX 7 没查到，这一问的查询结果里有这班（22:53 出门）")
-    gone = problems(service, second_part(found["first_line"], "和第一段不同：计划里写的 22:42 RJX 19959 这次没查到，以下面的班次为准。"))
-    assert gone["missing_ride_found"][0].startswith("说那班没查到，又说以下面的为准")
-    # controls: the server's sentences pass; “没查到” about the trains after one is not about that one
-    assert problems(service, second_part(found["first_line"], *found["sentences"][1:])) == {}
-    assert "missing_ride_found" not in problems(service, second_part(found["first_line"], "误了 22:53 那班之后还有没有赶得上的，没查到"))

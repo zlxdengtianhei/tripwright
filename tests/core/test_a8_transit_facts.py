@@ -1,9 +1,7 @@
 """A8 (D-57, D-60): transit facts are written by the service, written right, and say their limits.
 
-- "The last one", "only … left", "nothing later", "the first one", "at the latest" and "direct" pass check_answer only
-  when a lookup of this question covered what they say; the fix is a sentence the host can copy.
 - Transit and latest_departure results carry sentences a host copies: every ride with its own stops, how many changes,
-  timetable or real time; the server's own sentences pass the check. What the timetable cannot say (real-time delays,
+  timetable or real time. What the timetable cannot say (real-time delays,
   platforms, disruptions) is not added to each sentence: `how_to_check` says apart which app, what to search and which
   steps (D-61, which replaced D-60's reminder on every sentence).
 - A date after the timetable change says the data is not in yet, not that there is no service; a typed name says
@@ -29,7 +27,6 @@ import tripwright.storage as storage_module
 from tripwright.demo import example
 from tripwright.providers.transitous import TransitousProvider
 from tripwright.query import QueryRouter
-from tripwright.render import check_answer as checks
 from tripwright.service import Tripwright
 from tripwright.storage import Store
 
@@ -185,74 +182,7 @@ def second(*lines: str, at: str = "22:30") -> str:
                       "以上交通时刻按时刻表，不是实时。"])  # S4h2: the timetable said once
 
 
-def problems(service, text) -> dict[str, list[str]]:
-    found = {}
-    for entry in query(service, "check_answer", text=text, part="second")["problems"]:
-        found.setdefault(entry["check"], []).append(entry["why"] + " | " + entry["fix"])
-    return found
-
-
 # --- 1. negative and universal sentences need a window that covers them -----------------------------------------------
-
-def test_only_left_is_refused_when_the_window_found_a_later_train(make):
-    service = make(Night(), at="23:30")
-    found = query(service, "transit", origin=STREET, destination=AIRPORT, when=local("23:30").isoformat(), limit=2)
-    assert found["window"]["to"].startswith(f"{DAY}T00:13") or found["window"]["to"][11:16] == "00:13"  # 23:53 and 00:23 boards
-    bad = problems(service, second("只剩 23:53 那班 REX，坐它去机场。", at="23:30"))
-    assert list(bad) == ["only_inside_window"] and "工具查到 23:53 之后还有 00:23 REX 7" in bad["only_inside_window"][0]
-    assert "写成“查到 00:13 为止；之后的没查”" in bad["only_inside_window"][0]
-    # control: the same lookup, said as what was found
-    assert problems(service, second("查到 23:53 和 00:23 两班 REX；查到 00:13 为止；之后的没查。", at="23:30")) == {}
-
-
-def test_the_last_train_needs_a_lookup_that_found_the_next_one(make):
-    service = make(Night(), at="23:30")
-    query(service, "transit", origin=HBF, destination=AIRPORT, when=local("23:40").isoformat(), limit=1)  # only the 23:53
-    bad = problems(service, second("23:53 是末班。", at="23:30"))
-    assert list(bad) == ["only_inside_window"] and "查询没查到 23:53 之后的班次" in bad["only_inside_window"][0]
-    query(service, "transit", origin=HBF, destination=AIRPORT, when=local("00:40").isoformat(), limit=2)  # 00:53, then 04:22
-    assert problems(service, second("00:53 之后到 04:22 没有火车。", at="23:30")) == {}
-    assert problems(service, second("末班 00:53，下一班 04:22。", at="23:30")) == {}
-    wrong = problems(service, second("23:53 之后到 04:22 没有火车。", at="23:30"))
-    assert list(wrong) == ["only_inside_window"] and "还有 00:53 REX 7" in wrong["only_inside_window"][0]
-
-
-def test_nothing_later_without_a_time_needs_a_search_that_went_past_the_target(make):
-    service = make(Night(), at="22:20", anchors=[dict(id="hn-check-in", time="23:30", text="Check-in closes", subject=["p1"],
-                                                       consequence="Missed flight.", alternative="Next flight.", deadline="external")])
-    query(service, "transit", origin=HBF, destination=AIRPORT, when=local("22:30").isoformat(), limit=1)
-    bad = problems(service, second("没有更晚的走法，只剩夜里的后备车。", at="22:20"))
-    assert list(bad) == ["only_inside_window"] and "没写到几点" in bad["only_inside_window"][0]
-    latest = query(service, "latest_departure", origin=HBF, destination=AIRPORT, anchor_id="hn-check-in")
-    assert latest["window"]["covers_target"]
-    assert problems(service, second("没有更晚的走法，误了这班就赶不上值机。", at="22:20")) == {}
-
-
-def test_at_the_latest_needs_the_search_to_cover_the_target(make):
-    anchor = dict(id="hn-check-in", time="23:30", text="Check-in closes", subject=["p1"], consequence="Missed flight.",
-                  alternative="Next flight.", deadline="external")
-    service = make(Night(("22:53",)), at="22:20", anchors=[anchor])  # the data ends at 22:53: the search cannot pass the target
-    partial = query(service, "latest_departure", origin=HBF, destination=AIRPORT, anchor_id="hn-check-in")
-    assert not partial["window"]["covers_target"]
-    bad = problems(service, second("最晚 22:53 坐 REX 7 去机场。", at="22:20"))
-    assert list(bad) == ["only_inside_window"] and "查询没查到 22:53 之后的班次" in bad["only_inside_window"][0]
-    assert not any("最晚" in sentence for sentence in partial["sentences"]) and "查到 22:53 为止；之后的没查" in partial["sentences"]
-    covered = make(Night(), at="22:20", anchors=[anchor])
-    latest = query(covered, "latest_departure", origin=HBF, destination=AIRPORT, anchor_id="hn-check-in")
-    assert latest["window"]["covers_target"] and latest["primary"]["boards"]["time"] == "22:53"
-    assert problems(covered, second("最晚 22:53 坐 REX 7 去机场。", at="22:20")) == {}
-    # a later train exists (23:23), but it misses check-in: "at the latest" is about the target, not the timetable
-    assert problems(covered, second("最晚 23:23 坐 REX 7 去机场。", at="22:20")).keys() == {"only_inside_window"}
-
-
-def test_the_first_train_needs_a_search_from_before_it(make):
-    service = make(Night(), at="23:30")
-    query(service, "transit", origin=HBF, destination=AIRPORT, when=local("04:00").isoformat(), limit=2)  # 04:22, 04:52
-    bad = problems(service, second("首班 04:22。", at="23:30"))
-    assert list(bad) == ["only_inside_window"] and "查询不是从它之前查起的" in bad["only_inside_window"][0]
-    query(service, "transit", origin=HBF, destination=AIRPORT, when=local("00:40").isoformat(), limit=2)  # 00:53, 04:22
-    assert problems(service, second("首班 04:22（前一班 00:53）。", at="23:30")) == {}
-
 
 # --- 2. "direct" needs a connection with one ride; summaries list every ride ---------------------------------------------
 
@@ -277,23 +207,10 @@ def test_a_change_is_not_summarized_as_the_first_line_to_the_last_stop(make):
     assert how["steps"] in how["text"] and how["link"]["url"].startswith("https://")
 
 
-def test_direct_needs_a_connection_with_one_ride(make):
-    service = make(Bus13A(), at="21:52")
-    query(service, "transit", origin=STREET, destination="48.2085,16.3731", when=local("21:52").isoformat(), limit=1)
-    bad = problems(service, second("22:00 坐 13A 直达 Stephansplatz。", at="21:52"))
-    assert list(bad) == ["direct_needs_one_ride"]
-    assert "要换 1 次车：22:00 13A Wien Leibenfrostgasse → Wien Kolschitzkygasse，换 22:07 1 Wien Kolschitzkygasse → Wien Stephansplatz" in bad["direct_needs_one_ride"][0]
-    assert list(problems(service, second("坐 13A 直达，不用换车。", at="21:52"))) == ["direct_needs_one_ride"]  # by its line
-    query(service, "transit", origin=STREET, destination="48.1850,16.3760", when=local("21:52").isoformat(), limit=1)  # Hauptbahnhof
-    assert problems(service, second("22:00 坐 13A 直达 Hauptbahnhof。", at="21:52")) == {}
-    assert list(problems(service, second("21:40 坐 U4 直达 Karlsplatz。", at="21:52"))) == ["direct_needs_one_ride"]  # nothing found
-    assert problems(service, second("网上说法：U4 直达 Karlsplatz（Wiener Linien 网站）。", at="21:52")) == {}
-
-
 # --- 3. the server's own sentences pass the check -------------------------------------------------------------------------
 
 @pytest.mark.parametrize("trains, at", [(NIGHT, "22:20"), (("22:53", "23:03", "23:13", "23:40"), "22:20"), (("22:53",), "22:20")])
-def test_the_servers_sentences_pass_check_answer(make, trains, at):
+def test_the_servers_sentences_carry_the_timetable_note_once(make, trains, at):
     anchor = dict(id="hn-check-in", time="23:30", text="Check-in closes", subject=["p1"], buffer_minutes=10, consequence="Missed flight.",
                   alternative="Next flight.", deadline="plan")
     limit = dict(id="hn-gate", time="23:50", text="Gate closes", subject=["p1"], consequence="Missed flight.", alternative="Next flight.",
@@ -306,8 +223,7 @@ def test_the_servers_sentences_pass_check_answer(make, trains, at):
     assert not any("按时刻表，不是实时" in sentence for sentence in told if "出门" in sentence)
     assert latest["note"] and transit["note"] and "按时刻表，不是实时" in latest["note"]
     told += [found["how_to_check"]["text"] for found in (latest, transit) if found.get("how_to_check")]  # the answer's last section
-    assert problems(service, second(*told, at=at)) == {}, told
-    assert problems(service, second("；".join(told), at=at)) == {}, "one line holding them all reads the same"
+    assert all(told)
 
 
 def test_latest_departure_sentences_say_the_first_choice_what_follows_and_the_last(make):
@@ -329,7 +245,6 @@ def test_a_date_after_the_timetable_change_says_not_in_the_data_yet(make):
     assert found["window"]["text"].startswith("2026-12-13 起换新时刻表") and "现在查不到" in found["window"]["text"]
     assert found["reason"] == found["window"]["text"] and [note["kind"] for note in found["coverage"]] == ["not_yet"]
     assert not any("没车了" in sentence or "没有车" in sentence for sentence in found["sentences"])
-    assert problems(service, second(*found["sentences"], at="22:00")) == {}
     assert found["how_to_check"] is None  # the destination was coordinates: nothing to type
     named = query(service, "transit", origin="Wien Hbf", destination="ischl-station", when="2026-12-20T08:00:00+01:00")
     assert named["how_to_check"]["what"] == ["not_yet"] and named["how_to_check"]["search"] == "Wien Hbf → Bad Ischl Bahnhof"
@@ -376,5 +291,3 @@ def test_how_to_check_names_the_regions_timetable_app_and_only_what_is_missing(m
     found = query(make(live, at="22:20"), "transit", origin=HBF, destination=AIRPORT, when=local("22:30").isoformat(), limit=1)
     assert found["how_to_check"]["what"] == ["disruption"] and found["how_to_check"]["text"].startswith("临时停运时刻表里没有")
     assert found["sentences"][0].endswith("（实时）")
-    # outside the regions with a known timetable app: the map app, searched by the destination
-    assert checks.claim_word("末班车来不及了") is not None and checks.claim_word("最晚 22:00 前吃完") is None

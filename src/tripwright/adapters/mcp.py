@@ -216,10 +216,10 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
 
     @server.tool(title="Look up travel data with provenance", annotations=lookup, structured_output=True)
     @expose_errors
-    async def query(kind: Literal["transit", "latest_departure", "web_evidence", "check_answer", "open_places", "nearby", "weather", "opening",
+    async def query(kind: Literal["transit", "latest_departure", "web_evidence", "open_places", "nearby", "weather", "opening",
                                   "saved", "geocode"],
                     arguments: dict[str, Any]) -> dict[str, Any]:
-        """Look up travel facts without changing the plan; use its returned sentences and search windows. arguments is an object. transit: {origin,destination,when,offset,arrive_by?,until?}; latest_departure: {origin,destination} for tonight's latest, optional anchor_id/by/board_at for a deadline; open_places: {near,at?,km?,text?}; web_evidence: {url,quote,claim,type,read_from}; weather (only when weather is asked): {place: stored ID|stored name|{name,lat,lon},date}; origin/destination/near also accept {name,lat,lon}; nearby: {lat,lon,km?}; saved/geocode: {text}; opening: {place,date?}; check_answer (optional in Claude Code, not a default step): {text,part:first|second,request_id?}. Places accept IDs or stored names. Full nested shapes are validated by the service, which names any bad field. Every fact retains fetch time, validity and attribution. Unchecked or unavailable facts stay unverified."""
+        """Look up travel facts without changing the plan; use its returned sentences and search windows. arguments is an object. transit: {origin,destination,when,offset,arrive_by?,until?}; latest_departure: {origin,destination} for tonight's latest, optional anchor_id/by/board_at for a deadline; open_places: {near,at?,km?,text?}; web_evidence: {url,quote,claim,type,read_from}; weather (only when weather is asked): {place: stored ID|stored name|{name,lat,lon},date}; origin/destination/near also accept {name,lat,lon}; nearby: {lat,lon,km?}; saved/geocode: {text}; opening: {place,date?}. Places accept IDs or stored names. Full nested shapes are validated by the service, which names any bad field. Every fact retains fetch time, validity and attribution. Unchecked or unavailable facts stay unverified."""
         return await (await opening.get_async()).query(identity(), kind, arguments)
 
     @server.tool(title="Propose plan or ledger changes against a context", annotations=write, structured_output=True)

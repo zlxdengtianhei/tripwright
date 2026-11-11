@@ -12,8 +12,8 @@ legal control.
 - A failed or timed-out lookup writes no stored “末班、只剩”, nor does the first part; a node's time that no source
   checked is quoted “（存档，没核）” (replay: “07:05 证件柜台关” as a fact; the timed-out lookup answered with the plan's
   “23:53 末班”).
-- No process talk or writing note in the server's sentences, and check_answer refuses both (replay: “（4 次查询，每页接着
-  上一页查）”, “（交通那段说一次就够，不用每条都写）”).
+- No process talk or writing note in the server's sentences (replay: “（4 次查询，每页接着上一页查）”,
+  “（交通那段说一次就够，不用每条都写）”).
 
 Offline: the fictional MOTIS of test_a10_frame (public Vienna stop names, made-up times), a fictional gym and stops."""
 from __future__ import annotations
@@ -26,12 +26,11 @@ import httpx
 import pytest
 
 from test_a8_transit_facts import DAY, HBF, NIGHT, STREET, local
-from test_a10_frame import DESK, NEXT_DAY, QUEUE, Evening, airport_plan, fixed, problems, query, second_part
+from test_a10_frame import DESK, NEXT_DAY, QUEUE, Evening, airport_plan, fixed, query
 from tripwright.checks import check_plan
 from tripwright.providers.base import ProviderUnavailable
 from tripwright.providers.transitous import TransitousProvider
 from tripwright.query import RAIL, QueryRouter, arrival_name
-from tripwright.render.check_answer import PROCESS_NOTES, WRITING_NOTES
 from tripwright.render.first_part import draft
 from tripwright.service import Tripwright
 from tripwright.storage import Store
@@ -109,7 +108,6 @@ def test_the_last_train_names_the_train_ride_not_the_tram_to_the_station(make):
     assert "火车最后一班 00:33 D" not in first  # the replay's shape: the tram's time and line called the train
     # A12: all night, the first line names the last train once; the next line says how to take it
     assert found["sentences"][1].startswith("这班火车怎么坐：00:30 出门，换 1 次车：00:33 D Wien Matzleinsdorfer Platz")
-    assert problems(service, second_part(first, *found["sentences"][1:])) == {}
     # controls: tram, subway and bus are no rail; from the station the train is the only ride
     assert not {"tram", "subway", "bus", "coach"} & RAIL
     station = query(make(Evening(trains=NIGHT[:5], buses=BUSES), tomorrow=[QUEUE, DESK]), "latest_departure", origin="hbf",
@@ -247,21 +245,8 @@ def test_process_talk_and_writing_notes_stay_out_of_the_answer(make):
     # A16: the window in the user's words, and not a line of its own when the search covered tonight
     assert window == "21:01 到 03:00 之间出发的车都在这里；03:00 之后的没查" and found["note"] == "以上交通时刻按时刻表，不是实时。"
     assert window not in found["sentences"]
-    assert not any(PROCESS_NOTES.search(text) or WRITING_NOTES.search(text) for text in [*found["sentences"], found["note"]])
-    # bad samples: the replay's two lines
-    process = "从 21:01 到 03:00 连续查（4 次查询，每页接着上一页查），12 班；03:00 之后出发的没查"
-    writing = "以上交通时刻按时刻表，不是实时（交通那段说一次就够，不用每条都写）。"
-    bad = problems(service, second_part(found["first_line"], process, writing))
-    assert list(bad) == ["no_process_notes"] and len(bad["no_process_notes"]) == 2
-    assert bad["no_process_notes"][0].startswith("有过程话：4 次查询、每页接着上一页")
-    assert bad["no_process_notes"][1].startswith("有写作说明：说一次就够、不用每条都写")
-    first = service.turn("local", "最晚几点出发去机场？", "q1", scenario="quick")["first_part"]
-    assert first is None
-    refused = query(service, "check_answer", text=writing, part="first")["problems"]
-    assert "no_process_notes" in [entry["check"] for entry in refused]
-    # controls: the server's own lines pass both parts
-    assert problems(service, second_part(found["first_line"], *found["sentences"][1:], found["note"])) == {}
-    assert first is None
+    assert not any("4 次查询" in text or "每页接着上一页" in text or "说一次就够" in text for text in [*found["sentences"], found["note"]])
+    assert service.turn("local", "最晚几点出发去机场？", "q1", scenario="quick")["first_part"] is None
 
 
 # --- a11b: a destination given as coordinates is named in the sentence ---------------------------------------------------
@@ -273,7 +258,6 @@ def test_a_destination_given_as_coordinates_is_named_by_where_the_ride_gets_off(
     assert found["resolved"]["destination"]["place"] is None and not found["searched"]["destination"].get("name")
     assert found["first_line"].startswith("今晚不用赶：夜里一直有车到 Flughafen Wien Bahnhof；火车最后一班 00:53 REX 7")
     assert "None" not in " ".join(found["sentences"])
-    assert problems(service, second_part(found["first_line"], *found["sentences"][1:])) == {}
     # controls: a stored place keeps its own name; with no stop to name either, the sentence says 终点
     named = query(make(Evening(trains=NIGHT[:5], buses=BUSES)), "latest_departure", origin="hbf", destination="airport")
     assert named["first_line"].startswith("今晚不用赶：夜里一直有车到 Flughafen Wien；")

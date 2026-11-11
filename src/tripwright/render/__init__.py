@@ -7,8 +7,6 @@ Entry points other blocks call:
 - `repo_files(states, *, current, snapshot, packs=None, sources=None, memory=None) -> {path: text}` and the single-file
   functions in `screens` (A's committer);
 - `fragment(name, language)` (C's skill assembler).
-
-The mechanical checks live in `tripwright.render.check_answer` (also `python -m tripwright.render.check_answer`).
 """
 from tripwright.render.answer import render_answer
 from tripwright.render.lines import leg_text, place_line, place_lines, transit_leg
