@@ -34,8 +34,8 @@ a `{"type": "user", "replay": "continue"}` line, then the second; `text_at` and 
 `turn<N>.json` has `continued`. The second reply's own files are kept as `cont<N>.*`.
 
 `--mcp-only` (s4b) replays an app that has only the MCP connection: the workspace keeps `.mcp.json` and the trip's data,
-and loses the agent files (CLAUDE.md, AGENTS.md, .agents/, .codex/, .claude/skills, .claude/agents and the hooks in
-.claude/settings.json); the removal is committed on the replay branch before the session starts, so the server sees a
+and loses the agent files (CLAUDE.md, AGENTS.md, .agents/, .codex/, .claude/skills and .claude/agents); the removal
+is committed on the replay branch before the session starts, so the server sees a
 clean copy. It checks that the MCP server alone carries a question through.
 """
 import argparse
@@ -128,14 +128,9 @@ def mcp_only(ws: Path):
             files.rmtree(target)
         elif target.exists():
             target.unlink()
-    settings = ws / ".claude" / "settings.json"
-    if settings.is_file():
-        data = json.loads(settings.read_text(encoding="utf-8"))
-        data.pop("hooks", None)
-        settings.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
     subprocess.run(["git", "add", "-A"], cwd=ws, check=True)
     subprocess.run(["git", "-c", "user.name=replay", "-c", "user.email=replay@example.invalid", "commit", "-q", "-m",
-                    "replay: only the MCP connection (agent files and hooks removed)"], cwd=ws, check=True)
+                    "replay: only the MCP connection (agent files removed)"], cwd=ws, check=True)
     subprocess.run(["git", "push", "-q", "origin", "HEAD:replay"], cwd=ws, check=True)
 
 
@@ -156,21 +151,6 @@ def pin_clock(out: Path, moment: str) -> dict:
     shim.chmod(0o755)
     return {"TRIPWRIGHT_NOW": parsed.isoformat(), "TRIPWRIGHT_NOW_SET_AT": str(since),
             "PATH": f"{folder}{os.pathsep}{os.environ.get('PATH', '')}"}
-
-
-def hook_counts(log: Path) -> dict:
-    """How often each of the trip repository's hooks ran during the replay and how often it blocked, from the one line
-    per call they write (`<time> <event> block|pass|error <note>`). Project hooks run in an untrusted workspace too
-    (measured on Claude Code 2.1.301: only permissions.allow is ignored there), so the replay does not touch trust."""
-    counts: dict[str, dict] = {}
-    for line in log.read_text(encoding="utf-8").splitlines() if log.is_file() else []:
-        parts = line.split(" ", 3)
-        if len(parts) >= 3:
-            entry = counts.setdefault(parts[1], {"runs": 0, "blocked": 0, "errors": 0})
-            entry["runs"] += 1
-            entry["blocked"] += parts[2] == "block"
-            entry["errors"] += parts[2] == "error"
-    return counts
 
 
 def run_turn(ws: Path, text: str, session: str | None, model: str, out: Path, n: int, extra: list[str], clock: dict | None = None,
@@ -349,7 +329,7 @@ def main():
     parser.add_argument("--no-subagents", action="store_true",
                         help="Claude Code without the Agent (Task) tool: the single-agent shape")
     parser.add_argument("--mcp-only", action="store_true",
-                        help="Only the MCP connection: remove the workspace's agent files and hooks before the session")
+                        help="Only the MCP connection: remove the workspace's agent files before the session")
     parser.add_argument("--extra", default="", help="Extra CLI arguments, space separated")
     parser.add_argument("--now", help="Replay at this moment (ISO with offset): the server and the host's date show it. "
                                       "Several moments, comma separated, pin each message to its own (the user's real times)")
@@ -392,11 +372,10 @@ def main():
         print(json.dumps({k: summary.get(k) for k in ("turn", "seconds", "text_at", "exit", "result_subtype", "cost_usd", "continued")
                           if k != "continued" or summary.get(k)}, ensure_ascii=False), flush=True)
     commits = subprocess.run(["git", "log", "--oneline", f"{base}..HEAD"], cwd=ws, capture_output=True, text=True).stdout
-    hooks = hook_counts(ws / ".tripwright" / "hook.log")
     (out / "run.json").write_text(json.dumps({"repo": args.repo, "ref": args.ref, "base": base, "host": args.host, "model": model,
                                                "no_subagents": args.no_subagents, "mcp_only": args.mcp_only,
                                                "extra": " ".join(extra), "now": args.now,
-                                               "turns": log, "commits": commits, "hooks": hooks},
+                                               "turns": log, "commits": commits},
                                               ensure_ascii=False, indent=1))
     # Mechanical checks on what the user saw (answer_checks.py writes answer_checks.json next to the turns).
     checks = subprocess.run([sys.executable, str(Path(__file__).with_name("answer_checks.py")), str(out)], capture_output=True, text=True)

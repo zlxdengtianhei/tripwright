@@ -1,7 +1,7 @@
 """Tripwright roles and the files generated from them (block C).
 
-Runtime readers only use the generated files, which ship inside the package: MCP prompts and server instructions,
-and the files `tripwright init` writes into a user's trip repository. `assemble` rebuilds them from the sources.
+Runtime readers only use the generated files, which ship inside the package: server instructions and the files
+`tripwright init` writes into a user's trip repository. `assemble` rebuilds them from the sources.
 """
 from __future__ import annotations
 
@@ -23,12 +23,6 @@ def _generated(path: str) -> str:
 def _without_notice(text: str) -> str:
     first, newline, rest = text.partition("\n")
     return rest if first.startswith(_NOTICE) else text
-
-
-def prompts() -> list[dict]:
-    """Name, title, description and text of each role's MCP prompt."""
-    index = json.loads(_generated("mcp/index.json"))["prompts"]
-    return [dict(entry, text=_without_notice(_generated(f"mcp/{entry['file']}"))) for entry in index]
 
 
 def server_instructions() -> str:
@@ -53,8 +47,6 @@ def user_repo_files() -> dict[str, bytes]:
               # read-only shell commands), so a phone or cloud session does not ask for each call. The one command
               # that writes is the trip's bundled tripwright running `query`, which the researcher uses when MCP is
               # missing (D-43); Claude Code matches rules on whole words, so the rule names the exact wheel file.
-              # Two hooks of the same tripwright (D-45): no dispatch or lookup before the first part is out, and the
-              # second part sent must be the draft check_answer passed.
               ".claude/settings.json": base.joinpath("templates/settings.json.tmpl").read_bytes().replace(
                   b"{{wheel}}", f"tripwright-{__version__}-py3-none-any.whl".encode())}
     for folder, destination, suffix in (("claude", ".claude/agents", ".md"), ("codex", ".codex/agents", ".toml")):

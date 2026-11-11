@@ -21,7 +21,7 @@ import sys
 from datetime import datetime, tzinfo
 from urllib.parse import parse_qs, unquote, unquote_plus, urlsplit
 
-from tripwright.render.first_part import DO_DUE, LATER
+
 
 LIMITS = {"quick": 5, "first": 10, "second": 16}
 STEP_VERBS = ("坐", "换", "走", "下车", "买", "出示", "搜")
@@ -432,8 +432,7 @@ SECOND_HEADING_FIX = "第一行写 `# 第二段 · …（HH:MM）`"
 
 def second_heading_problems(text: str) -> list[dict]:
     """Second part (D-48): a heading line "第二段" that carries the time it was written, as the skeleton's
-    "# 第二段 · 核过了（HH:MM）"; the user and the Stop hook tell the second part by it (a second part that opened with
-    "有变化：" passed before). A write-conflict line may come first. title_time_not_later checks that the time is not
+    "# 第二段 · 核过了（HH:MM）". A write-conflict line may come first. title_time_not_later checks that the time is not
     later than now."""
     lines = numbered(text)
     heading = next(((number, line) for number, line in lines if SECOND_HEADING.match(line)), None)
@@ -1561,21 +1560,6 @@ def check_draft(text: str, part: str, clock: int, found: dict | None = None, *, 
                   + party_problems(text, found["lookups"], points) + followed_problems(text, first, clock) + timetable_problems(text, found))
 
 
-# --- A7: what was sent is what was checked (the Stop hook) ----------------------------------------------------------------
-
-PART_HEADING = re.compile(r"^#{1,6}\s*(?:第二段|完整安排)", re.M)
-# A14 (quality judge 7, off_r1): a second part sent before it passed was checked when the hook asked, then sent again; the
-# user got two identical messages. What was sent is on the user's screen: it is checked as it stands, never sent twice.
-# S5b (s5_ns_on_r2 question 2): after “过了就结束，别再发一遍” the host rechecked and wrote “第二段上面已经发过了，没有要改的地方。”
-SEEN = "；这段用户已经看到了：重核过了就结束这一轮，不写任何字；没过只发一条“更正：”，写改了的几行"
-BLOCK_REASON = "第二段和核过的草稿不一致，请把发出的文字交 check_answer 再核" + SEEN
-NEVER_REASON = "这一问的第二段还没过 check_answer，请把发出的文字交 check_answer 再核" + SEEN
-
-
-def is_second_part(text: str) -> bool:
-    return bool(PART_HEADING.search(text))
-
-
 def draft_digest(text: str) -> str:
     """The same text whatever its line endings, trailing spaces and surrounding blank lines."""
     import hashlib
@@ -1584,150 +1568,10 @@ def draft_digest(text: str) -> str:
     return hashlib.sha256("\n".join(lines).strip("\n").encode("utf-8")).hexdigest()
 
 
-def wall(stamp: str | None) -> float | None:
-    return datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp() if stamp else None
-
-
-def real_message(entry: dict) -> bool:
-    """A message the user typed: not a tool result, a meta entry, a subagent's entry, or a task notification Claude
-    Code delivers as a user entry when background work ends (`origin.kind` "task-notification", measured on 2.1.301)."""
-    if entry.get("type") != "user" or entry.get("isSidechain") or entry.get("isMeta"):
-        return False
-    if "notification" in str((entry.get("origin") or {}).get("kind", "")):
-        return False
-    content = (entry.get("message") or {}).get("content")
-    blocks = content if isinstance(content, list) else [{"type": "text", "text": content}]
-    if any(isinstance(block, dict) and block.get("type") == "tool_result" for block in blocks):
-        return False
-    text = " ".join(str(block.get("text") or "") for block in blocks if isinstance(block, dict))
-    return not text.lstrip().startswith(("<task-notification>", "<system-reminder>"))
-
-
-def turn_texts(transcript: list[dict]) -> tuple[float | None, list[tuple[float | None, str]]]:
-    """When the last real user message of a Claude Code transcript was sent (Unix seconds), and the texts the main
-    agent showed after it, each with when it was shown."""
-    asked, shown = None, []
-    for entry in transcript:
-        if real_message(entry):
-            asked, shown = wall(entry.get("timestamp")) or asked, []
-        elif entry.get("type") == "assistant" and not entry.get("isSidechain"):
-            content = (entry.get("message") or {}).get("content")
-            for block in content if isinstance(content, list) else []:
-                if isinstance(block, dict) and block.get("type") == "text" and block.get("text", "").strip():
-                    shown.append((wall(entry.get("timestamp")), block["text"]))
-    return asked, shown
-
-
-def answers_later(transcript: list[dict]) -> bool:
-    """Whether the last real user message answers a reply that ended with first_part.later (S4e): the first part of
-    this question is in that reply, and this message asks for its second part (dry_cc_ns_synth_v4: the first-part hook
-    denied the lookups after “继续”, and the host sent its first part again)."""
-    before, shown, answered = [], [], False
-    for entry in transcript:
-        if real_message(entry):
-            before, shown = shown, []
-            lines = [line for line in (before[-1].splitlines() if before else []) if line.strip()]
-            answered = bool(lines) and is_later(lines[-1])
-        elif entry.get("type") == "assistant" and not entry.get("isSidechain"):
-            content = (entry.get("message") or {}).get("content")
-            for block in content if isinstance(content, list) else []:
-                if isinstance(block, dict) and block.get("type") == "text" and block.get("text", "").strip():
-                    shown.append(block["text"])
-    return answered
-
-
-def stop_decision(payload: dict, answers: dict, transcript: list[dict], minute_at=None, blocked: int = 0) -> tuple[str | None, str]:
-    """The Stop hook's verdict when the host ends a turn: (reason to block, or None; what to log). A pusher with a cap
-    (D-48): it keeps a question going until its second part is out, at most STOP_BLOCKS times per question.
-
-    - The text just sent is a second part (a "第二段" or "完整安排" heading): it must equal the last second part
-      check_answer passed during this question.
-    - No second part yet in this question (since the last real user message; a task notification is not one):
-      - the main agent dispatched a subagent or looked something up, and no text has a first part's shape
-        (`first_part_shape` at `minute_at`: the clock in the first two lines, no tags; D-46, D-47): write the first part;
-      - a text with a first part's shape says a second part follows (第二段, 核完再发, "second part"), or the main agent
-        dispatched or looked something up: unless a check dispatched in the background is still running (no
-        notification for its tool use yet), dispatch the check and write the second part.
-    - A quick answer (nothing promised, nothing looked up) and a chat pass.
-    - `blocked` counts this question's blocks so far (all three reasons together); from STOP_BLOCKS on it lets the
-      turn end and logs it. `stop_hook_active` no longer lets a block through by itself."""
-    asked, shown = turn_texts(transcript)
-    sent = payload.get("last_assistant_message") if isinstance(payload.get("last_assistant_message"), str) else None
-    text = sent if sent is not None else (shown[-1][1] if shown else None)
-    passed = [entry for entry in answers.values() if isinstance(entry, dict) and (asked is None or entry.get("wall", 0) >= asked)]
-    digests = {entry.get("sha256") for entry in passed}
-
-    def second(shown_text: str) -> bool:
-        # 11-04: the heading is a hint now; a draft that passed is a second part with or without it
-        return is_second_part(shown_text) or draft_digest(shown_text) in digests
-
-    if text and second(text):
-        if draft_digest(text) in digests:
-            return None, "matches a passed draft"
-        reason = BLOCK_REASON if passed else NEVER_REASON
-        verdict = "differs from the passed draft" if passed else "no passed draft for this question"
-    else:
-        if minute_at is None:
-            return None, "not a second part"
-        texts = shown + ([(None, sent)] if sent and sent.strip() and not any(sent.strip() == shown_text.strip() for _, shown_text in shown) else [])
-        if any(second(shown_text) for _, shown_text in texts):
-            return None, "not a second part; this question's second part was sent"
-        looked = turn_lookups(transcript)
-        due = answers_later(transcript)
-        if due:  # the user said “继续” to a first part that ended with later: the second part is due
-            last, promised, ended = [], True, None
-        else:
-            last = first_part_sent(texts, minute_at, first_part_shape)
-            promised = any(PROMISE.search(shown_text) and not first_part_shape(shown_text, minute_at(at)) for at, shown_text in texts)
-            ended = later_ending(texts)
-        if looked and last != []:
-            reason = STOP_FIRST_REASON + failing(last)
-            verdict = f"{', '.join(dict.fromkeys(looked))} this question but no first part"
-        elif ended == "ends":
-            return None, "first part ends with first_part.later: the user's next message brings the second part"
-        elif ended == "more":
-            reason = LATER_REASON
-            verdict = "text after first_part.later"
-        elif promised or looked:
-            running = running_checks(transcript)
-            if running:
-                return None, f"first part sent; {len(running)} background check(s) running"
-            reason = PUSH_REASON
-            verdict = ("second part promised" if promised else f"{', '.join(dict.fromkeys(looked))} this question") + ", no second part, no check running"
-        else:
-            return None, "not a second part; nothing promised or looked up"
-        if due:  # S5b: after “继续” the push opens with the one thing to do (s5_ns_on_r1, s5_mcponly_r2: status lines)
-            reason = DO_DUE["zh"] + reason
-    if blocked >= STOP_BLOCKS:
-        return None, f"would block ({reason}) but let through after {blocked} blocks for this question"
-    return reason, "blocked: " + verdict
-
-
-# --- S4a2: a first part that ends the reply with first_part.later ------------------------------------------------------------
-# In an app that cannot show text between tool calls the first part is the whole reply and its last line says how to get
-# the second (core step 4). That line ends it: nothing after it, and no status line in it (a17b_off_r2: “第二段核完就发。”;
-# a17_off_r3: “第二段我还在核…核完马上发。”). The server's own “没核：……，第二段核完再发。” is not a status line.
-LATER_LINES = tuple(LATER.values())
-LATER_MARKS = str.maketrans("", "", "“”\"「」『』'‘’ 　")
-
-
-def later_key(line: str) -> str:
-    """The later line as words: quote marks, spaces and the end mark do not count (dry_cc_ns_synth: the host wrote
-    回我一句"继续" with ASCII quotes)."""
-    return line.strip().translate(LATER_MARKS).rstrip("。.!！")
-
-
-LATER_KEYS = frozenset(later_key(line) for line in LATER_LINES)
-
-
-def is_later(line: str) -> bool:
-    return bool(line.strip()) and later_key(line) in LATER_KEYS
+# --- S4a2: no status line in a first part ----------------------------------------------------------------------------------
 STATUS_LINE = re.compile(r"马上(?:发|回|给|再)|稍等|稍后(?:发|给|再)|正在(?:查|核|看|找)|还在(?:查|核|看|找)|(?:我|这就)先?去(?:查|核|看)|"
                          r"核完(?:就|马上)发|查完(?:就|马上|再)发|第一段(?:已经)?发(?:完|给你)|上面(?:那段|这段)|"
                          r"I'm still|I am still|[Ss]till checking|[Ll]et me (?:check|look)|I'll (?:check|look)|[Cc]hecking now")
-LATER_REASON = "第一段以“回我一句“继续””那一行结束这一轮，后面不再写别的，也不写进度"
-
-
 def status_lines(text: str) -> list[tuple[int, str]]:
     """Lines that report progress instead of answering (the server's own 没核 line is not one)."""
     return [(number, line) for number, line in numbered(text)
@@ -1735,22 +1579,9 @@ def status_lines(text: str) -> list[tuple[int, str]]:
 
 
 def later_problems(text: str) -> list[dict]:
-    """No first part carries a status line (what follows first_part.later is the Stop hook's, later_ending)."""
+    """No first part carries a status line."""
     return [problem("no_status_line", number, line, f"第一段里有状态句：{line.strip()}",
                     "删掉这一行：用户只看到第一段和第二段，不看进度") for number, line in status_lines(text)]
-
-
-def later_ending(texts: list[tuple]) -> str | None:
-    """How this question's shown texts use first_part.later: "ends" when the last one ends with it and has no status line,
-    "more" when a text has it and something follows (or a status line comes with it), None when no text has it."""
-    with_later = [index for index, (_, text) in enumerate(texts) if any(is_later(line) for line in str(text).splitlines())]
-    if not with_later:
-        return None
-    text = str(texts[with_later[-1]][1])
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    if with_later[-1] == len(texts) - 1 and lines and is_later(lines[-1]) and not status_lines(text):
-        return "ends"
-    return "more"
 
 
 def evidence_found(records: list[dict], zone: tzinfo, since: datetime, until: datetime) -> dict:
@@ -1880,154 +1711,3 @@ def latest_lookup(value: dict, zone: tzinfo) -> dict:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-
-# --- A7 (D-45): the first part before any lookup (a PreToolUse hook) ------------------------------------------------------
-
-DISPATCH_TOOLS = {"Agent", "Task"}
-LOOKUP_TOOLS = DISPATCH_TOOLS | {"WebSearch", "WebFetch"}
-LOOKUP_COMMAND = re.compile(r"\btripwright\b[^\n|;&]*\bquery\b")
-# S4a (self replays without MCP): `tripwright --repo . query --help` was denied as a lookup in a17b_off_r1 and a17_off_r2,
-# and the deny's “dispatch in the background” came right before the status line; reading the help looks nothing up. A
-# lookup through a shell alias (`$W query latest_departure`, a17_off_r1) still is one.
-COMMAND_PARTS = re.compile(r"&&|\|\||[;|\n]")
-HELP = re.compile(r"(?:^|\s)(?:--help|-h)(?=\s|$)")
-KIND_COMMAND = re.compile(r"\bquery\s+(?:transit|latest_departure|web_evidence|open_places|nearby|weather|opening|saved|geocode)\b")
-FIRST_REASON = "现在就把 first_part.text 发给用户（用户在等这第一段），然后结束这一条回复；能派后台 researcher 就先派它去查"
-# D-46: the order that kept both parts (v2e, 16 questions) dispatches the researcher in the background, then writes the
-# first part as the turn's last text; the reason points there (it replaces 11-01's "dispatch in the same reply").
-IN_BACKGROUND = "能派后台 researcher 就先派它去查；回来后不调 turn，直接 query 写第二段"
-FIRST_DENIALS = 3  # after this many denials for one question the hook lets lookups through, so it cannot lock the host out
-STOP_FIRST_REASON = "把 first_part.text 写成回复文字再结束这一条；能派后台 researcher 就先派它去查"
-PUSH_REASON = "researcher 回来后不调 turn，直接 query，再写第二段（可先过 check_answer）"
-STOP_BLOCKS = 3  # per question, all of the Stop hook's reasons together; then it lets the turn end (D-48)
-# A first part that says a second part follows (skeleton: "没核：……，第二段核完再发", "第二段确认"; "the second part follows")
-PROMISE = re.compile(r"第二段|核完再发|second part", re.I)
-TOOL_USE_ID = re.compile(r"<tool-use-id>\s*([^<\s]+)\s*</tool-use-id>")
-
-
-def lookup_use(name: str, arguments: dict) -> bool:
-    """A lookup: dispatching a subagent, Tripwright's query (not its check_answer), a web search or fetch, or the
-    tripwright query command line. turn, reading files and loading a skill are not."""
-    if name in LOOKUP_TOOLS:
-        return True
-    if name.startswith("mcp__") and name.endswith("__query") and "tripwright" in name:
-        return arguments.get("kind") != "check_answer"
-    if name == "Bash":
-        return lookup_command(str(arguments.get("command") or ""))
-    return False
-
-
-def lookup_command(command: str) -> bool:
-    """A shell command that runs a lookup in one of its parts: the tripwright query command line (not its check_answer,
-    not its help) or a query of a lookup kind through an alias."""
-    return any((LOOKUP_COMMAND.search(part) or KIND_COMMAND.search(part)) and "check_answer" not in part and not HELP.search(part)
-               for part in COMMAND_PARTS.split(command))
-
-
-def in_background(name: str, arguments: dict) -> bool:
-    return name in DISPATCH_TOOLS and arguments.get("run_in_background") is True
-
-
-def lookup_call(payload: dict) -> bool:
-    """A lookup the first part must come before: one of the main agent's own (a subagent's calls name `agent_id`), and
-    not a subagent dispatched in the background (D-46), whose report comes after the first part anyway."""
-    if payload.get("agent_id"):
-        return False
-    name = str(payload.get("tool_name") or "")
-    arguments = payload.get("tool_input") if isinstance(payload.get("tool_input"), dict) else {}
-    return lookup_use(name, arguments) and not in_background(name, arguments)
-
-
-def notification(entry: dict) -> str | None:
-    """The text of a task notification Claude Code writes when background work ends (2.1.301: a user entry with
-    `origin.kind` "task-notification", text opening with <task-notification>, naming the <tool-use-id>), else None."""
-    if entry.get("type") != "user" or entry.get("isSidechain"):
-        return None
-    content = (entry.get("message") or {}).get("content")
-    blocks = content if isinstance(content, list) else [{"type": "text", "text": content}]
-    text = " ".join(str(block.get("text") or "") for block in blocks if isinstance(block, dict))
-    noted = "notification" in str((entry.get("origin") or {}).get("kind", ""))
-    return text if noted or text.lstrip().startswith("<task-notification>") else None
-
-
-def running_checks(transcript: list[dict]) -> list[str]:
-    """The subagents the main agent dispatched in the background during this question whose notification has not come
-    yet, by tool-use ID (a notification without one ends the oldest)."""
-    running: list[str] = []
-    for entry in transcript:
-        if real_message(entry):
-            running = []
-        elif (told := notification(entry)) is not None:
-            ended = TOOL_USE_ID.findall(told)
-            running = [use for use in running if use not in ended] if ended else running[1:]
-        elif entry.get("type") == "assistant" and not entry.get("isSidechain"):
-            content = (entry.get("message") or {}).get("content")
-            for block in content if isinstance(content, list) else []:
-                if isinstance(block, dict) and block.get("type") == "tool_use":
-                    arguments = block.get("input") if isinstance(block.get("input"), dict) else {}
-                    if in_background(str(block.get("name") or ""), arguments):
-                        running.append(str(block.get("id") or ""))
-    return running
-
-
-def turn_lookups(transcript: list[dict]) -> list[str]:
-    """The lookups the main agent made since the last real user message (background dispatches too), by tool name."""
-    made = []
-    for entry in transcript:
-        if real_message(entry):
-            made = []
-        elif entry.get("type") == "assistant" and not entry.get("isSidechain"):
-            content = (entry.get("message") or {}).get("content")
-            for block in content if isinstance(content, list) else []:
-                if isinstance(block, dict) and block.get("type") == "tool_use":
-                    arguments = block.get("input") if isinstance(block.get("input"), dict) else {}
-                    if lookup_use(str(block.get("name") or ""), arguments):
-                        made.append(str(block.get("name")))
-    return made
-
-
-def first_part_shape(text: str, clock: int) -> list[dict]:
-    """What makes a text a first part for both hooks (D-47; the PreToolUse hook too since 11-04): the clock in the first
-    two lines, no tags or tool states. Internal words are left to check_answer: holding a turn for them made the host
-    write its first part twice (v2e: 9 of 25 stops)."""
-    return clock_problems(text, clock) + tag_problems(text)
-
-
-def first_part_decision(payload: dict, transcript: list[dict], minute_at, denied: int = 0) -> tuple[str | None, str]:
-    """The PreToolUse hook's verdict on a tool call: (reason to deny, or None; what to log). A lookup of the main agent
-    waits until a text shown after the user's last message passes the first part's checks; `minute_at(wall)` gives the
-    clock (minutes after local midnight in the trip's zone) at the moment a text was shown; `denied` counts this
-    question's denials so far."""
-    if not lookup_call(payload):
-        arguments = payload.get("tool_input") if isinstance(payload.get("tool_input"), dict) else {}
-        if not payload.get("agent_id") and in_background(str(payload.get("tool_name") or ""), arguments):
-            return None, f"background dispatch ({payload.get('tool_name')})"
-        return None, f"not a lookup ({payload.get('tool_name')})"
-    asked, shown = turn_texts(transcript)
-    if asked is None:
-        return None, "no user message in the transcript"
-    if answers_later(transcript):
-        return None, "first part sent in the reply that ended with first_part.later"
-    last = first_part_sent(shown, minute_at)
-    if last == []:
-        return None, "first part sent"
-    if denied >= FIRST_DENIALS:
-        return None, f"no first part, but let through after {denied} denials"
-    reason = FIRST_REASON + failing(last) + "；" + IN_BACKGROUND
-    return reason, f"blocked {payload.get('tool_name')}: " + ("no text yet" if last is None else ", ".join(entry["check"] for entry in last))
-
-
-def first_part_sent(shown: list[tuple[float | None, str]], minute_at, problems=first_part_shape) -> list[dict] | None:
-    """[] when one of the shown texts passes `problems` (the first part's checks) at the clock of its moment; else the
-    last text's failing checks, or None when nothing was shown."""
-    last = None
-    for at, text in shown:
-        last = problems(text, minute_at(at))
-        if not last:
-            return []
-    return last
-
-
-def failing(last: list[dict] | None) -> str:
-    return "；还没有给用户的文字" if last is None else "；最后一段文字没过：" + "；".join(f"{entry['check']} {entry['why']}" for entry in last)

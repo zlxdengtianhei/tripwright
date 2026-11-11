@@ -1,11 +1,11 @@
-"""Assemble skills, host agent files and prompts from one set of role and step sources (CONTRACTS section 4).
+"""Assemble skills and host agent files from one set of role and step sources (CONTRACTS section 4).
 
 Sources: this package's `roles/*.md` and `steps/*.md`; the main role owns its answer and writing reference.
 `core.yaml` holds the steps of every message (S4a), rendered the same way into the server instructions, the `steps`
 that `turn` returns, the roles that include them and the AGENTS.md that `tripwright init` writes.
 Block B's writing fragments remain available through B's `tripwright.render.writing.fragment(name, language)`
 for explicit includes, copied verbatim. A role body is Markdown with
-whole-line directives: `<!-- only: skill mcp -->` ... `<!-- /only -->` keeps lines for the named targets;
+whole-line directives: `<!-- only: skill l0 -->` ... `<!-- /only -->` keeps lines for the named targets;
 `<!-- include: fragment writing zh -->`, `<!-- include: steps summary|tool|notool -->` and
 `<!-- include: core steps|always -->` insert text.
 A missing fragment becomes a visible placeholder line, so the skill can be assembled before B delivers.
@@ -31,7 +31,7 @@ from tripwright.render.writing import LANGUAGES, NAMES as FRAGMENT_NAMES, fragme
 ROOT = Path(__file__).resolve().parents[3]
 GENERATOR = "python -m tripwright.agents build"
 NOTICE_PREFIX = f"由 {GENERATOR} 生成"
-TARGETS = ("skill", "claude", "codex", "mcp", "l3", "l0")
+TARGETS = ("skill", "claude", "codex", "l3", "l0")
 AGENTS = "src/tripwright/agents"
 GENERATED = f"{AGENTS}/generated"
 FRAGMENTS = "src/tripwright/render/fragments"
@@ -387,7 +387,6 @@ def codex_file(note: str, name: str, description: str, instructions: str) -> str
 def build(sources: Sources) -> dict[str, str]:
     """Every generated file, as repository-relative path → text."""
     outputs: dict[str, str] = {}
-    prompts = []
     for name, role in sorted(sources.roles.items()):
         targets = role.meta["targets"]
         description = " ".join(role.meta["description"].split())
@@ -404,9 +403,6 @@ def build(sources: Sources) -> dict[str, str]:
                 outputs[f"{GENERATED}/claude/{name}.md"] = frontmatter(note, fields) + "\n" + body
             elif target == "codex":
                 outputs[f"{GENERATED}/codex/{codex_name(name)}.toml"] = codex_file(f"{note}", codex_name(name), description, body)
-            elif target == "mcp":
-                outputs[f"{GENERATED}/mcp/{name}.md"] = markdown(note, body)
-                prompts.append({"name": name, "title": role.meta["title"], "description": description, "file": f"{name}.md"})
             else:
                 outputs[f"{GENERATED}/{target}/{name}.md"] = markdown(note, body)
     # S4a: the instructions are the core steps (they were a 5.7 KB run of the main role's rules), and turn returns the same
@@ -419,7 +415,6 @@ def build(sources: Sources) -> dict[str, str]:
     # Not named AGENTS.md: a host working on this checkout would read it as this repository's instructions. init
     # writes it as the trip repository's AGENTS.md, without this notice (its own first line says init wrote it).
     outputs[f"{GENERATED}/repo/AGENTS.init.md"] = markdown(notice([AGENTS_TEMPLATE, CORE]), agents_md(sources))
-    outputs[f"{GENERATED}/mcp/index.json"] = json_text({"_generated": notice([f"{AGENTS}/roles/*.md"]), "prompts": prompts})
     steps_note = notice([f"{AGENTS}/steps/*.md"])
     outputs["skills/tripwright-main/references/single-agent.md"] = markdown(steps_note, tidy("\n\n".join([
         SINGLE_AGENT_INTRO, "## With tools", steps_text(sources, "tool", "single-agent"),

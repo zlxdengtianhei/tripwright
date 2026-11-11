@@ -68,7 +68,7 @@ def test_codex_agents_parse_and_use_documented_keys(outputs):
         assert codex_agent_problems(text) == [], name
         document = tomllib.loads(text)
         assert document["name"] == name.replace("-", "_")
-        assert document["developer_instructions"] == outputs[f"{GENERATED}/mcp/{name}.md"].split("\n", 1)[1]
+        assert document["developer_instructions"] == frontmatter(outputs[f"{GENERATED}/claude/{name}.md"])[1].lstrip("\n")
 
 
 def test_codex_format_problems_are_caught(outputs):
