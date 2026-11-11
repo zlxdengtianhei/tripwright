@@ -36,12 +36,6 @@ LINES = 8
 # S4a: the line that ends a reply with the first part in an app that cannot show text between tool calls (core step 4);
 # turn returns it as first_part.later.
 LATER = dict(zh="要核过的第二段，回我一句“继续”。", en="Reply “go on” for the checked second part.")
-# S5b (Claude Code replays s5_ns_on, s5_mcponly): what turn says first (`do_first`, its first field), read at the moment
-# the host acts: the first part as the reply's only message; after “继续”, nothing before the second part;
-# without usable points, call turn again first.
-DO_DUE = dict(zh="这一轮在第二段之前不写任何字：查、核之后只发第二段这一条，发完结束这一轮；不提工具回执。",
-              en="Write nothing before the second part in this reply: look up and check, then send only the second part as one "
-                 "message and end the reply; never mention tool receipts.")
 NODES = 3  # hard nodes the draft names
 # a stored claim as packs.archived_claims rewrote it inside a node's text: left out of the draft
 ARCHIVED = re.compile(r"计划里写过“[^”]*”（存档[^）]*）。?|the plan stored \"[^\"]*\" \(archived[^)]*\)\.?")
