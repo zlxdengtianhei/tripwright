@@ -41,10 +41,12 @@ SECOND_TITLES = dict(zh="核过之后", en="After checking")
 # of 2026-11-11). What comes after waits in after_first_part.
 SEND_AND_END = dict(
     zh="先把 first_part.text 原样发出，作为这一条回复的第一条、也是唯一一条消息，末行是 first_part.later，然后结束这一条；"
-       "发之前不调别的工具、不写别的字。能在后台派 researcher 的先派它，第一段不带 later 那一行，等它的报告。",
+       "发之前不调别的工具、不写别的字。能在后台派 researcher 的：唯一可以先做的是在后台派它去查，然后照样原样发出 "
+       "first_part.text（不加 later 那一行），不另写“正在查”这类话；它的报告回来后写第二段。",
     en="Send first_part.text as it is as this reply's first and only message, its last line first_part.later, then end the "
-       "reply; before sending it call no other tool and write nothing else. If you can dispatch a background researcher, "
-       "dispatch it first and leave out the later line; its report brings the second part.")
+       "reply; before sending it call no other tool and write nothing else. If you can dispatch a background researcher: "
+       "the one thing you may do first is dispatch it in the background; then send first_part.text as it is all the same "
+       "(without the later line) and add no “still checking” sentence; when its report returns, write the second part.")
 AFTER_FIRST = dict(zh="用户回了话、或 researcher 的报告回来之后照这里做，不再调 turn：",
                    en="After the user replies or the researcher's report returns, do this without calling turn again: ")
 UNKNOWN_QUESTION = "本问原话不明，吃的检查没做。"
