@@ -31,10 +31,9 @@ async def check(read_stream, write_stream, label: str):
         receipt = await session.call_tool("turn", {"text": "Smoke test one-off question.", "request_id": "smoke", "scenario": "quick"})
         assert not receipt.is_error
         assert receipt.structured_content["receipt"]["nature"] == "host_restatement"
-        refused = await session.call_tool("turn", {"text": "Changed smoke text", "request_id": "smoke"})
-        assert refused.is_error
-        reason = " ".join(content.text for content in refused.content if hasattr(content, "text"))
-        assert "different" in reason.lower(), reason
+        changed = await session.call_tool("turn", {"text": "Changed smoke text", "request_id": "smoke"})
+        assert not changed.is_error
+        assert changed.structured_content["request_id"] != receipt.structured_content["request_id"]
         from tripwright.demo import example
         bad_zone = await session.call_tool("propose", {"ctx_id": receipt.structured_content["ctx_id"], "base_version": 0,
                                                        "idempotency_key": "smoke-zone", "plan": dict(example()["trip"], timezone="Europe/Viena")})
@@ -47,13 +46,9 @@ async def check(read_stream, write_stream, label: str):
         state = await session.call_tool("state", {})
         assert not state.is_error and state.structured_content["number"] == 0
         prompts = await session.list_prompts()
-        assert any(prompt.name == "tripwright-main" for prompt in prompts.prompts)
-        prompt = await session.get_prompt("tripwright-main")
-        assert prompt.messages
         resources = await session.list_resources()
-        assert resources.resources
-        await session.read_resource("tripwright://skills/tripwright-main")
-        print(f"{label}: seven tools, annotations, turn, state, prompt, skill resource and readable refusal reasons OK")
+        assert not prompts.prompts and not resources.resources
+        print(f"{label}: seven small tools, annotations, turn, state and readable refusal reasons OK")
 
 
 async def stdio(directory: Path):

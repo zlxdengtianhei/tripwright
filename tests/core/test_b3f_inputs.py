@@ -174,8 +174,8 @@ async def probe(session) -> dict:
     results = {}
     listing = await session.list_tools()
     schemas = {tool.name: tool.input_schema for tool in listing.tools}
-    query_day = next(branch for branch in schemas["query"]["properties"]["arguments"]["properties"]["day"]["anyOf"] if branch.get("type") == "object")
-    results["schema"] = (False, "start" in query_day["properties"] and "deps" in json.dumps(query_day), "")
+    arguments = schemas["query"]["properties"]["arguments"]
+    results["schema"] = (False, arguments["type"] == "object" and "properties" not in arguments, "")
     for label, path, value, reason in [("start", ("start",), [], "arguments.day.start must be an object"),
                                        ("stay", ("candidates", 0, "stay"), [], "arguments.day.candidates.0.stay must be an integer, got array"),
                                        ("deps", ("overrides", 0, "deps", 0, 0), [], "arguments.day.overrides.0.deps.0.0 must be a string, got array"),
@@ -195,7 +195,7 @@ async def probe(session) -> dict:
     for label, reason_value in [("reason object", {"why": "because"}), ("reason array", ["because"])]:
         error, text, _ = await call(session, "propose", dict(ctx_id=turn["ctx_id"], base_version=turn["base_version"], idempotency_key=label,
                                                              plan=committed["plan"], usages=[dict(item_id=item_id, status="traded_off", reason=reason_value)]))
-        results[label] = (error, "usages.0.reason" in text and "valid string" in text, text)
+        results[label] = (error, "usages.0.reason" in text and "string" in text, text)
     error, text, data = await call(session, "propose", dict(ctx_id=turn["ctx_id"], base_version=turn["base_version"], idempotency_key="legal-usage",
                                                             plan=committed["plan"], usages=[dict(item_id=item_id, status="traded_off", reason="赶早班车")]))
     results["legal usage"] = (error, bool(data) and data["status"] == "proposed" and data["usages"][0]["reason"] == "赶早班车", text[:200])

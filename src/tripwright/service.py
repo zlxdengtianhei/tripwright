@@ -191,7 +191,7 @@ class Tripwright:
 
     # --- tools -------------------------------------------------------------------------
 
-    def turn(self, owner: str, text: str, request_id: str, *, nature: str = "host_restatement",
+    def turn(self, owner: str, text: str, request_id: str | None = None, *, nature: str = "host_restatement",
              native_ref: str | None = None, channel: str = "conversation", subject: list[str] | None = None,
              scope: dict | None = None, scenario: str = "plan", focus_keys: list[str] | None = None,
              exclude_keys: list[str] | None = None, speaker: str | None = None, record: dict | None = None,
@@ -206,9 +206,16 @@ class Tripwright:
         except ValueError as error:
             record_input, refused_record = None, str(error)
         points = self._checked_places(owner, first_part.checked_points(points))
+        request_id = request_id or identifier("REQ")
         prior = self.outbox.find(owner, "turn", request_id)
-        if prior is not None and encode(prior["replay"].get("input")) != encode(record_input):
-            raise ValueError("request_id was reused with different content")
+        nature_key = "host_restatement" if nature == "user_verbatim" and not native_ref else nature
+        incoming = dict(text=text, nature=nature_key, channel=channel, native_ref=native_ref,
+                        speaker=speaker, suspicious_words=[])
+        collision = next((event for event in self.store.all("events", owner)
+                          if event.get("request_id") == request_id and encode(event["received"]) != encode(incoming)), None)
+        if collision is not None or (prior is not None and encode(prior["replay"].get("input")) != encode(record_input)):
+            request_id = identifier("REQ")
+            prior = None
         self.take_in()
         if new_trip and prior is None:
             memory.prepare_new_trip(self, owner, new_trip)
@@ -264,7 +271,8 @@ class Tripwright:
             write = self.write_ref(owner, op)
             pending = memory.pending_entries(self.store, owner)
             # S5b: do_first is the first field the host reads (set below, once the first part and second_part_due are known)
-            response = dict(do_first=None, now=self.clock(owner, at), receipt=receipt, ctx_id=context_id, base_version=current["number"],
+            response = dict(do_first=None, now=self.clock(owner, at), request_id=receipt.get("request_id", request_id),
+                            receipt=receipt, ctx_id=context_id, base_version=current["number"],
                             snapshot=context["snapshot"],
                             write=write, notices=self.open_notices(owner),
                             pack=dict(markdown=shown["markdown"], meta=shown["meta"], tokens=shown["tokens"]),
@@ -307,7 +315,7 @@ class Tripwright:
                             **core_steps())
             key = "en" if self.language == "en" else "zh"
             unknown = self._unknown_places(plan, told)
-            response["do_first"] = (first_part.DO_DUE if due else first_part.DO_POINTS if unknown or (plan and points is None)
+            response["do_first"] = (first_part.DO_DUE if due else first_part.DO_POINTS if plan and points is None
                                     else first_part.DO_FIRST)[key]
             if due:
                 response["second_part_due"] = due
@@ -402,12 +410,9 @@ class Tripwright:
         stored = [place for place in (plan or {}).get("places", []) if place.get("transit_id") or place.get("coords")]
         named = (", " if en else "、").join(f"{place['id']} {packs.short_name(place, self.language, plan)}" for place in stored[:UNKNOWN_LISTED])
         said = (", " if en else "、").join(f"“{value}”" for value in unknown)
-        return [f"These places in points are no stored place and were not recognized: {said}. The first part says nothing "
-                f"stored for them and does not put the plan's place in their stead. If one is a stored place, send its ID "
-                f"({named}) and call turn again with the same request_id; if not, answer as it is and look it up by "
-                f"coordinates or stop name." if en else
-                f"points 里这些地方不是这趟存的地点，也认不出：{said}。第一段没给它们存的车和时刻，也没拿计划里的地点顶替。"
-                f"是存的地点就改成地点编号（{named}），用同一个 request_id 再调一次 turn；不是就照这样答，第二段按坐标或站名查。"]
+        return [f"These places in points were not recognized: {said}. Continue without another turn; query by coordinates "
+                f"or stop name. Stored place IDs include {named}." if en else
+                f"points 里这些地方没认出：{said}。不用再调 turn，按坐标或站名查；存的地点编号有 {named}。"]
 
     def _with_later(self, first: dict) -> dict:
         """The first part and the line that ends it in an app that cannot show text between tool calls (S4a)."""
@@ -881,12 +886,20 @@ class Tripwright:
 
     def _state(self, owner: str, view: str, date: str | None, draft_id: str | None) -> dict:
         current = self.versions.current(owner)
-        if view == "current":
+        if view in ("current", "plan"):
             return current
+        if view == "blank":
+            blank = Trip(id="new-trip", title="New trip", start="2030-01-01", end="2030-01-01", timezone="UTC",
+                         areas=["area"], people=[dict(id="p1", name="Traveler")])
+            return dict(plan=blank.model_dump(mode="json"))
         if view == "day":
-            # The day view (block B) writes the replan line itself from the version's needs_replan and warnings.
+            # The text view remains; json is the same day object that propose(days=[...]) accepts.
             text = repo_files.day_text(self, owner, date or "")
-            return dict(version=current["number"], needs_replan=current.get("needs_replan", False), warnings=current.get("warnings", []), text=text)
+            day = next((day for day in (current["plan"] or {}).get("days", []) if str(day["date"]) == date), None)
+            if day is None:
+                raise ValueError(f"Unknown plan day: {date!r}")
+            return dict(version=current["number"], needs_replan=current.get("needs_replan", False),
+                        warnings=current.get("warnings", []), text=text, json=day)
         if view == "ledger":
             return self.ledger.current(owner)
         if view == "profile":

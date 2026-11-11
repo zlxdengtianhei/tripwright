@@ -16,8 +16,8 @@ def test_tool_contract_is_exactly_seven_with_annotations_and_no_user_parameter(s
         assert "user_id" not in document["inputSchema"]["properties"]
         assert "readOnlyHint" in document["annotations"]
     proposal = next(tool for tool in tools if tool.name == "propose").model_dump(by_alias=True)
-    assert "Trip" in proposal["inputSchema"]["$defs"]
-    assert "Changes" in proposal["inputSchema"]["$defs"]
+    assert "$defs" not in proposal["inputSchema"]
+    assert all("properties" not in proposal["inputSchema"]["properties"][name] for name in ("plan", "changes"))
 
 
 def test_skill_frontmatter_and_seven_tool_workflow():

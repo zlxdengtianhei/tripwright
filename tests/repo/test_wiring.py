@@ -1,5 +1,5 @@
 """Promise 7: the CLI and the MCP server run on a trip repository; the server uses block C's instructions and role
-prompts; `check` compares regenerated with committed files."""
+instructions; `check` compares regenerated with committed files."""
 from __future__ import annotations
 
 import asyncio
@@ -11,7 +11,7 @@ from mcp.client.stdio import stdio_client
 
 from repo_fixtures import TRIP, Writer, bare, git, new_repository, plan, seeded
 from tripwright.adapters.mcp import create_server
-from tripwright.agents import prompts, server_instructions
+from tripwright.agents import server_instructions
 from tripwright.cli import main
 from tripwright.repo import layout
 
@@ -76,13 +76,13 @@ def test_init_from_a_database_writes_one_commit_per_version(tmp_path, capsys):
     assert git(tmp_path / "repo", "log", "--format=%B").count("Tripwright-Version:") == 1
 
 
-def test_mcp_server_uses_block_cs_instructions_prompts_and_the_new_parameters(tmp_path):
+def test_mcp_server_uses_instructions_and_the_new_parameters_without_prompts(tmp_path):
     writer = Writer(new_repository(tmp_path / "repo"))
     try:
         server = create_server(writer.service, manage_jobs=False)
         assert server.instructions == server_instructions()
-        names = {prompt.name for prompt in asyncio.run(server.list_prompts())}
-        assert names == {entry["name"] for entry in prompts()} and len(names) == 4
+        assert not asyncio.run(server.list_prompts())
+        assert not asyncio.run(server.list_resources())
         tools = {tool.name: tool.model_dump(by_alias=True)["inputSchema"] for tool in asyncio.run(server.list_tools())}
         assert len(tools) == 7
         assert {"speaker", "record", "new_trip"} <= set(tools["turn"]["properties"])

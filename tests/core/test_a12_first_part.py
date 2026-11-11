@@ -212,9 +212,8 @@ def test_points_reach_the_service_over_mcp(tmp_path):
     tool, turn = asyncio.run(scenario())
     schema = tool.input_schema["properties"]["points"]
     point = next(option for option in schema["anyOf"] if option.get("type") == "array")["items"]
-    point = tool.input_schema.get("$defs", {}).get(point["$ref"].split("/")[-1], point) if "$ref" in point else point
-    assert set(point["properties"]) == {"kind", "said", "place"}
-    assert "points:" in tool.description and "answers_each_point" not in tool.description
+    assert point["type"] == "object" and "properties" not in point
+    assert "points" in tool.description and "answers_each_point" not in tool.description
     assert turn["first_part"]["lines"][0].endswith("这趟还没有存的计划，第二段给。")  # no plan yet: nothing to answer from
 
 

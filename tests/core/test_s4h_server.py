@@ -156,9 +156,8 @@ def test_a_place_not_recognized_is_said_and_never_taken_for_the_plans(make):
     service = make(at="21:52", places=(NORTH, SOUTH, *STATION_FOOD))
     found = service.turn("local", SECOND, "q2", scenario="quick",
                          points=[dict(kind="at", said="在一家没存的咖啡馆", place="Café Nirgendwo"), dict(kind="do", said="万圣节活动", place="Prater")])
-    # bad sample shape: the unknown place left no trace; now `next` opens with it and the stored IDs to send
-    assert found["next"].startswith("points 里这些地方不是这趟存的地点，也认不出：“Prater”、“Café Nirgendwo”。第一段没给它们存的车和时刻，"
-                                    "也没拿计划里的地点顶替。是存的地点就改成地点编号（")
+    # Unknown names remain visible, but never force a second turn.
+    assert found["next"].startswith("points 里这些地方没认出：“Prater”、“Café Nirgendwo”。不用再调 turn，按坐标或站名查")
     # where the user is stays the user's words, not the plan's place of the moment
     assert found["first_part"]["lines"][1] == "按现在 21:52 算，你在“在一家没存的咖啡馆”"
     assert found["first_part"]["at"]["place"] is None and found["first_part"]["at"]["unknown"] == "Café Nirgendwo"

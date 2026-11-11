@@ -764,6 +764,14 @@ def resolve_place(plan: dict | None, place: str | None, said: str | None = None)
     found = match_place(plan, place) if place else None
     if found:
         return found
+    # Point resolution accepts every stored place, even one that has no coordinates for a transit lookup yet.
+    if place:
+        said_name = re.sub(r"\s+", " ", place.casefold()).strip()
+        exact = [entry for entry in (plan or {}).get("places", [])
+                 if said_name in {re.sub(r"\s+", " ", str(value).casefold()).strip()
+                                  for value in (entry["id"], entry.get("name"), entry.get("name_local")) if value}]
+        if len(exact) == 1:
+            return exact[0]
     places = [entry for entry in (plan or {}).get("places", []) if entry.get("transit_id") or entry.get("coords")]
     texts = [text for text in (place, said) if text]
     held = {entry["id"]: entry for entry in places for name in stored_names(entry) for text in texts

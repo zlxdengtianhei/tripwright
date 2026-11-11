@@ -283,7 +283,7 @@ async def probe(directory, draft) -> dict:
             await session.call_tool("commit", dict(draft_id=made["draft_id"], idempotency_key="seed", accept_unverified=True))
             await session.call_tool("query", dict(kind="latest_departure", arguments=dict(origin=ORIGIN, destination=DESTINATION, anchor_id="hn-arrive")))
             checked = await session.call_tool("query", dict(kind="check_answer", arguments=dict(text=draft, part="second", request_id="seed")))
-            return dict(kinds=schema["properties"]["kind"]["enum"], properties=set(schema["properties"]["arguments"]["properties"]),
+            return dict(kinds=schema["properties"]["kind"]["enum"], arguments=schema["properties"]["arguments"],
                         error=checked.is_error, result=checked.structured_content)
 
 
@@ -292,7 +292,8 @@ def test_check_answer_over_real_stdio_and_the_command_line(tmp_path):
     stamp = (datetime.now(ZoneInfo("Europe/Oslo")) - timedelta(minutes=3)).strftime("%H:%M")
     draft = GOOD_SECOND.replace("（20:45）", f"（{stamp}）")
     found = asyncio.run(probe(tmp_path, draft))
-    assert "check_answer" in found["kinds"] and {"part", "request_id", "detail", "question"} <= found["properties"]
+    assert "check_answer" in found["kinds"]
+    assert found["arguments"]["type"] == "object" and "properties" not in found["arguments"]
     assert not found["error"] and found["result"]["ok"] is False
     # demo data never backs 核过: the three checked lines are refused
     assert [entry["line"] for entry in found["result"]["problems"] if entry["check"] == "checked_has_evidence"] == [3, 4, 5]

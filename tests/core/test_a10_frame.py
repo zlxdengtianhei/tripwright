@@ -462,9 +462,7 @@ def test_the_mcp_tools_say_what_hosts_need_without_a_skill(make):
     from tripwright.adapters.mcp import create_server
 
     tools = {tool.name: tool.description for tool in asyncio.run(create_server(make()).list_tools())}
-    assert "first_part {text, lines, asks_latest, points, at}" in tools["turn"]  # A12: with the question's points
-    assert "latest_departure: with origin and destination only, it answers tonight's last connection" in tools["query"]
-    assert ("sync shows the canonical head, unsynced writes and how old the head is. view=sync also carries blocked "
-            "{kind, since, hint} while a write cannot be pushed or committed, and storage {kind: local, note} when there is "
-            "no remote repository.") in tools["state"]
-    assert "blocked" not in tools["explain"]  # control: only the state tool says it
+    assert "first_part" in tools["turn"] and "points" in tools["turn"]
+    assert "latest_departure: {origin,destination}" in tools["query"]
+    assert "sync" in tools["state"] and len(tools["state"]) <= 400
+    assert "blocked" not in tools["explain"]

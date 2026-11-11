@@ -98,11 +98,14 @@ class Point(BaseModel):
 
 
 def checked_points(points: list | None) -> list[dict] | None:
-    """turn's points as plain dicts, each refused with its path: `Invalid points: points.0.kind: …`."""
+    """Turn's points as plain dicts. Long quotations are shortened, not rejected."""
     from pydantic import TypeAdapter, ValidationError
 
     if points is None:
         return None
+    if isinstance(points, list):
+        points = [dict(point, said=point["said"][:60]) if isinstance(point, dict) and isinstance(point.get("said"), str)
+                  else point for point in points]
     try:
         found = [point.model_dump() for point in TypeAdapter(list[Point]).validate_python(points)]
     except ValidationError as error:

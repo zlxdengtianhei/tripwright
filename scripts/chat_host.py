@@ -398,6 +398,11 @@ def write_json(path: Path, data) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def redacted_argv(argv: list[str]) -> list[str]:
+    """Keep the reproducible command without persisting the private URL key."""
+    return [argument.split("/mcp/", 1)[0] + "/mcp/***" if "/mcp/" in argument else argument for argument in argv]
+
+
 def reanalyze(directories: list[str]) -> int:
     """`chat_host.py --reanalyze DIR...`: recompute the per-message figures of finished runs from their transcript.json
     (after message_metrics changed); everything else in metrics.json stays."""
@@ -426,7 +431,7 @@ def main(argv: list[str] | None = None) -> int:
     for stale in ("metrics.json", "transcript.json", "partial_transcript.json"):
         (out / stale).unlink(missing_ok=True)
     started = datetime.now().astimezone().isoformat(timespec="seconds")
-    run_info = dict(started=started, argv=sys.argv[1:])
+    run_info = dict(started=started, argv=redacted_argv(sys.argv[1:]))
     partial: list[dict] = []
     with tempfile.TemporaryDirectory(prefix="chat-host-") as scratch:
         try:
