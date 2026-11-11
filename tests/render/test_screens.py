@@ -70,6 +70,12 @@ def test_memory_view_shows_words_origin_status_and_last_use(state):
             "｜文件 profile/items/I-300513-n7w.yaml｜最近用在 2030-05-alpen 05-14") in lines
     assert [line for line in lines if line.startswith("## ")] == ["## 偏好", "## 同行人", "## 常驻规矩", "## 资料"]
     assert "（u1，05-12，转述）" in next(line for line in lines if line.startswith("- [u2]"))
+    # a use recorded for the whole trip has no day; the view (and with it every commit of the trip's files) still renders
+    undated = copy.deepcopy(MEMORY)
+    entry = next(entry for entry in undated["entries"] if entry.get("last_used"))
+    entry["last_used"]["date"] = None
+    line = next(line for line in memory_view(undated, state=state).splitlines() if line.startswith(f"- [{entry['id']}]"))
+    assert f"最近用在 {entry['last_used']['trip']}" in line and f"最近用在 {entry['last_used']['trip']} " not in line
 
 
 def test_memory_data_without_a_source_or_nature_or_with_an_unknown_status_is_refused(state):

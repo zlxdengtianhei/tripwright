@@ -96,7 +96,8 @@ def rows(memory: dict, language: str = "zh") -> list[dict]:
                               subject=w["join"].join(entry.get("subject") or []), subject_ids=list(entry.get("subject") or []),
                               words=words,
                               gist=entry["text"] if entry.get("quote") else None, origin=w["sep"].join(origin),
-                              used=w["used"].format(trip=used["trip"], day=short_day(used["date"])) if used else w["never"],
+                              # a use recorded for the whole trip has no day
+                              used=w["used"].format(trip=used["trip"], day=short_day(used.get("date") or "")).rstrip() if used else w["never"],
                               basis=w["by"].format(event=entry["status_event"]) if entry.get("status_event") else None))
         sections.append(dict(kind=kind, title=w["kind"][kind], rows=items))
     return sections
