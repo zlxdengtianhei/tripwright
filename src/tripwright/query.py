@@ -241,13 +241,26 @@ def arguments_schema() -> dict:
     return inline(Arguments.model_json_schema(by_alias=True))
 
 
-def checked_arguments(kind: str, arguments) -> dict:
-    """Validate query arguments at the tool boundary, so a wrong nested shape is refused with the field, the expected
-    type and what was sent, instead of failing later inside a provider or the solver. Returns the arguments with an
-    empty target removed (an empty target always meant no target) and values in the validated types."""
+def checked_arguments(kind: str, arguments, plan: dict | None = None) -> dict:
+    """Validate arguments, resolving stored place names before the provider sees them."""
     if not isinstance(arguments, dict):
         raise ValueError(f"arguments must be an object, got {json_type(arguments)}")
     arguments = {key: value for key, value in arguments.items() if not (key == "target" and value in ({}, None))}
+    for key in ("origin", "destination", "near"):
+        value = arguments.get(key)
+        if isinstance(value, dict):
+            point = WeatherPlace.model_validate(value)
+            arguments[key] = f"{point.lat},{point.lon}"
+    if kind == "weather" and isinstance(arguments.get("place"), str):
+        said = arguments["place"]
+        found = match_place(plan, said)
+        if found is None or not found.get("coords"):
+            available = ", ".join(f"{place['id']} ({place.get('name_local') or place['name']})" for place in (plan or {}).get("places", [])
+                                  if place.get("coords")) or "no stored places with coordinates"
+            raise ValueError(f"Invalid query arguments: arguments.place: unknown stored place {said!r}; give a stored ID/name "
+                             f"or {{name,lat,lon}}; available: {available}")
+        arguments["place"] = dict(name=found.get("name_local") or found["name"], lat=found["coords"][0], lon=found["coords"][1],
+                                  id=found["id"])
     try:
         parsed = Arguments.model_validate(arguments)
     except ValidationError as error:

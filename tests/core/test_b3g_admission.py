@@ -77,6 +77,10 @@ def test_counterexample_a_one_admission_for_the_three_ways_a_user_lock_changes(l
     path = WAYS[way]
     opened = path["prepare"](locked)
     before, decisions = locked.state("alice")["plan"], active_decisions(locked)
+    if speaker == "stranger":
+        with pytest.raises(ValueError, match="unknown person.*this trip's people"):
+            message(locked, path["text"], nature=nature, speaker=speaker)
+        return
     cited = message(locked, path["text"], nature=nature, speaker=speaker)
     # The earlier sample: the user's message is cited from a later turn the agent answers.
     turn = message(locked, "agent records what was said earlier", nature="agent_inference", speaker=None) if earlier else cited

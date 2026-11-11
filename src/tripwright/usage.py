@@ -20,6 +20,7 @@ class Usage(Model):
     # What the service adds to a disposition; a host may send a version's usages back unchanged.
     verification: SkipJsonSchema[str | None] = None
     reported_status: SkipJsonSchema[str | None] = None
+    filled_by: SkipJsonSchema[Literal["service"] | None] = None
 
 
 USAGES = TypeAdapter(list[Usage])
@@ -51,6 +52,10 @@ def account_usages(plan, required: dict, usages: list[dict], checks: list[dict],
     blocks = {block.id: (day, track, block) for day in plan.days for candidate in day.plans
               for track in candidate.tracks for block in track.blocks}
     places = {place.id: place.model_dump(mode="json") for place in plan.places}
+    if usages is None:
+        # Omitted, not an explicit empty list: account for every applicable condition without choosing a winner.
+        usages = [dict(item_id=item_id, status="host_reported", block_ids=[], filled_by="service",
+                       reason="Service-filled contact only; no preference precedence inferred.") for item_id in required]
     supplied = {}
     for position, usage in enumerate(checked_usages(usages)):
         if usage["item_id"] in supplied:

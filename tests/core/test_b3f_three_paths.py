@@ -122,6 +122,10 @@ def test_path2_the_users_report_marks_the_ticket_bought(locked, nature):
     ("user_verbatim", "u1", "我们已经付款", "Quote is absent"),
 ])
 def test_path2_only_the_users_own_words_can_report(locked, nature, speaker, quote, reason):
+    if speaker == "agent":
+        with pytest.raises(ValueError, match="unknown person.*this trip's people"):
+            message(locked, "我买了票。", nature=nature, speaker=speaker)
+        return
     turn = message(locked, "我买了票。", nature=nature, speaker=speaker)
     with pytest.raises(ValueError, match=reason):
         propose(locked, turn, plan=with_entry(locked, status="bought"), reports=[report(turn, quote=quote)])

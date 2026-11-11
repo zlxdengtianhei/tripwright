@@ -45,7 +45,8 @@ async def scenario(session) -> dict:
     results["chosen-not-a-must"] = (not error and version["lock_changes"]["decisions"][0]["must"] is False, text[:300])
 
     context = await agent_turn(session, "no-reason", "agent swaps the activity")
-    error, text, draft, _ = await submit(session, context, "no-reason", plan=await with_block(session, text="Rope climbing"))
+    error, text, draft, _ = await submit(session, context, "no-reason", plan=await with_block(session, text="Rope climbing"),
+                                         revisions=[])
     results["agent-without-reason-refused"] = (error and "not recorded (reason)" in text and "fix: add changes.revisions" in draft["notice"]
                                                and node(await plan_of(session), BLOCK)["text"] != "Rope climbing", text[:300])
 

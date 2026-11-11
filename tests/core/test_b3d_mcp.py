@@ -32,7 +32,7 @@ BAD = [
     ("transit", {"action": "stops", "text": ["Bahnhof"]}, "arguments.text must be a string, got array"),
     ("transit", {"action": "stops", "text": "Bahnhof", "limit": "many"}, "arguments.limit must be an integer, got string"),
     ("transit", {"origin": "A"}, "arguments.destination is required; arguments.when is required"),
-    ("weather", {"place": "Lakeside", "date": "2031-05-01"}, "arguments.place must be an object {name, lat, lon}, got string"),
+    ("weather", {"place": "Lakeside", "date": "2031-05-01"}, "arguments.place: unknown stored place 'Lakeside'; give a stored ID/name or {name,lat,lon}"),
     ("weather", {"place": {"name": "Lakeside", "lat": "north", "lon": 13.0}, "date": "2031-05-01"}, "arguments.place.lat must be a number, got string"),
     ("nearby", {"lat": 47.8, "lon": 13.0, "km": [1]}, "arguments.km must be a number, got array"),
     ("transit", {"action": "plan_day", "idempotency_key": "k", "day": "today"}, "arguments.day must be an object {day, timezone, start, end, candidates}, got string"),

@@ -37,6 +37,7 @@ No variable is required by the three Docker commands in SETUP. Set a variable on
 | `TRIPWRIGHT_CHECK_PUSH` | Set `0` to skip the startup `git push --dry-run`. |
 | `TRIPWRIGHT_ACTIVE_WINDOW` | `600` seconds of repository polling after the last request. |
 | `TRIPWRIGHT_PROVIDERS` | `live`; `synthetic` is only for demonstrations. |
+| `TRIPWRIGHT_REPLY_FLOW` | `one` (default): first and second parts in one reply for chat apps; `two`: first reply ends after the first part for Claude Code/background-agent hosts. |
 | `TRIPWRIGHT_VOLUME` | `/data`; the volume whose ownership the container entrypoint fixes before dropping to UID 10001. |
 | `RAILWAY_RUN_UID` | Set `0` only when a platform prevents that ownership fix and root execution is intentional. |
 

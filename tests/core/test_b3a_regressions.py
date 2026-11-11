@@ -116,7 +116,7 @@ def test_s6_inserting_before_locked_block_does_not_change_its_identity(seeded):
     seeded.commit("alice", draft["draft_id"], "insert", accept_unverified=True)
     plan = seeded.state("alice")["plan"]
     plan["days"][0]["plans"][0]["tracks"][0]["blocks"][3]["place"] = "oslo-park"
-    assert propose(seeded, plan=plan, key="still-locked")["status"] == "rejected"
+    assert propose(seeded, plan=plan, changes={"revisions": []}, key="still-locked")["status"] == "rejected"
 
 
 def test_s6_legacy_whole_block_lock_accepts_new_schema_defaults_and_migrates(seeded):
@@ -154,7 +154,7 @@ def test_s6_new_user_decision_supersedes_old_but_agent_cannot(seeded, source):
     assert decisions[0]["superseded_by"] == decisions[1]["id"]
     plan["days"][0]["plans"][0]["tracks"][0]["blocks"][2]["place"] = "oslo-cafe"
     replacement.update(decided_by="agent", source=source, locked_paths={f"/blocks/{block['id']}/place": "oslo-cafe"})
-    assert propose(seeded, plan=plan, changes={"decisions": [replacement]}, key="agent-change")["status"] == "rejected"
+    assert propose(seeded, plan=plan, changes={"decisions": [replacement], "revisions": []}, key="agent-change")["status"] == "rejected"
 
 
 def test_s3_fact_only_solo_report_is_recorded_and_marks_current_plan_for_replan(seeded, source):

@@ -1893,13 +1893,13 @@ LOOKUP_COMMAND = re.compile(r"\btripwright\b[^\n|;&]*\bquery\b")
 COMMAND_PARTS = re.compile(r"&&|\|\||[;|\n]")
 HELP = re.compile(r"(?:^|\s)(?:--help|-h)(?=\s|$)")
 KIND_COMMAND = re.compile(r"\bquery\s+(?:transit|latest_departure|web_evidence|open_places|nearby|weather|opening|saved|geocode)\b")
-FIRST_REASON = "先把第一段发给用户（现在怎么走；没查过的最晚、末班不写），再查"
+FIRST_REASON = "现在就把 first_part.text 发给用户（用户在等这第一段），然后结束这一条回复；能派后台 researcher 就先派它去查"
 # D-46: the order that kept both parts (v2e, 16 questions) dispatches the researcher in the background, then writes the
 # first part as the turn's last text; the reason points there (it replaces 11-01's "dispatch in the same reply").
-IN_BACKGROUND = "核查请在后台派 researcher（Agent 加 run_in_background: true）"
+IN_BACKGROUND = "能派后台 researcher 就先派它去查；回来后不调 turn，直接 query 写第二段"
 FIRST_DENIALS = 3  # after this many denials for one question the hook lets lookups through, so it cannot lock the host out
-STOP_FIRST_REASON = "把第一段写成回复文字再结束（现在怎么走；没查过的最晚、末班不写）"
-PUSH_REASON = "在后台派 researcher 核查，再写第二段（先过 check_answer）"
+STOP_FIRST_REASON = "把 first_part.text 写成回复文字再结束这一条；能派后台 researcher 就先派它去查"
+PUSH_REASON = "researcher 回来后不调 turn，直接 query，再写第二段（可先过 check_answer）"
 STOP_BLOCKS = 3  # per question, all of the Stop hook's reasons together; then it lets the turn end (D-48)
 # A first part that says a second part follows (skeleton: "没核：……，第二段核完再发", "第二段确认"; "the second part follows")
 PROMISE = re.compile(r"第二段|核完再发|second part", re.I)

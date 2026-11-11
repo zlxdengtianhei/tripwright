@@ -260,7 +260,7 @@ def test_inferences_sent_with_the_plan_need_no_usage_while_the_users_words_still
     mine = dict(recorded("preference", "food", "晚饭吃好一点", basis="user_explicit", quote="晚饭吃好一点。"), id="I-food",
                 source=dict(event=turn["receipt"]["event_id"], basis="user_explicit"))
     draft = trip.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], plan=plan, idempotency_key="s5-food",
-                         changes=dict(items=[mine]))
+                         changes=dict(items=[mine]), usages=[])
     assert "usage:I-food" in [check["id"] for check in draft["checks"]["conflicts"]]
 
 

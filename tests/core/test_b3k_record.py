@@ -55,6 +55,7 @@ def required(service):
 
 def by_agent(service, plan=None, **changes):
     turn = message(service, "agent adjusts the evening", nature="agent_inference", speaker=None)
+    changes.setdefault("revisions", [])  # explicit empty: test the refusal, not service-filled revisions
     return turn, propose(service, turn, plan=plan, **changes)
 
 

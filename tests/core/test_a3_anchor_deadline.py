@@ -90,7 +90,7 @@ def test_a_wrong_deadline_is_refused_at_propose_with_its_field_path(service):
         with pytest.raises(ValueError) as refused:
             service.propose("alice", ctx_id=turn["ctx_id"], base_version=1, plan=anchored_plan(**{"hn-counter": value}),
                             idempotency_key=f"bad-{sent}")
-        assert str(refused.value) == f"Invalid plan: plan.days.0.anchors.0.deadline must be 'external' or 'plan', got {sent}"
+        assert str(refused.value) == f"Invalid proposal: Invalid plan: plan.days.0.anchors.0.deadline must be 'external' or 'plan', got {sent}"
     draft = service.propose("alice", ctx_id=turn["ctx_id"], base_version=1, plan=anchored_plan(**{"hn-counter": "external"}),
                             idempotency_key="good")
     assert draft["status"] == "proposed"

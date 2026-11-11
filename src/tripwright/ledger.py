@@ -253,6 +253,7 @@ class Revision(Model):
     """The agent's reason for changing what the user decided earlier without marking it a must (D-53)."""
     decision: str = Field(description="ID of the user's earlier decision this plan changes (the package lists them), e.g. D-261101-k3f9qa.")
     reason: str = Field(min_length=1, description="Why the plan no longer follows it, in words the answer can show the user.")
+    filled_by: Literal["service"] | None = Field(default=None, description="service: omitted by the host; records contact, not precedence.")
 
 
 class Changes(Model):
