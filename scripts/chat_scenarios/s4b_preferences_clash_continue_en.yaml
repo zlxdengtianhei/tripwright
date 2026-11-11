@@ -1,0 +1,8 @@
+name: s4b_preferences_clash_continue_en
+language: en
+seed: demo-coords
+now: "2030-06-10T20:30:00+02:00"
+# S4 plus the user's "go on" to the first reply: does the second part offer options to choose from?
+messages:
+  - "Mira here. I want June 12 in Bergen to be easy-going, but I also really want to climb up to the Example Bergen Viewpoint, a steep two-hour hike. What should we do with that day?"
+  - "go on"

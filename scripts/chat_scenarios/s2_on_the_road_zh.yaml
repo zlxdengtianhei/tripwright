@@ -1,6 +1,6 @@
 name: s2_on_the_road_zh
 language: zh
-seed: demo
+seed: demo-coords
 now: "2030-06-10T20:30:00+02:00"
 # The demo trip stores no lodging, so "home" is the station the user names.
 messages:

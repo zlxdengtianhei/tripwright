@@ -13,7 +13,8 @@ Scenario file (YAML):
 
     name: s1_first_use
     language: en                      # label only
-    seed: demo                        # optional, stdio only: seed the fictional fjord trip into a temporary database
+    seed: demo-coords                 # optional, stdio only: the fictional fjord trip (`demo`: as shipped, places without
+                                      # coordinates; `demo-coords`: the same places with invented coordinates)
     now: "2030-06-10T20:30:00+02:00"  # optional, stdio only: the server's pinned clock (TRIPWRIGHT_NOW)
     messages:
       - "first user message"
@@ -29,6 +30,8 @@ Example (from the repository root):
       --mcp-stdio "uv run python -m tripwright.cli serve --stdio" \\
       --scenario scripts/chat_scenarios/s1_first_use_en.yaml --model group/glm --instructions on \\
       --out /root/work/tw-runs/example
+
+`chat_host.py --reanalyze DIR...` recomputes the per-message figures of finished runs from their transcript.json.
 
 Exit status: 0 when the run finished (a message that hit the round limit is recorded as failed in metrics, status
 "completed_with_failures", exit 1); 2 when the run could not finish (API or server error, bad arguments): metrics.json then
@@ -63,14 +66,29 @@ REPO = Path(__file__).resolve().parents[1]
 SEED_CODE = """
 import sys
 from pathlib import Path
-from tripwright.demo import run_demo
+import tripwright.demo as demo
 from tripwright.query import QueryRouter
 from tripwright.service import Tripwright
 from tripwright.storage import Store
 
+# The shipped demo places carry no coordinates and no stop IDs, so a chat model naming any of them is answered with
+# "not a stored place" (service._unknown_places). `demo-coords` gives the same fictional places invented coordinates.
+COORDS = {"oslo-art": (59.9139, 10.7522), "oslo-cafe": (59.9101, 10.7476), "oslo-park": (59.9220, 10.7390),
+          "oslo-station": (59.9110, 10.7503), "bergen-view": (60.3989, 5.3210), "bergen-food": (60.3913, 5.3221)}
+if sys.argv[3] == "demo-coords":
+    original = demo.example
+
+    def example():
+        data = original()
+        for place in data["trip"]["places"]:
+            place["coords"] = list(COORDS[place["id"]])
+        return data
+
+    demo.example = example
+
 store = Store(Path(sys.argv[1]))
 try:
-    run_demo(Tripwright(store, query_router=QueryRouter(store, mode="synthetic")), owner=sys.argv[2], output=lambda *_: None)
+    demo.run_demo(Tripwright(store, query_router=QueryRouter(store, mode="synthetic")), owner=sys.argv[2], output=lambda *_: None)
 finally:
     store.close()
 """
@@ -105,23 +123,18 @@ def tool_result_text(result) -> str:
     return ""
 
 
-def find_first_part(result) -> str | None:
-    """`first_part.text` of a turn result (structured content, else the JSON text)."""
-    candidates = []
-    if getattr(result, "structured_content", None):
-        candidates.append(result.structured_content)
-    for content in result.content:
-        text = getattr(content, "text", None)
-        if text and text.lstrip().startswith("{"):
-            try:
-                candidates.append(json.loads(text))
-            except ValueError:
-                pass
-    for data in candidates:
-        part = data.get("first_part") if isinstance(data, dict) else None
-        if isinstance(part, dict) and isinstance(part.get("text"), str) and part["text"].strip():
-            return part["text"]
-    return None
+def turn_info(text: str) -> tuple[str | None, str | None]:
+    """(`first_part.text`, `do_first`) of a turn result's JSON text; None where the result has no such field."""
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return None, None
+    if not isinstance(data, dict):
+        return None, None
+    part = data.get("first_part")
+    first = part["text"] if isinstance(part, dict) and isinstance(part.get("text"), str) and part["text"].strip() else None
+    do_first = data.get("do_first") if isinstance(data.get("do_first"), str) else None
+    return first, do_first
 
 
 def openai_tools(listing) -> list[dict]:
@@ -129,13 +142,29 @@ def openai_tools(listing) -> list[dict]:
                                               "parameters": tool.input_schema}} for tool in listing.tools]
 
 
-def seed_database(directory: Path, owner: str, moment: datetime | None) -> Path:
+def patch_enum_types(node, counter: list) -> None:
+    """Opt-in host-side patch (--patch-schema): a JSON Schema node with `enum` and no `type` (the `priority` of
+    query's plan_day candidates mixes strings and integers) is refused by Kimi's strict validator. Give such a node
+    `type: string` and keep only its string values. The server's own tools/list is not touched; the count goes to metrics."""
+    if isinstance(node, dict):
+        if "enum" in node and "type" not in node and not any(key in node for key in ("anyOf", "oneOf", "allOf", "$ref")):
+            node["enum"] = [value for value in node["enum"] if isinstance(value, str)]
+            node["type"] = "string"
+            counter.append(1)
+        for value in node.values():
+            patch_enum_types(value, counter)
+    elif isinstance(node, list):
+        for value in node:
+            patch_enum_types(value, counter)
+
+
+def seed_database(directory: Path, owner: str, moment: datetime | None, kind: str) -> Path:
     """Run the fictional demo (demo.run_demo) into a new database on a clock one day before the scenario's `now`."""
     database = directory / "seed.sqlite3"
     environment = dict(os.environ, TRIPWRIGHT_PROVIDERS="synthetic")
     if moment is not None:
         environment.update(TRIPWRIGHT_NOW=(moment - timedelta(days=1)).isoformat(), TRIPWRIGHT_NOW_SET_AT=str(time.time()))
-    done = subprocess.run([sys.executable, "-c", SEED_CODE, str(database), owner], env=dict(environment, PYTHONPATH=str(REPO / "src")),
+    done = subprocess.run([sys.executable, "-c", SEED_CODE, str(database), owner, kind], env=dict(environment, PYTHONPATH=str(REPO / "src")),
                           capture_output=True, text=True, cwd=str(directory))
     if done.returncode != 0:
         raise HostError("seeding the demo trip failed:\n" + done.stderr[-2000:])
@@ -186,7 +215,6 @@ async def run_message(api: Api, session: ClientSession, tools: list[dict], messa
     started = now_s()
     entry = dict(user=user_text, rounds=[], reply=None, mid_texts=[], tool_calls=[], usage=[], failed=None)
     transcript.append(entry)
-    turn_first_parts: list[str] = []
     for round_number in range(1, max_rounds + 2):
         if round_number > max_rounds:
             entry["failed"] = f"tool_rounds_exceeded: more than {max_rounds} rounds of tool calls without a text reply"
@@ -236,25 +264,24 @@ async def run_message(api: Api, session: ClientSession, tools: list[dict], messa
                     text = tool_result_text(result)
                     if result.is_error:
                         record["error"] = text
-                    elif name == "turn":
-                        part = find_first_part(result)
-                        if part:
-                            turn_first_parts.append(part)
             record.update(seconds=round(now_s() - began, 2), result_bytes=len(text.encode()), result=text)
             messages.append({"role": "tool", "tool_call_id": call.get("id") or f"call_{len(entry['tool_calls'])}", "content": text})
     entry["seconds"] = round(now_s() - started, 2)
-    entry["first_parts"] = turn_first_parts
     return entry
 
 
 def message_metrics(entry: dict) -> dict:
     calls = entry["tool_calls"]
     reply = entry["reply"]
-    parts = entry["first_parts"]
     usage = entry["usage"]
+    turns = [turn_info(call["result"] or "") for call in calls if call["name"] == "turn" and not call["error"]]
+    last_part, last_do_first = turns[-1] if turns else (None, None)
+    # The last turn result is the one the host must act on. Its `do_first` names `first_part` when the reply is to
+    # open with it; after "continue" it asks for the second part, and then first_part has no place in the reply.
+    wants_first_part = bool(last_do_first) and "first_part" in last_do_first
     verbatim = None
-    if parts and reply is not None:
-        verbatim = norm(parts[0]) in norm(reply)
+    if wants_first_part and last_part and reply is not None:
+        verbatim = norm(last_part) in norm(reply)
     return dict(
         user=entry["user"], failed=entry["failed"], reply_chars=len(reply) if reply is not None else None,
         tool_call_count=len(calls), tool_order=[call["name"] for call in calls], tool_rounds=len(entry["rounds"]),
@@ -263,7 +290,7 @@ def message_metrics(entry: dict) -> dict:
                     total=sum(item.get("total_tokens") or 0 for item in usage), api_calls=len(usage),
                     first_call_prompt=usage[0].get("prompt_tokens") if usage else None),
         first_tool_is_turn=bool(calls) and calls[0]["name"] == "turn",
-        turn_returned_first_part=bool(parts), first_part_verbatim_in_reply=verbatim,
+        turn_wants_first_part=wants_first_part, first_part_verbatim_in_reply=verbatim,
         mid_text_segments=len(entry["mid_texts"]),
         tool_errors=[dict(name=call["name"], round=call["round"], error=call["error"]) for call in calls if call["error"]],
     )
@@ -281,12 +308,12 @@ async def run(arguments, scratch: Path, transcript: list[dict]) -> tuple[dict, d
         if arguments.mcp_stdio:
             environment = dict(os.environ, TRIPWRIGHT_PROVIDERS=arguments.providers)
             setup["providers"] = arguments.providers
-            if scenario.get("seed") == "demo":
-                database = seed_database(scratch, arguments.local_user, moment)
+            if scenario.get("seed") in ("demo", "demo-coords"):
+                database = seed_database(scratch, arguments.local_user, moment, scenario["seed"])
                 environment["TRIPWRIGHT_DB"] = str(database)
                 setup["seeded"] = True
             elif scenario.get("seed"):
-                raise HostError(f"unknown seed {scenario['seed']!r}; only `demo` exists")
+                raise HostError(f"unknown seed {scenario['seed']!r}; only `demo` and `demo-coords` exist")
             else:
                 environment["TRIPWRIGHT_DB"] = str(scratch / "empty.sqlite3")
             if moment is not None:
@@ -314,6 +341,10 @@ async def run(arguments, scratch: Path, transcript: list[dict]) -> tuple[dict, d
             raise HostError(f"MCP initialize failed: {type(error).__name__}: {error}") from error
         listing = await session.list_tools()
         tools = openai_tools(listing)
+        patched: list = []
+        if arguments.patch_schema:
+            patch_enum_types(tools, patched)
+        setup["schema_patched_nodes"] = len(patched)
         listing_bytes = len(json.dumps([tool.model_dump(by_alias=True, exclude_none=True, mode="json") for tool in listing.tools],
                                        ensure_ascii=False).encode())
         instructions = init.instructions or ""
@@ -357,6 +388,8 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--timeout", type=float, default=300, help="seconds per chat API call (default 300)")
     parser.add_argument("--providers", choices=["synthetic", "live"], default="synthetic", help="stdio only: TRIPWRIGHT_PROVIDERS (default synthetic)")
     parser.add_argument("--local-user", default="local", help="stdio only: the server's local user, owner of the seeded trip")
+    parser.add_argument("--patch-schema", action="store_true",
+                        help="host-side patch for strict validators (Kimi): enum nodes without `type` get type string; the count is in metrics")
     parser.add_argument("--extra-body", help="JSON object merged into every chat request body (e.g. reasoning settings)")
     return parser.parse_args(argv)
 
@@ -365,7 +398,25 @@ def write_json(path: Path, data) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def reanalyze(directories: list[str]) -> int:
+    """`chat_host.py --reanalyze DIR...`: recompute the per-message figures of finished runs from their transcript.json
+    (after message_metrics changed); everything else in metrics.json stays."""
+    for name in directories:
+        directory = Path(name)
+        metrics = json.loads((directory / "metrics.json").read_text(encoding="utf-8"))
+        if not str(metrics.get("status", "")).startswith("completed"):
+            continue
+        transcript = json.loads((directory / "transcript.json").read_text(encoding="utf-8"))
+        metrics["messages"] = [message_metrics(entry) for entry in transcript["messages"]]
+        metrics["status"] = "completed_with_failures" if any(item["failed"] for item in metrics["messages"]) else "completed"
+        write_json(directory / "metrics.json", metrics)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] == "--reanalyze":
+        return reanalyze(argv[1:])
     arguments = parse(argv)
     out = Path(arguments.out)
     if (out / "metrics.json").exists() and json.loads((out / "metrics.json").read_text()).get("status", "").startswith("completed"):
