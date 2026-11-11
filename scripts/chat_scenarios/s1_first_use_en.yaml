@@ -1,0 +1,6 @@
+name: s1_first_use_en
+language: en
+seed: demo-coords
+now: "2030-06-10T20:30:00+02:00"
+messages:
+  - "Use tripwright: which trips are stored?"
