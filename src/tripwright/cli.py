@@ -296,94 +296,6 @@ def serve_stdio(arguments) -> int:
     return 0
 
 
-def run_hook(arguments) -> int:
-    """Claude Code hooks for a trip repository (A7). Each reads the hook input on stdin and the session transcript, never
-    opens the trip, logs one line per call to `.tripwright/hook.log` (`<time> <event> block|pass|error <note>`) and on
-    its own error lets the call through (exit 0, no output).
-
-    - `stop` (Stop hook): print `{"decision": "block", "reason": …}` when the text the host just sent is a second part
-      and differs from the last one check_answer passed during this question, or none passed; when the main agent
-      dispatched a subagent or looked something up and sent no text with a first part's shape (D-46, D-47); or when a
-      first part said a second part follows, or the main agent dispatched or looked something up, and no second part
-      is out and no background check is running (D-48). At most 3 blocks per question, then it lets the turn end.
-    - `first-part` (PreToolUse hook): when the main agent starts a lookup (a subagent in the foreground, Tripwright's
-      query other than check_answer, WebSearch, WebFetch, the tripwright query command line) before any text shown
-      after the user's last message passes the first part's checks, print the deny decision with the reason and the
-      failing checks. A subagent dispatched in the background (`run_in_background`) goes through (D-46).
-
-    Both read the clock in the trip's zone: the zone check_answer last used, else the repository's tripwright.yaml."""
-    import re
-    import time
-    from datetime import datetime, timedelta
-    from zoneinfo import ZoneInfo
-
-    from tripwright.storage import answers_path, clock
-
-    path = answers_path(arguments.repo, None if arguments.repo else arguments.db)
-    log = path.with_name("hook.log") if path else None
-    event = arguments.event
-
-    def note(verdict: str, text: str):
-        if log is not None:
-            try:
-                log.parent.mkdir(parents=True, exist_ok=True)
-                with log.open("a", encoding="utf-8") as sink:
-                    sink.write(f"{datetime.now().astimezone().isoformat(timespec='seconds')} {event} {verdict} {text}\n")
-            except OSError:
-                pass
-
-    try:
-        from tripwright.render import check_answer as checks
-
-        payload = json.loads(sys.stdin.read() or "{}")
-        payload = payload if isinstance(payload, dict) else {}
-        transcript = []
-        source = payload.get("transcript_path")
-        if source and Path(source).expanduser().is_file():
-            for line in Path(source).expanduser().read_text(encoding="utf-8", errors="replace").splitlines():
-                try:
-                    entry = json.loads(line)
-                except ValueError:
-                    continue
-                if isinstance(entry, dict):
-                    transcript.append(entry)
-        stored = json.loads(path.read_text(encoding="utf-8")) if path is not None and path.is_file() else {}
-        stored = stored if isinstance(stored, dict) else {}
-        # the trip's zone: the one check_answer last used (the plan's), else the repository's tripwright.yaml, else UTC
-        config = Path(arguments.repo).expanduser() / "tripwright.yaml" if arguments.repo else None
-        found = re.search(r"^timezone:\s*(\S+)", config.read_text(encoding="utf-8"), re.M) if config is not None and config.is_file() else None
-        zone = ZoneInfo(stored.get("zone") or (found.group(1).strip("'\"") if found else "UTC"))
-
-        def minute_at(shown: float | None) -> int:
-            # the service's clock at the moment a text was shown: pinned in replays (TRIPWRIGHT_NOW)
-            local = (clock() - timedelta(seconds=time.time() - shown if shown else 0)).astimezone(zone)
-            return local.hour * 60 + local.minute
-
-        # each hook counts its blocks per question (session and the last real user message), so it gives way at a cap
-        state_path = path.with_name("hook-state.json") if path else None
-        state = json.loads(state_path.read_text(encoding="utf-8")) if state_path is not None and state_path.is_file() else {}
-        question = f"{payload.get('session_id')}:{checks.turn_texts(transcript)[0]}"
-        if event == "stop":
-            key = f"stop:{question}"
-            reason, verdict = checks.stop_decision(payload, stored.get("answers") or {}, transcript, minute_at, blocked=state.get(key, 0))
-            decision = {"decision": "block", "reason": reason}
-        else:
-            key = question
-            reason, verdict = checks.first_part_decision(payload, transcript, minute_at, denied=state.get(key, 0))
-            decision = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": reason}}
-        if reason and state_path is not None:
-            state = dict(list({**state, key: state.get(key, 0) + 1}.items())[-50:])
-            state_path.parent.mkdir(parents=True, exist_ok=True)
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-    except Exception as error:  # a broken hook must not hold the user's answer
-        note("error", f"let through: {type(error).__name__}: {error}")
-        return 0
-    note("block" if reason else "pass", verdict)
-    if reason:
-        print(json.dumps(decision, ensure_ascii=False))
-    return 0
-
-
 def run_share(arguments) -> int:
     """Build locally, connect the public repository, publish a committed version, or inspect its latest outcome."""
     from tripwright.remote.connection import data_directory, repo_key, use_data_directory
@@ -526,9 +438,6 @@ def main(argv: list[str] | None = None) -> int:
     connect = repo_commands.add_parser("connect", help="Connect a repository safely, pushing an empty remote or adopting its trips")
     connect.add_argument("repository")
     connect.add_argument("--branch", default="main")
-    hook = commands.add_parser("hook", help="Claude Code hooks: stop blocks a second part that differs from what check_answer passed; "
-                                            "first-part denies lookups until the first part is sent")
-    hook.add_argument("event", choices=["stop", "first-part"])
     query = commands.add_parser("query", help="Look up transit, the latest departure for a deadline, record a web check, or "
                                               "check an answer draft: the MCP query tool's JSON on stdout, a one-line summary on stderr")
     query.add_argument("kind", choices=["transit", "latest_departure", "web_evidence", "check_answer", "open_places", "weather", "geocode",
@@ -649,8 +558,6 @@ def main(argv: list[str] | None = None) -> int:
             print(f"tripwright: {error}", file=sys.stderr)
             return 1
         return 0
-    if arguments.command == "hook":
-        return run_hook(arguments)
     if arguments.command == "share":
         return run_share(arguments)
     if arguments.command in ("check", "status"):

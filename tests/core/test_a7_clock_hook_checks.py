@@ -1,7 +1,5 @@
-"""A7 (D-44), first half: a pinned clock for replays, the text that is sent bound to the text check_answer passed (a
-Stop hook), and check_answer's new checks: a sentence that says a connection cannot be made needs the tool's result,
-a hungry user gets two named places to eat with the source of their hours, internal words stay out of the answer, and
-the first part keeps to 8 lines. Offline: the fictional MOTIS and web of A5, fixed moments. Fictional people and places."""
+"""A7 (D-44): a pinned clock for replays and check_answer's checks. Offline: the fictional MOTIS and web of A5,
+fixed moments. Fictional people and places."""
 from __future__ import annotations
 
 import asyncio
@@ -21,10 +19,8 @@ import tripwright.storage as storage
 from a5_upstream import DESTINATION, ORIGIN, Timetable, page_reader
 from test_a3_anchor_deadline import anchored_plan
 from test_a6_check_answer import GOOD_SECOND, NOW, RULE, check, failing, fixed, seed
-from test_b3d_mcp import environment
 from tripwright.cli import main
 from tripwright.query import QueryRouter, checked_arguments
-from tripwright.render import check_answer as checks
 from tripwright.service import Tripwright
 from tripwright.storage import Store
 
@@ -46,7 +42,7 @@ def test_the_clock_pins_to_tripwright_now_and_runs_on_from_there(monkeypatch):
         storage.now()
 
 
-def test_turn_lookups_and_evidence_read_the_pinned_clock(tmp_path, monkeypatch):
+def test_evidence_reads_the_pinned_clock(tmp_path, monkeypatch):
     monkeypatch.setenv("TRIPWRIGHT_NOW", "2030-06-10T20:45:00+02:00")
     monkeypatch.setenv("TRIPWRIGHT_NOW_SET_AT", str(time.time()))
     store = Store(tmp_path / "pinned.sqlite3")
@@ -82,97 +78,7 @@ def test_a_replay_pins_the_server_and_the_hosts_date(tmp_path):
         replay.pin_clock(tmp_path / "other", "16:40")
 
 
-# --- what was sent is what was checked ---------------------------------------------------------------------------------------
-
 SECOND = "# 第二段 · 核过了（20:45）\n和第一段不同：没有不同。\n网上说法：码头咖啡开到 23:00（搜索摘要）。\n## 完整安排\n21:30 出门 · 走 5 分钟到 Nordkai"
-
-
-def transcript(path: Path, sent: str, asked_at: float) -> Path:
-    """A Claude Code session record: the user's message, a tool call and its result, a subagent's line, the answer."""
-    stamp = datetime.fromtimestamp(asked_at, timezone.utc).isoformat().replace("+00:00", "Z")
-    entries = [
-        {"type": "user", "timestamp": stamp, "message": {"role": "user", "content": "How late can I leave for the ferry?"}},
-        {"type": "assistant", "message": {"content": [{"type": "text", "text": "最晚 21:30 出门。\n按现在 20:45 算。"}]}},
-        {"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "t1", "name": "mcp__tripwright__query", "input": {}}]}},
-        {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": "{}"}]}},
-        {"type": "assistant", "isSidechain": True, "message": {"content": [{"type": "text", "text": "# 第二段 subagent notes"}]}},
-        {"type": "assistant", "message": {"content": [{"type": "text", "text": sent}]}},
-    ]
-    path.write_text("\n".join(json.dumps(entry, ensure_ascii=False) for entry in entries) + "\n", encoding="utf-8")
-    return path
-
-
-def hook(database: Path, payload: dict, monkeypatch, capsys) -> str:
-    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
-    assert main(["--db", str(database), "hook", "stop"]) == 0
-    return capsys.readouterr().out
-
-
-@pytest.fixture
-def checked(tmp_path, monkeypatch):
-    """A database whose second part SECOND passed check_answer just now."""
-    fixed(monkeypatch)
-    database = tmp_path / "a7.sqlite3"
-    seed(database, lookups=False)
-    store = Store(database)
-    service = Tripwright(store, query_router=QueryRouter(store, mode="synthetic"))
-    try:
-        asked = time.time() - 30
-        result = asyncio.run(service.query("local", "check_answer", dict(text=SECOND + "\n", part="second", request_id="q1")))
-    finally:
-        service.jobs.stop()
-        store.close()
-    assert result["ok"] and result["passed"]["remembered"] and result["passed"]["sha256"] == checks.draft_digest(SECOND)
-    return database, asked
-
-
-def test_a_second_part_equal_to_the_passed_draft_goes_through(checked, tmp_path, monkeypatch, capsys):
-    database, asked = checked
-    stored = json.loads(database.with_name("a7.answers.json").read_text(encoding="utf-8"))["answers"]["q1"]
-    assert stored["text"] == SECOND + "\n" and stored["at"].startswith("2030-06-10T18:45")
-    path = transcript(tmp_path / "same.jsonl", SECOND.replace("\n", "  \r\n") + "\n\n", asked)  # trailing spaces, line endings
-    assert hook(database, dict(transcript_path=str(path), hook_event_name="Stop"), monkeypatch, capsys) == ""
-    assert database.with_name("hook.log").read_text(encoding="utf-8").splitlines()[-1].endswith("stop pass matches a passed draft")
-
-
-def test_a_changed_or_never_checked_second_part_is_blocked(checked, tmp_path, monkeypatch, capsys):
-    database, asked = checked
-    changed = transcript(tmp_path / "changed.jsonl", SECOND.replace("21:30", "21:20"), asked)
-    assert json.loads(hook(database, dict(transcript_path=str(changed)), monkeypatch, capsys)) == {
-        "decision": "block", "reason": "第二段和核过的草稿不一致，请把发出的文字交 check_answer 再核"
-        "；这段用户已经看到了：重核过了就结束这一轮，不写任何字；没过只发一条“更正：”，写改了的几行"}  # A14: never sent twice; S5b: no word after
-    later = transcript(tmp_path / "later.jsonl", SECOND, time.time() + 60)  # a newer question: nothing passed since it
-    assert json.loads(hook(database, dict(transcript_path=str(later)), monkeypatch, capsys))["reason"].startswith("这一问的第二段还没过 check_answer")
-    # D-48: stop_hook_active no longer lets it through by itself; after 3 blocks for the question it does, and logs it
-    assert [hook(database, dict(transcript_path=str(changed), stop_hook_active=True), monkeypatch, capsys) == "" for _ in range(3)] == [False, False, True]
-    assert "let through after 3 blocks for this question" in database.with_name("hook.log").read_text(encoding="utf-8")
-    # the host's own last message, when the input carries it, is what is compared
-    assert hook(database, dict(transcript_path=str(changed), last_assistant_message=SECOND), monkeypatch, capsys) == ""
-
-
-def test_a_quick_answer_or_a_chat_line_is_not_blocked_and_errors_let_it_through(checked, tmp_path, monkeypatch, capsys):
-    """A quick answer: nothing looked up, no second part promised (D-48). With a lookup the turn would go on (below)."""
-    database, asked = checked
-    monkeypatch.setenv("TRIPWRIGHT_NOW", "2030-06-10T20:45:00+02:00")
-    monkeypatch.setenv("TRIPWRIGHT_NOW_SET_AT", str(time.time()))
-    quick = record(tmp_path / "quick.jsonl", [asked_entry("最晚几点去码头？", asked), said("最晚 21:30 出门。\n按现在 20:45 算。\n计划里存的，10 点查的。")])
-    assert hook(database, dict(transcript_path=str(quick)), monkeypatch, capsys) == ""
-    chat = record(tmp_path / "chat.jsonl", [asked_entry("谢谢！", asked), said("不客气，路上顺利。")])
-    assert hook(database, dict(transcript_path=str(chat)), monkeypatch, capsys) == ""
-    monkeypatch.setattr(sys, "stdin", io.StringIO("not json"))
-    assert main(["--db", str(database), "hook", "stop"]) == 0 and capsys.readouterr().out == ""
-    assert "stop error let through: JSONDecodeError" in database.with_name("hook.log").read_text(encoding="utf-8")
-
-
-def test_the_hook_as_claude_code_runs_it(checked, tmp_path):
-    database, asked = checked
-    payload = json.dumps(dict(session_id="s", transcript_path=str(transcript(tmp_path / "run.jsonl", SECOND + "\n多一行。", asked)),
-                              hook_event_name="Stop", stop_hook_active=False))
-    started = time.time()
-    run = subprocess.run([sys.executable, "-m", "tripwright.cli", "--db", str(database), "hook", "stop"], input=payload,
-                         env=environment(), capture_output=True, text=True, timeout=60)
-    assert run.returncode == 0 and json.loads(run.stdout)["decision"] == "block", run.stderr
-    assert time.time() - started < 20
 
 
 # --- check_answer: the new checks --------------------------------------------------------------------------------------------
@@ -279,249 +185,6 @@ def test_the_first_part_is_not_held_to_a_number_of_lines(trip):
     assert check(trip, nine, "first")["ok"] and failing(check(trip, nine, "first")) == {}
 
 
-# --- the first part before any lookup (PreToolUse) -------------------------------------------------------------------------
-
-FIRST = "最晚 21:30 出门，坐 21:35 的车去码头。\n按现在 20:45 算，你在 Nordkai 附近。\n没核：21:35 这班车，第二段核完再发。"
-NOTIFICATION = {"type": "user", "origin": {"kind": "task-notification"}, "message": {"role": "user", "content": "<task-notification>done</task-notification>"}}
-
-
-def session(path: Path, texts: list[str], *, asked_at: float, extra: list[dict] = ()) -> Path:
-    stamp = lambda at: datetime.fromtimestamp(at, timezone.utc).isoformat().replace("+00:00", "Z")
-    entries = [{"type": "user", "timestamp": stamp(asked_at), "message": {"role": "user", "content": "最晚几点去码头？"}}]
-    entries += [{"type": "assistant", "timestamp": stamp(asked_at + 5), "message": {"content": [{"type": "text", "text": text}]}} for text in texts]
-    entries += list(extra)
-    path.write_text("\n".join(json.dumps(entry, ensure_ascii=False) for entry in entries) + "\n", encoding="utf-8")
-    return path
-
-
-@pytest.fixture
-def workspace(tmp_path, monkeypatch):
-    """A trip repository's folder as the hook sees it (its zone in tripwright.yaml), and the pinned clock at 20:45."""
-    folder = tmp_path / "ws"
-    folder.mkdir()
-    (folder / "tripwright.yaml").write_text("format: 1\ntimezone: Europe/Oslo\n", encoding="utf-8")
-    monkeypatch.setenv("TRIPWRIGHT_NOW", "2030-06-10T20:45:00+02:00")
-    monkeypatch.setenv("TRIPWRIGHT_NOW_SET_AT", str(time.time()))
-    return folder
-
-
-def first_hook(folder: Path, payload: dict, monkeypatch, capsys) -> dict | None:
-    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
-    assert main(["--repo", str(folder), "hook", "first-part"]) == 0
-    printed = capsys.readouterr().out
-    return json.loads(printed)["hookSpecificOutput"] if printed else None
-
-
-def lookup(path: Path, tool="Agent", **extra) -> dict:
-    return dict(dict(session_id="s", transcript_path=str(path), hook_event_name="PreToolUse", tool_name=tool,
-                     tool_input=extra.pop("tool_input", {"prompt": "find the last train"})), **extra)
-
-
-def test_a_lookup_before_the_first_part_is_denied(workspace, tmp_path, monkeypatch, capsys):
-    path = session(tmp_path / "none.jsonl", [], asked_at=time.time())  # v2f s1_on_r1: the first part went into thinking
-    denied = first_hook(workspace, lookup(path), monkeypatch, capsys)
-    assert denied == {"hookEventName": "PreToolUse", "permissionDecision": "deny",
-                      "permissionDecisionReason": checks.FIRST_REASON + "；还没有给用户的文字；" + checks.IN_BACKGROUND}
-    status = session(tmp_path / "status.jsonl", ["I'm still checking your trip records…"], asked_at=time.time())
-    reason = first_hook(workspace, lookup(status, "mcp__tripwright__query", tool_input={"kind": "latest_departure"}), monkeypatch, capsys)
-    assert "clock_in_first_part" in reason["permissionDecisionReason"] and "no_tags" in reason["permissionDecisionReason"]
-    assert reason["permissionDecisionReason"].endswith("；" + checks.IN_BACKGROUND)
-    log = (workspace / ".tripwright" / "hook.log").read_text(encoding="utf-8").splitlines()
-    assert [line.split(" ")[1:3] for line in log] == [["first-part", "block"], ["first-part", "block"]]
-
-
-def test_a_lookup_after_the_first_part_and_calls_that_are_not_lookups_go_through(workspace, tmp_path, monkeypatch, capsys):
-    sent = session(tmp_path / "sent.jsonl", ["好的。", FIRST], asked_at=time.time(), extra=[NOTIFICATION])  # a notification is not a question
-    for tool, tool_input in [("Agent", {}), ("WebSearch", {"query": "ferry"}), ("WebFetch", {"url": "https://ferry.example.org"}),
-                             ("mcp__tripwright__query", {"kind": "transit"}),
-                             ("Bash", {"command": "uvx --from ./tools/t.whl tripwright --repo . query latest_departure --anchor hn-arrive"})]:
-        assert first_hook(workspace, lookup(sent, tool, tool_input=tool_input), monkeypatch, capsys) is None, tool
-    empty = session(tmp_path / "empty.jsonl", [], asked_at=time.time())
-    for tool, tool_input in [("mcp__tripwright__turn", {"text": "x"}), ("Read", {"file_path": "README.md"}), ("Skill", {"skill": "x"}),
-                             ("mcp__tripwright__query", {"kind": "check_answer"}), ("Bash", {"command": "ls"}),
-                             ("Bash", {"command": "tripwright --repo . query check_answer --part first --text-file a.md"})]:
-        assert first_hook(workspace, lookup(empty, tool, tool_input=tool_input), monkeypatch, capsys) is None, tool
-    assert first_hook(workspace, lookup(empty, "WebSearch", agent_id="a1", agent_type="tripwright-researcher"), monkeypatch, capsys) is None
-
-
-def test_the_clock_of_the_first_part_is_the_pinned_one_at_the_moment_it_was_shown(workspace, tmp_path, monkeypatch, capsys):
-    stale = session(tmp_path / "stale.jsonl", [FIRST.replace("20:45", "19:30")], asked_at=time.time())
-    assert "clock_in_first_part" in first_hook(workspace, lookup(stale), monkeypatch, capsys)["permissionDecisionReason"]
-    earlier = session(tmp_path / "earlier.jsonl", [FIRST.replace("20:45", "20:35")], asked_at=time.time() - 600)  # shown 10 min ago
-    assert first_hook(workspace, lookup(earlier), monkeypatch, capsys) is None
-
-
-def test_the_first_part_hook_gives_way_after_three_denials(workspace, tmp_path, monkeypatch, capsys):
-    path = session(tmp_path / "stuck.jsonl", [], asked_at=time.time())
-    assert [first_hook(workspace, lookup(path), monkeypatch, capsys) is None for _ in range(4)] == [False, False, False, True]
-    assert "let through after 3 denials" in (workspace / ".tripwright" / "hook.log").read_text(encoding="utf-8")
-
-
-def test_the_first_part_hook_as_claude_code_runs_it(workspace, tmp_path):
-    path = session(tmp_path / "run.jsonl", [], asked_at=time.time())
-    variables = dict(environment(), TRIPWRIGHT_NOW=os.environ["TRIPWRIGHT_NOW"], TRIPWRIGHT_NOW_SET_AT=os.environ["TRIPWRIGHT_NOW_SET_AT"])
-    started = time.time()
-    run = subprocess.run([sys.executable, "-m", "tripwright.cli", "--repo", str(workspace), "hook", "first-part"],
-                         input=json.dumps(lookup(path)), env=variables, capture_output=True, text=True, timeout=60)
-    took = time.time() - started
-    assert run.returncode == 0 and json.loads(run.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny", run.stderr
-    assert took < 3, took  # about 0.3 s on this machine; uvx adds its own start
-
-
-def test_a_second_part_after_a_task_notification_is_compared_with_this_questions_check(checked, tmp_path, monkeypatch, capsys):
-    database, asked = checked
-    path = transcript(tmp_path / "notified.jsonl", SECOND, asked)
-    lines = path.read_text(encoding="utf-8").splitlines()
-    lines.insert(-1, json.dumps(NOTIFICATION, ensure_ascii=False))  # the researcher's report arrives, then the second part
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    assert hook(database, dict(transcript_path=str(path)), monkeypatch, capsys) == ""
-
-
-# --- D-46: background dispatches go first; a question that looked something up ends with a first part ------------------------
-
-STATUS_LINE = "I've dispatched the researcher to check the evening trains; I'll come back with the details."
-
-
-def said(text: str, at: float | None = None) -> dict:
-    entry = {"type": "assistant", "message": {"content": [{"type": "text", "text": text}]}}
-    return entry | ({"timestamp": datetime.fromtimestamp(at, timezone.utc).isoformat().replace("+00:00", "Z")} if at else {})
-
-
-def called(tool: str, **tool_input) -> dict:
-    return {"type": "assistant", "message": {"content": [{"type": "tool_use", "id": f"t-{tool}", "name": tool, "input": tool_input}]}}
-
-
-def asked(text: str, at: float) -> dict:
-    return {"type": "user", "timestamp": datetime.fromtimestamp(at, timezone.utc).isoformat().replace("+00:00", "Z"),
-            "message": {"role": "user", "content": text}}
-
-
-asked_entry = asked  # for tests whose fixture calls its own moment `asked`
-
-
-def record(path: Path, entries: list[dict]) -> Path:
-    path.write_text("\n".join(json.dumps(entry, ensure_ascii=False) for entry in entries) + "\n", encoding="utf-8")
-    return path
-
-
-def stop_hook(folder: Path, payload: dict, monkeypatch, capsys) -> dict | None:
-    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
-    assert main(["--repo", str(folder), "hook", "stop"]) == 0
-    printed = capsys.readouterr().out
-    return json.loads(printed) if printed else None
-
-
-DISPATCH = called("Agent", description="check trains", prompt="find the last train", subagent_type="tripwright-researcher", run_in_background=True)
-
-
-def done(tool_use: str) -> dict:
-    """Claude Code's notification that background work ended (2.1.301), naming the tool use that started it."""
-    return {"type": "user", "origin": {"kind": "task-notification"}, "message": {"role": "user", "content": (
-        f"<task-notification>\n<task-id>a1</task-id>\n<tool-use-id>{tool_use}</tool-use-id>\n<status>completed</status>\n</task-notification>")}}
-
-
-def test_a_background_dispatch_goes_through_before_the_first_part_and_the_hosts_own_lookups_wait(workspace, tmp_path, monkeypatch, capsys):
-    path = session(tmp_path / "none.jsonl", [], asked_at=time.time())  # nothing shown to the user yet
-    for number, tool in enumerate(["Agent", "Task"]):
-        background = lookup(path, tool, session_id=f"b{number}", tool_input={"prompt": "find the last train", "run_in_background": True})
-        assert first_hook(workspace, background, monkeypatch, capsys) is None, tool
-    log = (workspace / ".tripwright" / "hook.log").read_text(encoding="utf-8").splitlines()
-    assert [line.split(" ", 1)[1] for line in log] == ["first-part pass background dispatch (Agent)", "first-part pass background dispatch (Task)"]
-    for number, (tool, tool_input) in enumerate([("Agent", {"prompt": "find the last train"}),
-                                                 ("Agent", {"prompt": "find the last train", "run_in_background": False}),
-                                                 ("Task", {"prompt": "x", "run_in_background": "yes"}),
-                                                 ("mcp__tripwright__query", {"kind": "latest_departure", "run_in_background": True}),
-                                                 ("WebSearch", {"query": "last ferry"}), ("WebFetch", {"url": "https://ferry.example.org"}),
-                                                 ("Bash", {"command": "tripwright --repo . query transit --from a --to b"})]):
-        denied = first_hook(workspace, lookup(path, tool, session_id=f"f{number}", tool_input=tool_input), monkeypatch, capsys)
-        assert denied and denied["permissionDecision"] == "deny", (tool, tool_input)
-        assert denied["permissionDecisionReason"].endswith(checks.IN_BACKGROUND)
-    # check_answer is never held, and a subagent's own lookups are not the main agent's
-    assert first_hook(workspace, lookup(path, "mcp__tripwright__query", session_id="c", tool_input={"kind": "check_answer"}), monkeypatch, capsys) is None
-    assert first_hook(workspace, lookup(path, "WebFetch", session_id="r", agent_id="a1", tool_input={"url": "https://x.example.org"}),
-                      monkeypatch, capsys) is None
-
-
-def test_stop_holds_a_question_that_looked_something_up_but_sent_only_a_status_line(workspace, tmp_path, monkeypatch, capsys):
-    now = time.time()
-    status = record(tmp_path / "status.jsonl", [asked("最晚几点去码头？", now - 20), DISPATCH, said(STATUS_LINE, now - 5)])  # v2f's shape
-    blocked = stop_hook(workspace, dict(transcript_path=str(status), session_id="s1", hook_event_name="Stop", last_assistant_message=STATUS_LINE),
-                        monkeypatch, capsys)
-    assert blocked["decision"] == "block" and blocked["reason"].startswith(checks.STOP_FIRST_REASON + "；最后一段文字没过：")
-    assert "clock_in_first_part" in blocked["reason"]
-    # the host's own query counts as much as a dispatch; with nothing shown at all the reason says so
-    own = record(tmp_path / "own.jsonl", [asked("最晚几点去码头？", now - 20), called("mcp__tripwright__query", kind="latest_departure")])
-    assert stop_hook(workspace, dict(transcript_path=str(own), session_id="s2"), monkeypatch, capsys)["reason"] == \
-        checks.STOP_FIRST_REASON + "；还没有给用户的文字"
-    # stop_hook_active no longer lets it through by itself (D-48): the cap does, 3 blocks per question, logged
-    again = [stop_hook(workspace, dict(transcript_path=str(status), session_id="s1", stop_hook_active=True), monkeypatch, capsys) for _ in range(3)]
-    assert [answer is None for answer in again] == [False, False, True]
-    log = (workspace / ".tripwright" / "hook.log").read_text(encoding="utf-8").splitlines()
-    assert [line.split(" ")[2] for line in log] == ["block", "block", "block", "block", "pass"]
-    assert log[0].endswith("blocked: Agent this question but no first part") and "let through after 3 blocks for this question" in log[-1]
-
-
-def test_stop_lets_a_question_end_while_its_check_runs_or_once_its_second_part_is_out(workspace, tmp_path, monkeypatch, capsys):
-    now = time.time()
-    question = asked("最晚几点去码头？", now - 20)
-    passing = [
-        # v2e's order: the researcher in the background, then the first part as the turn's last text
-        [question, DISPATCH, said(FIRST, now - 5)],
-        # the first part only in the hook's input (not yet written to the record)
-        [question, DISPATCH],
-        # a notification for some other background work: this question's check is still running
-        [question, DISPATCH, said(FIRST, now - 15), done("t-other"), said("我再等一下核查。", now - 2)],
-        # a chat, or a turn that only records: no lookup, nothing to hold
-        [question, called("mcp__tripwright__turn", text="x"), called("Read", file_path="README.md"), said("记下了。", now - 5)],
-        # the lookups of an earlier question do not count for this one
-        [asked("帮我查末班车", now - 300), DISPATCH, said(STATUS_LINE, now - 290), asked("谢谢", now - 10), said("不客气。", now - 5)],
-        # this question's second part was sent; a line after it ends the turn
-        [question, DISPATCH, said(FIRST.replace("20:45", "20:30"), now - 15), said(SECOND, now - 8), said("有变化再告诉我。", now - 2)],
-    ]
-    for number, entries in enumerate(passing):
-        payload = dict(transcript_path=str(record(tmp_path / f"p{number}.jsonl", entries)))
-        payload |= dict(last_assistant_message=FIRST) if number == 1 else {}
-        assert stop_hook(workspace, payload, monkeypatch, capsys) is None, number
-    # a second part goes the old way: compared with the draft check_answer passed (here none, so held for that)
-    second = record(tmp_path / "second.jsonl", [question, DISPATCH, said(SECOND, now - 5)])
-    assert stop_hook(workspace, dict(transcript_path=str(second)), monkeypatch, capsys)["reason"].startswith("这一问的第二段还没过 check_answer")
-
-
-def test_the_hooks_read_the_zone_check_answer_used(checked, tmp_path, monkeypatch, capsys):
-    """A database has no tripwright.yaml: the hooks take the trip's zone from what check_answer recorded."""
-    database, _ = checked
-    assert json.loads(database.with_name("a7.answers.json").read_text(encoding="utf-8"))["zone"] == "Europe/Oslo"
-    # the check dispatched in the background is running, so a first part ends the turn; in UTC it would not be one
-    monkeypatch.setenv("TRIPWRIGHT_NOW", "2030-06-10T18:45:00+00:00")  # 20:45 in Oslo
-    monkeypatch.setenv("TRIPWRIGHT_NOW_SET_AT", str(time.time()))
-    path = record(tmp_path / "db.jsonl", [asked("最晚几点去码头？", time.time() - 20), DISPATCH, said(FIRST, time.time() - 5)])
-    assert hook(database, dict(transcript_path=str(path)), monkeypatch, capsys) == ""
-    assert "first part sent" in database.with_name("hook.log").read_text(encoding="utf-8").splitlines()[-1]
-
-
-def test_the_stop_hook_on_a_status_line_as_claude_code_runs_it(workspace, tmp_path):
-    path = record(tmp_path / "run.jsonl", [asked("最晚几点去码头？", time.time() - 20), DISPATCH, said(STATUS_LINE, time.time() - 5)])
-    variables = dict(environment(), TRIPWRIGHT_NOW=os.environ["TRIPWRIGHT_NOW"], TRIPWRIGHT_NOW_SET_AT=os.environ["TRIPWRIGHT_NOW_SET_AT"])
-    started = time.time()
-    run = subprocess.run([sys.executable, "-m", "tripwright.cli", "--repo", str(workspace), "hook", "stop"],
-                         input=json.dumps(dict(session_id="s", transcript_path=str(path), hook_event_name="Stop", stop_hook_active=False)),
-                         env=variables, capture_output=True, text=True, timeout=60)
-    took = time.time() - started
-    assert run.returncode == 0 and json.loads(run.stdout)["decision"] == "block", run.stderr
-    assert took < 3, took
-
-
-def test_the_replay_counts_each_hooks_runs_and_blocks(tmp_path):
-    spec = importlib.util.spec_from_file_location("host_replay", ROOT / "scripts/host_replay.py")
-    replay = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(replay)
-    log = tmp_path / "hook.log"
-    log.write_text("t first-part block blocked Agent: no text yet\nt first-part pass first part sent\nt stop pass matches a passed draft\n"
-                   "t stop block blocked: differs\nt stop error let through: OSError\n", encoding="utf-8")
-    assert replay.hook_counts(log) == {"first-part": {"runs": 2, "blocked": 1, "errors": 0}, "stop": {"runs": 3, "blocked": 1, "errors": 1}}
-    assert replay.hook_counts(tmp_path / "missing.log") == {}
-
-
 def test_the_replay_script_runs_the_a7_checks_apart(tmp_path):
     spec = importlib.util.spec_from_file_location("answer_checks", ROOT / "scripts/answer_checks.py")
     script = importlib.util.module_from_spec(spec)
@@ -545,8 +208,7 @@ def test_the_replay_script_runs_the_a7_checks_apart(tmp_path):
     assert report["passed"] is False
 
 
-# --- D-47: check_answer from the command line in a repository with change records; Stop asks only a first part's shape;
-# the replay checks read the pinned clock ---------------------------------------------------------------------------------
+# --- D-47: check_answer from the command line; the replay checks read the pinned clock --------------------------------------
 
 def fact_record(subject="p1") -> dict:
     return dict(facts=[dict(key="companions", value=[], text="Today p1 is alone", subject=[subject], scope={"start": "2030-06-10", "end": "2030-06-10"},
@@ -612,24 +274,6 @@ def test_check_answer_without_any_message_reads_no_question(tmp_path, monkeypatc
     assert "meals_named" not in {entry["check"] for entry in result["problems"]}
 
 
-NINE_LINES = FIRST + "".join(f"\n第 {n} 件事。" for n in range(4, 10))
-
-
-def test_both_hooks_ask_only_a_first_parts_shape(workspace, tmp_path, monkeypatch, capsys):
-    """D-47: a first part of 9 lines, or with an internal word, ends the turn; a status line does not. 11-04 (checker
-    audit): the first-part hook asks the same shape before the main agent's own lookup (it once denied lookups for an
-    internal word or a ninth line, and the host wrote its first part again)."""
-    now = time.time()
-    for number, text in enumerate([NINE_LINES, FIRST.replace("没核：21:35 这班车", "没核：21:35 这班车（计划目标 22:20）")]):
-        assert not checks.first_part_shape(text, 20 * 60 + 45)
-        path = record(tmp_path / f"shape{number}.jsonl", [asked("最晚几点去码头？", now - 20), DISPATCH, said(text, now - 5)])
-        assert stop_hook(workspace, dict(transcript_path=str(path)), monkeypatch, capsys) is None, number
-        assert first_hook(workspace, lookup(path, "WebSearch", session_id=f"w{number}", tool_input={"query": "ferry"}), monkeypatch, capsys) is None
-    for number, text in enumerate([STATUS_LINE, "<thinking>最晚 21:30 出门</thinking>\n按现在 20:45 算。"]):
-        path = record(tmp_path / f"status{number}.jsonl", [asked("最晚几点去码头？", now - 20), DISPATCH, said(text, now - 5)])
-        assert stop_hook(workspace, dict(transcript_path=str(path)), monkeypatch, capsys)["decision"] == "block", number
-
-
 def replay_run(tmp_path: Path, now: str | None, turns: list[tuple[list[tuple[float, str]], float]]) -> Path:
     """A host_replay run directory: per turn its texts (seconds after the message was sent, text) and its length; the
     records carry the real time of a later day (05:53 in Oslo), as a pinned replay's do."""
@@ -671,56 +315,7 @@ def test_the_replay_checks_read_the_first_parts_clock_from_the_pinned_one(tmp_pa
     assert clock_ok(replay_run(tmp_path / "d", None, [([(40.0, first("05:53"))], 90.0), ([(50.0, first("05:55"))], 95.0)])) == [True, True]
 
 
-# --- D-48: Stop pushes a question on until its second part is out, at most 3 blocks; second_heading -----------------------
-
-QUICK = "最晚 21:30 出门，坐 21:35 的车去码头。\n按现在 20:45 算，你在 Nordkai 附近。\n21:30 和 21:35 是计划里存的，10 点查的。"
-PUSH = checks.PUSH_REASON
-
-
-def test_stop_pushes_a_question_on_until_its_second_part_is_out(workspace, tmp_path, monkeypatch, capsys):
-    now = time.time()
-    question = asked("最晚几点去码头？", now - 20)
-    held = [
-        # fz_on_r1, second question: turn, the place table, a first part that says a second part follows, end
-        [question, called("mcp__tripwright__turn", text="x"), called("Bash", command="cat trips/t/plan/places.yaml"), said(FIRST, now - 5)],
-        # the researcher's report came back (the notification names its tool use); the host said a line and ended
-        [question, DISPATCH, said(FIRST, now - 15), done("t-Agent"), said("researcher 回来了，我再核一遍。", now - 2)],
-        # the same with a notification that names no tool use: it ends the oldest running check
-        [question, DISPATCH, said(FIRST, now - 15), NOTIFICATION, said("researcher 回来了。", now - 2)],
-        # the host looked something up itself and sent a first part that promises nothing
-        [question, called("mcp__tripwright__query", kind="latest_departure"), said(QUICK, now - 5)],
-        # fz_on_r1, first question: the second part opened with "有变化：", without its heading
-        [question, DISPATCH, said(FIRST, now - 15), done("t-Agent"), said("有变化：21:35 那班取消了，改坐 22:05。", now - 2)],
-    ]
-    for number, entries in enumerate(held):
-        payload = dict(transcript_path=str(record(tmp_path / f"h{number}.jsonl", entries)), session_id=f"h{number}")
-        assert stop_hook(workspace, payload, monkeypatch, capsys) == {"decision": "block", "reason": PUSH}, number
-    log = (workspace / ".tripwright" / "hook.log").read_text(encoding="utf-8").splitlines()
-    assert log[0].endswith("blocked: second part promised, no second part, no check running")
-    assert log[3].endswith("blocked: mcp__tripwright__query this question, no second part, no check running")
-    # a quick question: nothing promised, nothing looked up
-    quick = record(tmp_path / "quick.jsonl", [question, called("mcp__tripwright__turn", text="x"), said(QUICK, now - 5)])
-    assert stop_hook(workspace, dict(transcript_path=str(quick), session_id="q"), monkeypatch, capsys) is None
-    # the words that promise a second part, from the skeleton (zh and en)
-    assert all(checks.PROMISE.search(text) for text in ("没核：21:35 这班车，第二段核完再发。", "附近多半关门，第二段确认。",
-                                                         "Not checked: the 21:35 train; the second part follows."))
-
-
-def test_stop_gives_way_after_three_blocks_of_a_question_whatever_their_reasons(workspace, tmp_path, monkeypatch, capsys):
-    now = time.time()
-    lookup_then = [asked("最晚几点去码头？", now - 30), called("mcp__tripwright__query", kind="transit")]
-    status = record(tmp_path / "status.jsonl", lookup_then + [said(STATUS_LINE, now - 20)])
-    first = record(tmp_path / "first.jsonl", lookup_then + [said(STATUS_LINE, now - 20), said(FIRST, now - 5)])
-    answers = [stop_hook(workspace, dict(transcript_path=str(path), session_id="s", stop_hook_active=n > 0), monkeypatch, capsys)
-               for n, path in enumerate([status, first, first, first])]
-    assert answers[0]["reason"].startswith(checks.STOP_FIRST_REASON)
-    assert [answer["reason"] for answer in answers[1:3]] == [checks.PUSH_REASON, checks.PUSH_REASON]
-    assert answers[3] is None
-    assert "let through after 3 blocks for this question" in (workspace / ".tripwright" / "hook.log").read_text(encoding="utf-8").splitlines()[-1]
-    # a new question starts its own count
-    later = record(tmp_path / "later.jsonl", [asked("那明天呢？", now - 2), called("mcp__tripwright__query", kind="transit"), said(STATUS_LINE, now - 1)])
-    assert stop_hook(workspace, dict(transcript_path=str(later), session_id="s"), monkeypatch, capsys)["decision"] == "block"
-
+# --- second_heading --------------------------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("draft, why", [
     (GOOD_SECOND.replace("# 第二段 · 核过了（20:45）\n", "有变化：没有。\n"), "没有“第二段”标题行"),  # fz_on_r1, first question
@@ -729,7 +324,6 @@ def test_stop_gives_way_after_three_blocks_of_a_question_whatever_their_reasons(
 ])
 def test_a_second_part_has_its_heading_with_the_time(trip, draft, why):
     found = [entry for entry in check(trip, draft)["problems"] if entry["check"] == "second_heading"]
-    # 11-04: a hint (the Stop hook also tells a passed draft by its digest)
     assert [entry["why"] for entry in found] == [why] and found[0]["fix"] == "可以改得更好（不改也能发）：第一行写 `# 第二段 · …（HH:MM）`"
     assert found[0]["severity"] == "hint"
 

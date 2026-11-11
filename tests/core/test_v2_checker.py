@@ -3,20 +3,15 @@
 
 - block: the draft contradicts this question's tool results, the stored conditions or the clock, claims a check it
   has no evidence for, says a change as a direct ride, or says an unsearched span is certain. `ok` reads these only.
-- hint: everything else. A draft with hints only passes: it is recorded as passed, the Stop hook compares the sent text
-  with it, and the summary says it may go out as it is. A hint's fix reads “可以改得更好”.
-- Gone: first_part_lines, ends_with_later, plan_heading, second_part_lines. The PreToolUse hook reads the first part's
-  shape only (the clock in the first two lines, no tags), as the Stop hook does; the Stop hook tells a second part by
-  its heading or by being a draft that passed.
+- hint: everything else. A draft with hints only passes: it is recorded as passed, and the summary says it may go out
+  as it is. A hint's fix reads “可以改得更好”.
+- Gone: first_part_lines, ends_with_later, plan_heading, second_part_lines.
 
 Each misblock of the audit's probes (their inputs, fictional data) now passes with a hint at most; the true content
 errors (a train said 别指望 that runs, “赶不上” a reachable one, “直达” a change, “5B 到 Wien Hauptbahnhof” where the 5B
 ends at Praterstern, a 核过 time no evidence has, a wrong “现在”) still block."""
 from __future__ import annotations
 
-import time
-
-from test_a7_clock_hook_checks import DISPATCH, asked, done, said
 from test_a8_transit_facts import NIGHT, STREET
 from test_a10_frame import Evening, query
 from test_a12_first_part import BUSES
@@ -143,7 +138,7 @@ def test_a_ride_said_to_reach_a_stop_only_a_later_ride_reaches_blocks():
         assert "direct_needs_one_ride" not in blocks(HEAD + "\n" + line, found=FIVE_B_FOUND, places=[STATION]), line
 
 
-# --- the service: ok, passed, summary; the hooks ---------------------------------------------------------------------------------
+# --- the service: ok, passed, summary --------------------------------------------------------------------------------------------
 
 def test_a_draft_with_hints_only_passes_is_recorded_and_says_it_may_go_out(make):
     service = make(Brigitta(trains=NIGHT[:5], buses=BUSES))
@@ -157,26 +152,3 @@ def test_a_draft_with_hints_only_passes_is_recorded_and_says_it_may_go_out(make)
     # control: a block holds it and is what the summary asks to change
     wrong = query(service, "check_answer", text=plain + "\n核过：22:17 5B 到 Wien Hauptbahnhof", part="second")
     assert wrong["ok"] is False and "passed" not in wrong and wrong["summary"].startswith("要改 1 处再发：")
-
-
-def test_the_stop_hook_takes_a_passed_draft_without_heading_as_the_second_part():
-    now = time.time()
-    first = "按现在 21:55 算，你在岩馆\n去机场：几点出发要查，第二段给。"
-    second = "今晚不用赶：夜里一直有车到 Flughafen Wien\n以上交通时刻按时刻表，不是实时。"
-    transcript = [asked("我得赶紧去机场了吗？", now - 30), DISPATCH, said(first, now - 25), done("t-Agent"), said(second, now - 1)]
-    answers = {"q2": dict(sha256=c.draft_digest(second), wall=now - 5)}
-    reason, verdict = c.stop_decision(dict(last_assistant_message=second), answers, transcript, lambda at: CLOCK)
-    assert reason is None and verdict == "matches a passed draft"
-    # control: without a passed draft it is pushed to the check
-    reason, _ = c.stop_decision(dict(last_assistant_message=second), {}, transcript, lambda at: CLOCK)
-    assert reason is not None
-
-
-def test_the_pretooluse_hook_reads_the_first_parts_shape_only():
-    now = time.time()
-    first = "按现在 21:55 算，你在岩馆（latest_departure 还没跑）\n" + "\n".join(f"第 {n} 件事" for n in range(10))
-    payload = dict(tool_name="mcp__tripwright__query", tool_input=dict(kind="latest_departure"))
-    reason, _ = c.first_part_decision(payload, [asked("最晚几点去机场？", now - 30), said(first, now - 20)], lambda at: CLOCK)
-    assert reason is None  # an internal word and eleven lines are hints of check_answer, not a missing first part
-    reason, _ = c.first_part_decision(payload, [asked("最晚几点去机场？", now - 30), said("我先查一下。", now - 20)], lambda at: CLOCK)
-    assert reason is not None  # control: no first part yet

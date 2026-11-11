@@ -82,13 +82,7 @@ def test_settings_allow_the_road_tools_read_only_shell_commands_and_only_tripwri
     query = f"uvx --from ./tools/tripwright-{__version__}-py3-none-any.whl tripwright --repo . query"
     assert set(shell) <= {"cat", "ls", "grep", "head", "tail", "wc", "cd", "date", "git log", "git status", "git diff", query}
     assert query in shell and "{{" not in json.dumps(settings)
-    # The two hooks run the same bundled tripwright (D-45): first part before any dispatch or lookup, and the second
-    # part sent equal to the draft check_answer passed.
-    hooks = {event: entry["hooks"][0]["command"] for event, entries in settings["hooks"].items() for entry in entries}
-    wheel = f'"$CLAUDE_PROJECT_DIR/tools/tripwright-{__version__}-py3-none-any.whl"'
-    assert hooks == {"PreToolUse": f'uvx --from {wheel} tripwright --repo "$CLAUDE_PROJECT_DIR" hook first-part',
-                     "Stop": f'uvx --from {wheel} tripwright --repo "$CLAUDE_PROJECT_DIR" hook stop'}
-    assert "Agent" in settings["hooks"]["PreToolUse"][0]["matcher"] and "mcp__tripwright__query" in settings["hooks"]["PreToolUse"][0]["matcher"]
+    assert "hooks" not in settings
     assert not [rule for rule in allow if re.search(r"\b(?:rm|mv|push|commit|reset|checkout|tee|sed|curl)\b", rule)]
 
 

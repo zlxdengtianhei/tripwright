@@ -21,7 +21,7 @@ TRIPWRIGHT_PROVIDERS=live uv run tripwright --repo ./my-trips serve --stdio
 ```
 
 - `./my-trips` is the trip repository that `tripwright init` made. The command must start in the Tripwright source root; where the client cannot set a working folder, use `uv run --directory <source path> …`.
-- `init` also writes the role files and skills for the local clients it supports. In Claude Code, two local hooks add checks on the order of the first part and on the second part's draft; these hooks do not run with a remote connector.
+- `init` also writes the role files and skills for the local clients it supports.
 - Local mode keeps its own copy of the data and does not share the trips of a deployed service.
 - Without `TRIPWRIGHT_PROVIDERS=live`, the MCP server uses synthetic data, which must not guide real travel.
 

@@ -8,7 +8,7 @@
 4. The first part carried every hard node, and its first line did not answer (“真正最晚要查”).
 5. “火车最后一班 00:53” on the first line, “不能说 00:53 之后没有火车” on the last: a lookup to 01:00 (the answer layer's
    old “tonight”) against one to 03:00.
-6. A status line saying the first part was “above” when nothing was; a second part sent twice after the hook's request.
+6. A status line saying the first part was “above” when nothing was.
 
 Offline: the fictional MOTIS of test_a10_frame (public Vienna stop names, made-up times), fictional places."""
 from __future__ import annotations
@@ -24,7 +24,7 @@ from test_a12_first_part import BUSES, FOOD, NORTH, SOUTH
 from tripwright import packs
 from tripwright.providers.transitous import TransitousProvider
 from tripwright.query import QueryRouter
-from tripwright.render.check_answer import NEVER_REASON, check_draft, stop_decision
+from tripwright.render.check_answer import check_draft
 from tripwright.service import Tripwright
 from tripwright.storage import Store
 
@@ -166,18 +166,10 @@ def test_a_shorter_coverage_claim_against_tonights_search_is_refused(make):
 
 # --- 6. no status line, no second part twice ---------------------------------------------------------------------------------
 
-def test_the_first_part_is_sent_and_the_second_is_never_sent_twice(make, monkeypatch):
+def test_a_status_line_is_not_a_first_part(make, monkeypatch):
     monkeypatch.setenv("TRIPWRIGHT_REPLY_FLOW", "one")  # the one-reply wording
     service = make()
     turn = service.turn("local", "最晚几点出发去机场", "q6", scenario="quick", points=GO)
     assert turn["next"].startswith("现在就把 first_part.text 发给用户（用户在等这第一段）；发出去之后再调 query。")
-    # bad sample (on_r1): the status line sent instead of the first part is no first part
     status = "第一部分已经在上面了：今晚不用急着去机场。吃的和万圣节活动我还在查，查完会发第二部分。"
-    # (S4a2: and its “我还在查” is a status line)
     assert [entry["check"] for entry in check_draft(status, "first", 21 * 60 + 52)] == ["clock_in_first_part", "no_status_line"]
-    # off_r1: a second part sent before it passed; the hook asks for the check and says not to send it again
-    transcript = [dict(type="user", timestamp="2026-11-04T20:01:00Z", message=dict(role="user", content="最晚几点出发去机场")),
-                  dict(type="assistant", timestamp="2026-11-04T20:03:00Z",
-                       message=dict(role="assistant", content=[dict(type="text", text="# 第二段 · 核过了（21:03）\n今晚不用赶")]))]
-    reason, _ = stop_decision({}, {}, transcript)
-    assert reason == NEVER_REASON and reason.endswith("这段用户已经看到了：重核过了就结束这一轮，不写任何字；没过只发一条“更正：”，写改了的几行")

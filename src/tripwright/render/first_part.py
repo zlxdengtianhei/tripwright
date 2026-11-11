@@ -2,7 +2,7 @@
 
 a9b: the host dispatched its checks and sent only an English status line, so neither question had a first part. `turn`
 now returns this draft as `first_part`; its `next` says to send it as it is (only the form of address and the language
-may change) before any lookup. It is a guarantee that needs no host hook or skill: a host that reads neither still gets
+may change) before any lookup. It is a guarantee that needs no host skill: a host that does not read it still gets
 the text in the tool result (harness neutral, R-62, R-69).
 
 The draft uses stored data only: the clock of the read on the first line and the plan's next hard nodes. A stored
@@ -35,11 +35,11 @@ LATEST = re.compile(r"最晚|末班|最后一班|几点(?:出发|走|出门|动�
                     r"\blast (?:train|bus|connection|one)\b|\blatest\b|\bin time\b|\bhurry\b", re.I)
 LINES = 8
 # S4a: the line that ends a reply with the first part in an app that cannot show text between tool calls (core step 4);
-# turn returns it as first_part.later. S4a2: check_answer and the Stop hook take it as the first part's last line.
+# turn returns it as first_part.later.
 LATER = dict(zh="要核过的第二段，回我一句“继续”。", en="Reply “go on” for the checked second part.")
 # S5b (Claude Code replays s5_ns_on, s5_mcponly): what turn says first (`do_first`, its first field), read at the moment
-# the host acts: the first part as the reply's only message; after “继续”, nothing before the second part (the Stop hook
-# opens its push after “继续” with DO_DUE too); without usable points, call turn again first.
+# the host acts: the first part as the reply's only message; after “继续”, nothing before the second part;
+# without usable points, call turn again first.
 DO_DUE = dict(zh="这一轮在第二段之前不写任何字：查、核、过 check_answer 之后只发第二段这一条，发完结束这一轮；不提检查和工具回执。",
               en="Write nothing before the second part in this reply: look up, check, pass check_answer, then send only the second "
                  "part as one message and end the reply; never mention the check or tool receipts.")
