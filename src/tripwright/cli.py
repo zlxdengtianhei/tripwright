@@ -440,6 +440,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"tripwright: {error}", file=sys.stderr)
             return 1
         print(f"Trip repository ready: {repository.root}")
+        for path in repository.removed_files:
+            print(f"Removed old tool file: {path}")
         print(f"Use it with: tripwright --repo {repository.root} serve --stdio")
         return 0
     needs_repo = arguments.command in ("sync", "check", "status", "new-trip")

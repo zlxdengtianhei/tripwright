@@ -28,6 +28,10 @@ def server_instructions() -> str:
     return _without_notice(_generated("server/instructions.md")).strip()
 
 
+TOOL_FILE_PATTERNS = (".claude/agents/tripwright-*.md", ".codex/agents/tripwright_*.toml",
+                      ".claude/skills/tripwright-*/*", ".agents/skills/tripwright-*/*")
+
+
 def user_repo_files() -> dict[str, bytes]:
     """Repository-relative path → bytes for the files block C decides in a user's trip repository."""
     base = files(__package__)

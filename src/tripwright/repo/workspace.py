@@ -5,6 +5,7 @@ screens and views whose bytes block B decides (`tripwright.render.repo_files`), 
 """
 from __future__ import annotations
 
+from fnmatch import fnmatch
 from pathlib import Path
 
 from tripwright.repo import index, layout
@@ -20,6 +21,7 @@ class Repository:
         self.git = Git(self.root, network_timeout=network_timeout)
         self.owner = owner
         self.remote_name = remote
+        self.removed_files: list[str] = []  # retired tool files removed by the init upgrade that returned this repository
         if not (self.root / ".git").exists():
             raise ValueError(f"{self.root} is not a Git repository; run `tripwright init {self.root}` first")
         self.branch = branch or self.git.branch()
@@ -131,7 +133,7 @@ def config_text(*, current_trip: str | None, timezone: str | None = None) -> str
 def init(root: str | Path, *, trip: str | None = None, timezone: str | None = None, remote: str | None = None,
          branch: str = "main", upgrade: bool = False) -> Repository:
     """Create a trip repository (or, with `upgrade`, rewrite the files the installed tool decides in an existing one)."""
-    from tripwright.agents import user_repo_files
+    from tripwright.agents import TOOL_FILE_PATTERNS, user_repo_files
 
     root = Path(root).expanduser().resolve()
     git = Git(root)
@@ -145,16 +147,32 @@ def init(root: str | Path, *, trip: str | None = None, timezone: str | None = No
         raise ValueError(f"{root} is already a Git repository; use --upgrade to refresh the tool's files")
     files: dict[str, str] = {".gitignore": layout.GITIGNORE, ".gitattributes": layout.GITATTRIBUTES}
     files.update({path: data.decode("utf-8") for path, data in user_repo_files().items()})
+    removed = []
+    if upgrade:
+        candidates = {path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()}
+        removed = sorted(path for path in candidates if path not in files
+                         and any(fnmatch(path, pattern) for pattern in TOOL_FILE_PATTERNS))
     if fresh:
         if trip is not None:
             layout.trip_folder(trip)
         files[index.CONFIG] = config_text(current_trip=trip, timezone=timezone)
         if trip is not None:
             files[f"{layout.trip_folder(trip)}/trip.yaml"] = layout.dump(dict(id=trip))
-    changed = write_files(root, files, [])
+    changed = write_files(root, files, removed)
+    for path in removed:
+        directory = (root / path).parent
+        while directory != root:
+            try:
+                directory.rmdir()
+            except OSError:
+                break
+            directory = directory.parent
     if remote:
         git.run("remote", "add", "origin", remote)
     from tripwright.storage import now
 
-    git.commit("tripwright init" if fresh else "tripwright: refresh the tool's files", add=changed, remove=[], when=now())
-    return Repository(root, branch=branch)
+    git.commit("tripwright init" if fresh else "tripwright: refresh the tool's files",
+               add=[path for path in changed if path not in removed], remove=removed, when=now())
+    repository = Repository(root, branch=branch)
+    repository.removed_files = removed
+    return repository
