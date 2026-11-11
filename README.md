@@ -37,7 +37,7 @@ The service has seven MCP tools. One of them receives each message and returns w
 Three steps. You need a computer or server that can run Docker, or a Railway account. You do not need a GitHub account for the basic setup.
 
 1. **Give [deploy/SETUP.md](deploy/SETUP.md) to your coding agent** (Claude Code, Codex or similar). It starts the service with Docker (three commands) or on Railway, and prints your connection address, `https://<your-host>/mcp/<key>`. This address is your only login. Anyone who has it can read and change your trips, so treat it like a password.
-2. **Optional: connect GitHub.** A private repository keeps the master copy of your trips, and a public repository holds the trip pages. The agent runs three commands for each repository, with no restart.
+2. **Optional: connect GitHub.** These are two separate repositories. A private repository keeps the full record of your trips. A public repository holds only the scanned trip pages that you share, and nothing else. After you connect it, every trip gets a page; you can switch off any trip. The agent runs three commands for each repository, with no restart.
 3. **Add the address to your app.** Coding agents add it for you. In Claude and ChatGPT, the account owner clicks **Add** in the app's settings. Then ask: “Use tripwright: which trips are stored?”
 
 The agent asks you only for what only you can do: sign in to Railway, type a system password, pay, or click **Add**.
