@@ -240,8 +240,8 @@ def main(argv: list[str] | None = None) -> int:
             checks[name] = execute(arguments.out, name, lambda stem=stem: codex_scenario(stem, arguments.model))
     write_json(arguments.out / "result.json", dict(commit=source_commit(REPO), model=arguments.model,
                conformance_version=CONFORMANCE_VERSION, checks=checks))
-    for status, label in (("passed", "通过的"), ("failed", "失败的"), ("not_verified", "没验的")):
-        print(label + "：" + "、".join(name for name, check in checks.items() if check["status"] == status))
+    for status, label in (("passed", "passed"), ("failed", "failed"), ("not_verified", "not verified")):
+        print(label + ": " + (", ".join(name for name, check in checks.items() if check["status"] == status) or "none"))
     return int(any(check["status"] == "failed" for check in checks.values()))
 
 if __name__ == "__main__":
