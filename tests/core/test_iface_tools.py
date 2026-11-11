@@ -72,6 +72,23 @@ def test_turn_resolves_stored_place_names_without_demanding_another_turn(seeded)
     assert "call turn again" not in result["next"] and "再调一次 turn" not in result["next"]
 
 
+def test_first_part_only_for_a_quick_question_with_a_stored_answer(seeded):
+    place = seeded.state("alice", "plan")["plan"]["places"][0]
+    point = dict(kind="do", said=place["name_local"], place=place["id"])
+    quick = seeded.turn("alice", "What about this place?", scenario="quick", points=[point])
+    assert quick["first_part"]["lines"][0] == "From the stored plan first (times not checked yet)"
+    assert quick["second_part_title"] == "After checking"
+    assert "later" not in quick["first_part"]
+    assert len(quick["next"]) <= 600 and quick["next"].startswith("Write first_part.text")
+    assert "Write first_part.text as text before any other tool call." in quick["next"]
+    assert {"do_first", "steps", "always", "write_back", "answer", "second_part_due"}.isdisjoint(quick)
+    assert "写法（对话里的回答）" not in quick["pack"]["markdown"]
+    empty = seeded.turn("alice", "Anything else?", scenario="quick", points=[dict(kind="other", said="anything else")])
+    assert empty["first_part"] is None and empty["second_part_title"] is None
+    planned = seeded.turn("alice", "What about this place?", scenario="plan", points=[point])
+    assert planned["first_part"] is None
+
+
 def test_state_returns_editable_plan_day_and_a_valid_blank(seeded):
     current = seeded.state("alice", "plan")["plan"]
     date = str(current["days"][0]["date"])

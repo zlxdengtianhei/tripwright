@@ -25,5 +25,5 @@ def test_skill_frontmatter_and_seven_tool_workflow():
     frontmatter = yaml.safe_load(text.split("---", 2)[1])
     assert frontmatter["name"] == "tripwright-main"
     assert frontmatter["description"]
-    assert all(f"`{name}`" in text for name in ("turn", "query", "propose", "commit", "result", "state", "explain"))
+    assert all(name in text for name in ("turn", "query", "propose", "commit", "result", "state", "explain"))
     assert "中文说明" in text

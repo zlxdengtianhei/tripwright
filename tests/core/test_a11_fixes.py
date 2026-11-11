@@ -131,7 +131,7 @@ def test_an_online_deadline_is_no_time_to_be_at_the_airport(make):
     with pytest.raises(ValueError, match="'hn-checkin' is done online .*has no latest departure"):
         query(service, "latest_departure", origin=STREET, destination="airport", anchor_id="hn-checkin")
     turn = service.turn("local", "最晚几点出发去机场？", "q1", scenario="quick")
-    assert "明早 05:45 网上值机截止（起飞前 2 小时；在手机上做，不用到场；存档，没核）" in turn["first_part"]["lines"]
+    assert turn["first_part"] is None  # no points: no stored answer to a named point, hence no shell
     record = next(node for node in turn["hard_nodes"] if node["id"] == "hn-checkin")
     assert record["where"] == "online" and record["latest_departure"] is None
     # the plan check asks nobody to reach the airport for it; the counter still is a place to reach
@@ -206,7 +206,7 @@ def test_a_failed_lookup_writes_no_stored_last_train(make, monkeypatch):
     assert "retain the previous safe plan" not in failed["alternative"] and not re.search("末班|只剩", failed["first_line"])
     # the first part after it names no stored “末班” either (it said “计划里存的末班说法没核”)
     first = service.turn("local", "最晚几点出发去机场？", "q2", scenario="quick")["first_part"]
-    assert "计划里存的班次说法没核，第二段给。" in first["lines"] and not re.search("末班|只剩", first["text"])
+    assert first is None
 
 
 def test_a_timed_out_lookup_says_nothing_was_checked(make, monkeypatch):
@@ -255,12 +255,13 @@ def test_process_talk_and_writing_notes_stay_out_of_the_answer(make):
     assert list(bad) == ["no_process_notes"] and len(bad["no_process_notes"]) == 2
     assert bad["no_process_notes"][0].startswith("有过程话：4 次查询、每页接着上一页")
     assert bad["no_process_notes"][1].startswith("有写作说明：说一次就够、不用每条都写")
-    first = service.turn("local", "最晚几点出发去机场？", "q1", scenario="quick")["first_part"]["text"]
-    refused = query(service, "check_answer", text=first + "\n" + writing, part="first")["problems"]
-    assert [entry["check"] for entry in refused] == ["no_process_notes"]
+    first = service.turn("local", "最晚几点出发去机场？", "q1", scenario="quick")["first_part"]
+    assert first is None
+    refused = query(service, "check_answer", text=writing, part="first")["problems"]
+    assert "no_process_notes" in [entry["check"] for entry in refused]
     # controls: the server's own lines pass both parts
     assert problems(service, second_part(found["first_line"], *found["sentences"][1:], found["note"])) == {}
-    assert query(service, "check_answer", text=first, part="first")["ok"]
+    assert first is None
 
 
 # --- a11b: a destination given as coordinates is named in the sentence ---------------------------------------------------

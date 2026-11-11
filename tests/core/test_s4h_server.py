@@ -49,7 +49,7 @@ def test_a_quick_latest_question_refuses_a_lookup_that_names_a_hard_node(make, m
     service = make(tracks=WAYS)
     fixed(monkeypatch, local("21:02"))
     asked = service.turn("local", FIRST, "q1", scenario="quick", points=GO)
-    assert asked["first_part"]["asks_latest"] and "不给 anchor_id、by、board_at" in asked["next"]
+    assert asked["first_part"]["asks_latest"] and "query(kind='latest_departure', arguments={origin,destination})" in asked["next"]
     framed = query(service, "latest_departure", origin="gym-north", destination="airport")
     assert framed["target"]["meaning"] == "last_connection"
     # bad sample (codex_r1 question 1): a second lookup with the plan's 05:45 queue; its “明早最晚 04:56 出门” became the
@@ -86,13 +86,13 @@ def test_a_place_the_users_words_contradict_is_refused_before_anything_is_record
         service.turn("local", SECOND, "q2", scenario="quick", points=wrong)
     assert len(service.store.all("events", "local")) == received  # nothing recorded: the same request_id goes again
     right = service.turn("local", SECOND, "q2", scenario="quick", points=[dict(wrong[0], place="gym-south"), *wrong[1:]])
-    assert right["first_part"]["lines"][1] == f"按现在 21:52 算，你在南边的岩馆（你说的“{said}”）"
+    assert right["first_part"]["lines"][2] == f"按现在 21:52 算，你在南边的岩馆（你说的“{said}”）"
     # the command line drafts no first part for it either
     code = cli.main(["--db", str(service.db_path), "first-part", "--text", SECOND, "--points", json.dumps(wrong, ensure_ascii=False)])
     assert code == 1 and "points.0: place 'gym-north'" in capsys.readouterr().err
     # controls: words that name no stored place agree with any place; words for the place sent agree with it
     plain = [dict(kind="at", said="刚从第一个岩馆出来", place="gym-north")]
-    assert service.turn("local", SECOND, "q3", scenario="quick", points=plain)["first_part"]["lines"][1].startswith("按现在 21:52 算，你在北边的岩馆")
+    assert service.turn("local", SECOND, "q3", scenario="quick", points=plain)["first_part"] is None
     same = [dict(kind="at", said="从 Kletterhalle Nordbahn 刚出来", place="gym-north")]
     assert service.turn("local", SECOND, "q4", scenario="quick", points=same)["points"]["at"]["place"] == "gym-north"
 
@@ -140,7 +140,7 @@ def test_a_word_for_a_kind_of_place_names_the_one_stored_place_of_that_kind(rena
     service = renamed()
     # bad sample (mcponly_r1 question 1): the host's English “airport”; nothing matched and the first part had only “几点出发要查”
     lines = service.turn("local", FIRST, "q1", scenario="quick", points=[dict(kind="go", said="最晚几点出发机场 怎么走", place="airport")])["first_part"]["lines"]
-    assert lines[0] == ("去维也纳机场：计划里是 21:45 从北边的岩馆出门，22:13 到 Wien Hauptbahnhof，坐今晚 22:53 REX 7（存档，没核）；"
+    assert lines[1] == ("去维也纳机场：计划里是 21:45 从北边的岩馆出门，22:13 到 Wien Hauptbahnhof，坐今晚 22:53 REX 7（存档，没核）；"
                         "还有没有更晚的车，第二段核完给。")
     plan = service.versions.current("local")["plan"]
     for word in ("airport", "Flughafen", "机场", "the airport", "aeropuerto"):
@@ -157,10 +157,10 @@ def test_a_place_not_recognized_is_said_and_never_taken_for_the_plans(make):
     found = service.turn("local", SECOND, "q2", scenario="quick",
                          points=[dict(kind="at", said="在一家没存的咖啡馆", place="Café Nirgendwo"), dict(kind="do", said="万圣节活动", place="Prater")])
     # Unknown names remain visible, but never force a second turn.
-    assert found["next"].startswith("points 里这些地方没认出：“Prater”、“Café Nirgendwo”。不用再调 turn，按坐标或站名查")
-    # where the user is stays the user's words, not the plan's place of the moment
-    assert found["first_part"]["lines"][1] == "按现在 21:52 算，你在“在一家没存的咖啡馆”"
-    assert found["first_part"]["at"]["place"] is None and found["first_part"]["at"]["unknown"] == "Café Nirgendwo"
+    assert found["next"].startswith("完成必要的查询和写入后直接答这一问")
+    assert "points 里这些地方没认出：“Prater”、“Café Nirgendwo”。不用再调 turn" in found["next"]
+    # No stored point is answered, so there is no placeholder first part.
+    assert found["first_part"] is None
     # control: coordinates and stored IDs are known places
     known = service.turn("local", SECOND, "q3", scenario="quick", points=[dict(kind="at", said="在这儿", place="48.19,16.35"), *ASKED[1:]])
     assert not known["next"].startswith("points 里这些地方")
@@ -238,7 +238,7 @@ def test_an_answer_another_replay_fetched_earlier_is_not_dated_before_this_repla
         fetched = found["evidence"]["fetched_at"]
         # bad sample (ns_on_r1: fetched 20:51 for a lookup at 21:05; mcponly 20:35, ns_off 20:46): 14 minutes before the question
         assert aware(fetched) >= asked, fetched
-        line = service.turn("local", SECOND, "q2", scenario="quick", points=GO)["first_part"]["lines"][0]
+        line = service.turn("local", SECOND, "q2", scenario="quick", points=GO)["first_part"]["lines"][1]
         looked = re.search(r"（(\d\d:\d\d) 查过）", line)
         assert looked and looked.group(1) >= "21:01", line
     finally:

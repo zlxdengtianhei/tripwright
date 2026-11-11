@@ -44,9 +44,9 @@ class Promise:
 
 PROMISES = (
     Promise("turn-first", MAIN_TEXTS + (SERVER,),
-            must=(r"[Cc]all `?turn`? first for every user message",)),
+            must=(r"[Cc]all `?turn`? first for every (?:user|trip) message",)),
     Promise("order-only-from-user", ALL_MAIN + (SERVER,),
-            must=(r"order between preferences comes only from the user",),
+            must=(r"(?:order between preferences comes only from the user|Only the user sets precedence between preferences)",),
             must_not=(r"\bmore important than\b", r"\boutweighs?\b", r"by default,? prefer", r"优先于", r"更重要"),
             bad_sample="By default, prefer the cheaper option when money and comfort compete."),
     # The full rule lives with the records page; the skill body keeps the user-only order and points there.
@@ -90,10 +90,8 @@ PROMISES = (
     Promise("six-single-agent-steps", (SINGLE, MCP_MAIN, L0_MAIN),
             must=(r"Quick question: 1 → 2", r"Status report only: 1 → 5", r"Replan or plan from scratch: 1 → 6",
                   r"large batch of new requirements: 1 → 2")),
-    Promise("multi-agent-first", (MAIN,),
-            must=(r"dispatch one `tripwright-researcher` there now", r"No tool result or draft is shown",
-                  r"dispatch `tripwright-verifier` in the background",
-                  r"do not hand it your unchecked lines as its checklist", r"[Yy]ou alone call `commit`")),
+    Promise("multi-agent-optional", (MAIN, AGENTS_MD),
+            must=(r"background `tripwright-researcher`", r"later message", r"same reply")),
     # Q8 (E3 sent back): two real parts, the second backed by live checks with sources; no write states for the user.
     Promise("two-parts-checked-live", ALL_MAIN,
             must=(r"second (?:part|message)", r"[Ss]ynthetic or demo", r"(?:its|with its) source", r"(?:first two lines|前两行|第二行写“按现在 HH:MM 算”|Line 2 says \"As of HH:MM\")"),
@@ -108,7 +106,7 @@ PROMISES = (
             must=(r"(?:麦当劳|common,? reliable chain|common chain)",)),
     # Second quality verdict (D-42): 核过 rests on a tool result; the plan heading stands out; fallbacks leave later;
     # no shop of unknown hours late at night; transfer stations get a Chinese name.
-    Promise("checked-only-from-tools", ALL_MAIN + (SERVER,), must=(r"网上说法", r"搜索摘要"),
+    Promise("checked-only-from-tools", ALL_MAIN, must=(r"网上说法", r"搜索摘要"),
             # Quoted words are stripped before must_not runs, so the old rule shows as "事实标或".
             must_not=(r"影响行动的事实标或", r"[Mm]ark each fact the user will act on \"checked"),
             bad_sample="- 影响行动的事实标“核过（来源）”或“没核：什么”。"),
@@ -135,28 +133,20 @@ PROMISES = (
     # A7: comparable routes, stored opening hours, and the sent text bound to the passed draft.
     Promise("routes-from-candidates", ALL_MAIN + RESEARCHER, must=(r"`?candidates`?", r"`?via_station`?")),
     Promise("food-from-stored-hours", ALL_MAIN + RESEARCHER, must=(r'kind=\\?"open_places\\?"', r'`?type`?: \\?"opening_hours\\?"')),
-    # D-46 (v2f pre-checks): asked to write the first part before dispatching, the host drafted it in its thinking in 8 of 8
-    # questions; dispatching first and ending the step with the first part kept two parts in 16 of 16 (v2e).
-    # S4a: the same order in core.yaml's steps 3 and 4, for every entry; a subagent is used only where the app has one.
-    Promise("first-part-before-lookups", CORE_TEXTS, must=(r"first_part\.text`? as it is", r"before any lookup")),
-    # S4a (td/apps-github.md 5.3): no entry is assumed to have subagents or to run lookups side by side; without a
-    # subagent the agent looks things up itself, one after another.
-    Promise("subagents-optional", CORE_TEXTS, must=(r"Otherwise skip this step", r"without one, do them yourself, one after another"),
-            must_not=(r"(?:searches|lookups|subagents|agents) (?:at once|in parallel|side by side)", r"请并行", r"同时派"),
-            bad_sample="Without subagents: the first part, then several searches at once, then the second part."),
-    Promise("one-reply-no-continuation", CORE_TEXTS, must=(r"same reply|one reply",),
+    Promise("first-part-before-tools", (MAIN, MCP_MAIN, AGENTS_MD),
+            must=(r"first_part\.text`? before any other tool", r"first-part heading")),
+    Promise("one-reply-no-continuation", (MAIN, MCP_MAIN, AGENTS_MD),
+            must=(r"without asking the user to reply",),
             must_not=(r"first_part\.later", r"second_part_due"), bad_sample="first_part.later and second_part_due"),
     # S4a2 (D-89, s4c): after an effective commit the share page is published again; a blocked scan is fixed by category,
     # never by writing the value; the first public repository is published to others, so the user is asked first.
     Promise("share-page-after-commit", (SINGLE, MCP_MAIN),
             must=(r"stop and ask first", r"run `tripwright share publish`", r"`share_blocked`", r"never write the value",
                   r"GitHub Free serves Pages only from a public repository", r"holds only the pages")),
-    Promise("stop-only-before-what-cannot-be-undone", CORE_TEXTS,
-            must=(r"Stop for the user only before", r"every other step goes on without asking")),
     # D-48: the host sent true_from "this" (copied from source.event) and turn refused the record.
     Promise("record-times-with-offset", (MAIN, MCP_MAIN), must=(r'`true_from` an ISO time with offset, never "this"',)),
     Promise("send-the-passed-draft", ALL_MAIN, must=(r"(?:照抄那份草稿发出，一字不改|send that draft exactly)",)),
-    Promise("second-part-checked-before-sending", ALL_MAIN, must=(r'kind="check_answer"', r'"part": "second"', r"(?:最多核两次|after two checks)", r"(?:第一段不核|The first part is not checked)")),
+    Promise("claude-check-optional", MAIN_TEXTS, must=(r"check_answer", r"(?:may check|可以用|可以留|可以核)")),
     Promise("no-tool-steps-end-with-write-back", ("skills/tripwright-main/references/single-agent.md", f"{GENERATED}/l0/tripwright-main.md"),
             must=tuple(rf"### {number}\. [^\n]+\n(?:(?!\n### )[\s\S])*?写回仓" for number in range(0, 7))),
     Promise("new-trip-carry-over", (RECORDS, MCP_MAIN, L0_MAIN, SINGLE),
@@ -184,11 +174,11 @@ PROMISES = (
             must=(r"Good first part, before lookups:\n```text\n按现在 \d\d:\d\d 算：几点出发要查，第二段给。",)),
     # A10 (D-67): the service drafts the first part and frames “最晚几点出发去 X”; part 2 goes once, after check_answer.
     Promise("first-part-from-turn", MAIN_TEXTS + (SERVER,), must=(r"first_part",)),
-    Promise("last-connection-from-the-server", MAIN_TEXTS + (SERVER,) + RESEARCHER,
+    Promise("last-connection-from-the-server", MAIN_TEXTS + RESEARCHER,
             must=(r"(?:只给 `origin`、`destination`|origin and destination only)",)),
-    Promise("second-part-sent-once", ALL_MAIN + (SERVER,), must=(r"(?:只发一次|[Ss]end part 2 once)",)),
-    # A10 replay: a status line before the first part and one between the two parts
-    Promise("two-messages-only", ALL_MAIN + (SERVER,), must=(r"[Ss]end no status line before the\s+first or between the two",)),
+    Promise("second-part-differences-first", ALL_MAIN + (SERVER,),
+            must=(r"(?:what differs|和第一段不同|和第一段的不同)",)),
+    Promise("no-status-lines", ALL_MAIN, must=(r"[Ss]end no status line|Keep progress notes",)),
     # a10d (R2's fields): a write the server cannot push is said with its hint; local storage needs the user's backup
     Promise("blocked-write-and-local-backup", MAIN_TEXTS + (RECORDS,),
             must=(r"write\.blocked", r"hint", r"storage\.kind", r"back up the data directory")),

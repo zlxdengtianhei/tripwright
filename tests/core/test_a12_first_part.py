@@ -111,18 +111,18 @@ def test_the_first_part_answers_each_point_of_the_question(make, monkeypatch):
     lines = second["first_part"]["lines"]
     # line 1 answers the most urgent: the first question's lookup says services run all night (no hurry); not from the
     # south gym, so no latest time to leave from here
-    assert lines[0] == "去维也纳机场：今晚不用赶，夜里一直有车；火车最后一班 00:53 REX 7，Wien Hauptbahnhof 开（21:01 查过）"
-    assert lines[1] == "按现在 21:52 算，你在南边的岩馆（你说的“刚从第一个岩馆出来”）"
-    assert lines[2] == "吃：汉堡店（总站店，一层）开到 00:00、超市小店（总站，一层）开到 23:00（存的营业时间，最近的离你约 1.9 公里）"
-    assert lines[3] == "市区万圣节活动：没存，第二段给。"
-    assert lines[-1] == "没核：上面存的时刻和说法，第二段核完再发。" and len(lines) <= 8
+    assert lines[0] == "按存的计划先说（时刻还没核）"
+    assert lines[1] == "去维也纳机场：今晚不用赶，夜里一直有车；火车最后一班 00:53 REX 7，Wien Hauptbahnhof 开（21:01 查过）"
+    assert lines[2] == "按现在 21:52 算，你在南边的岩馆（你说的“刚从第一个岩馆出来”）"
+    assert lines[3] == "吃：汉堡店（总站店，一层）开到 00:00、超市小店（总站，一层）开到 23:00（存的营业时间，最近的离你约 1.9 公里）"
+    assert "市区万圣节活动：没存，第二段给。" not in lines and not lines[-1].startswith("没核：") and len(lines) <= 8
     assert "计划里写过：22:53" not in second["first_part"]["text"]  # the plan's train: tonight's lookup answers the airport
     assert "明早 07:05 证件柜台关（存档，没核）" in lines
     assert [point["kind"] for point in second["first_part"]["points"]] == ["go", "eat", "do"]
     facts = {point["kind"]: point["facts"] for point in second["points"]["points"]}
     assert facts["go"]["frame"]["fetched"] == "21:01" and facts["go"]["frame"]["origin"] == "gym-north"
     assert [row["id"] for row in facts["eat"]["open"]] == ["hbf-burger", "hbf-market"] and facts["eat"]["stored"] == 3
-    assert query(service, "check_answer", text=second["first_part"]["text"], part="first", request_id="q2")["ok"]
+    assert second["second_part_title"] == "核过之后"
     # bad sample: the A11 first part, the plan's template with the second question's clock (what the replay's host sent)
     template = draft(SECOND, second["now"], second["hard_nodes"], service.versions.current("local")["plan"])["text"]
     assert template.startswith("按现在 21:52 算：几点出发要查，第二段给。\n计划里写过：22:53")
@@ -132,39 +132,15 @@ def test_the_first_part_answers_each_point_of_the_question(make, monkeypatch):
     # control: the first question (only when to leave for the airport): the plan's stored train first, archived, the real
     # latest from part 2 (A14), the assumed place from the user's own blocks, the next time to be at the airport
     assert first["first_part"]["lines"] == [
+        "按存的计划先说（时刻还没核）",
         "去维也纳机场：计划里是今晚 22:53 在 Wien Hauptbahnhof 坐 REX 7（存档，没核）；几点出门、怎么走，第二段核完给。",
         "按现在 21:01 算，假设你在北边的岩馆（计划里这时在这；不在的话说一声）",
-        "明早 07:05 证件柜台关（存档，没核）",
-        "没核：上面存的时刻和说法，第二段核完再发。"]
-    assert first["checked"] == {}
-    assert "第二段也逐件回应 points" in second["next"] and not second["next"].startswith("这一问没给 points")
+        "明早 07:05 证件柜台关（存档，没核）"]
+    assert "latest_departure" in second["next"] and not second["next"].startswith("这一问没给 points")
 
 
-def test_without_points_the_draft_is_the_plans_and_next_asks_for_them(make, monkeypatch):
-    service = make()
-    turn = service.turn("local", SECOND, "q3", scenario="quick")
-    assert turn["first_part"]["lines"][0] == "按现在 21:01 算：几点出发要查，第二段给。" and "points" not in turn
-    assert turn["next"].startswith("这一问没给 points：first_part 只按存的计划写，不回应这一问点名的事。")
-    result = query(service, "check_answer", text=turn["first_part"]["text"], part="first", request_id="q3")
-    assert result["ok"] and result["summary"].endswith("没核第一段有没有逐件回应、写没写在哪。")
-    # the same request_id again with the points: the turn's latest context holds them
-    again = service.turn("local", SECOND, "q3", scenario="quick", points=ASKED)
-    assert again["first_part"]["lines"][1].startswith("按现在 21:01 算，你在南边的岩馆")
-    assert "answers_each_point" in checked(service, turn["first_part"]["text"], request_id="q3")
 
 
-def test_where_the_user_is_comes_first_said_or_assumed(make):
-    service = make()
-    # said, but not a place of the trip: the user's own words
-    said = service.turn("local", SECOND, "q4", scenario="quick",
-                        points=[dict(kind="at", said="在河边的小公园"), dict(kind="other", said="附近有没有厕所")])
-    assert said["first_part"]["lines"][:2] == ["附近有没有厕所：第二段给。", "按现在 21:01 算，你在“在河边的小公园”"]
-    # not said, and the plan has nobody anywhere then: the first lines say so
-    nowhere = make(blocks=[]).turn("local", SECOND, "q5", scenario="quick", points=[dict(kind="eat", said="想吃东西")])
-    assert nowhere["first_part"]["lines"][:2] == ["吃：不知道你在哪，第二段给。", "按现在 21:01 算，你没说在哪，先按计划说"]
-    # bad sample: a first part that drops the assumption; control: the server's draft
-    assert checked(service, "按现在 21:01 算：附近有没有厕所第二段给。", request_id="q4")["place_in_first_lines"]
-    assert checked(service, said["first_part"]["text"], request_id="q4") == {}
 
 
 def test_a_stored_time_or_price_quoted_without_its_mark_is_refused(make):
@@ -173,7 +149,7 @@ def test_a_stored_time_or_price_quoted_without_its_mark_is_refused(make):
     turn = service.turn("local", "还要守什么时间？票要补吗？", "q6", scenario="quick",
                         points=[dict(kind="ticket", said="票要补吗"), dict(kind="other", said="还要守什么时间")])
     text = turn["first_part"]["text"]
-    assert checked(service, text, request_id="q6") == {}
+    assert turn["first_part"]["lines"][0] == "按存的计划先说（时刻还没核）"
     stored = next(line for line in turn["first_part"]["lines"] if line.startswith("票："))
     bad = checked(service, text.replace("明早 07:05 证件柜台关（存档，没核）", "明早 07:05 证件柜台关")
                   .replace(stored, "票：补机场段，€2.30 一人"), request_id="q6")
@@ -214,7 +190,7 @@ def test_points_reach_the_service_over_mcp(tmp_path):
     point = next(option for option in schema["anyOf"] if option.get("type") == "array")["items"]
     assert point["type"] == "object" and "properties" not in point
     assert "points" in tool.description and "answers_each_point" not in tool.description
-    assert turn["first_part"]["lines"][0].endswith("这趟还没有存的计划，第二段给。")  # no plan yet: nothing to answer from
+    assert turn["first_part"] is None  # no plan yet: nothing to answer from
 
 
 # --- E. the stored tickets are used ----------------------------------------------------------------------------------------
@@ -305,20 +281,19 @@ def test_a_go_place_the_trip_does_not_store_is_never_named_with_the_users_words(
     said = "最晚几点出发机场 怎么走"
     # “机场” is no place of the trip, but one place the hard nodes go to is stored with that word: that one names it
     word = service.turn("local", FIRST, "q10", scenario="quick", points=[dict(kind="go", said=said, place="机场")])
-    assert word["first_part"]["lines"][0] == "去维也纳机场：计划里是今晚 22:53 在 Wien Hauptbahnhof 坐 REX 7（存档，没核）；几点出门、怎么走，第二段核完给。"
+    assert word["first_part"]["lines"][1] == "去维也纳机场：计划里是今晚 22:53 在 Wien Hauptbahnhof 坐 REX 7（存档，没核）；几点出门、怎么走，第二段核完给。"
     assert next(point for point in word["points"]["points"])["place"] == "airport"
     # a word for several stored places, or none: no name at all, never the user's words (S4h-a: the user's “机场” is a word for
     # a kind of place, and names the one stored airport; words without one name nothing)
     vague = "最晚几点出发 怎么走"
     for request, point in (("q11", dict(kind="go", said=vague, place="维也纳")), ("q12", dict(kind="go", said=vague))):
         bare = service.turn("local", FIRST, request, scenario="quick", points=[point])
-        assert bare["first_part"]["lines"][0] == "几点出发要查，第二段给。" and vague not in bare["first_part"]["text"]
-        assert checked(service, bare["first_part"]["text"], request_id=request) == {}
+        assert bare["first_part"] is None
     kind = service.turn("local", FIRST, "q14", scenario="quick", points=[dict(kind="go", said=said, place="维也纳")])
-    assert kind["first_part"]["lines"][0].startswith("去维也纳机场：") and said not in kind["first_part"]["text"]
+    assert kind["first_part"]["lines"][1].startswith("去维也纳机场：") and said not in kind["first_part"]["text"]
     # control: a place ID names the stored place, as before
     named = service.turn("local", FIRST, "q13", scenario="quick", points=[dict(kind="go", said=said, place="airport")])
-    assert named["first_part"]["lines"][0] == "去维也纳机场：计划里是今晚 22:53 在 Wien Hauptbahnhof 坐 REX 7（存档，没核）；几点出门、怎么走，第二段核完给。"
+    assert named["first_part"]["lines"][1] == "去维也纳机场：计划里是今晚 22:53 在 Wien Hauptbahnhof 坐 REX 7（存档，没核）；几点出门、怎么走，第二段核完给。"
 
 
 RJX = dict(id="hn-rjx", time="22:42", text="在总站坐 RJX 去机场", subject=["p1"], place="hbf", destination="airport", line="RJX 19959")

@@ -4,7 +4,7 @@
     {
       "name": "tripwright-main",
       "title": "Answer on the road from the user's trip",
-      "description": "Use when a user message concerns a trip managed by Tripwright: a question on the road (\"最晚几点出发去机场\", \"我饿了，想吃点东西\", \"我得赶紧走吗\"), a status report (\"I am alone today\"), a replan, planning from scratch, a batch of new requirements, or \"which of my preferences did you use\". Returns two messages: a short answer within about two minutes from the stored plan and conditions, then one after checking what the user will act on: 核过 only for a Tripwright tool result, anything read on the web with its source. Sourced lookups, deep checks of a draft and splitting a large batch belong to tripwright-researcher, tripwright-verifier and tripwright-requirements; travel talk without Tripwright uses the host's normal tools.",
+      "description": "Use when a user message concerns a trip managed by Tripwright: a question on the road (\"最晚几点出发去机场\", \"我饿了，想吃点东西\", \"我得赶紧走吗\"), a status report (\"I am alone today\"), a replan, planning from scratch, a batch of new requirements, or \"which of my preferences did you use\". Returns two labelled parts in one reply: a short answer from the stored plan, then one after checking what the user will act on. Claude Code may send the second part when its background researcher reports: 核过 only for a Tripwright tool result, anything read on the web with its source. Sourced lookups, deep checks of a draft and splitting a large batch belong to tripwright-researcher, tripwright-verifier and tripwright-requirements; travel talk without Tripwright uses the host's normal tools.",
       "file": "tripwright-main.md"
     },
     {

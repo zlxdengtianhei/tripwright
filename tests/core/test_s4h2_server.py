@@ -59,7 +59,7 @@ def second_checks(service, text: str, request_id: str | None = "q1") -> dict[str
 
 def test_the_plans_train_sentence_says_whether_the_plans_own_way_still_holds(make, monkeypatch):
     service = make(TwoWays(trains=NIGHT[:5], buses=BUSES), tracks=WAYS, places=(CLOSING, SOUTH, *FOOD))
-    first = service.turn("local", FIRST, "q1", scenario="quick", points=GO)["first_part"]["lines"][0]
+    first = service.turn("local", FIRST, "q1", scenario="quick", points=GO)["first_part"]["lines"][1]
     assert first.startswith("去维也纳机场：计划里是 21:45 从北边的岩馆出门，22:13 到 Wien Hauptbahnhof，坐今晚 22:53 REX 7")
     fixed(monkeypatch, local("21:05"))
     found = query(service, "latest_departure", origin="gym-north", destination="airport")

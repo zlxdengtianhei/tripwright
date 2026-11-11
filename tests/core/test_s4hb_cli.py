@@ -50,7 +50,7 @@ def test_the_replays_points_are_read_as_the_kinds_they_mean(make, capsys):
     # bad sample (off_r1): three refusals before a usable form; the first part came late
     code, out, err = first_part(service, json.dumps(BAD_POINTS, ensure_ascii=False), capsys)
     assert code == 0
-    assert json.loads(out)["first_part"]["lines"][0].startswith("去维也纳机场：")
+    assert json.loads(out)["first_part"]["lines"][1].startswith("去维也纳机场：")
     # one line on stderr says what each kind was read as
     assert "read kind 'departure' as 'go'" in err and "'route' as 'go'" in err and "'time' as 'go'" in err
     # control: the kinds turn takes still work and say nothing

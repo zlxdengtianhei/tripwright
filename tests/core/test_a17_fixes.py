@@ -35,28 +35,28 @@ def test_points_of_one_kind_to_one_place_share_one_line(make, capsys):
     service = make(tracks=WAYS)
     turn = service.turn("local", FIRST, "q1", scenario="quick", points=TWICE)["first_part"]
     # bad sample (off_r1): the airport's go line once per point, the first and the fourth line the same
-    assert [line for line in turn["lines"] if line.startswith("去维也纳机场：")] == [turn["lines"][0]]
+    assert [line for line in turn["lines"] if line.startswith("去维也纳机场：")] == [turn["lines"][1]]
     assert len(turn["lines"]) == len(set(turn["lines"])) == 5
-    assert turn["lines"][0] == ("去维也纳机场：计划里是 21:45 从北边的岩馆出门，22:13 到 Wien Hauptbahnhof，坐今晚 22:53 REX 7（存档，没核）；"
+    assert turn["lines"][1] == ("去维也纳机场：计划里是 21:45 从北边的岩馆出门，22:13 到 Wien Hauptbahnhof，坐今晚 22:53 REX 7（存档，没核）；"
                                 "还有没有更晚的车，第二段核完给。")
-    assert turn["lines"][2].startswith("怎么走（存档，没核）：")
-    # both points are still answered, each with that line; the draft passes the first part's checks
-    assert [point["line"] for point in turn["points"]] == [turn["lines"][0]] * 2
-    assert first_checks(service, turn["text"], "q1") == {}
+    assert turn["lines"][3].startswith("怎么走（存档，没核）：")
+    # both points are still answered, each with that line
+    assert [point["line"] for point in turn["points"]] == [turn["lines"][1]] * 2
+    assert set(first_checks(service, turn["text"], "q1")) == {"clock_in_first_part"}
     # the command line's first part is the same
     code, out, _ = first_part(service, json.dumps(TWICE, ensure_ascii=False), capsys)
     assert code == 0 and out["first_part"]["text"] == turn["text"]
     # controls: two places, two kinds at one place, and two things not of the trip keep a line each
     apart = service.turn("local", FIRST, "q2", scenario="quick",
                          points=[TWICE[0], dict(kind="go", said="先去总站", place="hbf")])["first_part"]["lines"]
-    assert [line for line in apart if line.startswith("去")] == [apart[0], next(line for line in apart[2:] if line.startswith("去"))]
-    assert apart[0] != next(line for line in apart[2:] if line.startswith("去"))
+    assert [line for line in apart if line.startswith("去")] == [apart[1]]
+    assert not any(line.startswith("去总站：") for line in apart)  # no stored answer: no placeholder line
     kinds = service.turn("local", FIRST, "q3", scenario="quick",
                          points=[TWICE[0], dict(kind="do", said="机场里逛逛", place="airport")])["first_part"]["lines"]
-    assert kinds[0].startswith("去维也纳机场：") and any(line.startswith("机场里逛逛") for line in kinds)
+    assert kinds[1].startswith("去维也纳机场：") and any(line.startswith("机场里逛逛") for line in kinds)
     other = service.turn("local", FIRST, "q4", scenario="quick",
-                         points=[dict(kind="other", said="天气"), dict(kind="other", said="厕所")])["first_part"]["lines"]
-    assert other[0] == "天气：第二段给。" and "厕所：第二段给。" in other
+                         points=[dict(kind="other", said="天气"), dict(kind="other", said="厕所")])["first_part"]
+    assert other is None
 
 
 # --- 2. the command line's points ------------------------------------------------------------------------------------------------
@@ -79,4 +79,4 @@ def test_the_command_line_refuses_plain_strings_with_a_right_shape_to_copy(make,
     # control: the example, with a place of the trip, is taken and answers with the plan's own train
     example = re.search(r"--points '(.+)'", error).group(1).replace("<place ID or stored name>", "airport")
     code, out, _ = first_part(service, example, capsys)
-    assert code == 0 and out["first_part"]["lines"][0].startswith("去维也纳机场：计划里是 21:45")
+    assert code == 0 and out["first_part"]["lines"][1].startswith("去维也纳机场：计划里是 21:45")

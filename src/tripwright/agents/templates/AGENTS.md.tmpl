@@ -5,13 +5,13 @@ This repository holds one person's trips, one folder per trip under `trips/`. It
 
 ## Every user message
 
-The main agent calls `turn` first and does these steps; the skill or MCP prompt `tripwright-main` holds the full rules, to read when writing the second part. Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>` and step 7 runs `uvx --from ./tools/<wheel> tripwright --repo . query check_answer --part second --text-file -`; the lookups of step 5 go to the researcher.
+The main agent calls `turn` first and does these steps; the `tripwright-main` skill holds the full rules. Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>`. In Claude Code, a second-part draft may be checked with `uvx --from ./tools/<wheel> tripwright --repo . query check_answer --part second --text-file -`; lookups go to the researcher.
 
 <!-- include: core steps -->
 
 <!-- include: core always -->
 
-Subagents (`tripwright-verifier`, `tripwright-researcher`, `tripwright-requirements`; in Codex `tripwright_verifier` and so on) never call `turn` or `commit`; they return reports to the main agent. In Codex, spawn `tripwright_researcher` for step 5 when you can run subagents.
+Subagents (`tripwright-verifier`, `tripwright-researcher`, `tripwright-requirements`; in Codex `tripwright_verifier` and so on) never call `turn` or `commit`; they return reports to the main agent. In Codex, spawn `tripwright_researcher` for step 3 when you can run subagents.
 
 ## Read in this order
 

@@ -19,9 +19,9 @@ def test_step_1_waits_for_the_tools_and_says_nothing_about_connections():
     assert steps[0]["do"].index("still connecting") < steps[0]["do"].index("command line")
 
 
-def test_the_sentence_reaches_every_entry_within_the_limit():
+def test_the_sentence_reaches_repository_hosts_and_chat_instructions_stay_short():
     text = server_instructions()
-    assert STEP in text and len(text.encode()) <= INSTRUCTIONS_LIMIT
+    assert STEP not in text and len(text.encode()) <= INSTRUCTIONS_LIMIT
     assert STEP in user_repo_files()["AGENTS.md"].decode()
     assert STEP in open(f"{GENERATED}/server/steps.json", encoding="utf-8").read()
     assert STEP in open(f"{GENERATED}/mcp/tripwright-main.md", encoding="utf-8").read()

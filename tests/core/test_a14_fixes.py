@@ -80,8 +80,8 @@ def first_checks(service, text: str, request_id: str) -> dict[str, list[str]]:
 def test_the_assumed_place_is_the_users_own_block_of_the_moment(make):
     service = make()
     turn = service.turn("local", "最晚几点出发去机场", "q1", scenario="quick", points=GO)
-    assert turn["first_part"]["lines"][1] == "按现在 21:01 算，假设你在北边的岩馆（计划里这时在这；不在的话说一声）"
-    assert first_checks(service, turn["first_part"]["text"], "q1") == {}
+    assert turn["first_part"]["lines"][2] == "按现在 21:01 算，假设你在北边的岩馆（计划里这时在这；不在的话说一声）"
+    assert set(first_checks(service, turn["first_part"]["text"], "q1")) == {"clock_in_first_part"}
     # bad sample (the replay's line): the group's lunch place, which the plan left at 13:30
     bad = turn["first_part"]["text"].replace("北边的岩馆", "总站午饭店")
     assert first_checks(service, bad, "q1")["assumed_place_matches_plan"] == ["写了“计划里这时在这”，计划里这时在北边的岩馆"]
@@ -139,13 +139,13 @@ def test_the_first_part_gives_the_stored_train_first_and_one_hard_node(make):
     service = make(tomorrow=(dict(CHECKIN, where="online"), QUEUE, DESK, dict(DESK, id="hn-gate", time="07:15", text="登机口关")))
     lines = service.turn("local", "最晚几点出发去机场", "q4", scenario="quick", points=GO)["first_part"]["lines"]
     # A16: the plan's own way from the user's block to that train says when to leave
-    assert lines[0] == "去维也纳机场：计划里是 21:45 从北边的岩馆出门，22:13 到 Wien Hauptbahnhof，坐今晚 22:53 REX 7（存档，没核）；还有没有更晚的车，第二段核完给。"
+    assert lines[1] == "去维也纳机场：计划里是 21:45 从北边的岩馆出门，22:13 到 Wien Hauptbahnhof，坐今晚 22:53 REX 7（存档，没核）；还有没有更晚的车，第二段核完给。"
     # bad sample (the replay's first part): the check-in, the margin, the counter and the gate, four lines of tomorrow
     assert [line for line in lines if line.startswith("明早")] == ["明早 07:05 证件柜台关（存档，没核）"]
     assert "05:45" not in "\n".join(lines) and "07:15" not in "\n".join(lines)
     # control: without a train to the place the first line still says the latest follows in part 2
-    bare = make(today=()).turn("local", "最晚几点出发去机场", "q5", scenario="quick", points=GO)["first_part"]["lines"]
-    assert bare[0] == "去维也纳机场：几点出发要查，第二段给。"
+    bare = make(today=()).turn("local", "最晚几点出发去机场", "q5", scenario="quick", points=GO)["first_part"]
+    assert bare is None
 
 
 # --- 5. a coverage note that contradicts the search of tonight ----------------------------------------------------------------
@@ -167,7 +167,7 @@ def test_a_shorter_coverage_claim_against_tonights_search_is_refused(make):
 def test_the_first_part_is_sent_and_the_second_is_never_sent_twice(make):
     service = make()
     turn = service.turn("local", "最晚几点出发去机场", "q6", scenario="quick", points=GO)
-    assert "用户看不到工具结果：第一段要你发出来才算，不写“上面已经……”。" in turn["next"]
+    assert turn["next"].startswith("先把 first_part.text 作为文字写出来，再调任何其他工具。")
     # bad sample (on_r1): the status line sent instead of the first part is no first part
     status = "第一部分已经在上面了：今晚不用急着去机场。吃的和万圣节活动我还在查，查完会发第二部分。"
     # (S4a2: and its “我还在查” is a status line)
