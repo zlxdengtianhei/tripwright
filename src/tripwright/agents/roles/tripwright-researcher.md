@@ -13,7 +13,7 @@ metadata:
   owns: Checking a fact against the user's saved material and live sources (the web, live Tripwright queries), with provenance.
   not: Planning the day or answering the user (tripwright-main); checking a whole draft (tripwright-verifier).
   layer: discovery
-targets: [skill, claude, codex, l3]
+targets: [skill, claude, codex]
 claude:
   disallowedTools: Write, Edit, NotebookEdit, mcp__tripwright__turn, mcp__tripwright__propose, mcp__tripwright__commit
   model: sonnet
@@ -51,9 +51,6 @@ exact match: branch / date / line
 answer line: what the first part said, and whether this confirms or changes it
 search: the app, and the exact term to type there in its original spelling
 ```
-<!-- /only -->
-<!-- only: l3 -->
-Return a JSON list, one object per claim: `{"claim", "source", "url_or_path", "tier", "status", "quote", "range", "fetched_at", "valid_until", "match", "supports", "evidence_id", "sentences", "note", "coverage", "how_to_check"}`. `tier` is `user_saved`, `official` or `third_party`; `status` is `tool`, `page` or `snippet`.
 <!-- /only -->
 
 When the missing fact requires asking a person, report that need and the local language. The main agent offers only “我可以帮你起草询问内容（英语、<当地语言>）” at the very end. On request, a draft includes English and the local language, with other languages as requested.

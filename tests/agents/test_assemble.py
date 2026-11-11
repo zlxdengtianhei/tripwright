@@ -1,42 +1,32 @@
 """The generator: one set of sources, deterministic outputs, committed outputs equal a fresh build (CONTRACTS 4)."""
-import json
-from dataclasses import replace
-
 import pytest
 
 from tripwright.agents.__main__ import main
 from tripwright.agents.assemble import (FRAGMENTS, GENERATED, NOTICE_PREFIX, ROOT, AssembleError, Sources, b_fragments, build,
-                                        check, expand, fragments_changed, load_sources, parse_role, parse_step, write)
+                                        check, expand, load_sources, parse_role, parse_step, write)
 from tripwright.render.writing import fragment
 
 MAIN = "skills/tripwright-main/SKILL.md"
 
 
 def test_committed_outputs_equal_a_fresh_build(sources, outputs):
-    problems = check(ROOT, outputs)
-    moved = fragments_changed(ROOT, sources)
-    if problems and moved:
-        pytest.xfail(f"等 B 片段：B 的片段在上次装配后变了（{', '.join(moved)}），等 C 重新装配")
-    assert problems == []
+    assert check(ROOT, outputs) == []
 
 
-def test_a_hand_edit_an_orphan_and_a_moved_fragment_are_reported(checkout):
+def test_a_hand_edit_and_an_orphan_are_reported(checkout):
     assert check(checkout, build(load_sources(checkout))) == []
     (checkout / MAIN).write_text((checkout / MAIN).read_text() + "\nhand edit\n")
     (checkout / GENERATED / "claude/old-role.md").write_text("stale\n")
     problems = check(checkout, build(load_sources(checkout)))
     assert f"{MAIN}: differs from a fresh build; run python -m tripwright.agents build" in problems
     assert any(problem.startswith(f"{GENERATED}/claude/old-role.md: not produced by the build") for problem in problems)
-    sources = load_sources(checkout)
-    moved = replace(sources, fragments=dict(sources.fragments, **{"triggers.zh.md": "触发：新写的。\n"}))
-    assert fragments_changed(checkout, moved) == ["triggers.zh.md"]
 
 
 def test_build_is_deterministic_and_every_output_names_its_sources(sources, outputs):
     assert build(sources) == outputs
     for path, text in outputs.items():
         head = text.split("\n", 2)
-        line = json.loads(text)["_generated"] if path.endswith(".json") else head[1] if text.startswith("---\n") else head[0]
+        line = head[1] if text.startswith("---\n") else head[0]
         assert NOTICE_PREFIX in line and "源：" in line and "不要手改" in line, path
 
 
@@ -44,8 +34,6 @@ def test_notice_sits_where_each_format_allows_it(outputs):
     for path, text in outputs.items():
         if path.endswith(".toml"):
             assert text.startswith(f"# {NOTICE_PREFIX}")
-        elif path.endswith(".json"):
-            assert text.startswith('{\n  "_generated": "' + NOTICE_PREFIX)
         elif path.endswith("SKILL.md") or f"{GENERATED}/claude/" in path:
             # Hosts only read frontmatter on line 1, so the notice is the first line inside it, as a YAML comment.
             assert text.startswith(f"---\n# {NOTICE_PREFIX}"), path
@@ -55,8 +43,8 @@ def test_notice_sits_where_each_format_allows_it(outputs):
 
 def test_cli_writes_then_checks_clean_and_refuses_a_source_that_breaks_a_promise(checkout, capsys):
     assert main(["build", "--check", "--root", str(checkout)]) == 0
-    role = checkout / "src/tripwright/agents/roles/tripwright-main.md"
-    role.write_text(role.read_text().replace("The order between preferences comes only from the user's words.", ""))
+    core = checkout / "src/tripwright/agents/core.yaml"
+    core.write_text(core.read_text().replace("Only the user sets precedence between preferences", "An agent sets precedence between preferences"))
     before = (checkout / MAIN).read_text()
     assert main(["build", "--root", str(checkout)]) == 1
     assert "order-only-from-user" in capsys.readouterr().err
@@ -73,11 +61,11 @@ def test_write_removes_outputs_the_sources_no_longer_produce(checkout):
 
 
 def test_only_blocks_keep_lines_per_target_and_references_move_out_of_skills_only(sources):
-    body = ("A\n<!-- only: skill -->\nS\n<!-- /only -->\n<!-- only: claude l0 -->\nM\n<!-- /only -->\n"
+    body = ("A\n<!-- only: skill -->\nS\n<!-- /only -->\n<!-- only: claude codex -->\nM\n<!-- /only -->\n"
             "<!-- reference: extra.md -->\nR\n<!-- /reference -->\nZ\n")
     skill = expand(body, "skill", sources, "test")
     assert skill.body == "A\nS\nZ\n" and skill.references == {"extra.md": "R\n"}
-    assert expand(body, "l0", sources, "test").body == "A\nM\nR\nZ\n"
+    assert expand(body, "codex", sources, "test").body == "A\nM\nR\nZ\n"
     assert expand(body, "claude", sources, "test").body == "A\nM\nR\nZ\n"
 
 
@@ -170,7 +158,7 @@ def test_explicit_fragment_includes_still_copy_b_verbatim(sources):
 def test_main_answer_and_writing_reference_use_the_role_source(outputs):
     # The shared render fragments still express v2f's omitted legs and empty-fallback inference.
     # v2g owns its answer text in the role so rebuilding cannot silently restore those instructions.
-    for path in (MAIN, f"{GENERATED}/l0/tripwright-main.md"):
+    for path in (MAIN,):
         text = outputs[path]
         assert "sentences" in text and "how_to_check.text" in text
         assert "不列逐段换乘和车次" not in text
@@ -181,17 +169,8 @@ def test_main_answer_and_writing_reference_use_the_role_source(outputs):
     assert "examples.md" in outputs[MAIN]
 
 
-def _waiting_for_b(sources) -> list[str]:
-    return sorted({file for file in ("writing.zh.md", "skeleton.zh.md", "transit.zh.md", "triggers.zh.md", "rules.zh.md",
-                                      "rules.en.md", "writing.en.md", "skeleton.en.md", "transit.en.md", "triggers.en.md")
-                   if file not in sources.fragments} | set(fragments_changed(ROOT, sources)))
-
-
-def test_main_skill_has_no_placeholder_once_b_has_delivered(sources):
-    waiting = _waiting_for_b(sources)
+def test_main_skill_has_no_placeholder_once_b_has_delivered():
     text = (ROOT / MAIN).read_text(encoding="utf-8") + (ROOT / "skills/tripwright-main/references/writing.md").read_text(encoding="utf-8")
-    if waiting:
-        pytest.xfail(f"等 B 片段：{', '.join(waiting)}")
     assert "等 B 片段" not in text
 
 
@@ -206,7 +185,7 @@ def test_main_skill_stays_within_its_pre_latest_byte_budget(outputs):
 
 def test_a9_instructions_and_examples_are_generated_for_every_host(outputs):
     # S4a: the server instructions are the core steps; these rules reach an MCP-only host through turn's next.
-    for path in (MAIN, f"{GENERATED}/l0/tripwright-main.md"):
+    for path in (MAIN,):
         text = outputs[path]
         assert "until" in text and "03:00" in text and "01:00" not in text  # A14: tonight ends where latest_departure's does
         assert "note" in text and "board_at" in text

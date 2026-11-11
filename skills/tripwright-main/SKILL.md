@@ -71,7 +71,7 @@ When the user's own preferences compete, give options (the pack's `orders`; `ref
 | A step is unclear, no tools, or the share page after a commit | `references/single-agent.md` | Steps with and without tools |
 | A long or English answer | `references/writing.md` | Plain sentences, English text |
 | An example | `references/examples.md` | Two fictional questions |
-| Delivery level | `references/levels.md` | The five levels |
+| Delivery level | `references/levels.md` | The two levels |
 
 ## 中文说明
 

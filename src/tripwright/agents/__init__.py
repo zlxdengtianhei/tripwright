@@ -5,7 +5,6 @@ Runtime readers only use the generated files, which ship inside the package: ser
 """
 from __future__ import annotations
 
-import json
 from importlib.resources import files
 from pathlib import Path
 
@@ -27,12 +26,6 @@ def _without_notice(text: str) -> str:
 
 def server_instructions() -> str:
     return _without_notice(_generated("server/instructions.md")).strip()
-
-
-def core_steps() -> dict:
-    """The steps of every message and the rules that always hold (core.yaml, S4a), as `turn` returns them."""
-    document = json.loads(_generated("server/steps.json"))
-    return dict(steps=document["steps"], always=document["always"])
 
 
 def user_repo_files() -> dict[str, bytes]:

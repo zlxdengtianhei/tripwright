@@ -9,7 +9,7 @@ import re
 
 import pytest
 
-from tripwright.agents import core_steps, server_instructions, user_repo_files
+from tripwright.agents import server_instructions, user_repo_files
 from tripwright.agents.__main__ import main
 from tripwright.agents.assemble import (CORE, GENERATED, INSTRUCTIONS_LIMIT, AssembleError, build, core_step_lines, load_sources,
                                         parse_core)
@@ -49,24 +49,19 @@ def test_the_workflow_places_carry_the_same_steps(outputs, sources):
     written = user_repo_files()["AGENTS.md"].decode()
     assert written.startswith("<!-- 由 tripwright init 生成") and all(line in written for line in lines)
     assert user_repo_files()["CLAUDE.md"] == b"@AGENTS.md\n"
-    returned = core_steps()
-    assert [f"{step['step']}. {step['do']} Done when: {step['done']}" for step in returned["steps"]] == lines
-    assert returned["always"] == list(sources.core.always)
 
 
 def test_a_changed_step_reaches_every_place_only_through_the_build(checkout, capsys):
     core = checkout / CORE
     core.write_text(core.read_text(encoding="utf-8").replace('done: "`turn` returned."', 'done: "`turn` returned its result."'),
                     encoding="utf-8")
-    # bad sample: the source moved and the four outputs did not
+    # bad sample: the source moved and the outputs did not
     assert main(["build", "--check", "--root", str(checkout)]) == 1
     stale = capsys.readouterr().err
     assert all(f"{path}: differs from a fresh build" in stale for path in WORKFLOW_PLACES)
-    assert f"{GENERATED}/server/steps.json: differs from a fresh build" in stale
     # control: one build, and every place says the new check
     assert main(["build", "--root", str(checkout)]) == 0
     assert all("Done when: `turn` returned its result." in (checkout / path).read_text(encoding="utf-8") for path in WORKFLOW_PLACES)
-    assert '"done": "`turn` returned its result."' in (checkout / GENERATED / "server/steps.json").read_text(encoding="utf-8")
     assert main(["build", "--check", "--root", str(checkout)]) == 0
 
 

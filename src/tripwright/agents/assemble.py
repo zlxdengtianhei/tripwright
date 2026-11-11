@@ -5,18 +5,16 @@ Sources: this package's `roles/*.md` and `steps/*.md`; the main role owns its an
 that `turn` returns, the roles that include them and the AGENTS.md that `tripwright init` writes.
 Block B's writing fragments remain available through B's `tripwright.render.writing.fragment(name, language)`
 for explicit includes, copied verbatim. A role body is Markdown with
-whole-line directives: `<!-- only: skill l0 -->` ... `<!-- /only -->` keeps lines for the named targets;
+whole-line directives: `<!-- only: skill claude -->` ... `<!-- /only -->` keeps lines for the named targets;
 `<!-- include: fragment writing zh -->`, `<!-- include: steps summary|tool|notool -->` and
 `<!-- include: core steps|always -->` insert text.
 A missing fragment becomes a visible placeholder line, so the skill can be assembled before B delivers.
 
 `build(load_sources(root))` is pure: the same sources give the same bytes. Every output names its sources in a
-notice; `check` reports outputs that differ from a fresh build, and `fragments_changed` tells whether that is only
-because B's fragments moved on since the last build.
+notice; `check` reports outputs that differ from a fresh build.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import tomllib
@@ -31,7 +29,7 @@ from tripwright.render.writing import LANGUAGES, NAMES as FRAGMENT_NAMES, fragme
 ROOT = Path(__file__).resolve().parents[3]
 GENERATOR = "python -m tripwright.agents build"
 NOTICE_PREFIX = f"由 {GENERATOR} 生成"
-TARGETS = ("skill", "claude", "codex", "l3", "l0")
+TARGETS = ("skill", "claude", "codex")
 AGENTS = "src/tripwright/agents"
 GENERATED = f"{AGENTS}/generated"
 FRAGMENTS = "src/tripwright/render/fragments"
@@ -246,11 +244,6 @@ def core_text(core: Core, part: str, where: str = CORE) -> str:
     raise AssembleError(f"{where}: unknown core part {part!r}")
 
 
-def core_steps(core: Core) -> list[dict]:
-    """The steps as `turn` returns them."""
-    return [dict(step=number, do=do, done=done) for number, (do, done) in enumerate(core.steps, 1)]
-
-
 def server_instructions_text(core: Core) -> str:
     # Chat apps receive the same six rules as turn's description, not the repository-only workflow.
     return core.intro + "\n" + "\n".join(f"{number}. {rule}" for number, rule in enumerate(core.always, 1)) + "\n"
@@ -403,15 +396,11 @@ def build(sources: Sources) -> dict[str, str]:
                 outputs[f"{GENERATED}/claude/{name}.md"] = frontmatter(note, fields) + "\n" + body
             elif target == "codex":
                 outputs[f"{GENERATED}/codex/{codex_name(name)}.toml"] = codex_file(f"{note}", codex_name(name), description, body)
-            else:
-                outputs[f"{GENERATED}/{target}/{name}.md"] = markdown(note, body)
-    # S4a: the instructions are the core steps (they were a 5.7 KB run of the main role's rules), and turn returns the same
+    # S4a: the instructions are the core steps (they were a 5.7 KB run of the main role's rules).
     instructions = server_instructions_text(sources.core)
     if len(instructions.encode()) > INSTRUCTIONS_LIMIT:
         raise AssembleError(f"{CORE}: the server instructions are {len(instructions.encode())} bytes, over {INSTRUCTIONS_LIMIT}")
     outputs[f"{GENERATED}/server/instructions.md"] = markdown(notice([CORE]), instructions)
-    outputs[f"{GENERATED}/server/steps.json"] = json_text({"_generated": notice([CORE]), "steps": core_steps(sources.core),
-                                                           "always": list(sources.core.always)})
     # Not named AGENTS.md: a host working on this checkout would read it as this repository's instructions. init
     # writes it as the trip repository's AGENTS.md, without this notice (its own first line says init wrote it).
     outputs[f"{GENERATED}/repo/AGENTS.init.md"] = markdown(notice([AGENTS_TEMPLATE, CORE]), agents_md(sources))
@@ -419,19 +408,7 @@ def build(sources: Sources) -> dict[str, str]:
     outputs["skills/tripwright-main/references/single-agent.md"] = markdown(steps_note, tidy("\n\n".join([
         SINGLE_AGENT_INTRO, "## With tools", steps_text(sources, "tool", "single-agent"),
         "## Without tools", steps_text(sources, "notool", "single-agent")])))
-    outputs[f"{GENERATED}/build.json"] = json_text({"_generated": notice([f"{AGENTS}/roles/*.md", f"{AGENTS}/steps/*.md", CORE, f"{FRAGMENTS}/*.md"]),
-                                                    "fragments": fragment_digests(sources)})
     return outputs
-
-
-def json_text(document: dict) -> str:
-    return json.dumps(document, ensure_ascii=False, indent=2) + "\n"
-
-
-def fragment_digests(sources: Sources) -> dict[str, str | None]:
-    expected = {f"{name}.{language}.md" for name in FRAGMENT_NAMES for language in LANGUAGES}
-    return {file: ("sha256:" + hashlib.sha256(sources.fragments[file].encode()).hexdigest()[:16] if file in sources.fragments else None)
-            for file in sorted(expected | set(sources.fragments))}
 
 
 # --- disk -----------------------------------------------------------------------
@@ -474,13 +451,3 @@ def write(root: Path, outputs: dict[str, str]) -> list[str]:
             file.write_text(text, encoding="utf-8")
             changed.append(path)
     return changed
-
-
-def fragments_changed(root: Path, sources: Sources) -> list[str]:
-    """Fragment files whose content differs from what the committed build used."""
-    lock = Path(root) / GENERATED / "build.json"
-    if not lock.is_file():
-        return sorted(fragment_digests(sources))
-    recorded = json.loads(lock.read_text(encoding="utf-8")).get("fragments", {})
-    current = fragment_digests(sources)
-    return sorted(file for file in set(recorded) | set(current) if recorded.get(file) != current.get(file))
