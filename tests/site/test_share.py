@@ -15,6 +15,7 @@ import pytest
 from tripwright.cli import main
 from tripwright.repo import layout
 from tripwright.repo.notices import open_notices
+from tripwright.repo.git import Git
 from tripwright.site import Policy
 from tripwright.site.privacy import flight_numbers, phone_numbers
 from tripwright.site.publish import publish
@@ -321,47 +322,23 @@ def trip_repo(root: Path, plan: dict) -> Path:
     return root
 
 
-FAKE_GH = r'''#!{python}
-"""A stand-in for the GitHub CLI: repositories are bare repositories under $FAKE_GH_ROOT; every call is logged."""
-import json, os, subprocess, sys
-root = os.environ["FAKE_GH_ROOT"]
-arguments = sys.argv[1:]
-with open(os.path.join(root, "gh.log"), "a") as log:
-    log.write(json.dumps(arguments) + "\n")
-def bare(name):
-    return os.path.join(root, name.split("/")[-1] + ".git")
-if arguments[:2] == ["repo", "create"]:
-    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", bare(arguments[2])], check=True)
-    print("https://github.com/friend-owner/" + arguments[2])
-elif arguments[:2] == ["repo", "view"]:
-    if not os.path.isdir(bare(arguments[2])):
-        sys.exit("GraphQL: Could not resolve to a Repository")
-    print("friend-owner/" + arguments[2].split("/")[-1])
-elif arguments[:2] == ["repo", "clone"]:
-    subprocess.run(["git", "clone", "-q", bare(arguments[2]), arguments[3]], check=True)
-elif arguments[0] == "api" and "POST" in arguments:
-    open(os.path.join(root, "pages-on"), "w").write(" ".join(arguments))
-    print("{{}}")
-elif arguments[0] == "api":
-    if not os.path.exists(os.path.join(root, "pages-on")):
-        sys.exit("HTTP 404: Not Found")
-    print("https://friend-owner.github.io/" + arguments[1].split("/")[2] + "/")
-else:
-    sys.exit("fake gh: unsupported " + " ".join(arguments))
-'''
-
-
 @pytest.fixture
-def github(tmp_path, monkeypatch):
-    root = tmp_path / "github"
-    binary = tmp_path / "bin"
-    root.mkdir()
-    binary.mkdir()
-    (binary / "gh").write_text(FAKE_GH.format(python=sys.executable))
-    (binary / "gh").chmod(0o755)
-    monkeypatch.setenv("FAKE_GH_ROOT", str(root))
-    monkeypatch.setenv("PATH", f"{binary}{os.pathsep}{os.environ['PATH']}")
-    return root
+def public(tmp_path, monkeypatch):
+    from tripwright.site.publish import connect
+
+    bare = tmp_path / "public.git"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
+    data = tmp_path / "data"
+    monkeypatch.setenv("TRIPWRIGHT_DATA_DIR", str(data))
+    connect(data, str(bare))
+    return bare, data
+
+
+def share_settings(repo: Path, trip: str, **settings):
+    path = repo / "trips" / trip / "share.yaml"
+    path.write_text(layout.dump(settings), encoding="utf-8")
+    subprocess.run([*GIT, "-C", str(repo), "add", str(path)], check=True)
+    subprocess.run([*GIT, "-C", str(repo), "commit", "-q", "-m", "share settings"], check=True)
 
 
 def remote_files(bare: Path) -> dict[str, str]:
@@ -383,110 +360,129 @@ def test_load_trip_reads_the_committed_plan_without_writing(tmp_path):
     assert not (repo / ".tripwright").exists()
 
 
-def test_publish_creates_a_public_page_repository_holding_only_the_page(tmp_path, github):
+def test_publish_uses_a_random_committed_subpath_and_fixed_identity(tmp_path, public):
+    bare, data = public
     repo = trip_repo(tmp_path / "trip", sample_plan())
-    outcome = publish(repo, name="trip-2030-wien", create_repo=True, now=NOW)
-    calls = [json.loads(line) for line in (github / "gh.log").read_text().splitlines()]
-    assert ["repo", "create", "trip-2030-wien", "--public", "--description", "Shared trip page (built by tripwright)"] in calls
-    assert any(call[:4] == ["api", "-X", "POST", "repos/friend-owner/trip-2030-wien/pages"] and "source[branch]=main" in call
-               for call in calls)
-    assert outcome["ok"] and outcome["url"] == "https://friend-owner.github.io/trip-2030-wien/" and outcome["changed"]
-    files = remote_files(github / "trip-2030-wien.git")
-    assert sorted(files) == sorted([".nojekyll", ".tripwright-share", "2030-07-14.html", "2030-07-15.html", "index.html", "robots.txt"])
+    outcome = publish(repo, data_dir=data, now=NOW)
+    path = outcome["path"]
+    assert path.startswith("fiktiv-") and len(path.rsplit("-", 1)[1]) == 2
+    assert layout.parse("share.yaml", (repo / "trips/2030-07-fiktiv/share.yaml").read_text())["path"] == path
+    files = remote_files(bare)
+    assert f"{path}/index.html" in files and files["robots.txt"].startswith("User-agent:")
+    assert ".nojekyll" in files and "index.html" not in files
     assert not any(private in text for text in files.values() for private in PRIVATE)
-    author = subprocess.run(["git", "-C", str(github / "trip-2030-wien.git"), "log", "-1", "--format=%an <%ae> %cn <%ce>", "main"],
+    author = subprocess.run(["git", "-C", str(bare), "log", "-1", "--format=%an <%ae> %cn <%ce>", "main"],
                             capture_output=True, text=True, check=True).stdout.strip()
     assert author == "tripwright <share@tripwright.invalid> tripwright <share@tripwright.invalid>"
-    config = json.loads((repo / ".tripwright/share/config.json").read_text())
-    assert config["repository"] == "friend-owner/trip-2030-wien" and config["url"] == outcome["url"]
-    assert subprocess.run(["git", "-C", str(repo), "status", "--porcelain"], capture_output=True, text=True).stdout == ""
+    assert publish(repo, data_dir=data, now=NOW)["changed"] is False
+    assert not (repo / ".tripwright/share/config.json").exists()
 
 
-def test_republish_after_a_plan_commit_and_a_blocked_scan_keeps_the_page_online(tmp_path, github):
+def test_blocked_scan_records_categories_then_clean_publish_closes_notice(tmp_path, public, capsys):
+    bare, data = public
     plan = sample_plan()
     repo = trip_repo(tmp_path / "trip", plan)
-    publish(repo, name="trip-2030-wien", create_repo=True, now=NOW)
-    bare = github / "trip-2030-wien.git"
-    first = head(bare)
-    assert publish(repo, now=NOW)["changed"] is False and head(bare) == first
-
-    changed = deepcopy(plan)
-    changed["days"][0]["title"] = "到维也纳：改成先喝咖啡"
-    trip_repo(repo, changed)
-    assert publish(repo, now=NOW)["changed"] and head(bare) != first
-    second = head(bare)
-    assert "改成先喝咖啡" in remote_files(bare)["2030-07-14.html"]
-
-    leaking = deepcopy(changed)
-    leaking["days"][0]["notes"] = "有事发邮件 fiction.person@example.test"
-    trip_repo(repo, leaking)
-    with pytest.raises(ShareBlocked) as caught:
-        publish(repo, now=NOW)
-    assert list(caught.value.findings) == ["email"]
-    assert head(bare) == second and "改成先喝咖啡" in remote_files(bare)["2030-07-14.html"]
-    last = (repo / ".tripwright/share/last.json").read_text()
-    assert json.loads(last)["ok"] is False and "example.test" not in last
-    assert "改成先喝咖啡" in (repo / ".tripwright/share/site/2030-07-14.html").read_text()  # the last clean build stays
-
-
-def test_publish_removes_anything_else_from_the_page_repository(tmp_path, github):
-    repo = trip_repo(tmp_path / "trip", sample_plan())
-    publish(repo, name="trip-2030-wien", create_repo=True, now=NOW)
-    other = tmp_path / "other-clone"
-    subprocess.run(["git", "clone", "-q", str(github / "trip-2030-wien.git"), str(other)], check=True)
-    (other / "README.md").write_text("notes by hand")
-    subprocess.run([*GIT, "-C", str(other), "add", "-A"], check=True)
-    subprocess.run([*GIT, "-C", str(other), "commit", "-q", "-m", "hand"], check=True)
-    subprocess.run(["git", "-C", str(other), "push", "-q", "origin", "main"], check=True)
-    publish(repo, now=NOW)
-    assert "README.md" not in remote_files(github / "trip-2030-wien.git")
-
-
-def test_publish_needs_create_the_first_time(tmp_path, github):
-    from tripwright.site.publish import PublishError
-
-    repo = trip_repo(tmp_path / "trip", sample_plan())
-    with pytest.raises(PublishError, match="--create"):
-        publish(repo, now=NOW)
-    assert not (github / "gh.log").exists()
-
-
-def test_cli_share_build_publish_and_the_blocked_notice(tmp_path, github, capsys):
-    plan = sample_plan()
-    repo = trip_repo(tmp_path / "trip", plan)
-    english = tmp_path / "en.yaml"
-    assert main(["--repo", str(repo), "share", "build", "--out", str(tmp_path / "preview"), "--english", str(english), "--todo"]) == 0
-    built = json.loads(capsys.readouterr().out)
-    assert built["pages"] == ["2030-07-14.html", "2030-07-15.html", "index.html"] and built["untranslated"] > 0
-    todo = layout.parse("en.yaml", english.read_text())
-    assert "下雨就多待在美术馆" in todo and todo["下雨就多待在美术馆"] == ""
-    english.write_text(layout.dump(dict(todo, 下雨就多待在美术馆="If it rains, stay longer in the gallery")))
-    assert main(["--repo", str(repo), "share", "build", "--out", str(tmp_path / "preview"), "--english", str(english)]) == 0
-    assert "If it rains, stay longer in the gallery" in (tmp_path / "preview/2030-07-14.html").read_text()
-    capsys.readouterr()
-
-    assert main(["--repo", str(repo), "share", "publish", "--name", "trip-2030-wien", "--create"]) == 0
-    assert json.loads(capsys.readouterr().out)["url"] == "https://friend-owner.github.io/trip-2030-wien/"
+    publish(repo, data_dir=data, now=NOW)
+    online = head(bare)
     leaking = deepcopy(plan)
     leaking["days"][1]["notes"] = "机场见，电话 +43 660 1234567"
     trip_repo(repo, leaking)
     assert main(["--repo", str(repo), "share", "publish"]) == 2
     captured = capsys.readouterr()
     assert "phone number (2030-07-15.html)" in captured.err and "1234567" not in captured.err + captured.out
+    assert head(bare) == online
     store = Store(repo / ".tripwright/state.sqlite")
     try:
         shown = open_notices(store, "local")
-        assert [notice["kind"] for notice in shown] == ["share_blocked"]
-        assert "phone number" in shown[0]["user_line"] and "1234567" not in json.dumps(shown, ensure_ascii=False)
+        assert [item["kind"] for item in shown] == ["share_blocked"]
+        record = store.get("share", "local", plan["id"])
+        assert record["status"] == "blocked" and record["blocked"] == {"phone number": ["2030-07-15.html"]}
+        assert "1234567" not in json.dumps(record, ensure_ascii=False)
     finally:
         store.close()
     trip_repo(repo, plan)
     assert main(["--repo", str(repo), "share", "publish"]) == 0
     store = Store(repo / ".tripwright/state.sqlite")
     try:
-        assert open_notices(store, "local") == []
+        assert open_notices(store, "local") == [] and store.get("share", "local", plan["id"])["ok"]
     finally:
         store.close()
+
+
+def test_two_trips_have_isolated_directories_and_no_root_index(tmp_path, public):
+    bare, data = public
+    first, second = sample_plan(), sample_plan()
+    second["id"] = "2030-08-second"
+    repo = trip_repo(tmp_path / "trip", first)
+    one = publish(repo, data_dir=data)["path"]
+    trip_repo(repo, second)
+    two = publish(repo, trip=second["id"], data_dir=data)["path"]
+    before = {name: text for name, text in remote_files(bare).items() if name.startswith(one + "/")}
+    changed = deepcopy(first)
+    changed["days"][0]["title"] = "只改第一趟"
+    trip_repo(repo, changed)
+    publish(repo, trip=first["id"], data_dir=data)
+    files = remote_files(bare)
+    assert one != two and "只改第一趟" in files[f"{one}/2030-07-14.html"]
+    assert {name: text for name, text in files.items() if name.startswith(one + "/")} != before
+    assert f"{two}/index.html" in files and "index.html" not in files
+
+
+def test_rename_and_off_remove_the_old_directory_without_later_commits(tmp_path, public):
+    bare, data = public
+    repo = trip_repo(tmp_path / "trip", sample_plan())
+    old = publish(repo, data_dir=data)["path"]
+    share_settings(repo, "2030-07-fiktiv", path="quiet-vienna")
+    assert publish(repo, data_dir=data)["path"] == "quiet-vienna"
+    assert old not in {name.split("/")[0] for name in remote_files(bare)} and "quiet-vienna/index.html" in remote_files(bare)
+    share_settings(repo, "2030-07-fiktiv", path="quiet-vienna", off=True)
+    (repo / "trips/2030-07-fiktiv/share.yaml").write_text("path: quiet-vienna\noff: true\n")  # unquoted YAML 1.1 key
+    subprocess.run([*GIT, "-C", str(repo), "commit", "-qam", "unquoted off"], check=True)
+    assert publish(repo, data_dir=data)["status"] == "off"
+    assert "quiet-vienna/index.html" not in remote_files(bare)
+    stopped = head(bare)
+    assert publish(repo, data_dir=data)["changed"] is False and head(bare) == stopped
+
+
+def test_missing_public_repository_does_not_lose_the_trip_and_next_commit_recovers(tmp_path, public):
+    from tripwright.site.publish import PublishError
+
+    bare, data = public
+    repo = trip_repo(tmp_path / "trip", sample_plan())
+    moved = tmp_path / "moved.git"
+    bare.rename(moved)
+    with pytest.raises(PublishError, match="check the public repository"):
+        publish(repo, data_dir=data)
+    assert Git(repo).rev("HEAD") is not None
+    store = Store(repo / ".tripwright/state.sqlite")
+    try:
+        assert store.get("share", "local", "2030-07-fiktiv")["status"] == "error"
+    finally:
+        store.close()
+    moved.rename(bare)
+    changed = sample_plan()
+    changed["days"][0]["title"] = "恢复后发布"
+    trip_repo(repo, changed)
+    assert publish(repo, data_dir=data)["ok"] and any("恢复后发布" in text for text in remote_files(bare).values())
+
+
+def test_per_trip_repository_is_an_explicit_skip(tmp_path, public):
+    bare, data = public
+    repo = trip_repo(tmp_path / "trip", sample_plan())
+    share_settings(repo, "2030-07-fiktiv", repository="git@example.test:other/pages.git")
+    outcome = publish(repo, data_dir=data)
+    assert outcome["status"] == "separate_repository" and not outcome["ok"]
+    assert len(remote_files(bare)) == 2
+
+
+def test_cli_share_build_still_supports_english_todo(tmp_path, capsys):
+    repo = trip_repo(tmp_path / "trip", sample_plan())
+    english = tmp_path / "en.yaml"
+    assert main(["--repo", str(repo), "share", "build", "--out", str(tmp_path / "preview"), "--english", str(english), "--todo"]) == 0
+    built = json.loads(capsys.readouterr().out)
+    assert built["pages"] == ["2030-07-14.html", "2030-07-15.html", "index.html"] and built["untranslated"] > 0
+    todo = layout.parse("en.yaml", english.read_text())
+    assert "下雨就多待在美术馆" in todo and todo["下雨就多待在美术馆"] == ""
 
 
 def test_cli_share_needs_a_repository(capsys, monkeypatch):

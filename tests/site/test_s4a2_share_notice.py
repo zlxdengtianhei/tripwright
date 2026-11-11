@@ -8,7 +8,8 @@ from copy import deepcopy
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
-from test_share import github, sample_plan, trip_repo  # noqa: F401 (github is a fixture)
+from test_share import public, sample_plan, trip_repo  # noqa: F401 (public is a fixture)
+from tripwright.site.publish import publish
 from tripwright.cli import main
 from tripwright.repo.notices import open_notices
 from tripwright.storage import Store
@@ -29,10 +30,11 @@ def shown(repo: Path) -> list[dict]:
         store.close()
 
 
-def test_a_blocked_share_page_leaves_a_contract_notice_without_values_until_a_clean_publish(tmp_path, github, capsys):
+def test_a_blocked_share_page_leaves_a_contract_notice_without_values_until_a_clean_publish(tmp_path, public, capsys):
+    _, data = public
     plan = sample_plan()
     repo = trip_repo(tmp_path / "trip", plan)
-    assert main(["--repo", str(repo), "share", "publish", "--name", "trip-2030-wien", "--create"]) == 0
+    publish(repo, data_dir=data)
     leaking = deepcopy(plan)
     leaking["days"][1]["notes"] = "机场见，电话 +43 660 1234567"
     trip_repo(repo, leaking)

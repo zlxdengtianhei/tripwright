@@ -1,178 +1,332 @@
-"""Publish the share page to its own repository on GitHub Pages: build, scan, push (D-83).
-
-GitHub Free serves Pages only from a public repository, so the page gets a repository of its own that holds the
-built page and nothing else; the trip repository stays private. The first run creates that repository with
-`gh repo create --public` and turns Pages on; later runs rebuild, rescan and push. A blocked scan pushes nothing,
-so the published page stays the previous version. Commits carry a fixed tool identity, never the user's Git name.
-
-Local state lives in `<trip repo>/.tripwright/share/` (ignored by Git): `config.json` (the repository and page URL),
-`site/` (the last clean build), `public/` (the clone that is pushed), `last.json` (the last outcome, categories only),
-and `en.yaml`, the English for the user's own words (see `tripwright.site.share`).
-"""
+"""Publish committed, privacy-scanned trip pages to one Git repository (no GitHub API or token)."""
 from __future__ import annotations
 
 import json
+import logging
 import os
+import re
+import secrets
 import shutil
 import subprocess
+import threading
+import time
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .share import ShareBlocked, Rules, scan_tree, share_site
+from tripwright.remote.config import RemoteConfig
+from tripwright.repo.git import Git, GitError
+
+from .share import ShareBlocked, scan_tree, share_site
 
 AUTHOR = {"GIT_AUTHOR_NAME": "tripwright", "GIT_AUTHOR_EMAIL": "share@tripwright.invalid",
           "GIT_COMMITTER_NAME": "tripwright", "GIT_COMMITTER_EMAIL": "share@tripwright.invalid"}
 NOTICE_KEY = "share-blocked"
+PATH = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$")
+log = logging.getLogger("tripwright.share")
 
 
 class PublishError(RuntimeError):
     pass
 
 
-def state_dir(repo_root) -> Path:
-    return Path(repo_root).expanduser().resolve() / ".tripwright" / "share"
-
-
 def read_json(path: Path) -> dict:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        value = json.loads(path.read_text(encoding="utf-8"))
+        return value if isinstance(value, dict) else {}
     except (OSError, ValueError):
         return {}
 
 
 def write_json(path: Path, value: dict):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    scratch = path.with_suffix(".tmp")
+    scratch.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.chmod(scratch, 0o600)
+    os.replace(scratch, path)
 
 
 def run(command: list[str], *, cwd: Path | None = None, env: dict | None = None) -> str:
     try:
-        done = subprocess.run(command, cwd=cwd, env={**os.environ, **(env or {})}, capture_output=True, text=True, timeout=120)
+        done = subprocess.run(command, cwd=cwd, env={**os.environ, **(env or {})}, capture_output=True, text=True, timeout=45)
     except (OSError, subprocess.TimeoutExpired) as error:
-        raise PublishError(f"{command[0]} {command[1] if len(command) > 1 else ''}: {error}") from None
-    if done.returncode != 0:
-        raise PublishError(f"{' '.join(command[:3])} failed: {(done.stderr or done.stdout).strip()[-400:]}")
+        raise PublishError(f"{command[0]} could not finish: {type(error).__name__}") from None
+    if done.returncode:
+        # Git can echo an SSH URL containing credentials; do not copy its stderr into logs or records.
+        log.debug("share git command failed with status %s", done.returncode)
+        raise PublishError(f"git {command[1] if len(command) > 1 else ''} failed; check the public repository and its write access")
     return done.stdout.strip()
 
 
-def mirror(site: Path, clone: Path):
-    """Make the clone's working tree exactly the built site: everything else is removed."""
-    for path in clone.iterdir():
-        if path.name == ".git":
-            continue
-        shutil.rmtree(path) if path.is_dir() and not path.is_symlink() else path.unlink()
-    for path in site.iterdir():
-        target = clone / path.name
-        shutil.copytree(path, target) if path.is_dir() else shutil.copy2(path, target)
+def connection_file(data_dir) -> Path:
+    return Path(data_dir) / "share.json"
 
 
-def repository_name(gh: str, name: str) -> str:
-    return run([gh, "repo", "view", name, "--json", "nameWithOwner", "--jq", ".nameWithOwner"])
+def share_connection(data_dir) -> dict | None:
+    value = read_json(connection_file(data_dir))
+    return value if isinstance(value.get("repo_url"), str) and isinstance(value.get("branch"), str) else None
 
 
-def create(gh: str, name: str, *, visibility: str = "public") -> str:
-    if visibility not in ("public", "private"):
-        raise ValueError("visibility must be public or private")
-    run([gh, "repo", "create", name, f"--{visibility}", "--description", "Shared trip page (built by tripwright)"])
-    return repository_name(gh, name)
-
-
-def enable_pages(gh: str, full_name: str, branch: str) -> str | None:
-    try:
-        run([gh, "api", "-X", "POST", f"repos/{full_name}/pages", "-f", "build_type=legacy",
-             "-f", f"source[branch]={branch}", "-f", "source[path]=/"])
-    except PublishError as error:
-        if "409" not in str(error) and "already" not in str(error).lower():
-            raise
-    try:
-        return run([gh, "api", f"repos/{full_name}/pages", "--jq", ".html_url"]) or None
-    except PublishError:
+def pages_url(repo_url: str) -> str | None:
+    found = re.search(r"(?:ssh\.)?github\.com(?::443)?[:/]([^/]+)/([^/]+?)(?:\.git)?/?$", repo_url)
+    if not found:
         return None
+    owner, repo = found.groups()
+    return f"https://{owner}.github.io/{'' if repo == owner + '.github.io' else repo + '/'}"
 
 
-def push_site(site: Path, clone: Path, rules: Rules, *, branch: str, message: str, now: datetime) -> str | None:
-    """Commit the site into the clone and push it; return the new commit, or None when nothing changed.
+def _git_environment(data_dir: Path, repo_url: str) -> dict:
+    if Path(repo_url).is_absolute():
+        return {}
+    from tripwright.remote.tenants import ssh_command
 
-    The clone is scanned again right before the commit (it is what gets pushed); a finding resets it and blocks."""
-    if (clone / ".git").is_dir():
-        run(["git", "fetch", "--quiet", "origin"], cwd=clone)
-        remote = run(["git", "ls-remote", "--heads", "origin", branch], cwd=clone)
-        if remote:
-            run(["git", "checkout", "--quiet", "-B", branch, f"origin/{branch}"], cwd=clone)
-            run(["git", "reset", "--quiet", "--hard", f"origin/{branch}"], cwd=clone)
-    else:
-        raise PublishError(f"{clone} is not a clone of the share repository")
-    try:
-        run(["git", "rev-parse", "--verify", "--quiet", "HEAD"], cwd=clone)
-        run(["git", "checkout", "--quiet", "-B", branch], cwd=clone)
-    except PublishError:  # a new, empty repository: the branch is not born yet
-        run(["git", "symbolic-ref", "HEAD", f"refs/heads/{branch}"], cwd=clone)
-    mirror(site, clone)
-    findings = scan_tree(clone, rules.zh)
-    if findings:
-        run(["git", "reset", "--quiet", "--hard"], cwd=clone)
-        run(["git", "clean", "-qfdx"], cwd=clone)
-        raise ShareBlocked(findings)
+    config = RemoteConfig(public_url="http://localhost", data_dir=data_dir, repo_url=repo_url,
+                          ssh_key=data_dir / "share/ssh/deploy_key", known_hosts=data_dir / "share/ssh/known_hosts")
+    return {"GIT_SSH_COMMAND": ssh_command(config)}
+
+
+def _roots(data_dir) -> tuple[Path, Path]:
+    root = Path(data_dir) / "share"
+    return root / "public", root / "build"
+
+
+def _root_files(clone: Path):
+    for path in clone.iterdir():
+        if path.is_file() and path.name not in ("robots.txt", ".nojekyll"):
+            path.unlink()
+    (clone / "robots.txt").write_text("User-agent: *\nDisallow: /\n", encoding="utf-8")
+    (clone / ".nojekyll").write_text("", encoding="utf-8")
+
+
+def _commit(clone: Path, message: str, now: datetime) -> str | None:
     run(["git", "add", "-A"], cwd=clone)
     if not run(["git", "status", "--porcelain"], cwd=clone):
         return None
     stamp = now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+0000")
-    identity = dict(AUTHOR, GIT_AUTHOR_DATE=stamp, GIT_COMMITTER_DATE=stamp)
-    run(["git", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", message], cwd=clone, env=identity)
-    run(["git", "push", "--quiet", "origin", f"HEAD:{branch}"], cwd=clone)
+    run(["git", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", message], cwd=clone,
+        env=AUTHOR | {"GIT_AUTHOR_DATE": stamp, "GIT_COMMITTER_DATE": stamp})
     return run(["git", "rev-parse", "HEAD"], cwd=clone)
 
 
-def publish(repo_root, *, name: str | None = None, create_repo: bool = False, visibility: str = "public",
-            english: dict[str, str] | None = None, trip: str | None = None, gh: str = "gh", branch: str = "main",
-            now: datetime | None = None) -> dict:
-    """Build → scan → push. Returns the outcome (also written to `last.json`); a blocked scan raises ShareBlocked
-    after recording its categories, and nothing is pushed."""
-    from .share import load_trip
+def connect(data_dir, repo_url: str, branch: str = "main", *, environ=os.environ, fetch_keys=None) -> str:
+    """Verify a real minimal push before saving share.json; no service restart is needed."""
+    from tripwright.remote.connection import repo_key
+    from tripwright.remote.envconfig import resolved, ssh_files
 
+    data_dir = Path(data_dir)
+    repo_key(data_dir / "share")
+    repo_url = resolved(repo_url, environ)
+    if not Path(repo_url).is_absolute():
+        ssh_files(data_dir / "share/ssh", repo_url, environ, fetch_keys)
+    env = _git_environment(data_dir, repo_url)
+    clone, _ = _roots(data_dir)
+    stage = clone.with_name(".connect-public")
+    shutil.rmtree(stage, ignore_errors=True)
+    stage.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        run(["git", "clone", "--quiet", "--", repo_url, str(stage)], env=env)
+        run(["git", "symbolic-ref", "HEAD", f"refs/heads/{branch}"], cwd=stage)
+        _root_files(stage)
+        _commit(stage, "Initialize tripwright public pages", datetime.now(timezone.utc))
+        run(["git", "push", "--quiet", "origin", f"HEAD:{branch}"], cwd=stage, env=env)
+    except (PublishError, GitError, OSError) as error:
+        shutil.rmtree(stage, ignore_errors=True)
+        raise PublishError(f"Public repository connection failed; nothing was saved: {error}") from None
+    old = clone.with_name(".old-public")
+    shutil.rmtree(old, ignore_errors=True)
+    if clone.exists():
+        clone.rename(old)
+    stage.rename(clone)
+    shutil.rmtree(old, ignore_errors=True)
+    write_json(connection_file(data_dir), dict(repo_url=repo_url, branch=branch, pages_url=pages_url(repo_url)))
+    base = pages_url(repo_url) or "<public-pages-base>/"
+    return (f"Connected on {branch}. Public pages: {base}<path>/. Every trip in this deployment publishes after a commit; "
+            f"set off: true in trips/<trip>/share.yaml to disable and remove one.")
+
+
+def _clone(data_dir: Path, connection: dict) -> Path:
+    clone, _ = _roots(data_dir)
+    env = _git_environment(data_dir, connection["repo_url"])
+    if not (clone / ".git").is_dir() or Git(clone).remote_url("origin") != connection["repo_url"]:
+        shutil.rmtree(clone, ignore_errors=True)
+        clone.parent.mkdir(parents=True, exist_ok=True)
+        run(["git", "clone", "--quiet", "--branch", connection["branch"], "--", connection["repo_url"], str(clone)], env=env)
+    run(["git", "fetch", "--quiet", "origin", connection["branch"]], cwd=clone, env=env)
+    run(["git", "checkout", "--quiet", "-B", connection["branch"], f"origin/{connection['branch']}"], cwd=clone)
+    run(["git", "reset", "--quiet", "--hard", f"origin/{connection['branch']}"], cwd=clone)
+    return clone
+
+
+def _settings(repository, trip: str, rev: str) -> dict:
+    from tripwright.repo import index, layout
+
+    files = repository.committed(rev, f"{layout.trip_folder(trip)}/share.yaml")
+    text = files.get(f"{layout.trip_folder(trip)}/share.yaml")
+    value = layout.parse("share.yaml", text) if text is not None else {}
+    if not isinstance(value, dict):
+        raise PublishError("share.yaml must be a mapping")
+    if False in value:  # YAML 1.1 reads the documented, unquoted key `off` as boolean False
+        value["off"] = value.pop(False)
+    path = value.get("path")
+    if path is not None and (not isinstance(path, str) or not PATH.fullmatch(path)):
+        raise PublishError("share.yaml path must be a lowercase URL path segment (letters, digits and '-')")
+    return value
+
+
+def _default_path(repository, trip: str, rev: str, settings: dict, committer) -> tuple[str, dict]:
+    """The random name is committed in the trip repository, never only on the service volume."""
+    from tripwright.repo import layout
+
+    relative = f"{layout.trip_folder(trip)}/share.yaml"
+    settings = dict(settings, path=re.sub(r"^\d{4}-\d{2}-", "", trip).lower() + "-" + "".join(secrets.choice("abcdefghijklmnopqrstuvwxyz0123456789") for _ in range(2)))
+    lock = committer.lock if committer is not None else nullcontext()
+    with lock:
+        target = repository.root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(layout.dump(settings), encoding="utf-8")
+        when = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        revision = repository.git.commit("tripwright: choose public page path", add=[relative], remove=[], when=when)
+        if repository.remote():
+            outcome = repository.git.push(repository.remote(), repository.branch)
+            if outcome != "ok":
+                raise PublishError("The private trip repository did not accept the new public path; nothing was published")
+            repository.git.fetch(repository.remote(), repository.branch)
+        if committer is not None:
+            committer.set_head(revision, trip=trip)
+    return revision, settings
+
+
+def _record(store, owner: str, trip: str, **changes) -> dict:
+    from tripwright.storage import now
+
+    try:
+        record = store.get("share", owner, trip)
+    except ValueError:
+        record = dict(id=trip, trip=trip)
+    record.update(changes, at=now())
+    store.put("share", owner, record)
+    return record
+
+
+def publish(repo_root, *, trip: str | None = None, rev: str = "HEAD", data_dir=None, store=None, owner: str = "local",
+            committer=None, now: datetime | None = None) -> dict:
+    """Read one committed version → build/scan → replace only its subdirectory → commit/push."""
+    from tripwright.repo import layout
+    from tripwright.repo.workspace import Repository
+    from tripwright.site.share import load_trip
+
+    repository = Repository(repo_root, owner=owner)
+    data_dir = Path(data_dir) if data_dir is not None else __import__("tripwright.remote.connection", fromlist=["data_directory"]).data_directory()
+    own_store = store is None
+    store = store or __import__("tripwright.storage", fromlist=["Store"]).Store(repository.state_path)
     clock = now or datetime.now(timezone.utc)
-    state = state_dir(repo_root)
-    config = read_json(state / "config.json")
-    plan, people = load_trip(repo_root, trip=trip)
-    target = name or config.get("repository") or f"trip-{plan['id']}"
-    if not create_repo and not config.get("repository") and name is None:
-        raise PublishError("No share repository yet: run with --create (and --name) the first time")
+    connection = share_connection(data_dir)
     try:
-        built = share_site(plan, state / "site", people=people, english=english, now=clock)
+        plan, people = load_trip(repo_root, trip=trip, rev=rev)
+        trip = plan["id"]
+        entries = repository.git.log(rev)
+        version = (entries[0]["trailers"].get("Tripwright-Version") or [None])[-1] if entries else None
+        previous = _record(store, owner, trip)
+        if connection is None:
+            raise PublishError("No public repository: run tripwright share key and share connect")
+        settings = _settings(repository, trip, rev)
+        if settings.get("repository"):
+            return _record(store, owner, trip, ok=False, status="separate_repository", plan_version=version,
+                           error="A per-trip repository needs another deployment or manual publication; nothing was pushed")
+        if not settings.get("path") and not settings.get("off"):
+            rev, settings = _default_path(repository, trip, rev, settings, committer)
+        path = settings.get("path") or previous.get("path")
+        if not path:
+            return _record(store, owner, trip, ok=True, status="off", plan_version=version, changed=False)
+        old = previous.get("path")
+        clone = _clone(data_dir, connection)
+        _root_files(clone)
+        changed = False
+        if not settings.get("off"):
+            _, build = _roots(data_dir)
+            built = share_site(plan, build / trip, people=people, english=settings.get("english"),
+                               extras=dict(intro=settings.get("intro"), route=settings.get("route")), now=clock)
+            for name in {old, path} - {None}:
+                shutil.rmtree(clone / name, ignore_errors=True)
+            shutil.copytree(built["out"], clone / path)
+            findings = scan_tree(clone / path, built["rules"].zh)
+            if findings:
+                raise ShareBlocked(findings)
+        else:
+            for name in {old, path} - {None}:
+                shutil.rmtree(clone / name, ignore_errors=True)
+        commit = _commit(clone, "Update public trip page", clock)
+        if commit:
+            run(["git", "push", "--quiet", "origin", f"HEAD:{connection['branch']}"], cwd=clone,
+                env=_git_environment(data_dir, connection["repo_url"]))
+            changed = True
+        base = (connection.get("pages_url") or "").rstrip("/") + "/" if connection.get("pages_url") else None
+        url = f"{base}{path}/" if base else path
+        result = _record(store, owner, trip, ok=True, status="off" if settings.get("off") else "published",
+                         url=None if settings.get("off") else url, path=path, plan_version=version, revision=rev,
+                         public_commit=commit, changed=changed, blocked=None, error=None)
+        notice(store, owner, None)
+        return result
     except ShareBlocked as blocked:
-        write_json(state / "last.json", dict(ok=False, at=clock.isoformat(timespec="seconds"), blocked=blocked.findings,
-                                             published=config.get("url")))
+        _record(store, owner, trip or "unknown", ok=False, status="blocked", plan_version=locals().get("version"),
+                blocked=blocked.findings, error=None)
+        notice(store, owner, blocked.findings)
         raise
-    rules = built["rules"]
-    if create_repo and not config.get("repository"):
-        full = create(gh, target, visibility=visibility)
-        config = dict(repository=full, visibility=visibility, branch=branch)
-        write_json(state / "config.json", config)
-    full = config.get("repository") or repository_name(gh, target)
-    clone = state / "public"
-    if not (clone / ".git").is_dir():
-        if clone.exists():
-            shutil.rmtree(clone)
-        run([gh, "repo", "clone", full, str(clone)])
-    message = f"Update shared trip page ({plan['id']}, {len(plan.get('days', []))} days)"
-    try:
-        commit = push_site(built["out"], clone, rules, branch=branch, message=message, now=clock)
-    except ShareBlocked as blocked:
-        write_json(state / "last.json", dict(ok=False, at=clock.isoformat(timespec="seconds"), blocked=blocked.findings,
-                                             published=config.get("url")))
-        raise
-    if not config.get("url"):
-        url = enable_pages(gh, full, config.get("branch", branch))
-        config = dict(config, repository=full, url=url)
-        write_json(state / "config.json", config)
-    outcome = dict(ok=True, at=clock.isoformat(timespec="seconds"), repository=full, url=config.get("url"), commit=commit,
-                   changed=commit is not None, pages=built["pages"], untranslated=len(built["untranslated"]))
-    write_json(state / "last.json", outcome)
-    return outcome
+    except (PublishError, GitError, OSError, ValueError) as error:
+        if trip:
+            _record(store, owner, trip, ok=False, status="error", plan_version=locals().get("version"),
+                    error=str(error)[-300:])
+        raise PublishError(str(error)) from None
+    finally:
+        if own_store:
+            store.close()
+
+
+class Publisher:
+    """One coalescing worker per committer; failures stay out of the request and committer threads."""
+    def __init__(self, committer, quiet: float = 20.0):
+        self.committer, self.quiet = committer, quiet
+        self.data_dir = __import__("tripwright.remote.connection", fromlist=["data_directory"]).data_directory()
+        self.revision = None
+        self.wakeup = threading.Event()
+        self.stopping = threading.Event()
+        self.thread = None
+
+    def schedule(self, revision: str):
+        if self.stopping.is_set() or share_connection(self.data_dir) is None:
+            return
+        self.revision = revision
+        self.wakeup.set()
+        if self.thread is None or not self.thread.is_alive():
+            self.thread = threading.Thread(target=self._work, name="tripwright-share", daemon=True)
+            self.thread.start()
+
+    def _work(self):
+        last = time.monotonic()
+        while not self.stopping.is_set():
+            if self.wakeup.wait(0.2):
+                self.wakeup.clear()
+                last = time.monotonic()
+                continue
+            if self.revision is None or time.monotonic() - last < self.quiet:
+                continue
+            revision, self.revision = self.revision, None
+            try:
+                publish(self.committer.repo.root, rev=revision, data_dir=self.data_dir, store=self.committer.store,
+                        owner=self.committer.owner, committer=self.committer)
+            except Exception as error:
+                safe = str(error)[-300:] if isinstance(error, (PublishError, ShareBlocked)) else type(error).__name__
+                log.warning("public page was not published: %s", safe)
+
+    def stop(self):
+        self.stopping.set()
+        self.wakeup.set()
+        if self.thread:
+            self.thread.join(timeout=2)
 
 
 def notice(store, owner: str, findings: dict[str, list[str]] | None):
-    """Keep one open notice while the share page is blocked, so the next `turn` tells the agent the categories."""
+    """Keep one open notice while the page is blocked; categories and pages only, never values."""
     from tripwright.repo import notices
     from tripwright.storage import identifier, now
 
@@ -183,9 +337,9 @@ def notice(store, owner: str, findings: dict[str, list[str]] | None):
     where = "; ".join(f"{key}: {', '.join(pages)}" for key, pages in findings.items())
     record = dict(id=identifier("N"), notice_id=None, kind="share_blocked", key=NOTICE_KEY, created_at=now(),
                   user_line=f"分享页这一版没有发布：扫描发现 {categories}；网上还是上一版。",
-                  detail=f"Share page not published: the privacy scan found {categories} (pages: {where}). "
-                         "Values are not shown. Reword those parts of the plan, then run `tripwright share publish` again.",
-                  paths=sorted({page for pages in findings.values() for page in pages}), once=False, status="open")
+                  detail=f"Share page not published: the privacy scan found {categories} (pages: {where}). Values are not shown. "
+                         "Reword those parts of the plan; the next committed version retries.", paths=sorted({p for ps in findings.values() for p in ps}),
+                  once=False, status="open")
     record["notice_id"] = record["id"]
     store.put("notices", owner, record, insert=True)
     return record

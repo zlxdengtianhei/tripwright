@@ -86,6 +86,17 @@ railway ssh -- tripwright repo connect git@github.com:<owner>/tripwright-trips.g
 
 Check `/readyz` for `"storage":"remote"`. Other SSH Git hosts work too; set `TRIPWRIGHT_KNOWN_HOSTS` when the service cannot obtain their host keys itself.
 
+## 3A. Optional: three commands for public trip pages
+
+Create a separate **empty public** repository, enable Pages from `/` on `main`, and add the distinct public-page deploy key:
+```bash
+gh repo create <owner>/tripwright-pages --public && gh api -X POST repos/<owner>/tripwright-pages/pages -f 'source[branch]=main' -f 'source[path]=/'
+docker exec tripwright tripwright share key | gh repo deploy-key add - --allow-write -t tripwright-pages -R <owner>/tripwright-pages
+docker exec tripwright tripwright share connect git@github.com:<owner>/tripwright-pages.git
+```
+On Railway, replace `docker exec tripwright` with `railway ssh --`. The last command verifies a push and prints the URL shape; no restart or token is needed.
+Every committed trip publishes after about 20 quiet seconds. Its first publish creates `trips/<trip>/share.yaml`; edit its random `path`, or set `off: true` to remove its page. Optional `english`, `intro` and `route` match the example file. `tripwright share publish` retries manually; `share status` shows the outcome. A per-trip `repository` needs another deployment or manual publication.
+
 ## 4. Add the address to each AI app
 
 The printed address is a password: anyone holding it can read and change the trips. It may be printed in the user's own terminal; paste it only into the user's own AI apps, never into issues, shared chats or a repository.

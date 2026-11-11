@@ -16,7 +16,7 @@ import yaml
 TABLES = (
     "events", "items", "facts", "decisions", "pending_checks", "undecided",
     "journal", "versions", "evidence", "jobs", "inbox", "profiles", "contexts", "drafts",
-    "carry", "outbox", "notices", "repo",
+    "carry", "outbox", "notices", "repo", "share",
 )
 
 

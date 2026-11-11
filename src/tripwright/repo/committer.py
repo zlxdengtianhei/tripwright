@@ -75,6 +75,8 @@ class Committer:
         # instance sends no packets (a platform's sleep can then start, and nothing is spent); None polls always.
         self.active_window: float | None = None
         self.active_until = 0.0
+        from tripwright.site.publish import Publisher
+        self.publisher = Publisher(self)
 
     # --- index ---------------------------------------------------------------------
 
@@ -175,6 +177,10 @@ class Committer:
             adopted = self.service.adopt_manual_edits()
             committed = self._commit()
             pushed = self._push() if push and self.repo.remote() and self.outbox.open(self.owner, ("pending_sync",)) else None
+            if not self.repo.remote() or pushed == "ok":
+                for revision in committed:
+                    if self.repo.git.log(revision)[0]["trailers"].get("Tripwright-Version"):
+                        self.publisher.schedule(revision)
             return dict(committed=committed, pushed=pushed, adopted=adopted, unsynced=len(self.outbox.open(self.owner)))
 
     def _commit(self) -> list[str]:
@@ -460,6 +466,7 @@ class Committer:
         """Stop the loop, commit what is waiting and try one push, all within `budget` seconds: the container's stop
         grace period must not end in a kill in the middle of a Git command (that leaves a lock behind)."""
         deadline = time.monotonic() + budget
+        self.publisher.stop()
         self.stopping.set()
         self.wakeup.set()
         if self.thread:
