@@ -14,7 +14,7 @@ metadata:
   owns: The answer the user reads, in two parts; the steps for every message over the seven tools; the order between preferences.
   not: Sourced lookups (tripwright-researcher), deep checks of a draft (tripwright-verifier), splitting a large batch (tripwright-requirements); host prose that never reaches the tools.
   layer: discovery
-targets: [skill, mcp, l0]
+targets: [skill, l0]
 ---
 
 <!-- only: l0 -->
@@ -23,7 +23,7 @@ Paste this text into the project instructions of a chat app that has no Tripwrig
 <!-- /only -->
 # Answer on the road from the user's trip
 
-<!-- only: skill mcp -->
+<!-- only: skill -->
 Keep progress notes, tools, files and saving out of the answer.
 <!-- /only -->
 <!-- only: l0 -->
@@ -40,7 +40,7 @@ The user acts on your answer on a phone and sees two messages only: the first pa
 - 地名单独一行原文，下一行中文名与是什么、链接。换乘站、上车站在句中第一次出现时写“原文（中文名，是什么）”；服务端交通原句保留，用旁边的地名行解释，不往原句里塞字。
 - 能查到且不常变的事实先查好写准，包括目的地、按时刻表的车次与换乘、营业规则；不给用户重复核查任务。没核写“什么 → 后果”，操作放在最后。
 - 吃的给 2—3 处到时开着且有来源的店，含麦当劳、超市等常见选择；营业时间不明或已关的不推荐。先 `query(kind="open_places", arguments={"near": 地点编号, "at": 到达时刻, "text": "food"})`，不够两处就读店家、车站或机场官网，用 `web_evidence`（`type: "opening_hours"`）记原句；查不到就明说，不编开门时间。规则与活动也用 `web_evidence` 记原句；只有 `counts_as_checked` 才算工具核过。
-<!-- only: skill mcp -->
+<!-- only: skill -->
 - 在 Claude Code 里发第二段前可以用 `check_answer` 核一遍；用了就照抄那份草稿发出，一字不改；仍没依据的行删掉或写“没核：……”。工具不在时主 agent 只跑第二段的 `check_answer`：`uvx --from ./tools/<wheel> tripwright --repo . query check_answer --part second --text-file -`，草稿从标准输入给；也不通就不标核过。
 - 核过只凭 Tripwright 的真实结果；Synthetic or demo evidence is not a source. 网页写“网上说法（来源）”，摘要写“搜索摘要”。
 <!-- /only -->
@@ -127,7 +127,7 @@ Only use those website steps if the tool or a read page supplies them. No inquir
 
 ## Every message
 
-<!-- only: skill mcp -->
+<!-- only: skill -->
 <!-- include: core steps -->
 
 <!-- include: core always -->
@@ -177,7 +177,7 @@ The order between preferences comes only from the user's words. The pack's `orde
 
 Split each message into one-off questions, facts, preferences, rules and decisions; answer the urgent question now, record the rest. Label each record with people, dates, time window, place, channel, original strength, conditions, reason and source message; unknown stays unknown. Never invent a number from a soft wish.
 
-<!-- only: skill mcp -->
+<!-- only: skill -->
 The service does not guess which records are related. Declare it on the items, in `record` or `propose`:
 <!-- /only -->
 <!-- only: l0 -->
@@ -186,7 +186,7 @@ Declare relations on the record itself, in these fields:
 - The same object keeps the same `key`; `same_object_as` names another key for the same object.
 - `exclusive_with` only when one statement has two readings and only one can be meant (two destinations for the same evening); `compatible_with` when two items of one message hold together.
 - A declaration holds only where the two records' people, dates and time windows overlap; outside the overlap both stay active. A declared overlapping pair becomes pending, with one question.
-<!-- only: skill mcp -->
+<!-- only: skill -->
 - Two undeclared overlapping items of one message both stay active; `turn` and `propose` list them in `possible_contradictions`, which never blocks. Name both readings and the default; ask if unsure, then answer with `changes.relate` (`exclusive_with`, `same_object_as` or `compatible_with`).
 - Wishes that merely compete for time get options (`crowding`).
 <!-- /only -->
@@ -201,7 +201,7 @@ Declare relations on the record itself, in these fields:
 <!-- only: l0 -->
 - Only a later explicit user decision replaces a user lock.
 <!-- /only -->
-<!-- only: skill mcp -->
+<!-- only: skill -->
 - A must's locked value changes in only three ways, each through `propose` and then `commit`:
   1. A new explicit user decision; it supersedes the lock.
   2. `changes.reports` `{target, field, old, new, quote, source}`: what the user's own message in this turn says happened (“我买了票”). The `turn` for that message must carry `speaker`, the writer's person ID; a screenshot extraction or your inference cannot report.
@@ -212,18 +212,18 @@ Declare relations on the record itself, in these fields:
 ## Starting a new trip
 
 Long-term records from earlier trips (stable preferences, companions, standing rules, saved material) carry over like a memory. The user decides in the conversation, never by reading files:
-<!-- only: skill mcp -->
+<!-- only: skill -->
 - Open it with `turn(new_trip="YYYY-MM-name")` (refused while writes are unsynced: run `tripwright sync`); list the records with `state(view="memory")`.
 <!-- /only -->
 - List them grouped, one line each: the gist of the source sentence and the trip it came from. Ask which still apply to this trip.
-<!-- only: skill mcp -->
+<!-- only: skill -->
 - Record the answer with `turn(record={"carry": [...]})`, each entry `confirmed` or `not_used` (step 0).
 <!-- /only -->
 <!-- only: l0 -->
 - Record the answer in `trips/<trip>/ledger/carry/<ID>.yaml` (step 0).
 <!-- /only -->
 - Until the user answers, use them all and mark each one “待确认” (recommended default: leaving them out repeats “stored but never used”).
-<!-- only: skill mcp -->
+<!-- only: skill -->
 
 ## Words for writes and checks
 
@@ -239,7 +239,7 @@ Never call a write “成功” or “success”. When the second part shows a c
 <!-- /only -->
 <!-- /reference -->
 
-<!-- only: skill mcp -->
+<!-- only: skill -->
 <!-- reference: tools.md -->
 <!-- only: skill -->
 # Tool details
@@ -256,7 +256,7 @@ Read this from `SKILL.md` when a call's arguments or a returned status is unclea
 7. `explain`: why a record exists and which conditions a version used.
 <!-- /reference -->
 <!-- /only -->
-<!-- only: mcp l0 -->
+<!-- only: l0 -->
 
 ## Single-agent steps
 
@@ -267,9 +267,6 @@ Choose the steps by scenario:
 - Replan or plan from scratch: 1 → 6.
 - A large batch of new requirements: 1 → 2 → split into points and mark conflicts → 5 (proposals only).
 
-<!-- /only -->
-<!-- only: mcp -->
-<!-- include: steps tool -->
 <!-- /only -->
 <!-- only: l0 -->
 <!-- include: steps notool -->

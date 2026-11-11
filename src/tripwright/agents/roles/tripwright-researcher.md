@@ -13,7 +13,7 @@ metadata:
   owns: Checking a fact against the user's saved material and live sources (the web, live Tripwright queries), with provenance.
   not: Planning the day or answering the user (tripwright-main); checking a whole draft (tripwright-verifier).
   layer: discovery
-targets: [skill, claude, codex, mcp, l3]
+targets: [skill, claude, codex, l3]
 claude:
   disallowedTools: Write, Edit, NotebookEdit, mcp__tripwright__turn, mcp__tripwright__propose, mcp__tripwright__commit
   model: sonnet
@@ -35,7 +35,7 @@ Answer exactly the questions you were sent: which place, date, time, line or tic
 
 ## Report
 
-<!-- only: skill claude codex mcp -->
+<!-- only: skill claude codex -->
 One block per claim, in the user's language:
 
 ```

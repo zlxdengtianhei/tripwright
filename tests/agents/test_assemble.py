@@ -73,12 +73,12 @@ def test_write_removes_outputs_the_sources_no_longer_produce(checkout):
 
 
 def test_only_blocks_keep_lines_per_target_and_references_move_out_of_skills_only(sources):
-    body = ("A\n<!-- only: skill -->\nS\n<!-- /only -->\n<!-- only: mcp l0 -->\nM\n<!-- /only -->\n"
+    body = ("A\n<!-- only: skill -->\nS\n<!-- /only -->\n<!-- only: claude l0 -->\nM\n<!-- /only -->\n"
             "<!-- reference: extra.md -->\nR\n<!-- /reference -->\nZ\n")
     skill = expand(body, "skill", sources, "test")
     assert skill.body == "A\nS\nZ\n" and skill.references == {"extra.md": "R\n"}
-    assert expand(body, "mcp", sources, "test").body == "A\nM\nR\nZ\n"
-    assert expand(body, "claude", sources, "test").body == "A\nR\nZ\n"
+    assert expand(body, "l0", sources, "test").body == "A\nM\nR\nZ\n"
+    assert expand(body, "claude", sources, "test").body == "A\nM\nR\nZ\n"
 
 
 @pytest.mark.parametrize("body, message", [
@@ -170,7 +170,7 @@ def test_explicit_fragment_includes_still_copy_b_verbatim(sources):
 def test_main_answer_and_writing_reference_use_the_role_source(outputs):
     # The shared render fragments still express v2f's omitted legs and empty-fallback inference.
     # v2g owns its answer text in the role so rebuilding cannot silently restore those instructions.
-    for path in (MAIN, f"{GENERATED}/mcp/tripwright-main.md", f"{GENERATED}/l0/tripwright-main.md"):
+    for path in (MAIN, f"{GENERATED}/l0/tripwright-main.md"):
         text = outputs[path]
         assert "sentences" in text and "how_to_check.text" in text
         assert "不列逐段换乘和车次" not in text
@@ -205,9 +205,8 @@ def test_main_skill_stays_within_its_pre_latest_byte_budget(outputs):
 
 
 def test_a9_instructions_and_examples_are_generated_for_every_host(outputs):
-    # S4a: the server instructions are the core steps; these rules reach an MCP-only host through turn's next and
-    # the prompt the instructions point to
-    for path in (MAIN, f"{GENERATED}/mcp/tripwright-main.md", f"{GENERATED}/l0/tripwright-main.md"):
+    # S4a: the server instructions are the core steps; these rules reach an MCP-only host through turn's next.
+    for path in (MAIN, f"{GENERATED}/l0/tripwright-main.md"):
         text = outputs[path]
         assert "until" in text and "03:00" in text and "01:00" not in text  # A14: tonight ends where latest_departure's does
         assert "note" in text and "board_at" in text

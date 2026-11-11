@@ -12,23 +12,20 @@ from dataclasses import dataclass
 
 MAIN = "skills/tripwright-main/SKILL.md"
 GENERATED = "src/tripwright/agents/generated"
-MCP_MAIN, L0_MAIN = f"{GENERATED}/mcp/tripwright-main.md", f"{GENERATED}/l0/tripwright-main.md"
-MAIN_TEXTS = (MAIN, MCP_MAIN)
+L0_MAIN = f"{GENERATED}/l0/tripwright-main.md"
+MAIN_TEXTS = (MAIN,)
 ALL_MAIN = MAIN_TEXTS + (L0_MAIN,)
 # The skill keeps the answer and the steps for every message; records, relations, locks and write states moved to
-# this page, which the MCP prompt and the L0 text still carry inline.
+# this page, which the L0 text still carries inline.
 RECORDS = "skills/tripwright-main/references/records.md"
 SINGLE = "skills/tripwright-main/references/single-agent.md"
-# S4a: the server instructions are core.yaml's steps; the rules below them live in the MCP prompt (MCP_MAIN), which the
-# instructions point to, so a promise names SERVER only for what the core steps themselves say.
+# S4a: the server instructions are core.yaml's steps, so a promise names SERVER only for what those steps say.
 SERVER = f"{GENERATED}/server/instructions.md"
 AGENTS_MD = f"{GENERATED}/repo/AGENTS.init.md"
-CORE_TEXTS = (MAIN, MCP_MAIN, SERVER, AGENTS_MD)
 VERIFIER = ("skills/tripwright-verifier/SKILL.md", f"{GENERATED}/claude/tripwright-verifier.md",
-            f"{GENERATED}/codex/tripwright_verifier.toml", f"{GENERATED}/mcp/tripwright-verifier.md")
+            f"{GENERATED}/codex/tripwright_verifier.toml")
 RESEARCHER = ("skills/tripwright-researcher/SKILL.md", f"{GENERATED}/claude/tripwright-researcher.md",
-              f"{GENERATED}/codex/tripwright_researcher.toml", f"{GENERATED}/mcp/tripwright-researcher.md",
-              f"{GENERATED}/l3/tripwright-researcher.md")
+              f"{GENERATED}/codex/tripwright_researcher.toml", f"{GENERATED}/l3/tripwright-researcher.md")
 # Mentioning a forbidden word in quotes, to forbid it, is allowed; using it is not.
 QUOTED = re.compile(r"“[^”\n]*”")
 
@@ -50,36 +47,36 @@ PROMISES = (
             must_not=(r"\bmore important than\b", r"\boutweighs?\b", r"by default,? prefer", r"优先于", r"更重要"),
             bad_sample="By default, prefer the cheaper option when money and comfort compete."),
     # The full rule lives with the records page; the skill body keeps the user-only order and points there.
-    Promise("competing-preferences-get-options", (RECORDS, MCP_MAIN, L0_MAIN),
+    Promise("competing-preferences-get-options", (RECORDS, L0_MAIN),
             must=(r"Give 2–3 complete, feasible options", r"never traded off against each other", r"over the whole day",
                   r"Recommend only for a factual reason", r"“默认” only when a stored user decision already chose it", r"“默认”, not “推荐”")),
-    Promise("baggage-holder", (RECORDS, MCP_MAIN, L0_MAIN), must=(r"`?baggage_holder`?",)),
-    Promise("declare-relations-in-propose", (RECORDS, MCP_MAIN),
+    Promise("baggage-holder", (RECORDS, L0_MAIN), must=(r"`?baggage_holder`?",)),
+    Promise("declare-relations-in-propose", (RECORDS,),
             must=(r"Declare it on the items, in `record` or `propose`", r"`same_object_as`", r"`exclusive_with` only when one statement has two readings")),
     # A (abb09fc): turn records what this message states in the same step, so the answer already uses it.
     Promise("turn-records-this-message", MAIN_TEXTS + (SINGLE,),
             must=(r"`record`", r'`source\.event: "this"`')),
     # S4 after the third verdict: declarations hold only on overlap; undeclared overlap gives a non-blocking notice.
-    Promise("declarations-hold-only-on-overlap", (RECORDS, MCP_MAIN, L0_MAIN, "skills/tripwright-requirements/SKILL.md"),
+    Promise("declarations-hold-only-on-overlap", (RECORDS, L0_MAIN, "skills/tripwright-requirements/SKILL.md"),
             must=(r"[Aa] declaration holds only where (?:the two records' )?people, dates and time windows overlap",
                   r"(?:both stay active|both stay)", r"both readings and the default", r"`?compatible_with`?"),
             must_not=(r"[Uu]ndeclared[^.\n]*(?:become|are made|turn) pending", r"[Uu]ndeclared[^.\n]*(?:\b(?<!non-)(?<!never )(?<!not )block(?:s|ed)?\b|refused)"),
             bad_sample="Undeclared overlapping records become pending until the user answers."),
     # B3d names (fe1e5632): the notice and the after-the-fact declaration; no placeholder may remain.
-    Promise("possible-contradictions-named", (RECORDS, MCP_MAIN),
+    Promise("possible-contradictions-named", (RECORDS,),
             must=(r"`?possible_contradictions`?", r"`?changes\.relate`?"), must_not=(r"field names pending",),
             bad_sample="The service returns a notice (field names pending)."),
-    Promise("new-trip-calls", (RECORDS, MCP_MAIN, SINGLE),
+    Promise("new-trip-calls", (RECORDS, SINGLE),
             must=(r'turn\(new_trip="YYYY-MM-name"\)', r'state\(view="memory"\)', r'record=\{"carry"', r"`?not_used`?", r"tripwright sync")),
     Promise("new-trip-without-tools", (L0_MAIN, SINGLE),
             must=(r"trips/<trip>/ledger/carry/<ID>\.yaml",)),
     Promise("verifier-gets-the-wide-pack", VERIFIER, must=(r'state\(view="pack", draft_id',)),
-    Promise("locks-follow-identity", (RECORDS, MCP_MAIN, L0_MAIN) + VERIFIER,
+    Promise("locks-follow-identity", (RECORDS, L0_MAIN) + VERIFIER,
             must=(r"(?:plan\.id|plan IDs?|plan ID)", r"(?:never display names|display name alone is not enough)")),
     Promise("transport-text-search-term-and-triggers", ALL_MAIN,
             must=(r"(?:exact term to type into the named app, in its original spelling|在哪个 App 搜什么（地名照原文）)",
                   r"(?:The user must not need the link|不点链接也能照着做)", r"(?:[Ll]ook up departures only under the triggers|查不查班次（默认不查)")),
-    Promise("write-state-words", (RECORDS, MCP_MAIN),
+    Promise("write-state-words", (RECORDS,),
             must=(r"`received` 已收件", r"`pending_sync` 待同步", r"`effective` 已生效", r"`conflict` 冲突",
                   r"Only now say “记下了”", r"“（草稿）”", r"“核过的安排” only when the deep check is `passed` and the commit was accepted",
                   r"tell the user only a conflict",
@@ -87,7 +84,7 @@ PROMISES = (
     Promise("never-call-a-write-success", ALL_MAIN + tuple(f"skills/tripwright-main/references/{name}" for name in ("single-agent.md", "tools.md", "records.md")),
             must_not=(r"成功", r"\bsuccess(?:ful(?:ly)?)?\b", r"\bsucceed"),
             bad_sample="Tell the user the commit succeeded and the plan was saved successfully."),
-    Promise("six-single-agent-steps", (SINGLE, MCP_MAIN, L0_MAIN),
+    Promise("six-single-agent-steps", (SINGLE, L0_MAIN),
             must=(r"Quick question: 1 → 2", r"Status report only: 1 → 5", r"Replan or plan from scratch: 1 → 6",
                   r"large batch of new requirements: 1 → 2")),
     Promise("multi-agent-optional", (MAIN, AGENTS_MD),
@@ -133,23 +130,23 @@ PROMISES = (
     # A7: comparable routes, stored opening hours, and the sent text bound to the passed draft.
     Promise("routes-from-candidates", ALL_MAIN + RESEARCHER, must=(r"`?candidates`?", r"`?via_station`?")),
     Promise("food-from-stored-hours", ALL_MAIN + RESEARCHER, must=(r'kind=\\?"open_places\\?"', r'`?type`?: \\?"opening_hours\\?"')),
-    Promise("first-part-before-tools", (MAIN, MCP_MAIN, AGENTS_MD),
+    Promise("first-part-before-tools", (MAIN, AGENTS_MD),
             must=(r"first_part\.text`? and end this reply without another tool",)),
-    Promise("two-flows-without-continuation-state", (MAIN, MCP_MAIN, AGENTS_MD),
+    Promise("two-flows-without-continuation-state", (MAIN, AGENTS_MD),
             must=(r"end this reply without another tool", r"without calling `turn`",),
             must_not=(r"first_part\.later", r"second_part_due"), bad_sample="first_part.later and second_part_due"),
     # S4a2 (D-89, s4c): after an effective commit the share page is published again; a blocked scan is fixed by category,
     # never by writing the value; the first public repository is published to others, so the user is asked first.
-    Promise("share-page-after-commit", (SINGLE, MCP_MAIN),
+    Promise("share-page-after-commit", (SINGLE,),
             must=(r"stop and ask first", r"run `tripwright share publish`", r"`share_blocked`", r"never write the value",
                   r"GitHub Free serves Pages only from a public repository", r"holds only the pages")),
     # D-48: the host sent true_from "this" (copied from source.event) and turn refused the record.
-    Promise("record-times-with-offset", (MAIN, MCP_MAIN), must=(r'`true_from` an ISO time with offset, never "this"',)),
+    Promise("record-times-with-offset", MAIN_TEXTS, must=(r'`true_from` an ISO time with offset, never "this"',)),
     Promise("send-the-passed-draft", ALL_MAIN, must=(r"(?:照抄那份草稿发出，一字不改|send that draft exactly)",)),
     Promise("claude-check-optional", MAIN_TEXTS, must=(r"check_answer", r"(?:may check|可以用|可以留|可以核)")),
     Promise("no-tool-steps-end-with-write-back", ("skills/tripwright-main/references/single-agent.md", f"{GENERATED}/l0/tripwright-main.md"),
             must=tuple(rf"### {number}\. [^\n]+\n(?:(?!\n### )[\s\S])*?写回仓" for number in range(0, 7))),
-    Promise("new-trip-carry-over", (RECORDS, MCP_MAIN, L0_MAIN, SINGLE),
+    Promise("new-trip-carry-over", (RECORDS, L0_MAIN, SINGLE),
             must=(r"[Ll]ist them (?:grouped|in the conversation, grouped)", r"the trip it came from", r"[Aa]sk which still apply to this trip",
                   r"never (?:by reading files|ask the user to (?:open or )?read a file)", r"“待确认”"),
             must_not=(r"(?:open|read|check) (?:the )?(?:profile )?files? (?:yourself )?to decide", r"待 A 定", r"［待[^］\n]*定"),
@@ -170,7 +167,7 @@ PROMISES = (
             must=(r"must", r"changes\.revisions", r"changelog", r"这次没改成")),
     Promise("final-check-and-inquiry-section", ALL_MAIN,
             must=(r"怎么查、怎么问", r"我可以帮你起草询问内容", r"英语", r"当地语言")),
-    Promise("unchecked-latest-example-defers-answer", ("skills/tripwright-main/references/examples.md", MCP_MAIN, L0_MAIN),
+    Promise("unchecked-latest-example-defers-answer", ("skills/tripwright-main/references/examples.md", L0_MAIN),
             must=(r"Good first part, before lookups:\n```text\n按现在 \d\d:\d\d 算：几点出发要查，第二段给。",)),
     # A10 (D-67): the service drafts the first part and frames “最晚几点出发去 X”; part 2 goes once, after check_answer.
     Promise("first-part-from-turn", MAIN_TEXTS + (SERVER,), must=(r"first_part",)),
@@ -183,7 +180,7 @@ PROMISES = (
     Promise("blocked-write-and-local-backup", MAIN_TEXTS + (RECORDS,),
             must=(r"write\.blocked", r"hint", r"storage\.kind", r"back up the data directory")),
     # A11: an online check-in stored as a node at the airport became “要 05:45 前到”; the plan's writers mark it
-    Promise("online-deadline-anchor", (RECORDS, MCP_MAIN, L0_MAIN, "skills/tripwright-requirements/SKILL.md"),
+    Promise("online-deadline-anchor", (RECORDS, L0_MAIN, "skills/tripwright-requirements/SKILL.md"),
             must=(r"`where: online`", r"no latest departure")),
     Promise("subagents-never-commit", VERIFIER + RESEARCHER + ("skills/tripwright-requirements/SKILL.md",),
             must=(r"`commit`",), must_not=(r"[Yy]ou (?:may|can|should) call `commit`",),

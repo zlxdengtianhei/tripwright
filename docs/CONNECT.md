@@ -27,7 +27,7 @@ TRIPWRIGHT_PROVIDERS=live uv run tripwright --repo ./my-trips serve --stdio
 
 ## What still depends on the app
 
-The service returns, for each message, the memories to consider, the questions about musts, the transport facts as sentences to quote, check guidance and the change record. The full way of working is the MCP prompt `tripwright-main`; clients that let you choose prompts can load it, and local clients also find the matching skill. A prompt being available does not mean that the client loads it or follows it.
+The service returns, for each message, the memories to consider, the questions about musts, the transport facts as sentences to quote, check guidance and the change record. Local clients also find the matching skill.
 
 The client itself calls `turn`, uses the memories it gets, quotes the transport sentences and sends the two parts of the answer. One reply or two: for a quick question on the road, the default is two messages. The first part (from the stored plan) arrives first and ends with a line that asks you to reply; the checked part follows your next message. In Claude Code a background agent brings the second message without your reply. Setting `TRIPWRIGHT_REPLY_FLOW=one` at deployment (see [deploy/README.md](../deploy/README.md)) puts both parts in one reply; this suits GPT models, while Claude often leaves the first part out. Other questions get one direct answer. The remote service has no verifying model of its own.
 

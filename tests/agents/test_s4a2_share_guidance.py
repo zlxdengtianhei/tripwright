@@ -1,18 +1,14 @@
 """S4a2 (D-89): the share page is published again after an effective commit, and the first public repository waits for
-the user. The rule lives with step 6 (the skill's single-agent reference and the MCP prompt); the core steps only say
+the user. The rule lives with step 6 (the skill's single-agent reference); the core steps only say
 that publishing to others is a stop."""
 from __future__ import annotations
 
 from tripwright.agents import server_instructions
-from tripwright.agents.assemble import GENERATED
 from tripwright.agents.promises import PROMISES, promise_problems
 
 SINGLE = "skills/tripwright-main/references/single-agent.md"
-MCP_MAIN = f"{GENERATED}/mcp/tripwright-main.md"
-
-
 def test_after_a_commit_the_share_page_is_published_and_the_first_public_repository_waits_for_the_user(outputs):
-    for path in (SINGLE, MCP_MAIN):
+    for path in (SINGLE,):
         text = outputs[path]
         step = text[text.index("6. Update the site"):]
         assert "`.tripwright/share/config.json`" in step and "after the write is `effective`, run `tripwright share publish`" in step

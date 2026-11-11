@@ -15,8 +15,7 @@ from tripwright.agents.assemble import (CORE, GENERATED, INSTRUCTIONS_LIMIT, Ass
                                         parse_core)
 
 MAIN = "skills/tripwright-main/SKILL.md"
-PLACES = (MAIN, f"{GENERATED}/mcp/tripwright-main.md", f"{GENERATED}/server/instructions.md", f"{GENERATED}/repo/AGENTS.init.md")
-WORKFLOW_PLACES = (MAIN, f"{GENERATED}/mcp/tripwright-main.md", f"{GENERATED}/repo/AGENTS.init.md")
+WORKFLOW_PLACES = (MAIN, f"{GENERATED}/repo/AGENTS.init.md")
 
 
 def test_server_instructions_hold_six_chat_rules_within_the_limit(sources):

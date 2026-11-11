@@ -11,7 +11,7 @@ metadata:
   owns: Independent verification of one draft against the full source sentences and the scenario checklist.
   not: Answering the user, editing or committing the plan (tripwright-main); open-ended research (tripwright-researcher).
   layer: discovery
-targets: [skill, claude, codex, mcp, l3]
+targets: [skill, claude, codex, l3]
 claude:
   disallowedTools: Write, Edit, NotebookEdit, mcp__tripwright__turn, mcp__tripwright__propose, mcp__tripwright__commit
   model: inherit
@@ -23,7 +23,7 @@ The first response was written fast from a narrow pack. A check that starts from
 
 ## Input
 
-<!-- only: skill claude codex mcp -->
+<!-- only: skill claude codex -->
 You receive IDs from the main agent: `draft_id`, `job_id`, `ctx_id`, and the people and dates in question. Read the rest yourself:
 <!-- /only -->
 <!-- only: l3 -->
@@ -31,18 +31,18 @@ The coordinator gives you the draft, the job's snapshot and the wide pack. You m
 <!-- /only -->
 1. The complete candidate: every day the draft changes, with all tracks and blocks.
 2. The wide pack for the draft: the full text of every applicable source sentence (`full_quotes`) and one disposition line per required item (`dispositions`, initially `unaddressed`).
-<!-- only: skill claude codex mcp -->
+<!-- only: skill claude codex -->
    Get it, with the complete candidate and its checks, from `state(view="pack", draft_id=...)`.
 <!-- /only -->
 3. The scenario checklist below.
 
-<!-- only: skill claude codex mcp -->
+<!-- only: skill claude codex -->
 Read the main agent's first response last, and only to list the differences.
 <!-- /only -->
 
 ## Freshness first
 
-<!-- only: skill claude codex mcp -->
+<!-- only: skill claude codex -->
 Call `result(job_id)` before anything else and act on its status:
 - `stale`: report only “已过期，需重算” and what changed (`plan`, `ledger`). Give no conclusion from the old draft.
 - `unsettled`: report the listed message IDs and stop. The main agent records what they carry or acknowledges them; do not acknowledge them yourself.
@@ -82,7 +82,7 @@ A critical fact (a hard node, the timetable of a fixed leg, ticket validity, an 
 
 ## Report
 
-<!-- only: skill claude codex mcp -->
+<!-- only: skill claude codex -->
 Return this to the main agent, in the user's language for the lines the user will see:
 
 ```

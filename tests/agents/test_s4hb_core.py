@@ -24,4 +24,4 @@ def test_the_sentence_reaches_repository_hosts_and_chat_instructions_stay_short(
     assert STEP not in text and len(text.encode()) <= INSTRUCTIONS_LIMIT
     assert STEP in user_repo_files()["AGENTS.md"].decode()
     assert STEP in open(f"{GENERATED}/server/steps.json", encoding="utf-8").read()
-    assert STEP in open(f"{GENERATED}/mcp/tripwright-main.md", encoding="utf-8").read()
+    assert STEP in open("skills/tripwright-main/SKILL.md", encoding="utf-8").read()
