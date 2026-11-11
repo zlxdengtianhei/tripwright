@@ -297,11 +297,9 @@ def serve_stdio(arguments) -> int:
 
 
 def run_share(arguments) -> int:
-    """Build locally, connect the public repository, publish a committed version, or inspect its latest outcome."""
+    """Connect the public repository or inspect its latest outcome."""
     from tripwright.remote.connection import data_directory, repo_key, use_data_directory
-    from tripwright.repo import layout
     from tripwright.site import publish as share_publish
-    from tripwright.site.share import ShareBlocked, load_trip, share_site
 
     try:
         if arguments.action == "key":
@@ -328,35 +326,9 @@ def run_share(arguments) -> int:
                 store.close()
             print(json.dumps(records, ensure_ascii=False, indent=2))
             return 0
-        english_path = Path(arguments.english).expanduser() if arguments.english else Path(arguments.repo) / ".tripwright/share/en.yaml"
-        english = layout.parse(english_path.name, english_path.read_text(encoding="utf-8")) if english_path.is_file() else {}
-        if not isinstance(english or {}, dict):
-            raise ValueError(f"{english_path}: must map each Chinese text to its English")
-        english = {str(key): "" if value is None else str(value) for key, value in (english or {}).items()}
-        if arguments.action == "build":
-            if not arguments.out:
-                raise ValueError("share build needs --out <folder>")
-            plan, people = load_trip(arguments.repo, trip=arguments.trip)
-            built = share_site(plan, arguments.out, people=people, english=english)
-            result = dict(out=str(built["out"]), pages=built["pages"], untranslated=len(built["untranslated"]),
-                          untranslated_texts=built["untranslated"])
-        else:
-            result = share_publish.publish(arguments.repo, trip=arguments.trip)
-    except ShareBlocked as blocked:
-        print(f"tripwright: {blocked}. Nothing was published; the page online stays the previous version.", file=sys.stderr)
-        print(json.dumps(dict(ok=False, blocked=blocked.findings), ensure_ascii=False, indent=2))
-        return 2
     except (ValueError, OSError, GitError, share_publish.PublishError) as error:
         print(f"tripwright: {error}", file=sys.stderr)
         return 1
-    if arguments.todo:
-        missing = {text: "" for text in result.get("untranslated_texts", []) if not english.get(text)}
-        if missing:
-            english_path.parent.mkdir(parents=True, exist_ok=True)
-            english_path.write_text(layout.dump(dict(english, **missing)), encoding="utf-8")
-        result["english_file"] = str(english_path)
-    result.pop("untranslated_texts", None)
-    print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
 
@@ -473,15 +445,10 @@ def main(argv: list[str] | None = None) -> int:
     new_trip = commands.add_parser("new-trip", help="Open another trip folder and import long-term entries as pending")
     new_trip.add_argument("trip")
     new_trip.add_argument("--message", help="What the user said (recorded as a host restatement)")
-    share = commands.add_parser("share", help="Build, connect, publish or inspect the privacy-scanned public trip pages")
-    share.add_argument("action", choices=["build", "publish", "key", "connect", "status"])
+    share = commands.add_parser("share", help="Connect or inspect the privacy-scanned public trip pages")
+    share.add_argument("action", choices=["key", "connect", "status"])
     share.add_argument("repository", nargs="?", help="connect: the public repository's SSH address")
     share.add_argument("--branch", default="main")
-    share.add_argument("--out", help="build: the folder to write; it is replaced only by a build that passed the scan")
-    share.add_argument("--trip", help="Trip folder name (default: the repository's current trip)")
-    share.add_argument("--english", help="build: YAML mapping each rewritten Chinese text to its English "
-                                         "(default <repo>/.tripwright/share/en.yaml)")
-    share.add_argument("--todo", action="store_true", help="build: add texts still without English to the --english file")
     agents = commands.add_parser("agents", help="Rebuild or check the generated role files in a checkout")
     agents.add_argument("agents_args", nargs=argparse.REMAINDER)
     export = commands.add_parser("export", help="Export the selected local user's round-trip directory")
@@ -532,8 +499,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Trip repository ready: {repository.root}")
         print(f"Use it with: tripwright --repo {repository.root} serve --stdio")
         return 0
-    needs_repo = arguments.command in ("sync", "check", "status", "new-trip") or (
-        arguments.command == "share" and arguments.action in ("build", "publish"))
+    needs_repo = arguments.command in ("sync", "check", "status", "new-trip")
     if needs_repo and not arguments.repo:
         print(f"tripwright: {arguments.command} needs --repo <folder> (or TRIPWRIGHT_REPO)", file=sys.stderr)
         return 1

@@ -1,5 +1,5 @@
 """S4a2: the share_blocked notice in the seam contract (tests/contracts/schema.json `$defs/share_blocked_notice`, CONTRACTS
-3.9): `tripwright share publish` writes it when the privacy scan blocks a version, turn's notices carry it, it names
+3.9): `site/publish.py` writes it when the privacy scan blocks a version, turn's notices carry it, it names
 categories and pages and never a found value, and the next clean publish closes it."""
 from __future__ import annotations
 
@@ -7,10 +7,11 @@ import json
 from copy import deepcopy
 from pathlib import Path
 
+import pytest
 from jsonschema import Draft202012Validator
 from test_share import public, sample_plan, trip_repo  # noqa: F401 (public is a fixture)
 from tripwright.site.publish import publish
-from tripwright.cli import main
+from tripwright.site.share import ShareBlocked
 from tripwright.repo.notices import open_notices
 from tripwright.storage import Store
 
@@ -30,7 +31,7 @@ def shown(repo: Path) -> list[dict]:
         store.close()
 
 
-def test_a_blocked_share_page_leaves_a_contract_notice_without_values_until_a_clean_publish(tmp_path, public, capsys):
+def test_a_blocked_share_page_leaves_a_contract_notice_without_values_until_a_clean_publish(tmp_path, public):
     _, data = public
     plan = sample_plan()
     repo = trip_repo(tmp_path / "trip", plan)
@@ -38,8 +39,8 @@ def test_a_blocked_share_page_leaves_a_contract_notice_without_values_until_a_cl
     leaking = deepcopy(plan)
     leaking["days"][1]["notes"] = "机场见，电话 +43 660 1234567"
     trip_repo(repo, leaking)
-    assert main(["--repo", str(repo), "share", "publish"]) == 2
-    capsys.readouterr()
+    with pytest.raises(ShareBlocked):
+        publish(repo, data_dir=data)
     notices = shown(repo)
     assert [notice["kind"] for notice in notices] == ["share_blocked"]
     notice = notices[0]
@@ -53,5 +54,5 @@ def test_a_blocked_share_page_leaves_a_contract_notice_without_values_until_a_cl
     assert errors("notice", dict(notice, kind="write_conflict"))
     # the next publish that passes the scan closes it
     trip_repo(repo, plan)
-    assert main(["--repo", str(repo), "share", "publish"]) == 0
+    assert publish(repo, data_dir=data)["ok"]
     assert shown(repo) == []

@@ -11,7 +11,7 @@ metadata:
   owns: Independent verification of one draft against the full source sentences and the scenario checklist.
   not: Answering the user, editing or committing the plan (tripwright-main); open-ended research (tripwright-researcher).
   layer: discovery
-targets: [skill, claude, codex, l3]
+targets: [skill, claude, codex]
 claude:
   disallowedTools: Write, Edit, NotebookEdit, mcp__tripwright__turn, mcp__tripwright__propose, mcp__tripwright__commit
   model: inherit
@@ -25,9 +25,6 @@ The first response was written fast from a narrow pack. A check that starts from
 
 <!-- only: skill claude codex -->
 You receive IDs from the main agent: `draft_id`, `job_id`, `ctx_id`, and the people and dates in question. Read the rest yourself:
-<!-- /only -->
-<!-- only: l3 -->
-The coordinator gives you the draft, the job's snapshot and the wide pack. You may call `query`, `state` and `explain`; you cannot write.
 <!-- /only -->
 1. The complete candidate: every day the draft changes, with all tracks and blocks.
 2. The wide pack for the draft: the full text of every applicable source sentence (`full_quotes`) and one disposition line per required item (`dispositions`, initially `unaddressed`).
@@ -48,9 +45,6 @@ Call `result(job_id)` before anything else and act on its status:
 - `unsettled`: report the listed message IDs and stop. The main agent records what they carry or acknowledges them; do not acknowledge them yourself.
 - `queued` or `running`: retry with growing intervals for up to 5 minutes, then report `incomplete` with what is still running.
 - `completed`: continue with its checks and dispositions.
-<!-- /only -->
-<!-- only: l3 -->
-If the coordinator reports that the content key of the snapshot changed, return only `{"status": "stale", "notice": "已过期，需重算"}`. Newer messages without a ledger entry are the coordinator's to settle; report none of them as checked.
 <!-- /only -->
 
 ## Scenario checklist
@@ -92,9 +86,6 @@ differences from the first response: at most 3 lines
 checks, one line each: what — passed (source) | conflict | 没核到 → consequence → how to confirm on site, or the fallback
 dispositions, one line each: item_id — status — block_ids or reason
 ```
-<!-- /only -->
-<!-- only: l3 -->
-Return one JSON object: `{"draft_id", "verdict", "usages": [{"item_id", "status", "block_ids", "reason"}], "checks": [{"id", "conclusion", "consequence", "onsite"}], "differences": [...]}`. `conclusion` is `passed`, `conflict` or `unverified`; `usages` use the disposition statuses.
 <!-- /only -->
 
 ## Limits

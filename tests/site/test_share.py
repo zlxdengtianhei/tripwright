@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-from tripwright.cli import main
 from tripwright.repo import layout
 from tripwright.repo.notices import open_notices
 from tripwright.repo.git import Git
@@ -378,7 +377,7 @@ def test_publish_uses_a_random_committed_subpath_and_fixed_identity(tmp_path, pu
     assert not (repo / ".tripwright/share/config.json").exists()
 
 
-def test_blocked_scan_records_categories_then_clean_publish_closes_notice(tmp_path, public, capsys):
+def test_blocked_scan_records_categories_then_clean_publish_closes_notice(tmp_path, public):
     bare, data = public
     plan = sample_plan()
     repo = trip_repo(tmp_path / "trip", plan)
@@ -387,9 +386,9 @@ def test_blocked_scan_records_categories_then_clean_publish_closes_notice(tmp_pa
     leaking = deepcopy(plan)
     leaking["days"][1]["notes"] = "机场见，电话 +43 660 1234567"
     trip_repo(repo, leaking)
-    assert main(["--repo", str(repo), "share", "publish"]) == 2
-    captured = capsys.readouterr()
-    assert "phone number (2030-07-15.html)" in captured.err and "1234567" not in captured.err + captured.out
+    with pytest.raises(ShareBlocked, match="phone number.*2030-07-15.html") as blocked:
+        publish(repo, data_dir=data)
+    assert "1234567" not in str(blocked.value)
     assert head(bare) == online
     store = Store(repo / ".tripwright/state.sqlite")
     try:
@@ -401,7 +400,7 @@ def test_blocked_scan_records_categories_then_clean_publish_closes_notice(tmp_pa
     finally:
         store.close()
     trip_repo(repo, plan)
-    assert main(["--repo", str(repo), "share", "publish"]) == 0
+    assert publish(repo, data_dir=data)["ok"]
     store = Store(repo / ".tripwright/state.sqlite")
     try:
         assert open_notices(store, "local") == [] and store.get("share", "local", plan["id"])["ok"]
@@ -473,19 +472,3 @@ def test_per_trip_repository_is_an_explicit_skip(tmp_path, public):
     outcome = publish(repo, data_dir=data)
     assert outcome["status"] == "separate_repository" and not outcome["ok"]
     assert len(remote_files(bare)) == 2
-
-
-def test_cli_share_build_still_supports_english_todo(tmp_path, capsys):
-    repo = trip_repo(tmp_path / "trip", sample_plan())
-    english = tmp_path / "en.yaml"
-    assert main(["--repo", str(repo), "share", "build", "--out", str(tmp_path / "preview"), "--english", str(english), "--todo"]) == 0
-    built = json.loads(capsys.readouterr().out)
-    assert built["pages"] == ["2030-07-14.html", "2030-07-15.html", "index.html"] and built["untranslated"] > 0
-    todo = layout.parse("en.yaml", english.read_text())
-    assert "下雨就多待在美术馆" in todo and todo["下雨就多待在美术馆"] == ""
-
-
-def test_cli_share_needs_a_repository(capsys, monkeypatch):
-    monkeypatch.delenv("TRIPWRIGHT_REPO", raising=False)
-    assert main(["share", "build", "--out", "x"]) == 1
-    assert "needs --repo" in capsys.readouterr().err

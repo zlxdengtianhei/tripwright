@@ -328,7 +328,7 @@
     },
     "notice": {"oneOf": [{"$ref": "#/$defs/conflict_notice"}, {"$ref": "#/$defs/share_blocked_notice"}]},
     "share_blocked_notice": {
-      "$comment": "S4a2 (s4c): written by `tripwright share publish` (site/publish.py) when the privacy scan blocks a version, read by turn's notices; categories and page names only, never a found value; closed by the next publish that succeeds.",
+      "$comment": "S4a2 (s4c): written by `site/publish.py` when the privacy scan blocks a version, read by turn's notices; categories and page names only, never a found value; closed by the next publish that succeeds.",
       "type": "object", "additionalProperties": false,
       "required": ["notice_id", "kind", "created_at", "user_line", "detail", "paths"],
       "properties": {

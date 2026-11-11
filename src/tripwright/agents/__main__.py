@@ -5,12 +5,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from tripwright.agents.assemble import GENERATOR, ROOT, AssembleError, build, check, fragments_changed, load_sources, write
+from tripwright.agents.assemble import GENERATOR, ROOT, AssembleError, build, check, load_sources, write
 from tripwright.agents.promises import promise_problems
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m tripwright.agents", description="Assemble Tripwright skills, agent files and prompts.")
+    parser = argparse.ArgumentParser(prog="python -m tripwright.agents", description="Assemble Tripwright skills and agent files.")
     commands = parser.add_subparsers(dest="command", required=True)
     command = commands.add_parser("build", help="Regenerate every generated file from the role, step and fragment sources")
     command.add_argument("--check", action="store_true", help="Change nothing; exit 1 if a generated file differs from a fresh build")
@@ -26,9 +26,6 @@ def main(argv: list[str] | None = None) -> int:
     problems = promise_problems(outputs)
     if arguments.check:
         problems += check(root, outputs)
-        moved = fragments_changed(root, sources)
-        if moved:
-            problems.append(f"B fragments changed since the last build: {', '.join(moved)}")
         for problem in problems:
             print(problem, file=sys.stderr)
         return 1 if problems else 0

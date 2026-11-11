@@ -11,7 +11,7 @@ metadata:
   owns: Splitting and interpreting requirements into proposed records, without choosing between readings.
   not: Answering, planning or committing (tripwright-main); external facts (tripwright-researcher).
   layer: discovery
-targets: [skill, claude, codex, l3]
+targets: [skill, claude, codex]
 claude:
   disallowedTools: Write, Edit, NotebookEdit, mcp__tripwright__turn, mcp__tripwright__commit
   model: inherit
@@ -25,9 +25,6 @@ A large batch mixes questions, facts, preferences, rules and decisions, with con
 
 <!-- only: skill claude codex -->
 `ctx_id`, `base_version`, and the received message IDs with their exact texts, from the main agent; `explain(record_id)` returns an original message. Read the current records with `state(view="ledger")` to find earlier records about the same object.
-<!-- /only -->
-<!-- only: l3 -->
-The coordinator gives you the received messages with their IDs and the current ledger records.
 <!-- /only -->
 
 ## For each point
@@ -49,9 +46,6 @@ Ask only source questions: the answer changes the result, cannot be derived from
 
 <!-- only: skill claude codex -->
 Return the proposed ledger-only `changes` (items, facts, decisions, pending checks) in the `propose` schema, the conflicts you found and the questions. You may call `propose` with those ledger-only `changes` against the given `ctx_id` and `base_version` to see the service's pending, crowding and not-recorded results; return its `draft_id`.
-<!-- /only -->
-<!-- only: l3 -->
-Return one JSON object: `{"changes": {...}, "conflicts": [...], "questions": [...]}`, with `changes` in the `propose` schema. The coordinator proposes them.
 <!-- /only -->
 
 ## Limits

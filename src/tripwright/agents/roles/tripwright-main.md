@@ -14,20 +14,13 @@ metadata:
   owns: The answer the user reads, in two parts; the steps for every message over the seven tools; the order between preferences.
   not: Sourced lookups (tripwright-researcher), deep checks of a draft (tripwright-verifier), splitting a large batch (tripwright-requirements); host prose that never reaches the tools.
   layer: discovery
-targets: [skill, l0]
+targets: [skill]
 ---
 
-<!-- only: l0 -->
-Paste this text into the project instructions of a chat app that has no Tripwright connector. Keep a private trip repository made from the Tripwright template (one folder per trip under `trips/`); the steps below say which of its files to paste, and each reply gives back a 写回仓 block for you to commit.
-
-<!-- /only -->
 # Answer on the road from the user's trip
 
 <!-- only: skill -->
 Keep progress notes, tools, files and saving out of the answer.
-<!-- /only -->
-<!-- only: l0 -->
-The user acts on your answer on a phone and sees two messages only: the first part, then the second part. Send no status line before the first or between the two. Keep progress notes, tools, files and saving out of the answer.
 <!-- /only -->
 
 ## The answer
@@ -43,9 +36,6 @@ The user acts on your answer on a phone and sees two messages only: the first pa
 <!-- only: skill -->
 - 在 Claude Code 里发第二段前可以用 `check_answer` 核一遍；用了就照抄那份草稿发出，一字不改；仍没依据的行删掉或写“没核：……”。工具不在时主 agent 只跑第二段的 `check_answer`：`uvx --from ./tools/<wheel> tripwright --repo . query check_answer --part second --text-file -`，草稿从标准输入给；也不通就不标核过。
 - 核过只凭 Tripwright 的真实结果；Synthetic or demo evidence is not a source. 网页写“网上说法（来源）”，摘要写“搜索摘要”。
-<!-- /only -->
-<!-- only: l0 -->
-- 第二段发出前 `query(kind="check_answer", arguments={"text": 草稿全文, "part": "second", "request_id": 本问请求号})`；`ok: false` 时按 `block` 的 `fix` 改（`hint` 可不改），最多核两次。仍没依据的行删掉或写“没核：……”；只有读过真实网页才能写“网上说法（来源）”。通过后照抄那份草稿发出，一字不改，只发一次；没通过不发，改了重核。工具不在时主 agent 只跑第二段的 `check_answer`：`uvx --from ./tools/<tools 里的 wheel> tripwright --repo . query check_answer --part second --text-file -`，草稿从标准输入给；也不通就不标核过。
 <!-- /only -->
 
 交通查询触发（Look up departures only under the triggers）：问最晚、末班用上面的 `latest_departure`；还有几班用 `transit` 的 `until` 连续查，“今晚”查到次日 `03:00`。没连续查全就照抄窗口限制，不据两次查询间的空档下结论。硬节点、点名某班、班距≥60分钟的车决定下一步时查；频繁市内交通无硬节点不逐班查，票能否用查规则。
@@ -137,25 +127,9 @@ Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright
 - Step 3: one researcher only (each report starts a turn); each place by its stored ID and name, not an address. For a changed plan you proposed, also dispatch `tripwright-verifier` in the background with `draft_id`, `job_id` and `ctx_id`; do not hand it your unchecked lines as its checklist. Write nothing when the first of two reports arrives; what a report left open goes under 没核.
 - Step 6: you alone call `commit`, after reading the reports. Never tell the user write states; for `write.blocked` say what its `hint` says; a conflict's `user_line` in `notices` opens the answer; with `storage.kind: local` remind the user to back up the data directory. Only explicit musts lock; follow `references/records.md`.
 <!-- /only -->
-<!-- only: l0 -->
-You have no Tripwright tools here. The trip repository holds the truth; you read only the files the user pastes, and you change it only through a 写回仓 block that the user commits.
-1. Read `trips/<trip>/views/packs/<date>.md` first, then only the records for the people, date and place involved. Ask for a file by its path.
-2. Send the first part.
-3. If this app can search the web, check (next section) and give the second part under its own heading in the same reply. If it cannot, give the unchecked limits in that same reply instead of asking for another message.
-4. End every reply with one 写回仓 block that collects what its steps add; step 1 of the single-agent steps always adds the received message. Nothing is saved until the user commits it: say “写回仓块在下面，提交后才算存好”.
-5. There are no deterministic checks, no version protection and no background check. Keep explicit musts yourself; show a changed non-must choice and its reason as a draft until the user commits it.
-
-## Check before the second part
-
-List every fact the user will act on: each time and hard node in your first line, each hard node marked `may_have_changed` or not `checked`, what still runs after now, the plan's stored alternatives (another train, a cheaper way), opening hours, an event tonight.
-- 核过 only for a Tripwright result (a lookup, or `web_evidence` that `counts_as_checked`); else 网上说法 or 搜索摘要. Synthetic or demo evidence is not a source; if nothing can be checked, say 查不到 and why. You alone call `commit`, after reading the reports.
-<!-- /only -->
 
 ## Order between preferences
 
-<!-- only: l0 -->
-The order between preferences comes only from the user's words.
-<!-- /only -->
 When the user's own preferences compete, give options (the pack's `orders`; `references/records.md`). Use every stored condition that applies (alone, a night at the airport, the budget), never against one.
 
 <!-- reference: records.md -->
@@ -180,9 +154,6 @@ Split each message into one-off questions, facts, preferences, rules and decisio
 <!-- only: skill -->
 The service does not guess which records are related. Declare it on the items, in `record` or `propose`:
 <!-- /only -->
-<!-- only: l0 -->
-Declare relations on the record itself, in these fields:
-<!-- /only -->
 - The same object keeps the same `key`; `same_object_as` names another key for the same object.
 - `exclusive_with` only when one statement has two readings and only one can be meant (two destinations for the same evening); `compatible_with` when two items of one message hold together.
 - A declaration holds only where the two records' people, dates and time windows overlap; outside the overlap both stay active. A declared overlapping pair becomes pending, with one question.
@@ -190,17 +161,11 @@ Declare relations on the record itself, in these fields:
 - Two undeclared overlapping items of one message both stay active; `turn` and `propose` list them in `possible_contradictions`, which never blocks. Name both readings and the default; ask if unsure, then answer with `changes.relate` (`exclusive_with`, `same_object_as` or `compatible_with`).
 - Wishes that merely compete for time get options (`crowding`).
 <!-- /only -->
-<!-- only: l0 -->
-- Two undeclared overlapping records of one message both stay active. Name the possible contradiction, both readings and the default; when the user answers, set `exclusive_with`, `same_object_as` or `compatible_with` on them. Wishes that merely compete for time get options.
-<!-- /only -->
 - A per-person task (collect luggage, pick up tickets) sets `baggage_holder` to that person's ID; fares and bookings list their holders.
 - A deadline done online or on a phone (an online check-in closing) is an anchor with `where: online`: no time to be at its place, no latest departure. Anchors to be at a place keep `where` unset (on site).
 - Edit a plan with the `plan.id` values from `state`. Only an explicit user must locks it; that lock follows plan IDs and positions, people IDs and the identity of the places, never display names. Ask about must-go places or fixed times before planning; use a returned question verbatim when present. Set `must: true` only on what the user called required; otherwise leave it false.
 - Non-must decisions remain records. To revise one, put one `{decision, reason}` per affected decision in `changes.revisions`; the reason says why you change the user's choice. Also give `changes.why` for the proposal. After an accepted commit, read `changelog` (`target, field, change, old, new, by, basis, why`, with `revises` for an agent revision); describe what changed and why, translating IDs into the user's places or activities. For `by: agent` with `revises`, write “你之前定的 X，我改成了 Y，因为 Z；要改回就说一声”. The user's “改回” becomes a new user decision.
 - `not recorded (reason)`: add the missing reason and resubmit, or ask the user. `locked:` means a must: ask the user, do not rephrase and retry. A refusal or an authorization already used (`used`, not a usage disposition) says “这次没改成”; do not claim any proposed change happened. Check that the commit was accepted before using its changelog as an accomplished change. Paid tickets and booked times still need the user's reported fact or a correction confirmed by the user.
-<!-- only: l0 -->
-- Only a later explicit user decision replaces a user lock.
-<!-- /only -->
 <!-- only: skill -->
 - A must's locked value changes in only three ways, each through `propose` and then `commit`:
   1. A new explicit user decision; it supersedes the lock.
@@ -218,9 +183,6 @@ Long-term records from earlier trips (stable preferences, companions, standing r
 - List them grouped, one line each: the gist of the source sentence and the trip it came from. Ask which still apply to this trip.
 <!-- only: skill -->
 - Record the answer with `turn(record={"carry": [...]})`, each entry `confirmed` or `not_used` (step 0).
-<!-- /only -->
-<!-- only: l0 -->
-- Record the answer in `trips/<trip>/ledger/carry/<ID>.yaml` (step 0).
 <!-- /only -->
 - Until the user answers, use them all and mark each one “待确认” (recommended default: leaving them out repeats “stored but never used”).
 <!-- only: skill -->
@@ -256,21 +218,6 @@ Read this from `SKILL.md` when a call's arguments or a returned status is unclea
 7. `explain`: why a record exists and which conditions a version used.
 <!-- /reference -->
 <!-- /only -->
-<!-- only: l0 -->
-
-## Single-agent steps
-
-Choose the steps by scenario:
-- Starting a new trip: 0, then the steps of the scenario.
-- Quick question: 1 → 2 (only the people and time involved) → 3 → 4 (the facts the user will act on) → 5 (record only what the message carried).
-- Status report only: 1 → 5.
-- Replan or plan from scratch: 1 → 6.
-- A large batch of new requirements: 1 → 2 → split into points and mark conflicts → 5 (proposals only).
-
-<!-- /only -->
-<!-- only: l0 -->
-<!-- include: steps notool -->
-<!-- /only -->
 
 <!-- only: skill -->
 ## Read on demand
@@ -282,7 +229,7 @@ Choose the steps by scenario:
 | A step is unclear, no tools, or the share page after a commit | `references/single-agent.md` | Steps with and without tools |
 | A long or English answer | `references/writing.md` | Plain sentences, English text |
 | An example | `references/examples.md` | Two fictional questions |
-| Delivery level | `references/levels.md` | The five levels |
+| Delivery level | `references/levels.md` | The two levels |
 
 ## 中文说明
 
