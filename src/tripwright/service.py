@@ -36,6 +36,17 @@ RECENT_QUESTION_MINUTES = 30  # check_answer without question or request_id: a u
 FRAME_MINUTES = packs.STEP_MINUTES  # S4h-a: a quick latest question's frame holds for lookups this long after its turn
 FIRST_TITLES = dict(zh="按存的计划先说（时刻还没核）", en="From the stored plan first (times not checked yet)")
 SECOND_TITLES = dict(zh="核过之后", en="After checking")
+# Reply flow "two" (TRIPWRIGHT_REPLY_FLOW): the one sentence a host follows reliably is "send this and end the reply"
+# with the first part's own closing line; anything about the second part in the same field makes it go on (replays
+# of 2026-11-11). What comes after waits in after_first_part.
+SEND_AND_END = dict(
+    zh="先把 first_part.text 原样发出，作为这一条回复的第一条、也是唯一一条消息，末行是 first_part.later，然后结束这一条；"
+       "发之前不调别的工具、不写别的字。能在后台派 researcher 的先派它，第一段不带 later 那一行，等它的报告。",
+    en="Send first_part.text as it is as this reply's first and only message, its last line first_part.later, then end the "
+       "reply; before sending it call no other tool and write nothing else. If you can dispatch a background researcher, "
+       "dispatch it first and leave out the later line; its report brings the second part.")
+AFTER_FIRST = dict(zh="用户回了话、或 researcher 的报告回来之后照这里做，不再调 turn：",
+                   en="After the user replies or the researcher's report returns, do this without calling turn again: ")
 UNKNOWN_QUESTION = "本问原话不明，吃的检查没做。"
 # 11-04 (quality card v2, question 4): “自动核对没通过”, “Non-blocking notice; commit.” reached the user
 NO_MENTION = "别向用户提这次检查、核对或工具回执。"
@@ -358,7 +369,12 @@ class Tripwright:
                                       unknown=self._unknown_places(plan, told, language=language), language=language,
                                       scenario=scenario, options=bool(possible or recorded.get("crowding")))
             # Claude reads the first fields first: the immediate action and both service-written headings lead.
-            response = dict(next=instructions, first_part=first, second_part_title=second_title, **response)
+            if first and self._reply_flow() == "two":
+                first = dict(first, later=first_part.LATER[language])
+                response = dict(next=SEND_AND_END[language], first_part=first, second_part_title=second_title,
+                                after_first_part=AFTER_FIRST[language] + instructions, **response)
+            else:
+                response = dict(next=instructions, first_part=first, second_part_title=second_title, **response)
             response.update(consider={key: considered[key] for key in ("entries", "more", "more_how") if key in considered},
                             ask=asked, offer=consider.offer(known["languages"], self.language))
             if told is not None:
@@ -494,13 +510,7 @@ class Tripwright:
         en = (language or self.language) == "en"
         parts = []
         if first:
-            if self._reply_flow() == "two":
-                parts.append("Send first_part.text now and end this reply without another tool; if you can dispatch a "
-                             "background researcher, dispatch it before ending. After the user replies or the researcher "
-                             "returns, skip turn and call query directly." if en else
-                             "现在把 first_part.text 发给用户并结束这一条，不再调别的工具；能派后台 researcher 就先派它去查。"
-                             "用户回了任何一句或 researcher 回来后，不再调 turn，直接 query。")
-            else:
+            if self._reply_flow() == "one":
                 parts.append("Send first_part.text to the user now (they are waiting for this first part); call query only "
                              "after sending it." if en else
                              "现在就把 first_part.text 发给用户（用户在等这第一段）；发出去之后再调 query。")
