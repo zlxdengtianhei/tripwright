@@ -40,6 +40,12 @@ def message_language(text: str) -> str:
     return "zh" if re.search(r"[\u4e00-\u9fff]", text) else "en"
 
 
+# Stored plans and quotes keep the language they were written in, and a host answers in that language unless told: with
+# a Chinese trip GPT answered an English question in Chinese in 3 of 5 runs, and in 0 of 5 with this sentence first in
+# `next` (2026-11-11). The opposite direction (a Chinese question on an English trip) has not been measured.
+REPLY_IN_ENGLISH = "Reply in English: translate the stored text you use; keep place names as written."
+
+
 # Reply flow "two" (TRIPWRIGHT_REPLY_FLOW): the one sentence a host follows reliably is "send this and end the reply"
 # with the first part's own closing line; anything about the second part in the same field makes it go on (replays
 # of 2026-11-11). What comes after waits in after_first_part.
@@ -516,11 +522,13 @@ class Tripwright:
         """Only this message's next actions, bounded for a chat tool result."""
         en = (language or self.language) == "en"
         parts = []
+        if first and self._reply_flow() == "one":
+            parts.append("Send first_part.text to the user now (they are waiting for this first part); call query only "
+                         "after sending it." if en else
+                         "现在就把 first_part.text 发给用户（用户在等这第一段）；发出去之后再调 query。")
+        if en:
+            parts.append(REPLY_IN_ENGLISH)
         if first:
-            if self._reply_flow() == "one":
-                parts.append("Send first_part.text to the user now (they are waiting for this first part); call query only "
-                             "after sending it." if en else
-                             "现在就把 first_part.text 发给用户（用户在等这第一段）；发出去之后再调 query。")
             parts.append(f"After checking, write {second_title!r} as the second heading; under it, first say what differs "
                          "from first_part, or 'Same as above, checked.'" if en else
                          f"核完后写第二段标题“{second_title}”；标题下先讲和第一段的不同，没有不同就写“和上面一样，已核”。")

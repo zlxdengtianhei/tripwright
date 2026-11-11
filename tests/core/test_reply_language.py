@@ -92,3 +92,11 @@ def test_draft_first_part_uses_its_message_language_without_a_turn(seeded):
 
     assert not HAN.search(result["now"]["text"])
     assert not HAN.search(result["next"])
+
+
+def test_next_opens_with_the_reply_language_for_an_english_message_and_never_for_a_chinese_one(seeded):
+    english = seeded.turn("alice", "What should we do today?", "english-next")
+    chinese = seeded.turn("alice", "今天做什么？", "chinese-next")
+
+    assert english["next"].startswith("Reply in English: translate the stored text you use; keep place names as written.")
+    assert "Reply in English" not in chinese["next"] and "Reply in English" not in str(chinese.get("after_first_part") or "")
