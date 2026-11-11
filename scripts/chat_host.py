@@ -4,6 +4,9 @@
 It connects to one MCP server (stdio command or Streamable HTTP address), turns `tools/list` into OpenAI function
 definitions and runs a scenario against an OpenAI-compatible chat endpoint. No skill, no local file, no hook: the
 system prompt is one neutral sentence, plus the server's `instructions` when `--instructions on`.
+With `--decoy-web-search` the model's tool list also gets one non-MCP tool in front, `web_search`, which the host itself
+answers with a fixed no-results text: a stand-in for the web search a real chat app ships, to measure whether the model
+still picks the server's tools.
 
 One user message yields one reply: the model may call tools for any number of rounds (at most --max-rounds) until it
 answers without a tool call; that text is the reply the user sees. Text sent together with tool calls is kept apart
@@ -145,6 +148,15 @@ def openai_tools(listing) -> list[dict]:
                                               "parameters": tool.input_schema}} for tool in listing.tools]
 
 
+def decoy_tools(tools: list[dict], decoy: bool) -> list[dict]:
+    """The OpenAI tool list, with the host's fake `web_search` in front when --decoy-web-search is on."""
+    if not decoy:
+        return tools
+    web_search = {"type": "function", "function": {"name": "web_search", "description": "Search the web and return the top results.",
+                 "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}}
+    return [web_search, *tools]
+
+
 def patch_enum_types(node, counter: list) -> None:
     """Opt-in host-side patch (--patch-schema): a JSON Schema node with `enum` and no `type` (the `priority` of
     query's plan_day candidates mixes strings and integers) is refused by Kimi's strict validator. Give such a node
@@ -213,7 +225,7 @@ class Api:
 
 
 async def run_message(api: Api, session: ClientSession, tools: list[dict], messages: list[dict], user_text: str,
-                      max_rounds: int, transcript: list[dict]) -> dict:
+                      max_rounds: int, transcript: list[dict], decoy: bool = False) -> dict:
     messages.append({"role": "user", "content": user_text})
     started = now_s()
     entry = dict(user=user_text, rounds=[], reply=None, mid_texts=[], tool_calls=[], usage=[], failed=None)
@@ -258,15 +270,18 @@ async def run_message(api: Api, session: ClientSession, tools: list[dict], messa
                 text = f"Error: the tool arguments are not valid JSON ({error})"
                 record["error"] = text
             else:
-                try:
-                    result = await session.call_tool(name, arguments)
-                except Exception as error:  # protocol-level failure (unknown tool, schema rejection, transport)
-                    text = f"Error calling tool {name}: {type(error).__name__}: {error}"
-                    record["error"] = text
+                if decoy and name == "web_search":
+                    text = f"No relevant results were found for: {arguments.get('query')}"
                 else:
-                    text = tool_result_text(result)
-                    if result.is_error:
+                    try:
+                        result = await session.call_tool(name, arguments)
+                    except Exception as error:  # protocol-level failure (unknown tool, schema rejection, transport)
+                        text = f"Error calling tool {name}: {type(error).__name__}: {error}"
                         record["error"] = text
+                    else:
+                        text = tool_result_text(result)
+                        if result.is_error:
+                            record["error"] = text
             record.update(seconds=round(now_s() - began, 2), result_bytes=len(text.encode()), result=text)
             messages.append({"role": "tool", "tool_call_id": call.get("id") or f"call_{len(entry['tool_calls'])}", "content": text})
     entry["seconds"] = round(now_s() - started, 2)
@@ -290,7 +305,8 @@ def message_metrics(entry: dict) -> dict:
         before_query = bool(text_round is not None and query_round is not None and text_round <= query_round)
     return dict(
         user=entry["user"], failed=entry["failed"], reply_chars=len(reply) if reply is not None else None,
-        tool_call_count=len(calls), tool_order=[call["name"] for call in calls], tool_rounds=len(entry["rounds"]),
+        tool_call_count=len(calls), tool_order=[call["name"] for call in calls], web_search_calls=sum(
+            call["name"] == "web_search" for call in calls), tool_rounds=len(entry["rounds"]),
         seconds_to_reply=entry["seconds"],
         tokens=dict(prompt=sum(item.get("prompt_tokens") or 0 for item in usage), completion=sum(item.get("completion_tokens") or 0 for item in usage),
                     total=sum(item.get("total_tokens") or 0 for item in usage), api_calls=len(usage),
@@ -348,7 +364,7 @@ async def run(arguments, scratch: Path, transcript: list[dict]) -> tuple[dict, d
         except Exception as error:
             raise HostError(f"MCP initialize failed: {type(error).__name__}: {error}") from error
         listing = await session.list_tools()
-        tools = openai_tools(listing)
+        tools = decoy_tools(openai_tools(listing), arguments.decoy_web_search)
         patched: list = []
         if arguments.patch_schema:
             patch_enum_types(tools, patched)
@@ -364,14 +380,15 @@ async def run(arguments, scratch: Path, transcript: list[dict]) -> tuple[dict, d
         api = Api(arguments.api_base, arguments.model, arguments.timeout, extra=json.loads(arguments.extra_body or "{}"))
         try:
             for user_text in scenario["messages"]:
-                await run_message(api, session, tools, messages, str(user_text), arguments.max_rounds, transcript)
+                await run_message(api, session, tools, messages, str(user_text), arguments.max_rounds, transcript,
+                                   decoy=arguments.decoy_web_search)
         finally:
             await api.aclose()
             setup["api_errors"] = api.errors
     metrics = dict(
         scenario=scenario.get("name") or Path(arguments.scenario).stem, language=scenario.get("language"), model=arguments.model,
         instructions=arguments.instructions, tools_list_bytes=listing_bytes, openai_tools_bytes=len(json.dumps(tools, ensure_ascii=False).encode()),
-        tool_count=len(tools), server_instructions_bytes=len(instructions.encode()),
+        tool_count=len(tools), decoy_web_search=arguments.decoy_web_search, server_instructions_bytes=len(instructions.encode()),
         instructions_in_system_prompt=arguments.instructions == "on" and bool(instructions), setup=setup,
         messages=[message_metrics(entry) for entry in transcript],
     )
@@ -397,6 +414,8 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--providers", choices=["synthetic", "live"], default="synthetic", help="stdio only: TRIPWRIGHT_PROVIDERS (default synthetic)")
     parser.add_argument("--reply-flow", choices=["one", "two"], default="two", help="stdio only: end the reply after the first part (the service's default), or one reply with both parts")
     parser.add_argument("--local-user", default="local", help="stdio only: the server's local user, owner of the seeded trip")
+    parser.add_argument("--decoy-web-search", action="store_true",
+                        help="put a fake `web_search` tool (answered by the host itself) in front of the server's tools")
     parser.add_argument("--patch-schema", action="store_true",
                         help="host-side patch for strict validators (Kimi): enum nodes without `type` get type string; the count is in metrics")
     parser.add_argument("--extra-body", help="JSON object merged into every chat request body (e.g. reasoning settings)")
@@ -424,9 +443,9 @@ def source_commit(repo: Path) -> str | None:
 
 def summary(directories: list[str]) -> int:
     """Print one row per run; absent provenance stays visibly different from present JSON null."""
-    counts = {key: {} for key in ("commit", "reply_flow")}
-    print("| run | commit | reply_flow | model | scenario | instructions | status | messages |")
-    print("|---|---|---|---|---|---|---|---|")
+    counts = {key: {} for key in ("commit", "reply_flow", "decoy_web_search")}
+    print("| run | commit | reply_flow | decoy | model | scenario | instructions | status | messages |")
+    print("|---|---|---|---|---|---|---|---|---|")
     for name in directories:
         data = json.loads((Path(name) / "metrics.json").read_text(encoding="utf-8"))
         labels = {key: ("—" if key not in data else "null" if data[key] is None else str(data[key])) for key in counts}
@@ -440,9 +459,11 @@ def summary(directories: list[str]) -> int:
         messages = []
         for number, item in enumerate(data.get("messages") or [], 1):
             tools = " → ".join(item.get("tool_order") or []) or "—"
-            messages.append(f"{number}: {item.get('seconds_to_reply')}s; tools={tools}; "
+            web_search = item.get("web_search_calls")
+            messages.append(f"{number}: {item.get('seconds_to_reply')}s; tools={tools}; web_search="
+                            f"{'—' if web_search is None else web_search}; "
                             f"errors={len(item.get('tool_errors') or [])}; first_part_before_query={item.get('first_part_before_query')}")
-        cells = [Path(name).name, commit, labels["reply_flow"], data.get("model"), data.get("scenario"),
+        cells = [Path(name).name, commit, labels["reply_flow"], labels["decoy_web_search"], data.get("model"), data.get("scenario"),
                  data.get("instructions"), data.get("status"), "<br>".join(messages)]
         print("| " + " | ".join("—" if cell is None else str(cell) for cell in cells) + " |")
     print("Counts: " + "; ".join(f"{key}: " + ", ".join(f"{label} × {count}" for label, count in values.items())
