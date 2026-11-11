@@ -71,8 +71,8 @@ Tell the user what this step does: with a private GitHub repository, everything 
 
 Look at where you are running before you recommend it:
 
-- **You can run commands where the service runs** (Claude Code, Codex, Cursor or another coding agent with a shell; for Railway, a shell where `railway` is logged in): run `gh auth status`. If `gh` is logged in, or the user will run `gh auth login`, recommend connecting now and run the commands below.
-- **You cannot** (a chat app is guiding the setup, or `gh` is not available on that machine): do not walk the user through the commands by hand. Tell them where to do it: start Claude Code or Codex on the computer that runs the service (for Railway, any computer where `railway` is logged in) and give it this section.
+- **You can run commands where the service runs** (Claude Code, Codex, Cursor or another coding agent with a shell; for Railway, a shell where `railway` is logged in): run `gh auth status`. If `gh` is logged in, or the user will run `gh auth login`, recommend connecting now and run the commands below; install `gh` first when it is missing.
+- **You cannot** (a chat app is guiding the setup and has no shell): do not walk the user through the commands by hand. Tell them where to do it: start Claude Code or Codex on the computer that runs the service (for Railway, any computer where `railway` is logged in) and give it this section.
 
 If the user skips this step, or set the service up another way, say it plainly: “Your trips, private details included, are kept only on the server: in the Docker volume `tripwright-data`, or in the Railway volume. Nothing is uploaded to GitHub. They are copied to your private repository only after you connect one; you can do that later, and the existing trips go with it.” Then show the backup command in section 5.
 
