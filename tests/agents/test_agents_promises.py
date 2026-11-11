@@ -31,20 +31,19 @@ def test_naming_a_forbidden_word_in_quotes_to_forbid_it_is_allowed(outputs):
 
 
 def test_a_promise_whose_output_disappeared_is_reported(outputs):
-    missing = {path: text for path, text in outputs.items() if "tripwright-verifier" not in path}
+    missing = {path: text for path, text in outputs.items() if "tripwright-researcher" not in path}
     assert any("no output matches" in problem for problem in promise_problems(missing))
 
 
 def test_each_promise_from_the_packet_has_a_check():
-    # Packet item 4 lists what the main skill must say; item 1 what the verifier and researcher must do.
+    # Packet item 4 lists what the main skill must say; item 1 what the researcher must do.
     assert {promise.id for promise in PROMISES} >= {
         "turn-first", "order-only-from-user", "competing-preferences-get-options", "baggage-holder",
         "declare-relations-in-propose", "declarations-hold-only-on-overlap", "transport-text-search-term-and-triggers",
         "write-state-words", "never-call-a-write-success", "six-single-agent-steps", "multi-agent-optional",
-        "no-tool-steps-end-with-write-back", "verifier-independent-input", "verifier-stale-gives-no-conclusion",
-        "researcher-saved-first-with-provenance", "subagents-never-commit", "new-trip-carry-over",
-        "possible-contradictions-named", "locks-follow-identity", "turn-records-this-message", "new-trip-calls",
-        "new-trip-without-tools", "verifier-gets-the-wide-pack"}
+        "no-tool-steps-end-with-write-back", "researcher-saved-first-with-provenance", "subagents-never-commit",
+        "new-trip-carry-over", "possible-contradictions-named", "locks-follow-identity", "turn-records-this-message",
+        "new-trip-calls", "new-trip-without-tools"}
 
 
 def test_a_negated_block_is_not_mistaken_for_blocking(outputs):

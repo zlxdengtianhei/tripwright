@@ -10,7 +10,7 @@ from pathlib import Path
 
 from tripwright import __version__
 
-ROLES = ("tripwright-main", "tripwright-requirements", "tripwright-verifier", "tripwright-researcher")
+ROLES = ("tripwright-main", "tripwright-researcher")
 _NOTICE = "<!-- 由 "
 _CHECKOUT = Path(__file__).resolve().parents[3]
 

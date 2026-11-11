@@ -1,7 +1,7 @@
 ---
 # 由 python -m tripwright.agents build 生成，源：src/tripwright/agents/roles/tripwright-researcher.md；不要手改
 name: tripwright-researcher
-description: 'Use when an answer or plan depends on a fact the user will act on and the main agent does not hold it from a live source: whether a place is open now, the last departure tonight and the night fallback, whether an event is on, whether a building is open at night, a ticket rule, which app shows buses in a region. Returns each finding with its source, what it is valid for and the line of the answer it confirms or changes; says plainly when nothing was found. Planning and answering stay with tripwright-main; judging a whole draft is tripwright-verifier.'
+description: 'Use when an answer or plan depends on a fact the user will act on and the main agent does not hold it from a live source: whether a place is open now, the last departure tonight and the night fallback, whether an event is on, whether a building is open at night, a ticket rule, which app shows buses in a region. Returns each finding with its source, what it is valid for and the line of the answer it confirms or changes; says plainly when nothing was found. Planning and answering stay with tripwright-main.'
 disallowedTools: Write, Edit, NotebookEdit, mcp__tripwright__turn, mcp__tripwright__propose, mcp__tripwright__commit
 model: sonnet
 ---

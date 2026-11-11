@@ -9,7 +9,7 @@ import yaml
 
 from tripwright.agents.assemble import CLAUDE_FIELDS, GENERATED
 
-SUBAGENTS = ("tripwright-requirements", "tripwright-verifier", "tripwright-researcher")
+SUBAGENTS = ("tripwright-researcher",)
 # Codex: name, description and developer_instructions are required; model settings, features and skills are optional.
 # sandbox_mode, approval_policy, model_provider and mcp_servers do not override the parent, so a file must not rely on them.
 CODEX_REQUIRED = {"name", "description", "developer_instructions"}
@@ -56,9 +56,9 @@ def test_claude_subagents_use_only_documented_fields_and_cannot_write(outputs):
 
 
 def test_claude_format_problems_are_caught(outputs):
-    good = outputs[f"{GENERATED}/claude/tripwright-verifier.md"]
+    good = outputs[f"{GENERATED}/claude/tripwright-researcher.md"]
     assert claude_agent_problems("<!-- notice -->\n" + good)
-    assert any("unknown field" in problem for problem in claude_agent_problems(good.replace("model: inherit", "modle: inherit")))
+    assert any("unknown field" in problem for problem in claude_agent_problems(good.replace("model: sonnet", "modle: sonnet")))
     assert any("turn or commit" in problem for problem in claude_agent_problems(good.replace("mcp__tripwright__commit", "mcp__tripwright__state")))
 
 
@@ -72,10 +72,10 @@ def test_codex_agents_parse_and_use_documented_keys(outputs):
 
 
 def test_codex_format_problems_are_caught(outputs):
-    good = outputs[f"{GENERATED}/codex/tripwright_verifier.toml"]
+    good = outputs[f"{GENERATED}/codex/tripwright_researcher.toml"]
     assert codex_agent_problems(good + 'sandbox_mode = "read-only"\n') == ["key sandbox_mode is not a documented agent key"]
     assert codex_agent_problems(good.replace("developer_instructions =", "instructions ="))
-    assert codex_agent_problems(good.replace('name = "tripwright_verifier"', 'name = "tripwright-verifier"'))
+    assert codex_agent_problems(good.replace('name = "tripwright_researcher"', 'name = "tripwright-researcher"'))
     assert codex_agent_problems(good + "name = \n")
 
 
