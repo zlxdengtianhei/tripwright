@@ -1542,6 +1542,7 @@ class QueryRouter:
                     at: str | None = None, language: str = "zh") -> dict:
         """`zone` is the trip's time zone (the service's; `arguments.timezone` overrides it); `at` is now."""
         with request_scope(client=owner):
+            arguments = self._local_times(arguments, plan, zone)
             if kind == "latest_departure":
                 return await self._latest(owner, arguments, plan, zone, at, language)
             if kind == "web_evidence":
@@ -1552,6 +1553,30 @@ class QueryRouter:
 
     def _zone(self, arguments: dict, plan: dict | None, zone: str | None) -> str | None:
         return arguments.get("timezone") or (plan or {}).get("timezone") or zone
+
+    def _local_times(self, arguments: dict, plan: dict | None, zone: str | None) -> dict:
+        """Give naive ISO date-times the query's zone; clock-only and already aware values stay untouched."""
+        localized = dict(arguments)
+        for key in ("when", "by", "board_at", "after", "until", "at", "external_deadline"):
+            value = localized.get(key)
+            if not isinstance(value, str) or not re.match(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}", value):
+                continue
+            try:
+                parsed = datetime.fromisoformat(value)
+            except ValueError:
+                continue  # the parameter's existing parser reports malformed values
+            if parsed.tzinfo is not None:
+                continue
+            name = self._zone(arguments, plan, zone)
+            if not name:
+                raise ValueError(f"Invalid query arguments: arguments.{key} needs a timezone: include a timezone offset "
+                                 "or pass arguments.timezone")
+            found = local_instant(parsed.date().isoformat(), parsed.time().isoformat(), name)
+            if found is None:
+                raise ValueError(f"Invalid query arguments: arguments.{key} is not a unique local time in {name}; "
+                                 "add a timezone offset")
+            localized[key] = found.isoformat()
+        return localized
 
     async def _latest(self, owner: str, arguments: dict, plan: dict | None, zone: str | None, at: str | None, language: str,
                       *, compare: bool = True) -> dict:
