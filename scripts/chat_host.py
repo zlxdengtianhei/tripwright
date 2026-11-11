@@ -310,8 +310,9 @@ async def run(arguments, scratch: Path, transcript: list[dict]) -> tuple[dict, d
     setup: dict = dict(seeded=False, clock=None, providers=None)
     async with AsyncExitStack() as stack:
         if arguments.mcp_stdio:
-            environment = dict(os.environ, TRIPWRIGHT_PROVIDERS=arguments.providers)
+            environment = dict(os.environ, TRIPWRIGHT_PROVIDERS=arguments.providers, TRIPWRIGHT_REPLY_FLOW=arguments.reply_flow)
             setup["providers"] = arguments.providers
+            setup["reply_flow"] = arguments.reply_flow
             if scenario.get("seed") in ("demo", "demo-coords"):
                 database = seed_database(scratch, arguments.local_user, moment, scenario["seed"])
                 environment["TRIPWRIGHT_DB"] = str(database)
@@ -391,6 +392,7 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-rounds", type=int, default=20, help="tool-call rounds allowed per user message (default 20)")
     parser.add_argument("--timeout", type=float, default=300, help="seconds per chat API call (default 300)")
     parser.add_argument("--providers", choices=["synthetic", "live"], default="synthetic", help="stdio only: TRIPWRIGHT_PROVIDERS (default synthetic)")
+    parser.add_argument("--reply-flow", choices=["one", "two"], default="one", help="stdio only: one reply with both parts, or end after the first part")
     parser.add_argument("--local-user", default="local", help="stdio only: the server's local user, owner of the seeded trip")
     parser.add_argument("--patch-schema", action="store_true",
                         help="host-side patch for strict validators (Kimi): enum nodes without `type` get type string; the count is in metrics")

@@ -95,13 +95,20 @@ def test_first_part_only_for_a_quick_question_with_a_stored_answer(seeded):
     assert planned["first_part"] is None
 
 
-def test_query_result_keeps_both_parts_in_front_of_a_host_that_skipped_the_first(seeded):
+def test_query_result_keeps_both_parts_in_front_of_a_host_that_skipped_the_first(seeded, monkeypatch):
     place = seeded.state("alice", "plan")["plan"]["places"][0]
-    seeded.turn("alice", "What about this place?", scenario="quick",
-                points=[dict(kind="do", said=place["name_local"], place=place["id"])])
+    point = dict(kind="do", said=place["name_local"], place=place["id"])
+    quick = seeded.turn("alice", "What about this place?", scenario="quick", points=[point])
     result = asyncio.run(seeded.query("alice", "saved", dict(text="gallery")))
-    assert next(iter(result)) == "answer_instruction"
-    assert result["answer_instruction"].startswith("For the final response, begin with first_part.text")
+    assert next(iter(result)) == "reply_begins_with"
+    assert result["reply_begins_with"]["text"] == quick["first_part"]["text"]
+    assert "start the final response with this text" in result["reply_begins_with"]["instruction"]
+    monkeypatch.setenv("TRIPWRIGHT_REPLY_FLOW", "two")
+    two = seeded.turn("alice", "What about this place?", scenario="quick", points=[point])
+    assert "end this reply without another tool" in two["next"] and "skip turn" in two["next"]
+    assert len(two["next"]) <= 600
+    result = asyncio.run(seeded.query("alice", "saved", dict(text="gallery")))
+    assert "reply_begins_with" not in result
 
 
 def test_a_stored_node_at_the_destination_supports_a_real_first_part(service, plan):

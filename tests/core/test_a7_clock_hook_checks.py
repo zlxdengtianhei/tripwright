@@ -321,12 +321,11 @@ def test_a_lookup_before_the_first_part_is_denied(workspace, tmp_path, monkeypat
     path = session(tmp_path / "none.jsonl", [], asked_at=time.time())  # v2f s1_on_r1: the first part went into thinking
     denied = first_hook(workspace, lookup(path), monkeypatch, capsys)
     assert denied == {"hookEventName": "PreToolUse", "permissionDecision": "deny",
-                      "permissionDecisionReason": "先把第一段发给用户（现在怎么走；没查过的最晚、末班不写），再查；还没有给用户的文字；"
-                                                  "核查请在后台派 researcher（Agent 加 run_in_background: true）"}
+                      "permissionDecisionReason": checks.FIRST_REASON + "；还没有给用户的文字；" + checks.IN_BACKGROUND}
     status = session(tmp_path / "status.jsonl", ["I'm still checking your trip records…"], asked_at=time.time())
     reason = first_hook(workspace, lookup(status, "mcp__tripwright__query", tool_input={"kind": "latest_departure"}), monkeypatch, capsys)
     assert "clock_in_first_part" in reason["permissionDecisionReason"] and "no_tags" in reason["permissionDecisionReason"]
-    assert reason["permissionDecisionReason"].endswith("；核查请在后台派 researcher（Agent 加 run_in_background: true）")
+    assert reason["permissionDecisionReason"].endswith("；" + checks.IN_BACKGROUND)
     log = (workspace / ".tripwright" / "hook.log").read_text(encoding="utf-8").splitlines()
     assert [line.split(" ")[1:3] for line in log] == [["first-part", "block"], ["first-part", "block"]]
 
@@ -436,7 +435,7 @@ def test_a_background_dispatch_goes_through_before_the_first_part_and_the_hosts_
                                                  ("Bash", {"command": "tripwright --repo . query transit --from a --to b"})]):
         denied = first_hook(workspace, lookup(path, tool, session_id=f"f{number}", tool_input=tool_input), monkeypatch, capsys)
         assert denied and denied["permissionDecision"] == "deny", (tool, tool_input)
-        assert denied["permissionDecisionReason"].endswith("核查请在后台派 researcher（Agent 加 run_in_background: true）")
+        assert denied["permissionDecisionReason"].endswith(checks.IN_BACKGROUND)
     # check_answer is never held, and a subagent's own lookups are not the main agent's
     assert first_hook(workspace, lookup(path, "mcp__tripwright__query", session_id="c", tool_input={"kind": "check_answer"}), monkeypatch, capsys) is None
     assert first_hook(workspace, lookup(path, "WebFetch", session_id="r", agent_id="a1", tool_input={"url": "https://x.example.org"}),
@@ -448,12 +447,12 @@ def test_stop_holds_a_question_that_looked_something_up_but_sent_only_a_status_l
     status = record(tmp_path / "status.jsonl", [asked("最晚几点去码头？", now - 20), DISPATCH, said(STATUS_LINE, now - 5)])  # v2f's shape
     blocked = stop_hook(workspace, dict(transcript_path=str(status), session_id="s1", hook_event_name="Stop", last_assistant_message=STATUS_LINE),
                         monkeypatch, capsys)
-    assert blocked["decision"] == "block" and blocked["reason"].startswith("把第一段写成回复文字再结束（现在怎么走；没查过的最晚、末班不写）；最后一段文字没过：")
+    assert blocked["decision"] == "block" and blocked["reason"].startswith(checks.STOP_FIRST_REASON + "；最后一段文字没过：")
     assert "clock_in_first_part" in blocked["reason"]
     # the host's own query counts as much as a dispatch; with nothing shown at all the reason says so
     own = record(tmp_path / "own.jsonl", [asked("最晚几点去码头？", now - 20), called("mcp__tripwright__query", kind="latest_departure")])
     assert stop_hook(workspace, dict(transcript_path=str(own), session_id="s2"), monkeypatch, capsys)["reason"] == \
-        "把第一段写成回复文字再结束（现在怎么走；没查过的最晚、末班不写）；还没有给用户的文字"
+        checks.STOP_FIRST_REASON + "；还没有给用户的文字"
     # stop_hook_active no longer lets it through by itself (D-48): the cap does, 3 blocks per question, logged
     again = [stop_hook(workspace, dict(transcript_path=str(status), session_id="s1", stop_hook_active=True), monkeypatch, capsys) for _ in range(3)]
     assert [answer is None for answer in again] == [False, False, True]
@@ -675,7 +674,7 @@ def test_the_replay_checks_read_the_first_parts_clock_from_the_pinned_one(tmp_pa
 # --- D-48: Stop pushes a question on until its second part is out, at most 3 blocks; second_heading -----------------------
 
 QUICK = "最晚 21:30 出门，坐 21:35 的车去码头。\n按现在 20:45 算，你在 Nordkai 附近。\n21:30 和 21:35 是计划里存的，10 点查的。"
-PUSH = "在后台派 researcher 核查，再写第二段（先过 check_answer）"
+PUSH = checks.PUSH_REASON
 
 
 def test_stop_pushes_a_question_on_until_its_second_part_is_out(workspace, tmp_path, monkeypatch, capsys):
@@ -714,7 +713,9 @@ def test_stop_gives_way_after_three_blocks_of_a_question_whatever_their_reasons(
     first = record(tmp_path / "first.jsonl", lookup_then + [said(STATUS_LINE, now - 20), said(FIRST, now - 5)])
     answers = [stop_hook(workspace, dict(transcript_path=str(path), session_id="s", stop_hook_active=n > 0), monkeypatch, capsys)
                for n, path in enumerate([status, first, first, first])]
-    assert [answer and answer["reason"].split("（")[0] for answer in answers] == ["把第一段写成回复文字再结束", "在后台派 researcher 核查，再写第二段", "在后台派 researcher 核查，再写第二段", None]
+    assert answers[0]["reason"].startswith(checks.STOP_FIRST_REASON)
+    assert [answer["reason"] for answer in answers[1:3]] == [checks.PUSH_REASON, checks.PUSH_REASON]
+    assert answers[3] is None
     assert "let through after 3 blocks for this question" in (workspace / ".tripwright" / "hook.log").read_text(encoding="utf-8").splitlines()[-1]
     # a new question starts its own count
     later = record(tmp_path / "later.jsonl", [asked("那明天呢？", now - 2), called("mcp__tripwright__query", kind="transit"), said(STATUS_LINE, now - 1)])

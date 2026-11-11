@@ -26,7 +26,7 @@ def test_server_instructions_hold_six_chat_rules_within_the_limit(sources):
     assert all(f"\n{number}. {rule}" in text for number, rule in enumerate(core.always, 1))
     assert "Done when:" not in text and "second_part_due" not in text
     assert INSTRUCTIONS_LIMIT == 3600 and len(text.encode()) <= INSTRUCTIONS_LIMIT
-    assert sum(bool(re.search(r"`turn`|`check_answer`|commit|query result|first text|second heading|complete answer", done))
+    assert sum(bool(re.search(r"`turn`|`check_answer`|commit|query result|first text|second heading|reply is complete", done))
                for _, done in core.steps) == 6
 
 
@@ -75,7 +75,7 @@ def test_codex_is_told_to_spawn_the_researcher_and_no_entry_must_have_subagents(
     agents = outputs[f"{GENERATED}/repo/AGENTS.init.md"]
     assert "spawn `tripwright_researcher` for step 3" in agents
     for path in WORKFLOW_PLACES:
-        assert "background `tripwright-researcher`" in outputs[path] and "Other hosts continue in the same reply" in outputs[path]
+        assert "background `tripwright-researcher`" in outputs[path] and "no second turn was called" in outputs[path]
         assert not re.search(r"(?:searches|lookups) at once|in parallel|请并行", outputs[path]), path
     # the old line of the skill, which assumed searches side by side, is gone
     assert "several searches at once" not in outputs[MAIN]

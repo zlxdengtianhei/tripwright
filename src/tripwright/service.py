@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 from datetime import timedelta
 from typing import Any
@@ -442,6 +443,9 @@ class Tripwright:
         latest = max(earlier, key=lambda context: aware(context["created_at"]), default=None)
         return (latest or {}).get("asked") or []
 
+    def _reply_flow(self) -> str:
+        return "two" if os.environ.get("TRIPWRIGHT_REPLY_FLOW", "one").lower() == "two" else "one"
+
     def _next(self, considered: dict, asked: list[dict], recorded: dict, *, first: dict | None,
               second_title: str | None, latest: bool = False, unknown: list[str] = (), language: str | None = None,
               scenario: str | None = None) -> str:
@@ -449,9 +453,16 @@ class Tripwright:
         en = (language or self.language) == "en"
         parts = []
         if first:
-            parts.append("Send first_part.text to the user now (they are waiting for this first part); call query only "
-                         "after sending it." if en else
-                         "现在就把 first_part.text 发给用户（用户在等这第一段）；发出去之后再调 query。")
+            if self._reply_flow() == "two":
+                parts.append("Send first_part.text now and end this reply without another tool; if you can dispatch a "
+                             "background researcher, dispatch it before ending. After the user replies or the researcher "
+                             "returns, skip turn and call query directly." if en else
+                             "现在把 first_part.text 发给用户并结束这一条，不再调别的工具；能派后台 researcher 就先派它去查。"
+                             "用户回了任何一句或 researcher 回来后，不再调 turn，直接 query。")
+            else:
+                parts.append("Send first_part.text to the user now (they are waiting for this first part); call query only "
+                             "after sending it." if en else
+                             "现在就把 first_part.text 发给用户（用户在等这第一段）；发出去之后再调 query。")
             parts.append(f"After checking, write {second_title!r} as the second heading; under it, first say what differs "
                          "from first_part, or 'Same as above, checked.'" if en else
                          f"核完后写第二段标题“{second_title}”；标题下先讲和第一段的不同，没有不同就写“和上面一样，已核”。")
@@ -552,16 +563,20 @@ class Tripwright:
         found = packs.clock(at or now(), zone)
         return dict(found, text=now_line(found, self.language))
 
-    def _answer_instruction(self, owner: str) -> str | None:
-        """A query-time reminder for hosts that skipped the first text; it never changes the lookup's content."""
+    def _answer_instruction(self, owner: str) -> dict | None:
+        """The first text itself for one-reply hosts, never a second-message flow's state."""
+        if self._reply_flow() == "two":
+            return None
         contexts = [context for context in self.store.all("contexts", owner) if context.get("first_text")]
         latest = max(contexts, key=lambda context: aware(context["created_at"]), default=None)
         if latest is None:
             return None
         text = self.store.get("events", owner, latest["source_event"])["received"]["text"]
-        if re.search(r"[\u4e00-\u9fff]", text):
-            return "最终回答先写 first_part.text，再写 second_part_title 和第二段，让两段都完整出现。"
-        return "For the final response, begin with first_part.text, then write second_part_title and the second part so both appear."
+        instruction = ("还没把第一段发给用户的话，最终回答以这段开头，再写 second_part_title 和第二段。"
+                       if re.search(r"[\u4e00-\u9fff]", text) else
+                       "If you have not sent the first part, start the final response with this text, then write "
+                       "second_part_title and the second part.")
+        return dict(text=latest["first_text"], instruction=instruction)
 
     async def query(self, owner: str, kind: str, arguments: dict) -> dict:
         self.bound(owner)
@@ -602,7 +617,7 @@ class Tripwright:
                     **(lookup_failed("timeout", self.language) if kind in ("latest_departure", "transit") else {})}
         self.record_evidence(owner, before, key=f"query:{identifier('Q')}")
         instruction = self._answer_instruction(owner)
-        return dict(answer_instruction=instruction, **result) if instruction else result
+        return dict(reply_begins_with=instruction, **result) if instruction else result
 
     def _keep_frame(self, owner: str, arguments: dict, plan: dict | None, zone: str | None) -> None:
         """A quick question whose turn asked for the latest departure is framed by the service (A10, D-67): its lookups

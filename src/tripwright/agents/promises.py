@@ -91,7 +91,7 @@ PROMISES = (
             must=(r"Quick question: 1 → 2", r"Status report only: 1 → 5", r"Replan or plan from scratch: 1 → 6",
                   r"large batch of new requirements: 1 → 2")),
     Promise("multi-agent-optional", (MAIN, AGENTS_MD),
-            must=(r"background `tripwright-researcher`", r"later message", r"same reply")),
+            must=(r"background `tripwright-researcher`", r"no second turn was called")),
     # Q8 (E3 sent back): two real parts, the second backed by live checks with sources; no write states for the user.
     Promise("two-parts-checked-live", ALL_MAIN,
             must=(r"second (?:part|message)", r"[Ss]ynthetic or demo", r"(?:its|with its) source", r"(?:first two lines|前两行|第二行写“按现在 HH:MM 算”|Line 2 says \"As of HH:MM\")"),
@@ -134,9 +134,9 @@ PROMISES = (
     Promise("routes-from-candidates", ALL_MAIN + RESEARCHER, must=(r"`?candidates`?", r"`?via_station`?")),
     Promise("food-from-stored-hours", ALL_MAIN + RESEARCHER, must=(r'kind=\\?"open_places\\?"', r'`?type`?: \\?"opening_hours\\?"')),
     Promise("first-part-before-tools", (MAIN, MCP_MAIN, AGENTS_MD),
-            must=(r"first_part\.text`? before any other tool", r"first-part heading")),
-    Promise("one-reply-no-continuation", (MAIN, MCP_MAIN, AGENTS_MD),
-            must=(r"without asking the user to reply",),
+            must=(r"first_part\.text`? and end this reply without another tool",)),
+    Promise("two-flows-without-continuation-state", (MAIN, MCP_MAIN, AGENTS_MD),
+            must=(r"end this reply without another tool", r"without calling `turn`",),
             must_not=(r"first_part\.later", r"second_part_due"), bad_sample="first_part.later and second_part_due"),
     # S4a2 (D-89, s4c): after an effective commit the share page is published again; a blocked scan is fixed by category,
     # never by writing the value; the first public repository is published to others, so the user is asked first.

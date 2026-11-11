@@ -203,7 +203,7 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
     replace = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False)
 
     @server.tool(title="Receive each user message and compile relevant constraints", annotations=write, structured_output=True,
-                 description=server_instructions() + "\nArgs: points={kind:at|go|eat|do|ticket|other,said,place?}[]; place accepts ID/name/lat,lon. record holds items/facts/relate/carry/pending_checks with source.event='this'. request_id is optional. Plan changes: propose then commit.")
+                 description=server_instructions() + "\nArgs: points={kind:at|go|eat|do|ticket|other,said,place?}[]; record={items,facts,relate,carry,pending_checks}, source.event='this'; request_id optional.")
     @expose_errors
     def turn(text: str, request_id: str | None = None, nature: SourceNature = "host_restatement", native_ref: str | None = None,
              channel: str = "conversation", subject: list[str] | None = None, scope: dict[str, Any] | None = None,
