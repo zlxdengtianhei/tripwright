@@ -1,0 +1,706 @@
+# The 8-day trip of the public showcase (25 Oct - 1 Nov 2026), as a tripwright trip plus what the share page needs besides it.
+# Source: the pages the trip's owner already published (trip-map-2026, English and 中文); nothing from the private trip repository.
+#   trip     the Trip shape (src/tripwright/trip.py); Chinese is the original text
+#   english  each Chinese text above -> its English, used by the share page's EN side
+#   share    editorial extras of the home page: intro and route (stops with the leg to the next one; lat/lon of the city dot)
+# A place to stay appears only as its district and type ("stay-N" is a placeholder name that the share page never prints).
+# Build the page: uv run python -m tripwright.site.example examples/trip-2026-10-central-europe.yaml <out-folder>
+trip:
+  id: 2026-10-central-europe
+  title: 中欧 8 日：布达佩斯、维也纳与萨尔茨卡默古特湖区
+  start: '2026-10-25'
+  end: '2026-11-01'
+  timezone: Europe/Vienna
+  areas:
+  - Budapest
+  - Wien
+  - Salzkammergut
+  people:
+  - {id: me, name: 我}
+  - {id: mate-1, name: 同行人 A}
+  - {id: mate-2, name: 同行人 B}
+  - {id: mate-3, name: 同行人 C}
+  default_pace: relaxed
+  places:
+  - {id: stay-budapest, kind: hotel, name: stay-1, name_local: 'stay-1, District X, Budapest', area: Budapest}
+  - {id: stay-ischl, kind: airbnb, name: stay-2, name_local: 'stay-2, 4820 Bad Ischl', area: Salzkammergut}
+  - {id: stay-wien, kind: hostel, name: stay-3, name_local: 'stay-3, 1100 Wien', area: Wien}
+  - {id: vie-airport, kind: transport, name: 维也纳机场, name_local: 'Flughafen Wien (VIE), Schwechat', area: Wien}
+  - {id: mag47-sportmsz-centrum, name: MAG47 攀岩馆（抱石）, name_local: 'MAG47 Sportmászó Centrum, Kada utca 144, 1106 Budapest', area: Budapest, kind: visit, coords: [47.48214, 19.15681]}
+  - {id: retro-lngos, name: Retro Lángos（兰戈斯炸饼）, name_local: 'Retro Lángos, Vécsey utca 3, Budapest', area: Budapest, kind: food, coords: [47.50539, 19.04929]}
+  - {id: caf-gerbeaud, name: Gerbeaud 咖啡馆, name_local: 'Café Gerbeaud, Vörösmarty tér 7-8, Budapest', area: Budapest, kind: food, coords: [47.49701, 19.05034]}
+  - {id: mcdonald-s, name: 麦当劳（夜游码头旁）, name_local: 'McDonald''s, Régi posta utca 10, Budapest', area: Budapest, kind: food, coords: [47.4945, 19.05184]}
+  - {id: cipk-a-duna-parton, name: 多瑙河鞋子纪念碑, name_local: 'Cipők a Duna-parton, Budapest', area: Budapest, kind: visit, coords: [47.50397, 19.04479]}
+  - {id: mahart-passnave, name: 多瑙河夜游（已订已付）, name_local: 'MAHART PassNave, Vigadó tér pier 5, Budapest', area: Budapest, kind: visit, coords: [47.49607, 19.04944]}
+  - {id: szchenyi-lnchd, name: 链子桥与佩斯河边夜景散步, name_local: 'Széchenyi Lánchíd, Széchenyi István tér, Budapest', area: Budapest, kind: visit, coords: [47.49898, 19.04365]}
+  - {id: halszbstya, name: 渔人堡, name_local: 'Halászbástya, Budapest', area: Budapest, kind: visit, coords: [47.50231, 19.0347]}
+  - {id: mtys-templom, name: 马加什教堂, name_local: 'Mátyás-templom, Szentháromság tér 2, Budapest', area: Budapest, kind: visit, coords: [47.50201, 19.03421]}
+  - {id: gravity-boulder-bar, name: Gravity 抱石馆, name_local: 'Gravity Boulder Bar, Mammut, Lövőház utca 2-6, Budapest', area: Budapest, kind: visit, coords: [47.50934, 19.02675]}
+  - {id: horgsztanya-vendgl, name: Horgásztanya 老餐厅（鱼汤、炖牛肉）, name_local: 'Horgásztanya Vendéglő, Fő utca 27, 1011 Budapest', area: Budapest, kind: food, coords: [47.50205, 19.03914]}
+  - {id: mama-goulash, name: Mama Goulash（便宜的匈牙利家常菜）, name_local: 'Mama Goulash, Dob utca 31, 1074 Budapest', area: Budapest, kind: food, coords: [47.49869, 19.0619]}
+  - {id: buja-diszn-k, name: Buja Disznók（Fény 市场里的匈牙利炸猪排）, name_local: 'Buja Disznó(k), Lövőház utca 12, Fény utcai piac, 1024 Budapest', area: Budapest, kind: food, coords: [47.50854, 19.02449]}
+  - {id: szent-istvn-bazilika, name: 圣伊什特万大教堂（露台）, name_local: 'Szent István Bazilika, Szent István tér 1, Budapest', area: Budapest, kind: visit, coords: [47.50078, 19.05397]}
+  - {id: andrssy-t-hsk-tere, name: 安德拉什大街与英雄广场（坐 M1 老地铁）, name_local: 'Andrássy út / Hősök tere, Budapest', area: Budapest, kind: visit, coords: [47.51535, 19.07709]}
+  - {id: hungexpo, name: HUNGEXPO 会展中心（朋友开会的会场）, name_local: 'HUNGEXPO, Albertirsai út 10, 1101 Budapest', area: Budapest, kind: visit, coords: [47.4937, 19.12664]}
+  - {id: oberes-belvedere, name: 美景宫上宫（克里姆特《吻》）, name_local: 'Oberes Belvedere, Prinz-Eugen-Straße 27, Wien', area: Wien, kind: visit, coords: [48.19154, 16.38089]}
+  - {id: salesianerinnenkirche, name: Salesianerinnenkirche（萨雷尔女修会教堂，Rennweg）, name_local: 'Salesianerinnenkirche, Rennweg 10, 1030 Wien', area: Wien, kind: visit, coords: [48.19587, 16.38167]}
+  - {id: gardekirche, name: Gardekirche（波兰人教堂，Rennweg）, name_local: 'Gardekirche, Rennweg 5a, 1030 Wien', area: Wien, kind: visit, coords: [48.19784, 16.37906]}
+  - {id: karlskirche, name: 卡尔教堂（含穹顶平台）, name_local: 'Karlskirche, Karlsplatz, Wien', area: Wien, kind: visit, coords: [48.19828, 16.3719]}
+  - {id: naschmarkt-flohmarkt-kettenbrckengasse, name: 纳什市场与周六跳蚤市场, name_local: 'Naschmarkt + Flohmarkt (Kettenbrückengasse), Wien', area: Wien, kind: food, coords: [48.19818, 16.36262]}
+  - {id: caf-sperl, name: Café Sperl（《爱在黎明破晓前》同款咖啡馆）, name_local: 'Café Sperl, Gumpendorfer Straße 11, 1060 Wien', area: Wien, kind: food, coords: [48.19983, 16.36116]}
+  - {id: chen-s-ramen, name: 陈家面馆 Chen's Ramen, name_local: 'Chen''s Ramen, Krugerstraße 7, 1010 Wien', area: Wien, kind: food, coords: [48.20399, 16.37143]}
+  - {id: traun, name: Traun 河边散步（Bad Ischl 镇中心）, name_local: 'Traun, Bad Ischl', area: Salzkammergut, kind: visit}
+  - {id: pfarr-und-wallfahrtskirche-st-wolfgang, name: St. Wolfgang 朝圣教堂与 Pacher 祭坛, name_local: 'Pfarr- und Wallfahrtskirche St. Wolfgang, Michael-Pacher-Haus', area: Salzkammergut, kind: visit, coords: [47.7397, 13.4452]}
+  - {id: st-wolfgang-im-salzkammergut, name: St. Wolfgang 小镇（圣沃尔夫冈）, name_local: 'St. Wolfgang im Salzkammergut, Markt', area: Salzkammergut, kind: visit, coords: [47.73832, 13.44785]}
+  - {id: st-gilgen-am-wolfgangsee, name: St. Gilgen 小镇与湖边, name_local: St. Gilgen am Wolfgangsee, area: Salzkammergut, kind: visit, coords: [47.76475, 13.36461]}
+  - {id: salzkammergut-kletterhalle-k, name: K³ 攀岩馆（抱石）, name_local: 'Salzkammergut Kletterhalle K³, Engleitenstraße 4, Bad Ischl', area: Salzkammergut, kind: visit, coords: [47.70387, 13.61046]}
+  - {id: vorderer-gosausee-hinterer-gosausee, name: Gosausee 湖（前湖到后湖）, name_local: 'Vorderer Gosausee → Hinterer Gosausee, Gosau', area: Salzkammergut, kind: visit, coords: [47.52775, 13.50815]}
+  - {id: konditorei-zauner, name: Zauner 甜品店, name_local: 'Konditorei Zauner, Pfarrgasse 7, Bad Ischl', area: Salzkammergut, kind: food, coords: [47.71086, 13.62183]}
+  - {id: hallstatt-marktplatz, name: Hallstatt 小镇, name_local: Hallstatt Marktplatz, area: Salzkammergut, kind: visit, coords: [47.56228, 13.64881]}
+  - {id: votivkirche, name: 沃蒂夫教堂（两塔之间亮灯的“∞”光雕塑）, name_local: 'Votivkirche, Rooseveltplatz, 1090 Wien', area: Wien, kind: visit, coords: [48.21541, 16.35914]}
+  - {id: wiener-grill-haus, name: Wiener Grill Haus（晚饭）, name_local: 'Wiener Grill Haus, Hadikgasse 40, 1140 Wien', area: Wien, kind: food}
+  - {id: som-kitchen, name: Som Kitchen（中央车站店，泰国菜）, name_local: 'Som Kitchen, Am Hauptbahnhof 1, 1100 Wien', area: Wien, kind: food, coords: [48.18505, 16.37783]}
+  - {id: blockfabrik, name: Blockfabrik 抱石馆, name_local: 'Blockfabrik, Schloßgasse 10-12, 1050 Wien', area: Wien, kind: visit, coords: [48.1906, 16.36029]}
+  - {id: stephansdom, name: 圣斯蒂芬大教堂, name_local: 'Stephansdom, Stephansplatz, Wien', area: Wien, kind: visit, coords: [48.20849, 16.37313]}
+  - {id: peterskirche, name: 圣伯多禄教堂（彼得教堂）, name_local: 'Peterskirche, Petersplatz 6, 1010 Wien', area: Wien, kind: visit, coords: [48.20944, 16.37001]}
+  - {id: boulderbar-hannovergasse, name: boulderbar 抱石馆（Hannovergasse 店，第一家 boulderbar）, name_local: 'boulderbar Hannovergasse, Hannovergasse 21, 1200 Wien', area: Wien, kind: visit, coords: [48.23149, 16.36791]}
+  bookings: []
+  days:
+  - date: '2026-10-25'
+    title: 布达佩斯：落地；MAG47 抱石；国会旁吃兰戈斯炸饼；多瑙河夜游船；链子桥夜景
+    area: Budapest
+    base: stay-budapest
+    sunset: '16:40'
+    anchors:
+    - {id: a10-25-1, time: '13:35', text: 本人落地布达佩斯机场 T2（航班）, subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-25-2, time: '17:30', text: 从会场（HUNGEXPO）出发去河边, subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-25-3, time: '19:20', text: Vigadó tér 5 号码头检票（学生票要出示 ISIC）, subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-25-4, time: '19:40', text: 多瑙河夜游开船（已付，约 1 h）, subject: [me, mate-1, mate-2, mate-3]}
+    plans:
+    - name: 推荐
+      tracks:
+      - subject:
+        - me
+        blocks:
+        - {id: 10-25-1-2-1, kind: anchor, certainty: fixed, start: '13:35', text: 本人落地布达佩斯机场 T2（转机航班）}
+        - {id: 10-25-1-2-2, kind: flex, certainty: estimated, start: '13:40', end: '14:03', text: 出关、等 200E（只带随身包）}
+        - {id: 10-25-1-2-3, kind: travel, certainty: fixed, start: '14:03', end: '14:35', text: 机场 → MAG47, mode: 200E → 95 路 → 步行 3′}
+        - {id: 10-25-1-2-4, kind: visit, certainty: estimated, start: '14:35', end: '16:00', place: mag47-sportmsz-centrum}
+        - {id: 10-25-1-2-5, kind: travel, certainty: fixed, start: '16:00', end: '16:32', text: MAG47 → 会场, mode: 步行 7′ + 85 路 + 步行 19′}
+        - {id: 10-25-1-2-6, kind: flex, certainty: estimated, start: '16:32', end: '17:30', text: 找朋友，一起到会场（HUNGEXPO）}
+      - subject:
+        - mate-1
+        - mate-2
+        - mate-3
+        blocks: []
+      - subject:
+        - me
+        - mate-1
+        - mate-2
+        - mate-3
+        blocks:
+        - {id: 10-25-1-4-1, kind: anchor, certainty: fixed, start: '17:30', text: '从会场出发去河边（队友不在会场就直接去 Retro Lángos，或最晚 19:20 到码头）'}
+        - {id: 10-25-1-4-2, kind: travel, certainty: fixed, start: '17:30', end: '18:09', text: 会场 → Retro Lángos（Kossuth Lajos tér）, mode: 10E → M2}
+        - {id: 10-25-1-4-3, kind: meal, certainty: estimated, start: '18:09', end: '18:40', options: [retro-lngos, caf-gerbeaud, mcdonald-s], text: 吃：Retro Lángos（兰戈斯炸饼）、Gerbeaud 咖啡馆、麦当劳（夜游码头旁）}
+        - {id: 10-25-1-4-4, kind: travel, certainty: estimated, start: '18:40', end: '18:46', text: → 鞋子纪念碑, mode: 步行 6′}
+        - {id: 10-25-1-4-5, kind: visit, certainty: estimated, start: '18:46', end: '18:56', place: cipk-a-duna-parton}
+        - {id: 10-25-1-4-6, kind: travel, certainty: estimated, start: '18:56', end: '19:10', text: 沿河往南 → Vigadó tér 码头, mode: 步行 14′}
+        - {id: 10-25-1-4-7, kind: flex, certainty: estimated, start: '19:10', end: '19:20', text: 排队，出示 ISIC（学生票）}
+        - {id: 10-25-1-4-8, kind: anchor, certainty: fixed, start: '19:20', end: '19:40', text: Vigadó tér 5 号码头检票}
+        - {id: 10-25-1-4-9, kind: visit, certainty: fixed, start: '19:40', end: '20:40', place: mahart-passnave}
+        - {id: 10-25-1-4-10, kind: travel, certainty: estimated, start: '20:40', end: '20:50', text: 下船 → 链子桥, mode: 步行 10′}
+        - {id: 10-25-1-4-11, kind: visit, certainty: estimated, start: '20:50', end: '21:15', place: szchenyi-lnchd}
+    rain_plan: 抱石、吃饭都在室内；夜游已付，照常坐。 下船后下雨就不散步，直接回酒店。
+  - date: '2026-10-26'
+    title: 布达佩斯：渔人堡与马加什教堂；Gravity 抱石；中午吃匈牙利菜；圣伊什特万大教堂；坐 M1 老地铁去英雄广场；晚上会场晚宴
+    area: Budapest
+    base: stay-budapest
+    sunset: '16:38'
+    anchors:
+    - {id: a10-26-2, time: '09:00', text: '渔人堡上层开始收费（全组 09:00 前到）', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-26-3, time: '12:44', text: 'Széll Kálmán tér 坐 M2 去 Horgásztanya 午饭（12:54 到；饭点人多，建议先订位）', subject: [me, mate-1, mate-2, mate-3]}
+    plans:
+    - name: 推荐：上午抱石，下午大教堂和英雄广场，傍晚回酒店再去会场
+      tracks:
+      - subject:
+        - me
+        - mate-1
+        - mate-2
+        - mate-3
+        blocks:
+        - {id: 10-26-1-2-2, kind: visit, certainty: estimated, start: '08:40', end: '09:00', place: halszbstya}
+        - {id: 10-26-1-2-3, kind: visit, certainty: estimated, start: '09:00', end: '09:40', place: mtys-templom}
+        - {id: 10-26-1-2-4, kind: visit, certainty: estimated, start: '09:40', end: '10:10', text: 城堡区北段走走：Táncsics、Úri 街的老房子，到维也纳城门（Bécsi kapu），不进收费的地方}
+        - {id: 10-26-1-2-5, kind: travel, certainty: fixed, start: '10:15', end: '10:30', text: 城堡区 → Gravity, mode: '步行约 18′ 经维也纳城门下山；或 16A 公交 10:18 Szentháromság tér → Széll Kálmán tér 10:21 + 步行 7′'}
+        - {id: 10-26-1-2-6, kind: flex, certainty: estimated, start: '10:30', end: '10:40', text: 买票、租鞋、换鞋}
+        - {id: 10-26-1-2-7, kind: visit, certainty: estimated, start: '10:40', end: '12:30', place: gravity-boulder-bar}
+        - {id: 10-26-1-2-8, kind: flex, certainty: estimated, start: '12:30', end: '12:39', text: 换鞋、收拾}
+        - {id: 10-26-1-2-9, kind: travel, certainty: fixed, start: '12:39', end: '12:54', text: Gravity → Horgásztanya, mode: '步行 5′ + M2 12:44 Széll Kálmán tér → Batthyány tér 12:46 + 步行 8′（或步行 21′）'}
+        - {id: 10-26-1-2-10, kind: meal, certainty: estimated, start: '13:00', end: '14:15', options: [horgsztanya-vendgl, mama-goulash, buja-diszn-k], text: 吃：Horgásztanya 老餐厅（鱼汤、炖牛肉）、Mama Goulash（便宜的匈牙利家常菜）、Buja Disznók（Fény 市场里的匈牙利炸猪排）}
+        - {id: 10-26-1-2-11, kind: travel, certainty: estimated, start: '14:15', end: '14:45', text: Horgásztanya → 链子桥 → 圣伊什特万大教堂, mode: 步行约 23′：沿 Fő utca 往南，白天走过链子桥}
+        - {id: 10-26-1-2-12, kind: visit, certainty: estimated, start: '14:45', end: '15:50', place: szent-istvn-bazilika}
+        - {id: 10-26-1-2-13, kind: travel, certainty: fixed, start: '15:55', end: '16:09', text: 大教堂 → 英雄广场, mode: '步行 4′ + M1 老地铁 15:59 Bajcsy-Zsilinszky út → Hősök tere 16:05 + 步行 4′'}
+        - {id: 10-26-1-2-14, kind: visit, certainty: estimated, start: '16:09', end: '17:10', place: andrssy-t-hsk-tere}
+        - {id: 10-26-1-2-18, kind: visit, certainty: unknown, start: '18:45', end: '21:30', place: hungexpo, text: 会场晚宴}
+    rain_plan: 渔人堡、城堡区缩短；Gravity、午饭、大教堂都在室内。去链子桥那段改坐车：Batthyány tér 坐 M2 到 Deák Ferenc tér，步行 4′ 到大教堂。
+    notes: 从酒店出发去渔人堡（1 路电车 + M2） 从酒店出发去会场（1 路电车 + 10E；按晚宴 19:00 开始排，时间待你告诉我）
+  - date: '2026-10-27'
+    title: 布达佩斯 → 维也纳 → Bad Ischl：早上坐火车去维也纳；美景宫上宫（克里姆特《吻》）；Rennweg 的两座教堂；卡尔教堂；纳什市场；晚上坐火车加巴士去 Bad Ischl
+    area: Wien
+    base: stay-ischl
+    sunset: '16:46'
+    anchors:
+    - {id: a10-27-2, time: '08:30', text: 'EC 140 从 Budapest-Keleti 开，11:20 到 Wien Hbf（直达，已买）', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-27-3, time: '11:20', text: 到 Wien Hbf，地下层储物柜存两个小箱子（现场存，只收非接触银行卡）, subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-27-4, time: '12:00', text: 美景宫上宫时段票, subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-27-5, time: '16:57', text: 'IC 742 从 Wien Hbf 开（Attnang、Gmunden 换车，Gmunden 到 Bad Ischl 是 SV170 替代巴士），20:00 到 Bad Ischl（已定，决定 D-44；4 人的票已买）', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-27-6, time: '17:57', text: '实际坐 IC 744（Wien Hbf 7 站台，15 号车厢有 4 个订座），19:58 Attnang 换 R 3432 20:08，Gmunden 换 SV170 巴士 20:28，21:21 到 Bad Ischl（10-27 下午改，决定 D-58）；行程见下面第三套“晚一班”', subject: [me, mate-1, mate-2, mate-3]}
+    plans:
+    - name: 推荐：16:57 走，20:00 到 Bad Ischl
+      tracks:
+      - subject:
+        - me
+        - mate-1
+        - mate-2
+        - mate-3
+        blocks:
+        - {id: 10-27-1-2-3, kind: flex, certainty: estimated, start: '07:52', end: '08:30', text: Keleti 站台等车、买水}
+        - {id: 10-27-1-2-4, kind: anchor, certainty: fixed, start: '08:30', end: '11:20', text: EC 140 Budapest-Keleti → Wien Hbf（直达，已买）}
+        - {id: 10-27-1-2-5, kind: flex, certainty: estimated, start: '11:20', end: '11:40', text: Hbf 地下层存两个小箱子（XL 一格，现场存，只收非接触银行卡）；在 Interspar 买点吃的垫一口}
+        - {id: 10-27-1-2-6, kind: travel, certainty: fixed, start: '11:40', end: '11:56', text: Hbf → 美景宫上宫, mode: '步行 4′ + 18 路电车 11:44 → Quartier Belvedere 11:47 + 步行 9′（或直接步行 15′）'}
+        - {id: 10-27-1-2-7, kind: flex, certainty: estimated, start: '11:56', end: '12:00', text: 排队入场}
+        - {id: 10-27-1-2-8, kind: visit, certainty: fixed, start: '12:00', end: '13:30', place: oberes-belvedere}
+        - {id: 10-27-1-2-9, kind: travel, certainty: estimated, start: '13:30', end: '13:41', text: 美景宫 → Rennweg, mode: 穿花园步行 11′}
+        - {id: 10-27-1-2-10, kind: visit, certainty: estimated, start: '13:41', end: '13:56', place: salesianerinnenkirche}
+        - {id: 10-27-1-2-11, kind: travel, certainty: estimated, start: '13:56', end: '14:01', text: → Gardekirche, mode: 步行 5′}
+        - {id: 10-27-1-2-12, kind: visit, certainty: estimated, start: '14:01', end: '14:15', place: gardekirche}
+        - {id: 10-27-1-2-13, kind: travel, certainty: estimated, start: '14:15', end: '14:24', text: Gardekirche → 卡尔教堂, mode: 步行 9′}
+        - {id: 10-27-1-2-14, kind: visit, certainty: estimated, start: '14:24', end: '14:44', place: karlskirche}
+        - {id: 10-27-1-2-15, kind: travel, certainty: estimated, start: '14:44', end: '14:56', text: 卡尔教堂 → 纳什市场, mode: 步行 12′}
+        - {id: 10-27-1-2-16, kind: meal, certainty: estimated, start: '14:56', end: '15:42', options: [naschmarkt-flohmarkt-kettenbrckengasse, caf-sperl, chen-s-ramen], text: 吃：纳什市场与周六跳蚤市场、Café Sperl（《爱在黎明破晓前》同款咖啡馆）、陈家面馆 Chen's Ramen}
+        - {id: 10-27-1-2-17, kind: travel, certainty: fixed, start: '15:42', end: '16:03', text: 纳什市场 → Wien Hbf, mode: '步行 11′ + U1 Karlsplatz → Hbf（约 15:51 一班）+ 步行 6′'}
+        - {id: 10-27-1-2-18, kind: flex, certainty: estimated, start: '16:03', end: '16:40', text: 取箱子，在 Interspar 买今晚和明早的菜（Bad Ischl 晚上商店关得早）}
+        - {id: 10-27-1-2-19, kind: flex, certainty: estimated, start: '16:40', end: '16:57', text: 上站台，确认订座}
+        - {id: 10-27-1-2-20, kind: anchor, certainty: fixed, start: '16:57', end: '20:00', text: 'IC 742 Wien Hbf → Attnang-Puchheim 18:58，换 REX 4420 19:05 → Gmunden 19:19，换 SV170 巴士 19:23 → Bad Ischl 20:00'}
+    rain_plan: 美景宫在室内，照常；Rennweg 的教堂和卡尔教堂只看外观，下雨就跳过，13:30 起坐 18 路电车回 Hbf 附近，在 Interspar 吃，纳什市场换 Café Sperl（室内）。
+    notes: 从酒店出发去 Keleti（1 路电车 + 80 路公交）
+  - date: '2026-10-28'
+    title: Wolfgangsee：St. Wolfgang 与朝圣教堂；坐船过湖到 St. Gilgen；雨前回 Bad Ischl 在 K³ 抱石；晚上做火锅
+    area: Salzkammergut
+    base: stay-ischl
+    sunset: '16:55'
+    anchors:
+    - {id: a10-28-1, time: '12:12', text: 'Bad Ischl Bahnhof 坐 546 直达 St. Wolfgang Markt（12:46）；11:18 重排，已吃过饭', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-28-2, time: '14:05', text: '船 St. Wolfgang Markt → St. Gilgen 14:45（不看天气每天开）', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-28-3, time: '15:08', text: 'St. Gilgen 坐 150 回 Bad Ischl 站 15:45（预报 15 点起小雨，16 点后下雨）', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-28-4, time: '19:00', text: 'EUROSPAR（Grazer Straße 58）关门：17:45 从 K³ 出来', subject: [me, mate-1, mate-2, mate-3]}
+    plans:
+    - name: 今天实际（11:18 重排，已吃过饭）：先去 St. Wolfgang 看教堂、沿湖走，14:05 坐船到 St. Gilgen，15:08 回 Bad Ischl，4 人抱石，回住处做火锅
+      tracks:
+      - subject:
+        - me
+        - mate-1
+        - mate-2
+        - mate-3
+        blocks:
+        - {id: 10-28-1-2-1, kind: visit, certainty: estimated, start: '11:20', end: '11:55', place: traun, text: Traun 河边 Esplanade 散步}
+        - {id: 10-28-1-2-2, kind: travel, certainty: estimated, start: '11:55', end: '12:04', text: Zauner → Bad Ischl Bahnhof, mode: 步行 9′}
+        - {id: 10-28-1-2-3, kind: travel, certainty: fixed, start: '12:12', end: '12:46', text: Bad Ischl Bahnhof → St. Wolfgang Markt (M.-Pacher-Haus), mode: 546 直达}
+        - {id: 10-28-1-2-4, kind: visit, certainty: estimated, start: '12:46', end: '13:05', place: pfarr-und-wallfahrtskirche-st-wolfgang}
+        - {id: 10-28-1-2-5, kind: visit, certainty: estimated, start: '13:05', end: '13:55', place: st-wolfgang-im-salzkammergut}
+        - {id: 10-28-1-2-6, kind: travel, certainty: estimated, start: '13:55', end: '14:00', text: → St. Wolfgang Markt 码头, mode: 步行约 6′（估）}
+        - {id: 10-28-1-2-7, kind: travel, certainty: fixed, start: '14:05', end: '14:45', text: 船 St. Wolfgang Markt → St. Gilgen, mode: 船（经 Ried-Falkenstein、Fürberg）}
+        - {id: 10-28-1-2-8, kind: visit, certainty: estimated, start: '14:45', end: '15:05', place: st-gilgen-am-wolfgangsee}
+        - {id: 10-28-1-2-9, kind: travel, certainty: fixed, start: '15:08', end: '15:45', text: St. Gilgen Busbahnhof → Bad Ischl Bahnhof, mode: 150 直达}
+        - {id: 10-28-1-2-10, kind: travel, certainty: estimated, start: '15:45', end: '16:11', text: Bad Ischl Bahnhof → K³, mode: 步行 26′（下雨可打车）}
+        - {id: 10-28-1-2-11, kind: visit, certainty: estimated, start: '16:15', end: '17:45', place: salzkammergut-kletterhalle-k}
+        - {id: 10-28-1-2-12, kind: travel, certainty: estimated, start: '17:45', end: '18:16', text: K³ → EUROSPAR, mode: 步行 31′}
+        - {id: 10-28-1-2-13, kind: flex, certainty: estimated, start: '18:16', end: '18:45', text: 'EUROSPAR 超市（买火锅的菜（19:00 关门）：Fondue-Fleisch（薄切肉）、Chinakohl、Champignons、Tofu、Glasnudeln）'}
+    rain_plan: 下雨或起雾：不上缆车，船照开，中午在 St. Gilgen，下午早点回 Bad Ischl
+  - date: '2026-10-29'
+    title: Gosau 山谷：4 人一起走 Gosausee，从前湖走到后湖，在后湖边野餐
+    area: Salzkammergut
+    base: stay-ischl
+    sunset: '16:53'
+    anchors:
+    - {id: a10-29-2, time: '14:35', text: '（第一、二套）最晚从后湖 Hinterer Gosausee 往回走，赶 16:52 的车', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-29-3, time: '15:00', text: '（第三套）从后湖往回走，最晚 15:30；14:00 还没到 Gosaulacke 就只走到那里，坐 16:52', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-29-4, time: '16:52', text: 'Zwieselalmbahn 站坐 542 → Gosaumühle 17:17，再坐 541 回 Bad Ischl（不是末班）', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-29-5, time: '17:47', text: 'Zwieselalmbahn 站末班 542 → Steeg/Hallstätter See Traunbrücke 18:19 → 541 回 Bad Ischl；错过走 17′ 到 Hintertal b.Gosau Schmiedweg 坐 18:49 → 19:39 到', subject: [me, mate-1, mate-2, mate-3]}
+    plans:
+    - name: 今天实际 ①：赶上 10:45 的 542（等车或也晚点）→ 16:52 回，不卡末班
+      tracks:
+      - subject:
+        - me
+        - mate-1
+        - mate-2
+        - mate-3
+        blocks:
+        - {id: 10-29-1-0, kind: travel, certainty: estimated, start: '10:31', end: '10:50', text: Bad Ischl 镇上的车站 → Hallstatt Gosaumühle, mode: 541（晚点约 9′ 的那班）}
+        - {id: 10-29-1-2-2, kind: travel, certainty: estimated, start: '10:50', end: '11:14', text: Hallstatt Gosaumühle → Hintertal b.Gosau Zwieselalmbahn, mode: '542（时刻表 10:45 → 11:09；接上时约晚 5′）'}
+        - {id: 10-29-1-2-3, kind: travel, certainty: estimated, start: '11:14', end: '11:40', text: Zwieselalmbahn 站 → 前湖北端（Google 地图搜 Gasthof Gosausee）, mode: 步行 24′（1.7 km）}
+        - {id: 10-29-1-2-4, kind: visit, certainty: estimated, start: '11:45', end: '13:50', place: vorderer-gosausee-hinterer-gosausee}
+        - {id: 10-29-1-2-5, kind: meal, certainty: estimated, start: '13:50', end: '14:15', text: 野餐（自带），后湖边}
+        - {id: 10-29-1-2-6, kind: visit, certainty: estimated, start: '14:15', end: '16:05', place: vorderer-gosausee-hinterer-gosausee}
+        - {id: 10-29-1-2-7, kind: flex, certainty: estimated, start: '16:05', end: '16:25', text: '前湖北端 Gasthof Gosausee 喝点热的、歇脚（开到 20:00）'}
+        - {id: 10-29-1-2-8, kind: travel, certainty: estimated, start: '16:25', end: '16:49', text: 前湖北端 → Zwieselalmbahn 站, mode: 步行 24′}
+        - {id: 10-29-1-99, kind: travel, certainty: fixed, start: '16:52', end: '17:39', text: Zwieselalmbahn → Bad Ischl 镇上的车站, mode: 542 → Hallstatt Gosaumühle，再坐 541}
+        - {id: 10-29-1-2-10, kind: flex, certainty: estimated, start: '17:39', end: '17:55', text: 'EUROSPAR 买晚饭的菜（开到 19:00）'}
+    - name: ②：没赶上 542，在 Gosaumühle 打车去湖边 → 16:52 回
+      note: 10:50 到 Gosaumühle 时 542 已走：就在站上打 Gosau 的出租车直接去 Gasthof Gosausee（约 15 km，估），约 11:30 到湖边，比等 11:45 的车早约 1 h，还省掉车站到湖的 24′。之后同第一套，最晚 14:35 从后湖回头，16:52 回。电话：Gosauer Taxi（目录写全天）；Taxi Egger（旅游局目录 10-29 查；号码和价都没核，上车前问价）。
+      tracks:
+      - subject:
+        - me
+        - mate-1
+        - mate-2
+        - mate-3
+        blocks:
+        - {id: 10-29-2-0, kind: travel, certainty: estimated, start: '10:31', end: '10:50', text: Bad Ischl 镇上的车站 → Hallstatt Gosaumühle, mode: 541（晚点约 9′ 的那班）}
+        - {id: 10-29-2-3-2, kind: travel, certainty: estimated, start: '10:50', end: '11:30', text: Hallstatt Gosaumühle → Gasthof Gosausee（前湖北端）, mode: 出租车（等车加开车约 40′，估）}
+        - {id: 10-29-2-3-3, kind: visit, certainty: estimated, start: '11:35', end: '13:40', place: vorderer-gosausee-hinterer-gosausee}
+        - {id: 10-29-2-3-4, kind: meal, certainty: estimated, start: '13:40', end: '14:05', text: 野餐（自带），后湖边}
+        - {id: 10-29-2-3-5, kind: visit, certainty: estimated, start: '14:05', end: '15:55', place: vorderer-gosausee-hinterer-gosausee}
+        - {id: 10-29-2-3-6, kind: flex, certainty: estimated, start: '15:55', end: '16:25', text: 前湖北端 Gasthof Gosausee 喝点热的、歇脚}
+        - {id: 10-29-2-3-7, kind: travel, certainty: estimated, start: '16:25', end: '16:49', text: 前湖北端 → Zwieselalmbahn 站, mode: 步行 24′}
+        - {id: 10-29-2-99, kind: travel, certainty: fixed, start: '16:52', end: '17:39', text: Zwieselalmbahn → Bad Ischl 镇上的车站, mode: 542 → Hallstatt Gosaumühle，再坐 541}
+        - {id: 10-29-2-3-9, kind: flex, certainty: estimated, start: '17:39', end: '17:55', text: 'EUROSPAR 买晚饭的菜（开到 19:00）'}
+    - name: ③：没赶上也不打车，11:45 的 542 → 三个湖照走，17:47 末班回
+      note: 在 Gosaumühle 等 55′，坐 11:45 的 542，12:09 到 Zwieselalmbahn，12:40 从前湖出发，约 14:45 到后湖，15:00 往回走（最晚 15:30），约 16:45 回前湖，17:20 打手电走回车站（民用昏影 17:25 结束，最后 24′ 公路是黑的），坐这个站的末班 17:47，18:39 到家附近。14:00 还没到 Gosaulacke 就只走到那里，坐 16:52 回。
+      tracks:
+      - subject:
+        - me
+        - mate-1
+        - mate-2
+        - mate-3
+        blocks:
+        - {id: 10-29-3-0, kind: travel, certainty: estimated, start: '10:31', end: '10:50', text: Bad Ischl 镇上的车站 → Hallstatt Gosaumühle, mode: 541（晚点约 9′ 的那班）}
+        - {id: 10-29-3-4-2, kind: flex, certainty: estimated, start: '10:50', end: '11:45', text: '在 Gosaumühle 等 11:45 的 542（站就在 Hallstätter See 北端湖边）'}
+        - {id: 10-29-3-4-3, kind: travel, certainty: fixed, start: '11:45', end: '12:09', text: Hallstatt Gosaumühle → Hintertal b.Gosau Zwieselalmbahn, mode: '542'}
+        - {id: 10-29-3-4-4, kind: travel, certainty: estimated, start: '12:09', end: '12:35', text: Zwieselalmbahn 站 → 前湖北端（Google 地图搜 Gasthof Gosausee）, mode: 步行 24′（1.7 km）}
+        - {id: 10-29-3-4-5, kind: visit, certainty: estimated, start: '12:40', end: '14:45', place: vorderer-gosausee-hinterer-gosausee}
+        - {id: 10-29-3-4-6, kind: meal, certainty: estimated, start: '14:45', end: '15:00', text: 野餐（自带），后湖边}
+        - {id: 10-29-3-4-7, kind: visit, certainty: estimated, start: '15:00', end: '16:45', place: vorderer-gosausee-hinterer-gosausee}
+        - {id: 10-29-3-4-8, kind: flex, certainty: estimated, start: '16:45', end: '17:20', text: 前湖北端 Gasthof Gosausee 喝点热的、歇脚}
+        - {id: 10-29-3-4-9, kind: travel, certainty: estimated, start: '17:20', end: '17:44', text: 前湖北端 → Zwieselalmbahn 站, mode: 步行 24′}
+        - {id: 10-29-3-99, kind: travel, certainty: fixed, start: '17:47', end: '18:39', text: Zwieselalmbahn → Bad Ischl 镇上的车站, mode: 542 → Steeg/Hallstätter See Traunbrücke，再坐 541}
+        - {id: 10-29-3-4-11, kind: flex, certainty: estimated, start: '18:39', end: '19:00', text: 'EUROSPAR 买晚饭的菜（19:00 关）'}
+    rain_plan: 真下起雨：只走到 Gosaulacke 再回来，或只在前湖边走走，Gasthof Gosausee 躲雨；16:52 回家。
+    notes: 到 Hallstatt Gosaumühle（541 晚约 9′）：10:45 的 542 还在就上（第一套）；走了就在这里打车去 Gasthof Gosausee（第二套），不打车就等 11:45 的 542（第三套）
+  - date: '2026-10-30'
+    title: Hallstatt → 维也纳：在 Bad Ischl 的 Zauner 甜品店吃甜品；唯一的晴天去 Hallstatt；坐巴士加火车到维也纳；看沃蒂夫教堂亮起的“∞”；在 Hietzing 吃晚饭
+    area: Salzkammergut
+    base: stay-wien
+    sunset: '16:51'
+    anchors:
+    - {id: a10-30-1, time: '15:56', text: '（已走）Bad Ischl 巴士总站 SV170 → Gmunden 16:33，REX 4415 16:40 → Attnang 16:54，IC 743 17:01 → 19:03 到 Wien Hbf；不上 WESTbahn', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-30-2, time: '19:03', text: 到 Wien Hbf；前台办入住（4 本护照，城市税约 €4），问退房后能不能寄存, subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-30-3, time: '20:10', text: （实际）打车到沃蒂夫教堂，看两塔之间的“∞”（只看外面）, subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-30-4, time: '20:35', text: 从沃蒂夫教堂打车（Uber 或 Bolt，约 15–20′，估 €15–25）去 Wiener Grill Haus, subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-30-5, time: '21:00', text: Wiener Grill Haus 晚饭（TheFork 已订，4 人；Hadikgasse 40）, subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-30-6, time: '22:33', text: '上车前在 WienMobil 买 24 小时票（实际没买，用户后来说的；改 10-31 早上买）；Hietzing U4 → Karlsplatz 22:44，再坐 U1 回', subject: [me, mate-1, mate-2, mate-3]}
+    plans:
+    - name: 今天实际 ①：19:03 到 Wien，入住，沃蒂夫教堂看“∞”，21:00 Wiener Grill Haus
+      tracks:
+      - subject:
+        - me
+        - mate-1
+        - mate-2
+        - mate-3
+        blocks:
+        - {id: 10-30-1-2-1, kind: meal, certainty: fixed, start: '11:34', end: '12:05', place: konditorei-zauner, text: Konditorei Zauner 吃甜品（茜茜公主那家）}
+        - {id: 10-30-1-2-2, kind: travel, certainty: fixed, start: '12:14', end: '12:41', text: Bad Ischl Bahnhof（C 站台）→ Hallstatt Gosaumühle, mode: '541'}
+        - {id: 10-30-1-2-3, kind: travel, certainty: fixed, start: '12:45', end: '12:54', text: Hallstatt Gosaumühle → Hallstatt Lahn（巴士终点站）, mode: 543，步行 2′ 换车}
+        - {id: 10-30-1-2-4, kind: visit, certainty: estimated, start: '12:55', end: '15:00', place: hallstatt-marktplatz}
+        - {id: 10-30-1-2-5, kind: travel, certainty: estimated, start: '15:03', end: '15:45', text: Hallstatt Lahn → Bad Ischl Bahnhof, mode: 544 → Gosaumühle，换 541}
+        - {id: 10-30-1-2-6, kind: flex, certainty: estimated, start: '15:45', end: '15:54', text: 车站旁咖啡店取箱子}
+        - {id: 10-30-1-2-7, kind: travel, certainty: fixed, start: '15:56', end: '16:33', text: Bad Ischl Bahnhof（巴士总站）→ Gmunden Bahnhof, mode: SV170 替代巴士，车头写 Gmunden Bahnhof}
+        - {id: 10-30-1-2-8, kind: travel, certainty: fixed, start: '16:40', end: '16:54', text: Gmunden Bahnhof → Attnang-Puchheim Bahnhof, mode: 步行 3′，REX 4415}
+        - {id: 10-30-1-2-9, kind: travel, certainty: fixed, start: '17:01', end: '19:03', text: Attnang-Puchheim → Wien Hbf, mode: 步行 2′，IC 743（往 Flughafen Wien）}
+        - {id: 10-30-1-2-13, kind: visit, certainty: fixed, start: '20:10', end: '20:30', place: votivkirche, text: 沃蒂夫教堂外面看两塔之间亮灯的“∞”光雕塑}
+        - {id: 10-30-1-2-14, kind: travel, certainty: estimated, start: '20:35', end: '20:55', text: 沃蒂夫教堂 → Wiener Grill Haus（Hadikgasse 40）, mode: 打车：Uber 或 Bolt app 叫车，约 15–20′}
+        - {id: 10-30-1-2-15, kind: meal, certainty: fixed, start: '21:00', end: '22:20', place: wiener-grill-haus, text: 'Wiener Grill Haus 晚饭（TheFork 已订 21:00，4 人）'}
+    - name: ②：入住慢了或累了：不去沃蒂夫教堂，直接去吃饭
+      note: 入住、洗漱拖久了，或大家累了：跳过沃蒂夫教堂，从住处出门（O 路 + U1 到 Karlsplatz），坐 20:35 的 U4 到 Hietzing，步行 7′，20:53 到 Wiener Grill Haus（Transitous 查）。“∞”明天傍晚本人可以再去看（10-31 天页）。
+      tracks:
+      - subject:
+        - me
+        - mate-1
+        - mate-2
+        - mate-3
+        blocks:
+        - {id: 10-30-2-3-4, kind: meal, certainty: fixed, start: '21:00', end: '22:20', place: wiener-grill-haus}
+    rain_plan: 今晚维也纳降雨概率 0–3%（Open-Meteo 18:4x），照常。真下雨就跳过沃蒂夫教堂，按第二套直接去吃饭。
+  - date: '2026-10-31'
+    title: 维也纳：最后一天轻松过：Blockfabrik 抱石；圣斯蒂芬大教堂与圣伯多禄教堂；boulderbar Hannovergasse 万圣节团队赛；夜里坐火车去机场
+    area: Wien
+    base: vie-airport
+    sunset: '16:39'
+    anchors:
+    - {id: a10-31-1, time: '17:30', text: 'boulderbar Hannovergasse 前台报名万圣节团队赛（17:30–17:45），18:00 开始；错过了就照常爬或在旁边看', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-31-2, time: '21:50', text: '最晚这时离开 boulderbar Hannovergasse（22:00 关门），12 路 + U4 + U1 到 Hbf', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-31-3, time: '22:42', text: 'Wien Hbf 坐 Railjet（ÖBB 快车）去机场，22:57 到；或 22:53 REX → 23:15 用 ÖBB Tickets app 买机场段补票（€2.30，有 24 小时票）', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-31-4, time: '23:53', text: '今晚去机场的末班火车（REX → 00:15）；都误了就坐 VAB 1 机场大巴（23:15、明早 03:15、03:45）', subject: [me, mate-1, mate-2, mate-3]}
+    plans:
+    - name: 推荐：Blockfabrik 歇着爬 → 坐地铁到圣斯蒂芬、圣伯多禄 → 晚上 boulderbar Hannovergasse 万圣节团队赛 → 22:42 Railjet 去机场
+      tracks:
+      - subject:
+        - me
+        blocks:
+        - {id: 10-31-1-2-1, kind: meal, certainty: estimated, start: '11:40', end: '13:30', place: som-kitchen, text: 和队友在 Hbf 吃 Som Kitchen（泰国菜，打包）}
+        - {id: 10-31-1-2-2, kind: travel, certainty: estimated, start: '13:51', end: '14:07', text: Wien Hbf（中央火车站）→ Blockfabrik, mode: '13A 公交（往 Skodagasse）→ Leibenfrostgasse 14:00，步行 7′；之后每几分钟一班'}
+        - {id: 10-31-1-2-3, kind: visit, certainty: estimated, start: '14:07', end: '15:40', place: blockfabrik, text: Blockfabrik（5 区的大型抱石馆）爬一会儿、歇一会儿}
+        - {id: 10-31-1-2-4, kind: travel, certainty: estimated, start: '15:40', end: '16:05', text: Blockfabrik → Stephansplatz（圣斯蒂芬广场站）, mode: 步行 5′ 到 U4 Pilgramgasse（地铁站），U4（往 Heiligenstadt）→ Karlsplatz（卡尔广场站），换 U1（往 Leopoldau）1 站 → Stephansplatz}
+        - {id: 10-31-1-2-5, kind: visit, certainty: estimated, start: '16:05', end: '16:25', place: stephansdom, text: Stephansdom（圣斯蒂芬大教堂），出地铁口就是}
+        - {id: 10-31-1-2-6, kind: visit, certainty: estimated, start: '16:28', end: '16:45', place: peterskirche, text: Peterskirche（圣伯多禄教堂，巴洛克式），从圣斯蒂芬走 3′}
+        - {id: 10-31-1-2-7, kind: travel, certainty: fixed, start: '16:48', end: '17:14', text: Stephansplatz → boulderbar Hannovergasse, mode: '16:50 U3（往 Simmering）→ Wien Mitte-Landstraße（维也纳中城站）16:52，16:54 U4（往 Heiligenstadt）→ Friedensbrücke（和平桥站）17:00，17:05 12 路电车（或 17:10 5 路）坐 2 站 → Wallensteinplatz（华伦斯坦广场），步行 7′'}
+        - {id: 10-31-1-2-8, kind: visit, certainty: estimated, start: '17:15', end: '21:45', place: boulderbar-hannovergasse, text: boulderbar Hannovergasse（boulderbar 第一家店）报名、看万圣节团队赛、随便爬}
+        - {id: 10-31-1-2-9, kind: travel, certainty: fixed, start: '21:45', end: '22:13', text: boulderbar Hannovergasse → Wien Hbf, mode: '步行 6′ 到 Klosterneuburger Straße/Wallensteinstraße（电车站），21:51 12 路 → Friedensbrücke 21:53，21:56 U4（往 Hütteldorf）→ Schwedenplatz（瑞典广场站）22:00，22:07 U1（往 Oberlaa）→ Hbf 22:13；晚一班：21:51 出门步行 13′ 到 Friedensbrücke，22:04 U4，22:14 U1 → 22:21'}
+        - {id: 10-31-1-2-10, kind: flex, certainty: estimated, start: '22:13', end: '22:40', text: 维也纳中央车站（存包、买菜）（Hbf 补机场段票，在站内 INTERSPAR-pronto（Spar 超市小店）买晚饭、水和明早吃的）}
+        - {id: 10-31-1-2-11, kind: travel, certainty: fixed, start: '22:42', end: '22:57', text: Wien Hbf → 维也纳机场（在机场过夜）, mode: 'Railjet RJX 19959（ÖBB 快车，往 Flughafen Wien）；或 22:53 REX 22779 → 23:15；末班 23:53 REX → 00:15'}
+        - {id: 10-31-1-2-12, kind: flex, certainty: estimated, start: '23:00', end: '23:59', text: 维也纳机场（11-01 早班，前一晚在这里过夜）（在机场找地方过夜）}
+      - subject:
+        - mate-1
+        - mate-2
+        - mate-3
+        blocks:
+        - {id: 10-31-1-3-1, kind: meal, certainty: estimated, start: '11:40', end: '13:30', place: som-kitchen, text: 和本人在 Hbf 吃 Som Kitchen（打包）}
+        - {id: 10-31-1-3-2, kind: reserve, certainty: estimated, start: '13:30', end: '14:00', text: Wien Hbf → 维也纳机场（REX 7 或 Railjet，按航班挑车；队友航班你说不用管，D-46）}
+    - name: 不去教堂：Blockfabrik 待到 16:35，U4 直达和平桥站，换电车到 Hannovergasse
+      note: 累了、只想在岩馆歇着就选这套。从 Blockfabrik 到 Hannovergasse 坐 U4 一趟不用换车，再坐 5 路电车 2 站。Transitous 10-31 13:50–13:52 查。
+      tracks:
+      - subject:
+        - me
+        blocks:
+        - {id: 10-31-2-4-1, kind: travel, certainty: estimated, start: '13:51', end: '14:07', text: Wien Hbf → Blockfabrik, mode: 13A（往 Skodagasse）→ Leibenfrostgasse，步行 7′}
+        - {id: 10-31-2-4-2, kind: visit, certainty: estimated, start: '14:07', end: '16:35', text: Blockfabrik 抱石馆（Blockfabrik（5 区的大型抱石馆）多待一会儿）}
+        - {id: 10-31-2-4-3, kind: travel, certainty: fixed, start: '16:38', end: '17:09', text: Blockfabrik → boulderbar Hannovergasse, mode: '步行 5′ 到 U4 Pilgramgasse，16:43 U4（往 Heiligenstadt）→ Friedensbrücke 16:55，17:00 5 路电车 → Wallensteinplatz 17:02，步行 7′；晚一班 16:48 U4 → 17:00'}
+        - {id: 10-31-2-4-4, kind: visit, certainty: estimated, start: '17:10', end: '21:45', text: boulderbar 抱石馆（Hannovergasse 店，第一家 boulderbar）（报名、看万圣节团队赛、随便爬）}
+        - {id: 10-31-2-4-5, kind: travel, certainty: fixed, start: '21:45', end: '22:13', text: boulderbar Hannovergasse → Wien Hbf, mode: 同推荐那套（12 路 + U4 + U1）}
+        - {id: 10-31-2-4-6, kind: travel, certainty: fixed, start: '22:42', end: '22:57', text: Wien Hbf → 维也纳机场, mode: 'Railjet RJX 19959；或 22:53 REX → 23:15；末班 23:53'}
+    - name: 晚上换 boulderbar Hbf：不参加团队赛，离 Hbf 近
+      note: 不想参加团队赛、或累了选这套。下午同推荐（到圣伯多禄为止）；然后坐 U1 回 Hbf 一带，boulderbar Hbf（中央车站店）今天没有活动，周六 09:00–22:00，学生 €13.10；爬完步行约 10′ 到 Hbf，去机场最省事。
+      tracks:
+      - subject:
+        - me
+        blocks:
+        - {id: 10-31-3-5-1, kind: travel, certainty: estimated, start: '13:51', end: '14:07', text: Wien Hbf → Blockfabrik, mode: 13A → Leibenfrostgasse，步行 7′}
+        - {id: 10-31-3-5-2, kind: visit, certainty: estimated, start: '14:07', end: '15:40', place: blockfabrik}
+        - {id: 10-31-3-5-3, kind: travel, certainty: estimated, start: '15:40', end: '16:05', text: Blockfabrik → Stephansplatz, mode: 步行 5′，U4 → Karlsplatz，换 U1 → Stephansplatz}
+        - {id: 10-31-3-5-4, kind: visit, certainty: estimated, start: '16:05', end: '16:25', place: stephansdom}
+        - {id: 10-31-3-5-5, kind: visit, certainty: estimated, start: '16:28', end: '16:45', place: peterskirche}
+        - {id: 10-31-3-5-6, kind: travel, certainty: estimated, start: '16:48', end: '17:15', text: Stephansplatz → boulderbar Hbf, mode: U1（往 Oberlaa），下车后步行 14′}
+        - {id: 10-31-3-5-7, kind: visit, certainty: estimated, start: '17:15', end: '21:50', text: boulderbar 抱石馆（中央车站店）（boulderbar Hbf（中央车站店）抱石、歇着）}
+        - {id: 10-31-3-5-8, kind: travel, certainty: estimated, start: '21:50', end: '22:02', text: boulderbar Hbf → Wien Hbf, mode: 步行约 10′}
+        - {id: 10-31-3-5-9, kind: travel, certainty: fixed, start: '22:42', end: '22:57', text: Wien Hbf → 维也纳机场, mode: 'Railjet RJX 19959；或 22:53 REX → 23:15；末班 23:53'}
+    rain_plan: 今天每段都坐车，步行最长约 7′（电车站到 Hannovergasse），岩馆和教堂都在室内，不用改。
+  - date: '2026-11-01'
+    title: 回家：早班飞机离开维也纳机场
+    area: Wien
+    base: null
+    sunset: null
+    anchors:
+    - {id: a11-01-1, time: '05:45', text: 'Ryanair 网上值机截止（起飞前 2 小时）；拿非欧盟/EEA 护照的，这时前排到 Visa/Document check 柜台盖章（07:05 关） 用 Ryanair app 网上值机、做护照验证', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a11-01-2, time: '07:15', text: 登机口关（旧记录，没重核）, subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a11-01-3, time: '07:45', text: '航班 从维也纳机场起飞，10:05 到斯德哥尔摩 ARN（本人）', subject: [me, mate-1, mate-2, mate-3]}
+    plans: []
+english:
+  布达佩斯：落地；MAG47 抱石；国会旁吃兰戈斯炸饼；多瑙河夜游船；链子桥夜景: 'Budapest: Arrive; bouldering at MAG47; lángos by Parliament; Danube night cruise and the Chain Bridge at night'
+  本人落地布达佩斯机场 T2（航班）: I land at Budapest Airport T2 (flight)
+  从会场（HUNGEXPO）出发去河边: Leave the venue (HUNGEXPO) for the river
+  Vigadó tér 5 号码头检票（学生票要出示 ISIC）: Check in at Vigadó tér pier 5 (show ISIC for the student ticket)
+  多瑙河夜游开船（已付，约 1 h）: Danube night cruise departs (paid, about 1 h)
+  推荐: Recommended
+  本人落地布达佩斯机场 T2（转机航班）: I land at Budapest Airport T2 (connecting flights)
+  出关、等 200E（只带随身包）: Clear immigration, wait for 200E (carry-on only)
+  机场 → MAG47: Airport → MAG47
+  200E → 95 路 → 步行 3′: 200E → bus 95 → walk 3′
+  MAG47 攀岩馆（抱石）: MAG47 climbing gym (bouldering)
+  MAG47 → 会场: MAG47 → venue
+  步行 7′ + 85 路 + 步行 19′: Walk 7′ + bus 85 + walk 19′
+  找朋友，一起到会场（HUNGEXPO）: Find friends, go to the venue together (HUNGEXPO)
+  从会场出发去河边（队友不在会场就直接去 Retro Lángos，或最晚 19:20 到码头）: Leave the venue for the river (if the companions are not at the venue, go straight to Retro Lángos, or reach the pier by 19:20 at the latest)
+  会场 → Retro Lángos（Kossuth Lajos tér）: Venue → Retro Lángos (Kossuth Lajos tér)
+  10E → M2: 10E → M2
+  Retro Lángos（兰戈斯炸饼）: Retro Lángos (lángos fried dough)
+  Gerbeaud 咖啡馆: Gerbeaud café
+  麦当劳（夜游码头旁）: McDonald's (next to the cruise pier)
+  吃：Retro Lángos（兰戈斯炸饼）、Gerbeaud 咖啡馆、麦当劳（夜游码头旁）: 'Eat: Retro Lángos (lángos fried dough), Gerbeaud café, McDonald''s (next to the cruise pier)'
+  → 鞋子纪念碑: → Shoes memorial
+  步行 6′: Walk 6′
+  多瑙河鞋子纪念碑: Shoes on the Danube Bank memorial
+  沿河往南 → Vigadó tér 码头: Walk south along the river → Vigadó tér pier
+  步行 14′: Walk 14′
+  排队，出示 ISIC（学生票）: Queue, show ISIC (student ticket)
+  Vigadó tér 5 号码头检票: Check in at Vigadó tér pier 5
+  多瑙河夜游（已订已付）: Danube night cruise (booked and paid)
+  下船 → 链子桥: Get off the boat → Chain Bridge
+  步行 10′: Walk 10′
+  链子桥与佩斯河边夜景散步: Chain Bridge and Pest riverside night walk
+  布达佩斯：渔人堡与马加什教堂；Gravity 抱石；中午吃匈牙利菜；圣伊什特万大教堂；坐 M1 老地铁去英雄广场；晚上会场晚宴: 'Budapest: Fisherman''s Bastion and Matthias Church; bouldering at Gravity; Hungarian lunch; St. Stephen''s Basilica; the old M1 metro to Heroes'' Square; dinner at the venue'
+  渔人堡上层开始收费（全组 09:00 前到）: The upper level of Fisherman's Bastion starts charging (whole group to arrive before 09:00)
+  Széll Kálmán tér 坐 M2 去 Horgásztanya 午饭（12:54 到；饭点人多，建议先订位）: Take M2 from Széll Kálmán tér to Horgásztanya for lunch (arrive 12:54; busy at mealtimes, book first)
+  推荐：上午抱石，下午大教堂和英雄广场，傍晚回酒店再去会场: 'Recommended: bouldering in the morning, basilica and Heroes'' Square in the afternoon, back to the hotel in the evening and then to the venue'
+  渔人堡: Fisherman's Bastion
+  马加什教堂: Matthias Church
+  城堡区北段走走：Táncsics、Úri 街的老房子，到维也纳城门（Bécsi kapu），不进收费的地方: 'Stroll the northern Castle District: the old houses on Táncsics and Úri streets, to the Vienna Gate (Bécsi kapu), no paid entries'
+  城堡区 → Gravity: Castle District → Gravity
+  步行约 18′ 经维也纳城门下山；或 16A 公交 10:18 Szentháromság tér → Széll Kálmán tér 10:21 + 步行 7′: Walk about 18′ down via the Vienna Gate; or bus 16A 10:18 Szentháromság tér → Széll Kálmán tér 10:21 + walk 7′
+  买票、租鞋、换鞋: Buy tickets, rent shoes, change shoes
+  Gravity 抱石馆: Gravity bouldering gym
+  换鞋、收拾: Change shoes, pack up
+  Gravity → Horgásztanya: Gravity → Horgásztanya
+  步行 5′ + M2 12:44 Széll Kálmán tér → Batthyány tér 12:46 + 步行 8′（或步行 21′）: Walk 5′ + M2 12:44 Széll Kálmán tér → Batthyány tér 12:46 + walk 8′ (or walk 21′)
+  Horgásztanya 老餐厅（鱼汤、炖牛肉）: Horgásztanya old restaurant (fish soup, beef stew)
+  Mama Goulash（便宜的匈牙利家常菜）: Mama Goulash (cheap Hungarian home cooking)
+  Buja Disznók（Fény 市场里的匈牙利炸猪排）: Buja Disznók (Hungarian schnitzel in Fény market)
+  吃：Horgásztanya 老餐厅（鱼汤、炖牛肉）、Mama Goulash（便宜的匈牙利家常菜）、Buja Disznók（Fény 市场里的匈牙利炸猪排）: 'Eat: Horgásztanya old restaurant (fish soup, beef stew), Mama Goulash (cheap Hungarian home cooking), Buja Disznók (Hungarian schnitzel in Fény market)'
+  Horgásztanya → 链子桥 → 圣伊什特万大教堂: Horgásztanya → Chain Bridge → St. Stephen's Basilica
+  步行约 23′：沿 Fő utca 往南，白天走过链子桥: 'Walk about 23′: south along Fő utca, across the Chain Bridge in daylight'
+  圣伊什特万大教堂（露台）: St. Stephen's Basilica (terrace)
+  大教堂 → 英雄广场: Basilica → Heroes' Square
+  步行 4′ + M1 老地铁 15:59 Bajcsy-Zsilinszky út → Hősök tere 16:05 + 步行 4′: Walk 4′ + old M1 metro 15:59 Bajcsy-Zsilinszky út → Hősök tere 16:05 + walk 4′
+  安德拉什大街与英雄广场（坐 M1 老地铁）: Andrássy Avenue and Heroes' Square (ride the old M1 metro)
+  HUNGEXPO 会展中心（朋友开会的会场）: HUNGEXPO Convention Centre (venue of a friend's meeting)
+  会场晚宴: venue dinner
+  布达佩斯 → 维也纳 → Bad Ischl：早上坐火车去维也纳；美景宫上宫（克里姆特《吻》）；Rennweg 的两座教堂；卡尔教堂；纳什市场；晚上坐火车加巴士去 Bad Ischl: 'Budapest → Vienna → Bad Ischl: Morning train to Vienna; Upper Belvedere (Klimt''s The Kiss); two churches on Rennweg; Karlskirche; Naschmarkt; evening train and bus to Bad Ischl'
+  EC 140 从 Budapest-Keleti 开，11:20 到 Wien Hbf（直达，已买）: EC 140 leaves Budapest-Keleti and arrives at Wien Hbf at 11:20 (direct, already bought)
+  到 Wien Hbf，地下层储物柜存两个小箱子（现场存，只收非接触银行卡）: Arrive at Wien Hbf, store the two small suitcases in the lower-level lockers (on the spot, contactless bank cards only)
+  美景宫上宫时段票: Upper Belvedere timed ticket
+  IC 742 从 Wien Hbf 开（Attnang、Gmunden 换车，Gmunden 到 Bad Ischl 是 SV170 替代巴士），20:00 到 Bad Ischl（已定，决定 D-44；4 人的票已买）: IC 742 leaves Wien Hbf (change at Attnang and Gmunden; Gmunden to Bad Ischl is the SV170 replacement bus), arrive at Bad Ischl at 20:00 (fixed, decision D-44; tickets for 4 people already bought)
+  ? 实际坐 IC 744（Wien Hbf 7 站台，15 号车厢有 4 个订座），19:58 Attnang 换 R 3432 20:08，Gmunden 换 SV170 巴士 20:28，21:21 到 Bad Ischl（10-27 下午改，决定 D-58）；行程见下面第三套“晚一班”
+  : Actually taking IC 744 (Wien Hbf platform 7, 4 reserved seats in car 15), 19:58 Attnang change to R 3432 at 20:08, Gmunden change to the SV170 bus at 20:28, arrive at Bad Ischl at 21:21 (changed on the afternoon of 10-27, decision D-58); the itinerary is in the third plan, "Later option", below
+  推荐：16:57 走，20:00 到 Bad Ischl: 'Recommended: leave at 16:57, arrive in Bad Ischl at 20:00'
+  Keleti 站台等车、买水: Wait for the train at the Keleti platform, buy water
+  EC 140 Budapest-Keleti → Wien Hbf（直达，已买）: EC 140 Budapest-Keleti → Wien Hbf (direct, already bought)
+  Hbf 地下层存两个小箱子（XL 一格，现场存，只收非接触银行卡）；在 Interspar 买点吃的垫一口: Store the two small suitcases on the lower level of Hbf (one XL compartment, on the spot, contactless bank cards only); buy a bite at Interspar to tide you over
+  Hbf → 美景宫上宫: Hbf → Upper Belvedere
+  步行 4′ + 18 路电车 11:44 → Quartier Belvedere 11:47 + 步行 9′（或直接步行 15′）: Walk 4′ + tram 18 11:44 → Quartier Belvedere 11:47 + walk 9′ (or walk the whole way, 15′)
+  排队入场: Queue to enter
+  美景宫上宫（克里姆特《吻》）: Upper Belvedere (Klimt's The Kiss)
+  美景宫 → Rennweg: Belvedere → Rennweg
+  穿花园步行 11′: Walk 11′ through the garden
+  Salesianerinnenkirche（萨雷尔女修会教堂，Rennweg）: Salesianerinnenkirche (Salesian Nuns' Church, Rennweg)
+  → Gardekirche: → Gardekirche
+  步行 5′: Walk 5′
+  Gardekirche（波兰人教堂，Rennweg）: Gardekirche (Polish Church, Rennweg)
+  Gardekirche → 卡尔教堂: Gardekirche → Karlskirche
+  步行 9′: Walk 9′
+  卡尔教堂（含穹顶平台）: Karlskirche (incl. dome platform)
+  卡尔教堂 → 纳什市场: Karlskirche → Naschmarkt
+  步行 12′: Walk 12′
+  纳什市场与周六跳蚤市场: Naschmarkt and Saturday flea market
+  Café Sperl（《爱在黎明破晓前》同款咖啡馆）: Café Sperl (the café from Before Sunrise)
+  陈家面馆 Chen's Ramen: Chen's Ramen
+  吃：纳什市场与周六跳蚤市场、Café Sperl（《爱在黎明破晓前》同款咖啡馆）、陈家面馆 Chen's Ramen: 'Eat: Naschmarkt and Saturday flea market, Café Sperl (the café from Before Sunrise), Chen''s Ramen'
+  纳什市场 → Wien Hbf: Naschmarkt → Wien Hbf
+  步行 11′ + U1 Karlsplatz → Hbf（约 15:51 一班）+ 步行 6′: Walk 11′ + U1 Karlsplatz → Hbf (one at about 15:51) + walk 6′
+  取箱子，在 Interspar 买今晚和明早的菜（Bad Ischl 晚上商店关得早）: Pick up the suitcases, buy tonight's and tomorrow morning's food at Interspar (shops in Bad Ischl close early in the evening)
+  上站台，确认订座: Get on the platform, confirm the seat reservation
+  IC 742 Wien Hbf → Attnang-Puchheim 18:58，换 REX 4420 19:05 → Gmunden 19:19，换 SV170 巴士 19:23 → Bad Ischl 20:00: IC 742 Wien Hbf → Attnang-Puchheim 18:58, change to REX 4420 19:05 → Gmunden 19:19, change to SV170 bus 19:23 → Bad Ischl 20:00
+  Wolfgangsee：St. Wolfgang 与朝圣教堂；坐船过湖到 St. Gilgen；雨前回 Bad Ischl 在 K³ 抱石；晚上做火锅: 'Wolfgangsee: St. Wolfgang and its pilgrimage church; boat across the lake to St. Gilgen; bouldering at K³ in Bad Ischl before the rain; hotpot in the evening'
+  Bad Ischl Bahnhof 坐 546 直达 St. Wolfgang Markt（12:46）；11:18 重排，已吃过饭: Bus 546 from Bad Ischl Bahnhof direct to St. Wolfgang Markt (12:46); rescheduled at 11:18, lunch already eaten
+  船 St. Wolfgang Markt → St. Gilgen 14:45（不看天气每天开）: Boat St. Wolfgang Markt → St. Gilgen 14:45 (runs every day regardless of the weather)
+  St. Gilgen 坐 150 回 Bad Ischl 站 15:45（预报 15 点起小雨，16 点后下雨）: 'Bus 150 from St. Gilgen back to Bad Ischl station 15:45 (forecast: light rain from 15:00, rain after 16:00)'
+  EUROSPAR（Grazer Straße 58）关门：17:45 从 K³ 出来: 'EUROSPAR (Grazer Straße 58) closes: leave K³ at 17:45'
+  今天实际（11:18 重排，已吃过饭）：先去 St. Wolfgang 看教堂、沿湖走，14:05 坐船到 St. Gilgen，15:08 回 Bad Ischl，4 人抱石，回住处做火锅: 'What actually happened today (rescheduled at 11:18, lunch already eaten): first to St. Wolfgang to see the church and walk along the lake, boat to St. Gilgen at 14:05, back to Bad Ischl at 15:08, bouldering for 4, then hotpot back at the lodging'
+  Traun 河边散步（Bad Ischl 镇中心）: Traun riverside walk (Bad Ischl town center)
+  Traun 河边 Esplanade 散步: walk along the Traun Esplanade
+  Zauner → Bad Ischl Bahnhof: Zauner → Bad Ischl Bahnhof
+  Bad Ischl Bahnhof → St. Wolfgang Markt (M.-Pacher-Haus): Bad Ischl Bahnhof → St. Wolfgang Markt (M.-Pacher-Haus)
+  546 直达: 546 direct
+  St. Wolfgang 朝圣教堂与 Pacher 祭坛: St. Wolfgang Pilgrimage Church and Pacher Altar
+  St. Wolfgang 小镇（圣沃尔夫冈）: St. Wolfgang town
+  → St. Wolfgang Markt 码头: → St. Wolfgang Markt pier
+  步行约 6′（估）: Walk about 6′ (est.)
+  船 St. Wolfgang Markt → St. Gilgen: Boat St. Wolfgang Markt → St. Gilgen
+  船（经 Ried-Falkenstein、Fürberg）: Boat (via Ried-Falkenstein, Fürberg)
+  St. Gilgen 小镇与湖边: St. Gilgen town and lakeshore
+  St. Gilgen Busbahnhof → Bad Ischl Bahnhof: St. Gilgen Busbahnhof → Bad Ischl Bahnhof
+  150 直达: 150 direct
+  Bad Ischl Bahnhof → K³: Bad Ischl Bahnhof → K³
+  步行 26′（下雨可打车）: Walk 26′ (take a taxi if it rains)
+  K³ 攀岩馆（抱石）: K³ climbing gym (bouldering)
+  K³ → EUROSPAR: K³ → EUROSPAR
+  步行 31′: Walk 31′
+  EUROSPAR 超市（买火锅的菜（19:00 关门）：Fondue-Fleisch（薄切肉）、Chinakohl、Champignons、Tofu、Glasnudeln）: 'EUROSPAR supermarket (buy hotpot ingredients (closes 19:00): Fondue-Fleisch (thinly sliced meat), Chinakohl, Champignons, Tofu, Glasnudeln)'
+  Gosau 山谷：4 人一起走 Gosausee，从前湖走到后湖，在后湖边野餐: 'Gosau valley: All four walk the Gosausee lakes, from the front lake to the back lake, with a picnic by the back lake'
+  （第一、二套）最晚从后湖 Hinterer Gosausee 往回走，赶 16:52 的车: (Plans A and B) Latest time to start back from the back lake, Hinterer Gosausee, to catch the 16:52 bus
+  （第三套）从后湖往回走，最晚 15:30；14:00 还没到 Gosaulacke 就只走到那里，坐 16:52: (Plan C) Start back from the back lake, 15:30 at the latest; if you haven't reached Gosaulacke by 14:00, go only that far and take the 16:52
+  Zwieselalmbahn 站坐 542 → Gosaumühle 17:17，再坐 541 回 Bad Ischl（不是末班）: From the Zwieselalmbahn stop take the 542 → Gosaumühle 17:17, then the 541 back to Bad Ischl (not the last bus)
+  ? Zwieselalmbahn 站末班 542 → Steeg/Hallstätter See Traunbrücke 18:19 → 541 回 Bad Ischl；错过走 17′ 到 Hintertal b.Gosau Schmiedweg 坐 18:49 → 19:39 到
+  : Last 542 from the Zwieselalmbahn stop → Steeg/Hallstätter See Traunbrücke 18:19 → 541 back to Bad Ischl; if you miss it, walk 17′ to Hintertal b.Gosau Schmiedweg and take the 18:49 → arrive 19:39
+  今天实际 ①：赶上 10:45 的 542（等车或也晚点）→ 16:52 回，不卡末班: 'Actual today ①: caught the 10:45 542 (it waited or was also late) → back at 16:52, not tied to the last bus'
+  ②：没赶上 542，在 Gosaumühle 打车去湖边 → 16:52 回: '②: missed the 542, take a taxi from Gosaumühle to the lake → back at 16:52'
+  ? 10:50 到 Gosaumühle 时 542 已走：就在站上打 Gosau 的出租车直接去 Gasthof Gosausee（约 15 km，估），约 11:30 到湖边，比等 11:45 的车早约 1 h，还省掉车站到湖的 24′。之后同第一套，最晚 14:35 从后湖回头，16:52 回。电话：Gosauer Taxi（目录写全天）；Taxi Egger（旅游局目录 10-29 查；号码和价都没核，上车前问价）。
+  : 'When we reach Gosaumühle at 10:50 the 542 has already left: call a Gosau taxi at the stop and go straight to Gasthof Gosausee (about 15 km, est.), arriving at the lake at about 11:30, about 1 h earlier than waiting for the 11:45 bus, and it also saves the 24′ from the stop to the lake. After that, same as Plan A: turn back from the back lake by 14:35 at the latest, be back at 16:52. Phones: Gosauer Taxi (the directory says all day); Taxi Egger (tourist office directory, checked 10-29; numbers and prices are not verified, ask the price before getting in).'
+  ③：没赶上也不打车，11:45 的 542 → 三个湖照走，17:47 末班回: '③: missed it and no taxi, the 11:45 542 → still walk all three lakes, back on the 17:47 last bus'
+  ? 在 Gosaumühle 等 55′，坐 11:45 的 542，12:09 到 Zwieselalmbahn，12:40 从前湖出发，约 14:45 到后湖，15:00 往回走（最晚 15:30），约 16:45 回前湖，17:20 打手电走回车站（民用昏影 17:25 结束，最后 24′ 公路是黑的），坐这个站的末班 17:47，18:39 到家附近。14:00 还没到 Gosaulacke 就只走到那里，坐 16:52 回。
+  : Wait 55′ at Gosaumühle, take the 11:45 542, arriving at Zwieselalmbahn at 12:09, leave the front lake at 12:40, reach the back lake at about 14:45, start back at 15:00 (15:30 at the latest), be back at the front lake at about 16:45, walk to the stop with a flashlight from 17:20 (civil twilight ends at 17:25, so the last 24′ along the road is dark), take the last bus from this stop at 17:47, and reach the home area at 18:39. If we haven't reached Gosaulacke by 14:00, go only that far and take the 16:52 back.
+  Hallstatt Gosaumühle → Hintertal b.Gosau Zwieselalmbahn: Hallstatt Gosaumühle → Hintertal b.Gosau Zwieselalmbahn
+  542（时刻表 10:45 → 11:09；接上时约晚 5′）: 542 (timetable 10:45 → 11:09; about 5′ late if we connect)
+  Zwieselalmbahn 站 → 前湖北端（Google 地图搜 Gasthof Gosausee）: Zwieselalmbahn stop → north end of the front lake (search Google Maps for Gasthof Gosausee)
+  步行 24′（1.7 km）: Walk 24′ (1.7 km)
+  Gosausee 湖（前湖到后湖）: Gosausee (front lake to back lake)
+  野餐（自带），后湖边: Picnic (bring your own), by the back lake
+  前湖北端 Gasthof Gosausee 喝点热的、歇脚（开到 20:00）: 'Gasthof Gosausee at the north end of the front lake: something hot and a rest (open until 20:00)'
+  前湖北端 → Zwieselalmbahn 站: North end of the front lake → Zwieselalmbahn stop
+  步行 24′: Walk 24′
+  EUROSPAR 买晚饭的菜（开到 19:00）: 'EUROSPAR: buy groceries for dinner (open until 19:00)'
+  Hallstatt Gosaumühle → Gasthof Gosausee（前湖北端）: Hallstatt Gosaumühle → Gasthof Gosausee (north end of the front lake)
+  出租车（等车加开车约 40′，估）: Taxi (waiting plus driving about 40′, est.)
+  前湖北端 Gasthof Gosausee 喝点热的、歇脚: 'Gasthof Gosausee at the north end of the front lake: something hot and a rest'
+  在 Gosaumühle 等 11:45 的 542（站就在 Hallstätter See 北端湖边）: Wait at Gosaumühle for the 11:45 542 (the stop is right on the shore at the north end of Hallstätter See)
+  '542': '542'
+  EUROSPAR 买晚饭的菜（19:00 关）: 'EUROSPAR: buy groceries for dinner (closes 19:00)'
+  Hallstatt → 维也纳：在 Bad Ischl 的 Zauner 甜品店吃甜品；唯一的晴天去 Hallstatt；坐巴士加火车到维也纳；看沃蒂夫教堂亮起的“∞”；在 Hietzing 吃晚饭: 'Hallstatt → Vienna: Pastries at Zauner in Bad Ischl; Hallstatt on the only sunny day; bus and train to Vienna; the lit "∞" at the Votivkirche; late dinner in Hietzing'
+  （已走）Bad Ischl 巴士总站 SV170 → Gmunden 16:33，REX 4415 16:40 → Attnang 16:54，IC 743 17:01 → 19:03 到 Wien Hbf；不上 WESTbahn: (already left) Bad Ischl bus terminal SV170 → Gmunden 16:33, REX 4415 16:40 → Attnang 16:54, IC 743 17:01 → arrive Wien Hbf 19:03; not taking WESTbahn
+  到 Wien Hbf；前台办入住（4 本护照，城市税约 €4），问退房后能不能寄存: Arrive at Wien Hbf; check in at reception (4 passports, city tax about €4), ask whether they can store the luggage after check-out
+  （实际）打车到沃蒂夫教堂，看两塔之间的“∞”（只看外面）: (actual) Taxi to Votivkirche, look at the "∞" between the two towers (outside only)
+  从沃蒂夫教堂打车（Uber 或 Bolt，约 15–20′，估 €15–25）去 Wiener Grill Haus: Taxi from Votivkirche (Uber or Bolt, about 15–20′, est. €15–25) to Wiener Grill Haus
+  Wiener Grill Haus 晚饭（TheFork 已订，4 人；Hadikgasse 40）: Dinner at Wiener Grill Haus (booked on TheFork, 4 people; Hadikgasse 40)
+  上车前在 WienMobil 买 24 小时票（实际没买，用户后来说的；改 10-31 早上买）；Hietzing U4 → Karlsplatz 22:44，再坐 U1 回: Buy a 24-hour ticket in WienMobil before boarding (actually not bought, the user said so later; buying it on the morning of 10-31 instead); Hietzing U4 → Karlsplatz 22:44, then U1 back
+  今天实际 ①：19:03 到 Wien，入住，沃蒂夫教堂看“∞”，21:00 Wiener Grill Haus: 'Actual today ①: arrive in Wien at 19:03, check in, see the "∞" at Votivkirche, 21:00 Wiener Grill Haus'
+  ②：入住慢了或累了：不去沃蒂夫教堂，直接去吃饭: '②: check-in slow or tired: skip Votivkirche, go straight to dinner'
+  ? 入住、洗漱拖久了，或大家累了：跳过沃蒂夫教堂，从住处出门（O 路 + U1 到 Karlsplatz），坐 20:35 的 U4 到 Hietzing，步行 7′，20:53 到 Wiener Grill Haus（Transitous 查）。“∞”明天傍晚本人可以再去看（10-31 天页）。
+  : 'If check-in and freshening up drag on, or everyone is tired: skip Votivkirche, leave the lodging (tram O + U1 to Karlsplatz), take the 20:35 U4 to Hietzing, 7′ walk, arriving at Wiener Grill Haus at 20:53 (Transitous). I can go and see the "∞" again at dusk tomorrow (10-31 day page).'
+  Zauner 甜品店: Zauner pastry shop
+  Konditorei Zauner 吃甜品（茜茜公主那家）: Sweets at Konditorei Zauner (the Empress Sisi one)
+  Bad Ischl Bahnhof（C 站台）→ Hallstatt Gosaumühle: Bad Ischl Bahnhof (platform C) → Hallstatt Gosaumühle
+  '541': '541'
+  Hallstatt Gosaumühle → Hallstatt Lahn（巴士终点站）: Hallstatt Gosaumühle → Hallstatt Lahn (bus terminus)
+  543，步行 2′ 换车: 543, 2′ walk to change
+  Hallstatt 小镇: Hallstatt town
+  Hallstatt Lahn → Bad Ischl Bahnhof: Hallstatt Lahn → Bad Ischl Bahnhof
+  544 → Gosaumühle，换 541: 544 → Gosaumühle, change to 541
+  车站旁咖啡店取箱子: Collect the suitcases at the café by the station
+  Bad Ischl Bahnhof（巴士总站）→ Gmunden Bahnhof: Bad Ischl Bahnhof (bus terminal) → Gmunden Bahnhof
+  SV170 替代巴士，车头写 Gmunden Bahnhof: SV170 replacement bus, the destination sign says Gmunden Bahnhof
+  Gmunden Bahnhof → Attnang-Puchheim Bahnhof: Gmunden Bahnhof → Attnang-Puchheim Bahnhof
+  步行 3′，REX 4415: 3′ walk, REX 4415
+  Attnang-Puchheim → Wien Hbf: Attnang-Puchheim → Wien Hbf
+  步行 2′，IC 743（往 Flughafen Wien）: 2′ walk, IC 743 (towards Flughafen Wien)
+  沃蒂夫教堂外面看两塔之间亮灯的“∞”光雕塑: Votivkirche (the lit-up "∞" light sculpture between the two towers, the "church with the Möbius strip" the user mentioned) (looking at the lit-up "∞" light sculpture between the two towers from outside Votivkirche)
+  沃蒂夫教堂 → Wiener Grill Haus（Hadikgasse 40）: Votivkirche → Wiener Grill Haus (Hadikgasse 40)
+  打车：Uber 或 Bolt app 叫车，约 15–20′: 'Taxi: hail one with the Uber or Bolt app, about 15–20′'
+  Wiener Grill Haus 晚饭（TheFork 已订 21:00，4 人）: Dinner at Wiener Grill Haus (booked on TheFork for 21:00, 4 people)
+  维也纳：最后一天轻松过：Blockfabrik 抱石；圣斯蒂芬大教堂与圣伯多禄教堂；boulderbar Hannovergasse 万圣节团队赛；夜里坐火车去机场: 'Vienna: An easy last day: bouldering at Blockfabrik; Stephansdom and Peterskirche; Halloween team competition at boulderbar Hannovergasse; late train to the airport'
+  boulderbar Hannovergasse 前台报名万圣节团队赛（17:30–17:45），18:00 开始；错过了就照常爬或在旁边看: Sign up for the Halloween team competition at the boulderbar Hannovergasse front desk (17:30–17:45), it starts at 18:00; if you miss it, climb as usual or just watch
+  最晚这时离开 boulderbar Hannovergasse（22:00 关门），12 路 + U4 + U1 到 Hbf: Latest time to leave boulderbar Hannovergasse (it closes at 22:00), tram 12 + U4 + U1 to Hbf
+  Wien Hbf 坐 Railjet（ÖBB 快车）去机场，22:57 到；或 22:53 REX → 23:15 用 ÖBB Tickets app 买机场段补票（€2.30，有 24 小时票）: Take the Railjet (ÖBB express) from Wien Hbf to the airport, arriving 22:57; or the 22:53 REX → 23:15 Buy the airport-section supplement (€2.30, with a 24-hour ticket) in the ÖBB Tickets app
+  今晚去机场的末班火车（REX → 00:15）；都误了就坐 VAB 1 机场大巴（23:15、明早 03:15、03:45）: Last train to the airport tonight (REX → 00:15); if you miss all the trains, take the VAB 1 airport bus (23:15, then 03:15 and 03:45 tomorrow morning)
+  推荐：Blockfabrik 歇着爬 → 坐地铁到圣斯蒂芬、圣伯多禄 → 晚上 boulderbar Hannovergasse 万圣节团队赛 → 22:42 Railjet 去机场: 'Recommended: rest and climb at Blockfabrik → metro to Stephansdom and Peterskirche → Halloween team competition at boulderbar Hannovergasse in the evening → 22:42 Railjet to the airport'
+  不去教堂：Blockfabrik 待到 16:35，U4 直达和平桥站，换电车到 Hannovergasse: 'Skipping the churches: stay at Blockfabrik until 16:35, U4 straight to Friedensbrücke, then change to the tram to Hannovergasse'
+  累了、只想在岩馆歇着就选这套。从 Blockfabrik 到 Hannovergasse 坐 U4 一趟不用换车，再坐 5 路电车 2 站。Transitous 10-31 13:50–13:52 查。: Choose this one if you are tired and only want to rest at the gym. From Blockfabrik to Hannovergasse, take one U4 ride with no change, then tram 5 for 2 stops. Checked on Transitous on 10-31, 13:50–13:52.
+  晚上换 boulderbar Hbf：不参加团队赛，离 Hbf 近: 'Evening at boulderbar Hbf instead: skip the team competition, close to Hbf'
+  不想参加团队赛、或累了选这套。下午同推荐（到圣伯多禄为止）；然后坐 U1 回 Hbf 一带，boulderbar Hbf（中央车站店）今天没有活动，周六 09:00–22:00，学生 €13.10；爬完步行约 10′ 到 Hbf，去机场最省事。: Choose this one if you do not want to join the team competition, or if you are tired. The afternoon is the same as the recommended plan (ending at Peterskirche); then take U1 back to the Hbf area. boulderbar Hbf (Central Station branch) has no event today, is open Saturday 09:00–22:00, student price €13.10; after climbing, walk about 10′ to Hbf, which is the easiest way to get to the airport.
+  Som Kitchen（中央车站店，泰国菜）: Som Kitchen (Central Station branch, Thai food)
+  和队友在 Hbf 吃 Som Kitchen（泰国菜，打包）: eat Som Kitchen (Thai food, takeaway) at Hbf with the companions
+  Wien Hbf（中央火车站）→ Blockfabrik: Wien Hbf (Central Station) → Blockfabrik
+  13A 公交（往 Skodagasse）→ Leibenfrostgasse 14:00，步行 7′；之后每几分钟一班: Bus 13A (to Skodagasse) → Leibenfrostgasse 14:00, walk 7′; then one every few minutes
+  Blockfabrik 抱石馆: Blockfabrik bouldering gym
+  Blockfabrik（5 区的大型抱石馆）爬一会儿、歇一会儿: climb a while, rest a while at Blockfabrik (big bouldering gym in the 5th district)
+  Blockfabrik → Stephansplatz（圣斯蒂芬广场站）: Blockfabrik → Stephansplatz (Stephansplatz station)
+  步行 5′ 到 U4 Pilgramgasse（地铁站），U4（往 Heiligenstadt）→ Karlsplatz（卡尔广场站），换 U1（往 Leopoldau）1 站 → Stephansplatz: Walk 5′ to U4 Pilgramgasse (metro station), U4 (to Heiligenstadt) → Karlsplatz (Karlsplatz station), change to U1 (to Leopoldau) for 1 stop → Stephansplatz
+  圣斯蒂芬大教堂: Stephansdom (St. Stephen's Cathedral)
+  Stephansdom（圣斯蒂芬大教堂），出地铁口就是: Stephansdom (St. Stephen's Cathedral), right at the metro exit
+  圣伯多禄教堂（彼得教堂）: Peterskirche (St. Peter's Church)
+  Peterskirche（圣伯多禄教堂，巴洛克式），从圣斯蒂芬走 3′: Peterskirche (St. Peter's Church, Baroque), 3′ walk from Stephansdom
+  Stephansplatz → boulderbar Hannovergasse: Stephansplatz → boulderbar Hannovergasse
+  ? 16:50 U3（往 Simmering）→ Wien Mitte-Landstraße（维也纳中城站）16:52，16:54 U4（往 Heiligenstadt）→ Friedensbrücke（和平桥站）17:00，17:05 12 路电车（或 17:10 5 路）坐 2 站 → Wallensteinplatz（华伦斯坦广场），步行 7′
+  : 16:50 U3 (to Simmering) → Wien Mitte-Landstraße (Wien Mitte station) 16:52, 16:54 U4 (to Heiligenstadt) → Friedensbrücke (Friedensbrücke station) 17:00, 17:05 tram 12 (or 17:10 tram 5) for 2 stops → Wallensteinplatz (Wallenstein Square), walk 7′
+  boulderbar 抱石馆（Hannovergasse 店，第一家 boulderbar）: boulderbar bouldering gym (Hannovergasse branch, the first boulderbar)
+  boulderbar Hannovergasse（boulderbar 第一家店）报名、看万圣节团队赛、随便爬: 'boulderbar Hannovergasse (the first boulderbar): sign up, watch the Halloween team competition, climb freely'
+  boulderbar Hannovergasse → Wien Hbf: boulderbar Hannovergasse → Wien Hbf
+  ? 步行 6′ 到 Klosterneuburger Straße/Wallensteinstraße（电车站），21:51 12 路 → Friedensbrücke 21:53，21:56 U4（往 Hütteldorf）→ Schwedenplatz（瑞典广场站）22:00，22:07 U1（往 Oberlaa）→ Hbf 22:13；晚一班：21:51 出门步行 13′ 到 Friedensbrücke，22:04 U4，22:14 U1 → 22:21
+  : 'Walk 6′ to Klosterneuburger Straße/Wallensteinstraße (tram stop), 21:51 tram 12 → Friedensbrücke 21:53, 21:56 U4 (to Hütteldorf) → Schwedenplatz (Schwedenplatz station) 22:00, 22:07 U1 (to Oberlaa) → Hbf 22:13; a later option: leave at 21:51, walk 13′ to Friedensbrücke, 22:04 U4, 22:14 U1 → 22:21'
+  维也纳中央车站（存包、买菜）（Hbf 补机场段票，在站内 INTERSPAR-pronto（Spar 超市小店）买晚饭、水和明早吃的）: Vienna Central Station (luggage storage, groceries) (buy the airport-section supplement at Hbf; buy dinner, water and tomorrow's breakfast at INTERSPAR-pronto (small Spar supermarket) in the station)
+  Wien Hbf → 维也纳机场（在机场过夜）: Wien Hbf → Vienna Airport (overnight at the airport)
+  Railjet RJX 19959（ÖBB 快车，往 Flughafen Wien）；或 22:53 REX 22779 → 23:15；末班 23:53 REX → 00:15: Railjet RJX 19959 (ÖBB express, to Flughafen Wien); or 22:53 REX 22779 → 23:15; last train 23:53 REX → 00:15
+  维也纳机场（11-01 早班，前一晚在这里过夜）（在机场找地方过夜）: Vienna Airport (early flight on 11-01, overnight here the night before) (find a place to spend the night at the airport)
+  和本人在 Hbf 吃 Som Kitchen（打包）: eat Som Kitchen (takeaway) at Hbf with me
+  Wien Hbf → 维也纳机场（REX 7 或 Railjet，按航班挑车；队友航班你说不用管，D-46）: Wien Hbf → Vienna Airport (REX 7 or Railjet, pick by flight; you said the companions' flights need no attention, D-46)
+  Wien Hbf → Blockfabrik: Wien Hbf → Blockfabrik
+  13A（往 Skodagasse）→ Leibenfrostgasse，步行 7′: 13A (to Skodagasse) → Leibenfrostgasse, walk 7′
+  Blockfabrik 抱石馆（Blockfabrik（5 区的大型抱石馆）多待一会儿）: Blockfabrik bouldering gym (stay a bit longer at Blockfabrik (big bouldering gym in the 5th district))
+  Blockfabrik → boulderbar Hannovergasse: Blockfabrik → boulderbar Hannovergasse
+  ? 步行 5′ 到 U4 Pilgramgasse，16:43 U4（往 Heiligenstadt）→ Friedensbrücke 16:55，17:00 5 路电车 → Wallensteinplatz 17:02，步行 7′；晚一班 16:48 U4 → 17:00
+  : 'Walk 5′ to U4 Pilgramgasse, 16:43 U4 (to Heiligenstadt) → Friedensbrücke 16:55, 17:00 tram 5 → Wallensteinplatz 17:02, walk 7′; a later option: 16:48 U4 → 17:00'
+  boulderbar 抱石馆（Hannovergasse 店，第一家 boulderbar）（报名、看万圣节团队赛、随便爬）: boulderbar bouldering gym (Hannovergasse branch, the first boulderbar) (sign up, watch the Halloween team competition, climb freely)
+  同推荐那套（12 路 + U4 + U1）: Same as the recommended set (tram 12 + U4 + U1)
+  Wien Hbf → 维也纳机场: Wien Hbf → Vienna Airport
+  Railjet RJX 19959；或 22:53 REX → 23:15；末班 23:53: Railjet RJX 19959; or 22:53 REX → 23:15; last train 23:53
+  13A → Leibenfrostgasse，步行 7′: 13A → Leibenfrostgasse, walk 7′
+  Blockfabrik → Stephansplatz: Blockfabrik → Stephansplatz
+  步行 5′，U4 → Karlsplatz，换 U1 → Stephansplatz: Walk 5′, U4 → Karlsplatz, change to U1 → Stephansplatz
+  Stephansplatz → boulderbar Hbf: Stephansplatz → boulderbar Hbf
+  U1（往 Oberlaa），下车后步行 14′: U1 (to Oberlaa), then walk 14′
+  boulderbar 抱石馆（中央车站店）（boulderbar Hbf（中央车站店）抱石、歇着）: boulderbar bouldering gym (Central Station branch) (bouldering and resting at boulderbar Hbf (Central Station branch))
+  boulderbar Hbf → Wien Hbf: boulderbar Hbf → Wien Hbf
+  步行约 10′: Walk about 10′
+  回家：早班飞机离开维也纳机场: 'Fly home: Early flight from Vienna Airport'
+  Ryanair 网上值机截止（起飞前 2 小时）；拿非欧盟/EEA 护照的，这时前排到 Visa/Document check 柜台盖章（07:05 关） 用 Ryanair app 网上值机、做护照验证: Ryanair online check-in closes (2 hours before departure); holders of non-EU/EEA passports should be in the queue at the Visa/Document check desk for a stamp by now (it closes at 07:05) Check in online in the Ryanair app and do the passport verification
+  登机口关（旧记录，没重核）: Gate closes (old record, not rechecked)
+  航班 从维也纳机场起飞，10:05 到斯德哥尔摩 ARN（本人）: Flight departs from Vienna Airport, arrives at Stockholm ARN at 10:05 (me)
+  抱石、吃饭都在室内；夜游已付，照常坐。 下船后下雨就不散步，直接回酒店。: Bouldering and eating are both indoors; the cruise is paid for, so we go as planned. If it rains after the cruise, skip the walk and go straight back to the hotel.
+  渔人堡、城堡区缩短；Gravity、午饭、大教堂都在室内。去链子桥那段改坐车：Batthyány tér 坐 M2 到 Deák Ferenc tér，步行 4′ 到大教堂。: 'Fisherman''s Bastion and the Castle District are shortened; Gravity, lunch and the basilica are all indoors. For the stretch to the Chain Bridge, take transport instead: M2 from Batthyány tér to Deák Ferenc tér, then walk 4′ to the basilica.'
+  从酒店出发去渔人堡（1 路电车 + M2） 从酒店出发去会场（1 路电车 + 10E；按晚宴 19:00 开始排，时间待你告诉我）: Leave the hotel for Fisherman's Bastion (tram 1 + M2) Leave the hotel for the venue (tram 1 + 10E; planned for a banquet starting at 19:00, the time is for you to tell me)
+  美景宫在室内，照常；Rennweg 的教堂和卡尔教堂只看外观，下雨就跳过，13:30 起坐 18 路电车回 Hbf 附近，在 Interspar 吃，纳什市场换 Café Sperl（室内）。: The Belvedere is indoors, so it goes ahead as usual; the Rennweg churches and the Karlskirche are exteriors only, skip them if it rains; from 13:30 take tram 18 back to near Hbf, eat at Interspar, and swap Naschmarkt for Café Sperl (indoors).
+  从酒店出发去 Keleti（1 路电车 + 80 路公交）: Leave the hotel for Keleti (tram 1 + bus 80)
+  下雨或起雾：不上缆车，船照开，中午在 St. Gilgen，下午早点回 Bad Ischl: 'Rain or fog: no cable car, the boat still runs, lunch in St. Gilgen, back to Bad Ischl early in the afternoon'
+  真下起雨：只走到 Gosaulacke 再回来，或只在前湖边走走，Gasthof Gosausee 躲雨；16:52 回家。: 'If it really rains: go only as far as Gosaulacke and back, or just stroll around the front lake and shelter in Gasthof Gosausee; home at 16:52.'
+  到 Hallstatt Gosaumühle（541 晚约 9′）：10:45 的 542 还在就上（第一套）；走了就在这里打车去 Gasthof Gosausee（第二套），不打车就等 11:45 的 542（第三套）: 'Arrive at Hallstatt Gosaumühle (the 541 is about 9′ late): if the 10:45 542 is still there, take it (Plan A); if it has left, take a taxi from here to Gasthof Gosausee (Plan B); if no taxi, wait for the 11:45 542 (Plan C)'
+  今晚维也纳降雨概率 0–3%（Open-Meteo 18:4x），照常。真下雨就跳过沃蒂夫教堂，按第二套直接去吃饭。: Rain probability in Vienna tonight is 0–3% (Open-Meteo 18:4x), so carry on as planned. If it really rains, skip Votivkirche and go straight to dinner with the second plan.
+  今天每段都坐车，步行最长约 7′（电车站到 Hannovergasse），岩馆和教堂都在室内，不用改。: Every leg today goes by public transport, the longest walk is about 7′ (tram stop to Hannovergasse), and both gyms and the churches are indoors, so no change is needed.
+  维也纳机场: Vienna Airport
+  沃蒂夫教堂（两塔之间亮灯的“∞”光雕塑）: Votivkirche (the lit-up '∞' light sculpture between the two towers)
+  Wiener Grill Haus（晚饭）: Wiener Grill Haus (dinner)
+  Bad Ischl 镇上的车站 → Hallstatt Gosaumühle: our stop in Bad Ischl → Hallstatt Gosaumühle
+  541（晚点约 9′ 的那班）: 541 (the one that ran about 9′ late)
+  Zwieselalmbahn → Bad Ischl 镇上的车站: Zwieselalmbahn → our stop in Bad Ischl
+  542 → Hallstatt Gosaumühle，再坐 541: 542 → Hallstatt Gosaumühle, then the 541
+  542 → Steeg/Hallstätter See Traunbrücke，再坐 541: 542 → Steeg/Hallstätter See Traunbrücke, then the 541
+  中欧 8 日：布达佩斯、维也纳与萨尔茨卡默古特湖区: '8 days in Central Europe: Budapest, Vienna and the Salzkammergut lakes'
+  布达佩斯: Budapest
+  10 月 25—27 日 · 住 2 晚: 25–27 Oct · 2 nights
+  火车，2 小时 50 分: train, 2 h 50
+  维也纳: Vienna
+  10 月 27 日 · 路过玩半天: 27 Oct · a day stop on the way
+  火车加巴士，约 3.5 小时: train and bus, about 3.5 h
+  Bad Ischl 与湖区: Bad Ischl and the lakes
+  10 月 27—30 日 · 住 3 晚 · 一日游 Wolfgangsee、Gosausee、Hallstatt: 27–30 Oct · 3 nights · day trips to the Wolfgangsee, the Gosausee and Hallstatt
+  巴士加火车，约 3 小时: bus and train, about 3 h
+  10 月 30 日—11 月 1 日: 30 Oct – 1 Nov
+  飞机: flight
+  回家: Home
+  11 月 1 日: 1 Nov
+  这是一趟真实行程的每日安排：四个朋友，八天，两座首都，加上奥地利萨尔茨卡默古特的湖区。页面由 tripwright 从提交的行程生成。: 'The day-by-day plan of a real trip: four friends, eight days, two capitals and the lakes of the Salzkammergut in Austria. This page was generated by tripwright from the committed plan.'
+share:
+  intro: 这是一趟真实行程的每日安排：四个朋友，八天，两座首都，加上奥地利萨尔茨卡默古特的湖区。页面由 tripwright 从提交的行程生成。
+  route:
+  - name: 布达佩斯
+    note: 10 月 25—27 日 · 住 2 晚
+    leg: 火车，2 小时 50 分
+    lat: 47.507
+    lon: 19.0459
+    day: '2026-10-25'
+  - name: 维也纳
+    note: 10 月 27 日 · 路过玩半天
+    leg: 火车加巴士，约 3.5 小时
+    lat: 48.2085
+    lon: 16.3731
+    day: '2026-10-27'
+  - name: Bad Ischl 与湖区
+    note: 10 月 27—30 日 · 住 3 晚 · 一日游 Wolfgangsee、Gosausee、Hallstatt
+    leg: 巴士加火车，约 3 小时
+    lat: 47.7109
+    lon: 13.6218
+    day: '2026-10-28'
+  - name: 维也纳
+    note: 10 月 30 日—11 月 1 日
+    leg: 飞机
+    lat: 48.2085
+    lon: 16.3731
+    day: '2026-10-30'
+  - name: 回家
+    note: 11 月 1 日
+    day: '2026-11-01'

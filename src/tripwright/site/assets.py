@@ -1,3 +1,5 @@
+from pathlib import Path
+
 STYLE = """
 :root{color-scheme:light dark;--bg:#f7f7f5;--fg:#1d1d1f;--muted:#62666a;--line:#dededb;--card:#fff;--acc:#225fc1;--warn:#856000;--bad:#b63028;--ok:#21663e}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 system-ui,sans-serif;overflow-wrap:anywhere}a{color:var(--acc)}button,a,summary{touch-action:manipulation}button{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-height:44px;cursor:pointer}a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--acc);outline-offset:3px}
@@ -10,3 +12,8 @@ html[data-language=zh] .en,html[data-language=en] .zh{display:none}html[data-lan
 SCRIPT = """
 (()=>{const root=document.documentElement;const setLanguage=language=>{if(!['zh','en'].includes(language))return;root.dataset.language=language;root.lang=language==='zh'?'zh-CN':'en';document.querySelectorAll('[data-language-button]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.languageButton===language)));document.querySelectorAll('a[data-language-link]').forEach(link=>{const url=new URL(link.href,location.href);url.searchParams.set('lang',language);link.href=url.href;});};setLanguage(new URLSearchParams(location.search).get('lang')||root.dataset.language);document.querySelectorAll('[data-language-button]').forEach(button=>button.addEventListener('click',()=>setLanguage(button.dataset.languageButton)));document.querySelectorAll('[data-fold]').forEach(button=>button.addEventListener('click',()=>document.querySelectorAll('details.fold').forEach(detail=>detail.open=button.dataset.fold==='open')));document.querySelector('[data-menu]')?.addEventListener('click',event=>{document.body.classList.toggle('navopen');event.currentTarget.setAttribute('aria-expanded',String(document.body.classList.contains('navopen')));});document.querySelectorAll('[data-copy]').forEach(button=>button.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(button.dataset.copy);button.textContent=root.dataset.language==='zh'?'已复制':'Copied';}catch(error){const selection=getSelection();const range=document.createRange();range.selectNodeContents(button.previousElementSibling);selection.removeAllRanges();selection.addRange(range);}}));})();
 """
+
+# The page friends read (share.py): a stylesheet and a script of its own, both inlined into every page.
+_SHARE = Path(__file__).parent / "share_static"
+SHARE_STYLE = (_SHARE / "share.css").read_text(encoding="utf-8")
+SHARE_SCRIPT = (_SHARE / "share.js").read_text(encoding="utf-8")
