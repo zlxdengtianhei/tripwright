@@ -1,4 +1,4 @@
-# tripwright
+<h1 align="center"><img src="docs/assets/logo.svg" alt="tripwright" width="317" height="64"></h1>
 
 English | [简体中文](README.zh-CN.md) | [Project page](https://zlxdengtianhei.github.io/tripwright/)
 
