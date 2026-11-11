@@ -3,6 +3,10 @@
 #   trip     the Trip shape (src/tripwright/trip.py); Chinese is the original text
 #   english  each Chinese text above -> its English, used by the share page's EN side
 #   share    editorial extras of the home page: intro and route (stops with the leg to the next one; lat/lon of the city dot)
+#   log      the trip log page: what the traveler typed on the road, how the old setup (a private Git repository plus a
+#            Claude Code session) handled it, and what tripwright does now. Texts are {zh, en} pairs; `retold` marks a
+#            paraphrase. The replies under `replay` were produced on 2026-11-11 with tripwright at commit 5c40347 and
+#            are shown as given.
 # A place to stay appears only as its district and type ("stay-N" is a placeholder name that the share page never prints).
 # Build the page: uv run python -m tripwright.site.example examples/trip-2026-10-central-europe.yaml <out-folder>
 trip:
@@ -704,3 +708,259 @@ share:
   - name: 回家
     note: 11 月 1 日
     day: '2026-11-01'
+log:
+  intro:
+    zh: '这一页沿着一趟真实的旅行，看路上最难的几个时刻。每一段先写我当时打的字，再写当时是怎样处理的，最后写 tripwright 现在怎样对待这类话。'
+    en: 'This page follows one real trip through its hardest moments. Each piece shows what I typed on the road, how it was handled at the time, and what tripwright does with that kind of message now.'
+  origin:
+    zh: '当时的处理来自旧做法：一个私有 Git 仓加一个 Claude Code 会话，那时 tripwright 还不存在。tripwright 是旅行之后照这些话重做的。“tripwright 现在”里能展开的回答，是 2026-11-11 把同一句话交给 tripwright 重新跑出来的，原样贴出，答得不好的地方也留着。'
+    en: 'How it was handled then comes from the old setup, a private Git repository plus a Claude Code session; tripwright did not exist yet. tripwright was built after the trip from these messages. The replies you can unfold under “tripwright now” were made on 11 Nov 2026 by giving the same message to tripwright. They are shown as given, including what they got wrong.'
+  pieces:
+  - id: missed-bus
+    title: {zh: 误了一班车：现在怎么走, en: 'Missed the bus: how do we go now?'}
+    when:
+      zh: '2026-10-29 周四，10:24–10:56，奥地利萨尔茨卡默古特，巴德伊舍（Bad Ischl）'
+      en: 'Thu 29 Oct 2026, 10:24–10:56, Bad Ischl, Salzkammergut, Austria'
+    said:
+    - time: '10:24'
+      zh: '以后注意终端输出不要用表格的 然后我们现在好像错过了一个车 现在的话怎么走'
+      en: 'From now on, don''t use tables in the terminal output. And it looks like we just missed a bus. How do we go now?'
+    - time: '10:28'
+      zh: '别 以后的交互应该是你先给我终端输出我现在的走法 然后再去更新网站……要不行就打车先去另外一个站'
+      en: 'No. From now on, first give me in the terminal how to go right now, and only then update the website … and if that doesn''t work, take a taxi to another stop first.'
+    - time: '10:56'
+      zh: '我现在上车了 是晚点了 我们大概是10.31上的车……如果是11点就会卡最后一班然后会天黑吗'
+      en: 'I''m on the bus now, it was late, we got on at about 10:31 … if it''s 11:00, will that leave us with only the last bus, and will it be dark?'
+    then:
+      zh: '它先让我们坐一小时后的下一班，回程坐 17:47 的末班。我纠正之后，它改成先在对话里答、再更新网站。等我说已经上了晚点约 9 分钟的 541，它重排成三套：在 Gosaumühle 赶 10:45 的 542；赶不上就在那里打车；或者等 11:45 那班，回程坐末班，最后一段路天已经黑了。'
+      en: 'First it told us to take the next bus an hour later and come back on the last bus at 17:47. After my correction it answered in the chat first and updated the website afterwards. Once I said we had boarded bus 541 about 9 minutes late, it re-planned three ways. Catch bus 542 at 10:45 in Gosaumühle. If it has left, take a taxi from there. Or wait for the 11:45 bus and come back on the last one, with the final stretch after dark.'
+    became:
+      zh: '“先在对话里答、再更新别的”现在是默认顺序。存着的计划答得上时，第一条回复先从计划里给出，没核过的时刻标明；查过时刻表之后给第二条，先说和第一条不同的地方。每一程写明在哪个 App 搜什么，地名照原文。边界：时刻表不是实时数据，“晚点 9 分钟”这类事仍要旅行者自己说。'
+      en: '“Answer in the chat first, update the rest afterwards” is now the default order. When the stored plan can answer, the first reply comes from the plan, with unchecked times marked. The second reply comes after the timetable lookups and starts with what differs from the first. Each leg names the app and the exact term to search, with place names in their original spelling. The limit: timetable data is not live, so a 9-minute delay still has to come from the traveler.'
+    match: {zh: 对上，有一条边界, en: 'Matches, with one limit'}
+    replay:
+      setup:
+        zh: '2026-11-11 跑的，只跑一次。tripwright 提交 5c40347；一个只连着 tripwright 的聊天宿主（没有别的说明文件），模型 GPT（gpt-6-luna）；时钟拨回 2026-10-29 10:24；时刻表查的是实时来源。存着的行程是这份公开示例，其中 10-29 改回了当天早上的计划（坐 10:22 的 541），因为示例里存的是误车之后重排的结果。10:24 那句话的前半句讲表格，没有发。'
+        en: 'Run once on 11 Nov 2026. tripwright at commit 5c40347; a chat host connected only to tripwright (no other instruction file), model GPT (gpt-6-luna); the clock set back to 29 Oct 2026, 10:24; timetables from the live source. The stored trip is this public example, with 29 Oct put back to the plan of that morning (bus 541 at 10:22), because the example stores the day as it was re-planned after the missed bus. The first half of the 10:24 message, about tables, was not sent.'
+      asked:
+        zh: '我们现在好像错过了一个车 现在的话怎么走'
+        en: 'It looks like we just missed a bus. How do we go now?'
+      parts:
+      - label: {zh: 回复（11 秒；只有一条）, en: 'Reply (11 s; one reply), translated from the Chinese'}
+        text:
+          zh: |-
+            我按你们在 Bad Ischl、要去 Zwieselalmbahn 查了。现在查到的下一班方案是：
+
+            - **11:14** 从 **Bad Ischl Bahnhof** 坐 **541** 到 **Hallstatt Gosaumühle**（11:41到），换 **11:45** 的 **542**，**12:09** 到 **Hintertal b.Gosau Zwieselalmbahn**。
+            - 如果赶不上，**12:04** 从 Bad Ischl Bahnhof 坐 **REX 3414** 到 **Steeg-Gosau Bahnhof**（12:17到），走2分钟，换 **12:25** 的 **542**，**12:56** 到。
+
+            这些是时刻表查询结果，不含实时晚点或临时停运；出发前请在 **ÖBB App** 搜 `Bad Ischl Bahnhof → Hintertal b.Gosau Zwieselalmbahn` 核对站台和实时情况。当前只查到 **15:14** 出发的班次，之后的还没查。
+
+            我参考了你们湖区用 ÖBB App 查交通的偏好；维也纳市内 Google 地图、语言偏好和周日商店备注与这段路线无关。
+          en: |-
+            I looked this up taking you to be in Bad Ischl and going to Zwieselalmbahn. The next connection found now is:
+
+            - **11:14** from **Bad Ischl Bahnhof**, bus **541** to **Hallstatt Gosaumühle** (arrives 11:41), change to bus **542** at **11:45**, arrive **Hintertal b.Gosau Zwieselalmbahn** at **12:09**.
+            - If you miss that, **12:04** from Bad Ischl Bahnhof, **REX 3414** to **Steeg-Gosau Bahnhof** (arrives 12:17), walk 2 minutes, change to bus **542** at **12:25**, arrive **12:56**.
+
+            These are timetable results and do not include live delays or cancellations; before you leave, search `Bad Ischl Bahnhof → Hintertal b.Gosau Zwieselalmbahn` in the **ÖBB App** to check the platform and the live status. So far only departures up to **15:14** have been looked up; later ones have not.
+
+            I took into account your preference for the ÖBB App for transport in the lake district; Google Maps inside Vienna, the language preferences and the note on Sunday shop hours do not matter for this route.
+      note:
+        zh: '做到的：先读了存着的计划，再查时刻表，给出下一班和再下一班，写明在哪个 App 搜什么，并说这不是实时数据。没做到的：没提打车，也没提回程末班和天黑（当时是我 10:56 追问之后才有的）；最后一句列了几条和这段路无关的偏好，是多余的。存着的计划答不上这一问，所以服务没有给第一条快答，查完直接答，11 秒。同一句话用英文再问一次，10 秒给出同一班车，但回答是中文（存着的计划是中文），这是一个缺陷。查到的时刻来自 11-11 查的时刻表，没有和当天的时刻表对过。'
+        en: 'What it did: it read the stored plan, looked up the timetable, gave the next connection and the one after, named the app and the term to search, and said the data is not live. What it missed: no taxi option, and nothing about the last bus back or the dark (in October those came only after my 10:56 message); the last sentence lists preferences that do not matter here. The stored plan cannot answer this question, so the service gave no quick first reply and answered after the lookup, in 11 seconds. A defect: asked once more in English, it gave the same connection in 10 seconds but answered in Chinese, the language of the stored plan. The times come from a timetable queried on 11 Nov and were not compared with the timetable of that day.'
+
+  - id: budget-line
+    title: {zh: 预算红线：“这也太贵了”, en: 'A budget line: “that''s too expensive”'}
+    when:
+      zh: '2026-10-25 周日，21:23，布达佩斯'
+      en: 'Sun 25 Oct 2026, 21:23, Budapest'
+    said:
+    - time: '21:23'
+      zh: '这个也太贵了 不要超过30欧一个人 大概20-25最好 然后在湖区的交通是否有通票？然后你应该使用我之前的那些检索，或者存储的来自小红书的资料'
+      en: 'That''s too expensive. No more than €30 per person, around €20–25 is best. And is there a regional pass for transport around the lakes? You should use my earlier searches, or the material saved from Xiaohongshu (a Chinese social-media app).'
+    then:
+      zh: '当晚，它把第二天午饭那家三道菜约 €50 的店换成更便宜的一家，另备一家，并在车票须知里补了湖区的通票：一张 €26.50 的日票。'
+      en: 'That evening it swapped the three-course lunch planned for the next day (about €50) for a cheaper restaurant, with a second one as backup, and added the regional pass to the ticket notes: a day ticket at €26.50.'
+    became:
+      zh: '你说过的预算上限会连原话一起存下来，之后凡是它管得到的问题，服务都把它带回给助手，不靠助手记得。要核事实时，查证的角色先读你存的材料（你以前的检索），再查实时来源，最后才查开放网页；网页上的说法只写“网上说法”并带出处，不写成“核过”。'
+      en: 'A budget limit you state is stored with your exact words, and the service hands it back to the assistant with every later question it applies to, so it does not depend on the assistant remembering it. When a fact needs checking, the researcher role reads your saved material first (your earlier searches), then live sources, and only then the open web. What a web page says is labelled as a web claim with its source, not as checked.'
+    match: {zh: 对上, en: Matches}
+
+  - id: no-workflow
+    title: {zh: 别让我走你的流程, en: '“Don''t make me follow your workflow”'}
+    when:
+      zh: '2026-10-27 周二，11:58，维也纳'
+      en: 'Tue 27 Oct 2026, 11:58, Vienna'
+    said:
+    - time: '11:58'
+      zh: '你要是给我直接的回答，并且……你要去标注这种目的地，还有包括这个走法、时间的安排'
+      en: 'If you give me a direct answer, and … you label the destination, and the route and the timing as well.'
+    - zh: '我肯定不会按照这个流程来做'
+      en: 'I definitely won''t follow this process.'
+    - zh: '有一个那个一键的这个就是说标记做完什么的这样的一种东西'
+      en: 'Something with one tap, you know, for marking what''s done.'
+    then:
+      zh: '随后，网站多了一个一键“✓ 做完”，点了之后复制一段状态交给助手同步；操作指南改成：路上的问题在对话里答全。'
+      en: 'Soon after, the website had a one-tap “✓ Done” button that copies the state for the assistant to sync, and the operating guide changed to say that road questions are answered in full in the chat.'
+    became:
+      zh: '前半对上：回答直接在对话里给，每一程写明开哪个 App、搜什么。“一键做完”没有带过来：tripwright 没有这个按钮，做完一件事靠你对助手说一声。'
+      en: 'The first half matches: answers come in the chat, and each leg says which app to open and what to search. The one-tap “Done” button did not carry over. tripwright has no such button; a step counts as done when you tell the assistant.'
+    match: {zh: 部分对上；“一键做完”没有, en: 'Partly matches; no one-tap “Done”'}
+
+  - id: rainy-day
+    title: {zh: 雨天：一上午改了好几次, en: 'Rainy day: re-planned several times before noon'}
+    when:
+      zh: '2026-10-28 周三，08:58–11:17，巴德伊舍与沃尔夫冈湖'
+      en: 'Wed 28 Oct 2026, 08:58–11:17, Bad Ischl and the Wolfgangsee lake'
+    said:
+    - time: '08:58'
+      zh: '今天天气不太好……想过得轻松一点。现在我们刚醒……出门估计至少要10点了。……只坐船……缆车就不坐了……赶在大致下雨之前回来，看看能不能去抱石（我们一共四个人）……晚上回来自己做火锅'
+      en: 'The weather isn''t good today … I want to take it easy. We''ve just woken up … it will be at least 10 before we leave … only the boat … skip the cable car … get back before it roughly starts raining, see if we can go bouldering (there are four of us in total) … make hotpot ourselves in the evening.'
+    - time: '09:45'
+      retold: true
+      zh: '问：如果赶不上 10 点出门，下一趟怎么排。'
+      en: 'Asked what the schedule would look like if we could not leave at 10.'
+    - time: '11:12'
+      retold: true
+      zh: '说现在出门，要一份按当前时间排的计划。'
+      en: 'Said we were heading out now and asked for a plan from the current time.'
+    - time: '11:17'
+      retold: true
+      zh: '说已经吃过饭，下午回到巴德伊舍之前不用再排吃饭，要求重排。'
+      en: 'Said we had eaten, so no meal was needed before we were back in Bad Ischl in the afternoon, and asked for a new plan.'
+    then:
+      zh: '中午前它把这一天改了好几次，每次留了理由。先按早上的天气预报把这一天倒过来走（先去 St. Gilgen，再坐 12:00 的船到 St. Wolfgang）；又补上更晚的后备出发时刻；我们说吃过饭之后，改成 12:12 出发，去掉午饭。'
+      en: 'It changed the day several times before noon, each time with its reason. First it reversed the day using the morning forecast (St. Gilgen first, then the 12:00 boat to St. Wolfgang). Then it added later backup departures. After we said we had eaten, it moved the departure to 12:12 and removed lunch.'
+    became:
+      zh: '普通的安排有理由就可以改，每次被接受的改动都存下改了什么、谁改的、为什么。回答从“现在几点”算起，不从计划里写的时刻算起；天气来自预报来源，查到的结果会过期。'
+      en: 'Ordinary choices may change when there is a reason, and each accepted change is saved with what changed, who changed it and why. Answers start from the time now, not from the times written in the plan. Weather comes from a forecast source, and a forecast result expires.'
+    match: {zh: 对上, en: Matches}
+
+  - id: preference-not-used
+    title: {zh: “为什么没用我的偏好？”, en: '“Why didn''t you use my preference?”'}
+    when:
+      zh: '2026-10-30 周五，20:13，维也纳'
+      en: 'Fri 30 Oct 2026, 20:13, Vienna'
+    said:
+    - time: '20:13'
+      zh: '你这次第一段输出也太久了吧……明天的话我的下午活动可以考虑攀岩，这个我的preference里……你为啥没有参考到？你是否有忘记使用我们旅行系统的情况，另外我的要求原话都记录了吗'
+      en: 'Your first part took way too long this time … tomorrow my afternoon activity could be climbing, that''s in my preferences … why didn''t you use it? Did you forget to use our travel system? And were my exact words all recorded?'
+    then:
+      zh: '随后，它往操作指南里写了两条：第一段要在 3 分钟内给出，只答接下来的一两个小时；第二段先读偏好概览，再排计划。'
+      en: 'It then wrote two rules into the guide. The first part must come within 3 minutes and answer only the next one or two hours. The second part must read the preference overview before it plans.'
+    became:
+      zh: '每条讲行程的消息，助手都要先调用 turn；它返回这条消息用得上的已存偏好（这里是攀岩），存着的计划答得上时还给出一段现成的第一条回复。每条偏好都存着你的原话和出处，“记忆”页上写着它最近用在哪、还是还没用过。助手照不照做，仍然要看回答。'
+      en: 'For every message about a trip the assistant must call turn first. It returns the stored preferences that apply to the message (here, climbing) and, when the stored plan can answer, a ready first reply. Each preference keeps your exact words and where they came from, and the memory page shows where it was last used, or that it has not been used yet. Whether the assistant follows this still has to be checked in the answer.'
+    match: {zh: 对上，照不照做要看回答, en: 'Matches; the answer still has to be checked'}
+
+  - id: give-me-the-choice
+    title: {zh: “给我选择，别替我砍掉偏好”, en: '“Give me the choice, don''t cut my preference”'}
+    when:
+      zh: '2026-10-30 周五，23:32，维也纳'
+      en: 'Fri 30 Oct 2026, 23:32, Vienna'
+    said:
+    - time: '23:32'
+      zh: '你的轻松一点考虑不抱石其实问题不大 但是因为我的preference还是应该考虑并且给我选择的 然后我明天就是去个大点的岩馆吧'
+      en: 'Considering “take it easy” and not bouldering is actually not a big problem, but my preference should still be considered, and you should give me the choice. So tomorrow I''ll just go to a bigger climbing gym.'
+    - zh: '我甚至觉得可以考虑在岩馆呆一天'
+      en: 'I even think we could consider spending a whole day at the gym.'
+    then:
+      zh: '当晚，第二天给回了三套：老城免费逛加市场加下午去大岩馆（标为推荐）；在岩馆待一整天；上午去博物馆。操作指南加了一条：偏好要考虑，并且给我选择。'
+      en: 'That night the next day came back as three plans: a free old-town walk, the market and an afternoon at a big gym (marked as recommended); a whole day at the gym; a museum in the morning. The guide gained a rule: preferences count, and I get a choice.'
+    became:
+      zh: '你的两条偏好互相挤的时候，tripwright 要助手给两到三套方案，不替你在两条偏好之间取舍；偏好之间谁让谁，只听你说。推荐要有事实理由（天气、末班车的风险、关门），不能凭助手的口味。这一处比旧做法严：当时的“推荐”是它自己判断的。'
+      en: 'When two of your preferences compete, tripwright has the assistant offer two or three options and never trades one preference against the other. Which preference gives way comes only from you. A recommendation needs a factual reason (weather, last-bus risk, a closure), not the assistant''s taste. This is stricter than the old setup, which picked its recommendation by its own judgement.'
+    match: {zh: 对上，有一处更严, en: 'Matches, and stricter in one place'}
+
+  - id: on-my-own
+    title: {zh: “今天我是一个人”, en: '“I''m on my own today”'}
+    when:
+      zh: '2026-10-31 周六，11:35，维也纳（语音输入）'
+      en: 'Sat 31 Oct 2026, 11:35, Vienna (dictated)'
+    said:
+    - time: '11:35'
+      zh: '我要是今天来安排的话……我应该是一个人，对吧？那一个人的话，我自己就不涉及要拿箱子'
+      en: 'If I''m arranging today … I should be on my own, right? Being alone, I don''t have a suitcase to deal with.'
+    - zh: '攀岩也是不需要去租鞋的'
+      en: 'I don''t need to rent shoes for the climbing either.'
+    - zh: '需求的记录……不仅是要有一些决策树，可能还需要有一些……preference 的 save'
+      en: 'For the record of requirements … not only decision trees, there probably also needs to be some … saving of preferences.'
+    - retold: true
+      zh: '背景：三位同行人这天去机场。'
+      en: 'Background: my three companions left for the airport that day.'
+    then:
+      zh: '随后，这一天按一个人重排：中央车站午饭、走去岩馆、免费的教堂、晚上去办万圣节活动的岩馆。概览里加了“按人”一条，指南里加了一条“逐块对人”。'
+      en: 'The day was then re-planned for one person. Lunch at the main station, a walk to the gym, free churches, and in the evening the gym with the Halloween event. The overview gained a “per person” entry, and the guide a rule to plan each block for the person it concerns.'
+    became:
+      zh: '计划里每一块都写明是谁的。只属于某个人的事（例如拿行李）要写明由谁负责，提交计划时会核这个人是不是在这一块里。“不用租鞋”这类偏好存成带原话的记录。'
+      en: 'Every block of the plan says who it is for. A task that belongs to one person, such as carrying the luggage, names its holder, and a commit checks that this person is in the block. A preference like “no shoe rental” is stored as a record with your exact words.'
+    match: {zh: 对上, en: Matches}
+
+  - id: latest-time
+    title: {zh: 先轻松、后省钱：再告诉我最晚几点, en: 'Easy first, then cheap: and tell me the latest time'}
+    when:
+      zh: '2026-10-31 周六，13:48，维也纳'
+      en: 'Sat 31 Oct 2026, 13:48, Vienna'
+    said:
+    - time: '13:48'
+      zh: '你让我走路的话呢，这个就就太远了。而且我也说过，我们最后一天这个要稍微的轻松一点……那你如果只考虑这个省钱，那我觉得是不对的'
+      en: 'If you make me walk, that''s too far. And I did say that on the last day we should take it a bit easier … if you only consider saving money, I think that''s wrong.'
+    - zh: '你在第二轮的里面也没有去做这些核验，那我觉得这就有问题了呀'
+      en: 'In the second round you didn''t do these checks either, so I think that''s a problem.'
+    - zh: '你去说一个最最迟的时间，让我有一个这个底……机场能不能进去，我过夜怎么过'
+      en: 'Tell me the very latest time, so I have a bottom line … can I get into the airport, and how do I spend the night?'
+    then:
+      zh: '随后一次改完：换成 24 小时票，补机场段 €2.30；下午重排为岩馆、两座免费教堂、万圣节团队赛、22:42 的 Railjet。当天的页面新增“硬节点”一节：末班车 23:53、夜班大巴、航空公司值机 05:45 截止、在机场过夜。指南加了一条：整天一起排，轻松先于省钱。'
+      en: 'One change followed. A 24-hour ticket with a €2.30 supplement for the airport leg, and a new afternoon: the gym, two free churches, the Halloween team contest, the 22:42 Railjet. The day page gained a “Hard nodes” section: last train 23:53, a night bus, the airline''s check-in cut-off at 05:45, and the airport as the place to spend the night. The guide gained a rule: plan the whole day together; easy before cheap.'
+    became:
+      zh: '计划里定死的时刻存成硬节点；问“今晚最晚几点”时，服务用查到的班次算末班和最晚出发时刻，查询盖不到的时段要说没查到。只有第三方说法的事（例如机场夜里能不能待）写成“没核”，并写后果和到现场怎么办。你像这里这样明说了偏好的先后，就存成你定的顺序。'
+      en: 'Fixed times in the plan are stored as hard nodes. For “what is the latest tonight”, the service works out the last connection and the latest time to leave from the departures it looked up, and has to say which hours the lookup did not cover. A claim that comes only from a third party, such as staying in the airport overnight, is written as not checked, with the consequence and what to do on site. When you state an order between preferences, as here, it is stored as your order.'
+    match: {zh: 对上, en: Matches}
+    replay:
+      setup:
+        zh: '2026-11-11 跑的，中文、英文各问一次，各只跑一次。tripwright 提交 5c40347；一个只连着 tripwright 的聊天宿主（没有别的说明文件），模型 GPT（gpt-6-luna）；时钟拨回 2026-10-31 13:48；时刻表查的是实时来源。存着的行程是公开仓里这趟旅行的行程仓副本（examples/trip-2026-10-bud-wien），它存的是 10-31 这天结束时的计划，所以计划里已经有当天下午定下的安排。发的是第三句，中间省掉的几个字没有发。'
+        en: 'Run on 11 Nov 2026, once in Chinese and once in English. tripwright at commit 5c40347; a chat host connected only to tripwright (no other instruction file), model GPT (gpt-6-luna); the clock set back to 31 Oct 2026, 13:48; timetables from the live source. The stored trip is the copy of this trip''s repository in the public repository (examples/trip-2026-10-bud-wien). It holds the plan as it stood at the end of 31 Oct, so the plan already contains what was decided that afternoon. Only the third message was sent, without the words left out in the middle.'
+      asked:
+        zh: '你去说一个最最迟的时间，让我有一个这个底。机场能不能进去，我过夜怎么过'
+        en: 'Tell me the very latest time, so I have a bottom line. Can I get into the airport, and how do I spend the night?'
+      parts:
+      - label: {zh: 第一条回复（7 秒，来自存着的计划）, en: 'First reply (7 s, from the stored plan), translated from the Chinese'}
+        text:
+          zh: |-
+            按存的计划先说（时刻还没核）
+            按现在 13:48 算，假设你在 Som Kitchen （计划里这时在这；不在的话说一声）
+            确认机场能否进入以及怎样过夜：维也纳机场（11-01 早班，前一晚在这里过夜），营业时间没存（存的）
+            明早 05:45 Ryanair 网上值机截止（起飞前 2 小时）；拿非欧盟/EEA 护照的，这时前排到 Visa/Document check 柜台盖章（存档，没核）
+            要核过的第二段，回我一句“继续”。
+          en: |-
+            From the stored plan first (times not checked yet)
+            Counting from 13:48 now, assuming you are at Som Kitchen (the plan has you here at this time; tell me if you are not)
+            Whether you can get into the airport and how to spend the night: Vienna Airport (early flight on 1 Nov, the night before is spent here), opening hours not stored (stored)
+            Tomorrow 05:45 Ryanair online check-in closes (2 hours before departure); with a non-EU/EEA passport, queue at the Visa/Document check desk for the stamp before then (on file, not checked)
+            For the checked second part, reply “continue”.
+      - label: {zh: 回“继续”之后的第二条回复（17 秒）, en: 'Second reply, after “continue” (17 s), translated from the Chinese'}
+        text:
+          zh: |-
+            ## 核过之后
+
+            **和上面一样，已核：这次没能核实机场是否允许过夜，也没能确认航站楼开放时间。**官方机场服务页面没有找到关于过夜的原句，营业时间查询也没有可用来源。因此不能把“机场通宵开放”当成已确认事实；如果夜间入口关闭，可能进不去。建议出发前联系维也纳机场确认当晚的航站楼开放情况，并问清能否在公共区域过夜。
+
+            按计划，你今晚从 boulderbar Hannovergasse 最晚 **21:50** 出发，前往维也纳中央火车站（Wien Hauptbahnhof）；计划乘 **22:42** 的 Railjet，**22:57** 到维也纳机场。错过后，计划还列了 **22:53** 的 REX，**23:15** 到；这两个班次和最晚出发时间都还没有核实，别把它们当作已确认的服务。请用 ÖBB Tickets App 查 **Wien Hbf → Flughafen Wien** 的当晚班次。
+
+            若你最终能进航站楼，过夜可在公共区域找座位休息，带好充电宝、眼罩或耳塞，并把随身物品收好；机场夜间是否有座位、设施是否开放也未核实。更稳妥的底线是尽量赶上 **22:42** 那班，别把到机场时间押到最后一班车。
+
+            明早计划记的是 **05:45** Ryanair 网上值机截止；如持非欧盟/欧洲经济区护照，还需在 Visa/Document check 柜台办理文件检查。这个时刻和办理要求目前都是存档信息，尚未核实；请以 Ryanair App 中的航班和登机牌信息为准。
+          en: |-
+            ## After checking
+
+            **Same as above, checked: this time I could not verify whether the airport allows staying overnight, nor confirm the terminal's opening hours.** The official airport services page has no sentence about staying overnight, and the opening-hours lookup had no usable source. So “the airport is open all night” cannot be taken as a confirmed fact; if the entrances are closed at night, you may not get in. Contact Vienna Airport before you leave to confirm the terminal's opening that night, and ask whether you may stay in the public area overnight.
+
+            By the plan, you leave boulderbar Hannovergasse at **21:50** at the latest tonight for Vienna main station (Wien Hauptbahnhof); the plan takes the **22:42** Railjet, arriving at Vienna Airport at **22:57**. If you miss it, the plan also lists the **22:53** REX, arriving **23:15**; neither of these two services nor the latest time to leave has been verified, so do not treat them as confirmed services. Use the ÖBB Tickets App to look up tonight's services **Wien Hbf → Flughafen Wien**.
+
+            If you do get into the terminal, you can rest on a seat in the public area; bring a power bank, an eye mask or earplugs, and keep your belongings close. Whether there are seats at night and which facilities are open is not verified either. The safer bottom line is to catch the **22:42**, and not to stake your arrival at the airport on the last train.
+
+            For tomorrow morning the plan records **05:45** as the close of Ryanair online check-in; with a non-EU/EEA passport you also need the document check at the Visa/Document check desk. This time and this requirement are from the file and have not been verified; go by the flight and boarding-pass information in the Ryanair App.
+      note:
+        zh: '做到的：第一条 7 秒就到，来自存着的计划，写明时刻还没核、假设我在哪；第二条老实说机场夜里能不能待没核到，没有把它写成事实。没做到的：我问的是“最最迟的时间”，第二条只复述了计划里的 21:50 和 22:42，没有去查末班车，所以这个底没有给出来。同一句话用英文再问一次，它查了末班（00:53 的 REX，01:16 到机场），但把两段合成了一条，32 秒才到，而且回答是中文。两次都没能核到机场过夜这件事。查到的时刻来自 11-11 查的时刻表，没有和当晚的时刻表对过；当时存的末班是 23:53。'
+        en: 'What it did: the first reply came in 7 seconds from the stored plan, marked as not checked, with its assumption about where I was. The second said plainly that staying in the airport overnight could not be checked, and did not state it as a fact. What it missed: I asked for the very latest time; the second reply only repeated 21:50 and 22:42 from the plan and did not look up the last train, so the bottom line was not given. Asked once more in English, it did look up the last train (a REX at 00:53, at the airport 01:16), but put both parts into one reply, which took 32 seconds, and it answered in Chinese. Neither run could check the airport overnight question. The looked-up times come from a timetable queried on 11 Nov and were not compared with the timetable of that night; the plan stored at the time gave 23:53 as the last train.'

@@ -43,6 +43,7 @@ def log_data() -> dict:
 
 def example_with_log(tmp_path, log: dict | None) -> Path:
     document = yaml.safe_load(EXAMPLE.read_text(encoding="utf-8"))
+    document.pop("log", None)
     if log is not None:
         document["log"] = log
     path = tmp_path / "example.yaml"
@@ -55,10 +56,17 @@ def build_log(tmp_path, log: dict | None = None):
 
 
 def test_an_example_without_a_log_has_no_log_page_or_links(tmp_path):
-    result = build_example(EXAMPLE, tmp_path / "site", now=NOW)
+    result = build_example(example_with_log(tmp_path, None), tmp_path / "site", now=NOW)
     assert "log.html" not in result["pages"] and not (result["out"] / "log.html").exists()
     for name in result["pages"]:
         assert 'href="log.html"' not in (result["out"] / name).read_text(encoding="utf-8")
+
+
+def test_the_shipped_example_has_a_trip_log_of_eight_pieces_that_passes_the_scan_unchanged(tmp_path):
+    result = build_example(EXAMPLE, tmp_path / "site", now=NOW)
+    html = (result["out"] / "log.html").read_text(encoding="utf-8")
+    assert html.count('class="card log-piece"') == 8 and result["untranslated"] == [] and result["swapped"] == {}
+    assert "tripwright did not exist yet" in html and "Our note" in html  # which handling was the old setup's; replies are commented
 
 
 def test_a_log_builds_a_page_with_ordered_sections_and_navigation_on_every_page(tmp_path):

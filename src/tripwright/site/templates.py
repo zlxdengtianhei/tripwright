@@ -448,7 +448,8 @@ SHARE_LOG = """{% extends 'base' %}{% block main %}
 {% for part in piece.replay.parts %}<h4>{{ t(part.label) }}</h4>
 <div class="log-reply">{{ t(part.text) }}</div>
 {% endfor %}
-{% if piece.replay.note %}<p>{{ t(piece.replay.note) }}</p>{% endif %}
+{% if piece.replay.note %}<h4>{{ label('我们的评注','Our note') }}</h4>
+<p>{{ t(piece.replay.note) }}</p>{% endif %}
 </div>
 </details>{% endif %}
 </section>

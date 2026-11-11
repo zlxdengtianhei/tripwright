@@ -105,7 +105,7 @@ def test_the_example_is_a_valid_trip_of_eight_days_that_builds_with_all_english(
     assert len(plan["days"]) == 8 and plan["start"] == "2026-10-25" and plan["end"] == "2026-11-01"
     result = build_example(EXAMPLE, tmp_path / "example", now=NOW)
     assert result["pages"] == ["2026-10-25.html", "2026-10-26.html", "2026-10-27.html", "2026-10-28.html", "2026-10-29.html",
-                               "2026-10-30.html", "2026-10-31.html", "2026-11-01.html", "index.html"]
+                               "2026-10-30.html", "2026-10-31.html", "2026-11-01.html", "index.html", "log.html"]
     assert result["untranslated"] == [] and result["swapped"] == {}
 
 
