@@ -248,7 +248,7 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
     @expose_errors
     def state(view: Literal["current", "plan", "day", "blank", "ledger", "decisions", "history", "profile", "memory", "pack", "sync", "export"] = "current",
               date: str | None = None, draft_id: str | None = None) -> dict[str, Any]:
-        """Read committed state. current/plan return the trip; day needs date=YYYY-MM-DD and returns text plus editable json (send days=[json], not the whole result); blank returns a minimal new-trip plan. Other views: ledger, decisions, history, profile, memory, pack (draft_id required), sync (Git copy; public page address), export. No view writes."""
+        """Read committed state. current/plan return the trip; day needs date=YYYY-MM-DD and returns text plus editable json (send days=[json], not the whole result); blank returns a minimal new-trip plan. Other views: ledger, decisions, history, profile, memory, pack (draft_id required), sync (Git copy; public page address, none until a public GitHub repository is connected), export. No view writes."""
         return ready().state(identity(), view, date, draft_id)
 
     @server.tool(title="Explain decisions, sources and preference use", annotations=read, structured_output=True)

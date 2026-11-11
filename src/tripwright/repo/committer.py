@@ -500,7 +500,9 @@ class Committer:
 
 
 LOCAL_NOTE = ("No remote repository: the trip's files exist only in this copy (on the server's data volume, or in this "
-              "folder on the computer). Back it up yourself; nothing is copied elsewhere.")
+              "folder on the computer). Back it up yourself; nothing is copied elsewhere. If the user asks where the "
+              "trips are kept or wants a public page, say so: deploy/SETUP.md, sections 3 and 3A, connects a private "
+              "GitHub repository for a second copy and a public one for pages.")
 
 
 def _tail(text: str, limit: int = 300) -> str:

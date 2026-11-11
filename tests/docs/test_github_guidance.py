@@ -1,8 +1,10 @@
-"""What to tell the user about GitHub is written once, in the setup guide; both READMEs agree with it."""
+"""What to tell the user about GitHub is written once, in the setup guide; the service's note and both READMEs agree with it."""
 from __future__ import annotations
 
 import re
 from pathlib import Path
+
+from tripwright.repo.committer import LOCAL_NOTE
 
 ROOT = Path(__file__).resolve().parents[2]
 SETUP = (ROOT / "deploy" / "SETUP.md").read_text(encoding="utf-8")
@@ -31,6 +33,12 @@ def test_the_setup_guide_says_public_pages_need_github() -> None:
     title, body = section("3A")
     assert title.startswith("Optional")
     assert body.lstrip().startswith("Public trip pages need GitHub")
+
+
+def test_the_service_note_for_a_local_repository_points_to_setup_sections_that_exist() -> None:
+    assert "Back it up yourself" in LOCAL_NOTE
+    assert "deploy/SETUP.md, sections 3 and 3A" in LOCAL_NOTE
+    section("3"), section("3A")
 
 
 def test_both_readmes_call_the_github_step_recommended_and_say_the_same_two_things() -> None:
