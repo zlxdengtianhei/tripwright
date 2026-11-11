@@ -153,8 +153,8 @@ trip:
     - {id: a10-27-2, time: '08:30', text: 'EC 140 从 Budapest-Keleti 开，11:20 到 Wien Hbf（直达，已买）', subject: [me, mate-1, mate-2, mate-3]}
     - {id: a10-27-3, time: '11:20', text: 到 Wien Hbf，地下层储物柜存两个小箱子（现场存，只收非接触银行卡）, subject: [me, mate-1, mate-2, mate-3]}
     - {id: a10-27-4, time: '12:00', text: 美景宫上宫时段票, subject: [me, mate-1, mate-2, mate-3]}
-    - {id: a10-27-5, time: '16:57', text: 'IC 742 从 Wien Hbf 开（Attnang、Gmunden 换车，Gmunden 到 Bad Ischl 是 SV170 替代巴士），20:00 到 Bad Ischl（已定，决定 D-44；4 人的票已买）', subject: [me, mate-1, mate-2, mate-3]}
-    - {id: a10-27-6, time: '17:57', text: '实际坐 IC 744（Wien Hbf 7 站台，15 号车厢有 4 个订座），19:58 Attnang 换 R 3432 20:08，Gmunden 换 SV170 巴士 20:28，21:21 到 Bad Ischl（10-27 下午改，决定 D-58）；行程见下面第三套“晚一班”', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-27-5, time: '16:57', text: 'IC 742 从 Wien Hbf 开（Attnang、Gmunden 换车，Gmunden 到 Bad Ischl 是 SV170 替代巴士），20:00 到 Bad Ischl（已定；4 人的票已买）', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-27-6, time: '17:57', text: '实际坐 IC 744（Wien Hbf 7 站台，15 号车厢有 4 个订座），19:58 Attnang 换 R 3432 20:08，Gmunden 换 SV170 巴士 20:28，21:21 到 Bad Ischl（10-27 下午改）；行程见下面第三套“晚一班”', subject: [me, mate-1, mate-2, mate-3]}
     plans:
     - name: 推荐：16:57 走，20:00 到 Bad Ischl
       tracks:
@@ -297,7 +297,7 @@ trip:
     - {id: a10-30-3, time: '20:10', text: （实际）打车到沃蒂夫教堂，看两塔之间的“∞”（只看外面）, subject: [me, mate-1, mate-2, mate-3]}
     - {id: a10-30-4, time: '20:35', text: 从沃蒂夫教堂打车（Uber 或 Bolt，约 15–20′，估 €15–25）去 Wiener Grill Haus, subject: [me, mate-1, mate-2, mate-3]}
     - {id: a10-30-5, time: '21:00', text: Wiener Grill Haus 晚饭（TheFork 已订，4 人；Hadikgasse 40）, subject: [me, mate-1, mate-2, mate-3]}
-    - {id: a10-30-6, time: '22:33', text: '上车前在 WienMobil 买 24 小时票（实际没买，用户后来说的；改 10-31 早上买）；Hietzing U4 → Karlsplatz 22:44，再坐 U1 回', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-30-6, time: '22:33', text: '上车前在 WienMobil 买 24 小时票（实际没买；改 10-31 早上买）；Hietzing U4 → Karlsplatz 22:44，再坐 U1 回', subject: [me, mate-1, mate-2, mate-3]}
     plans:
     - name: 今天实际 ①：19:03 到 Wien，入住，沃蒂夫教堂看“∞”，21:00 Wiener Grill Haus
       tracks:
@@ -364,7 +364,7 @@ trip:
         - mate-3
         blocks:
         - {id: 10-31-1-3-1, kind: meal, certainty: estimated, start: '11:40', end: '13:30', place: som-kitchen, text: 和本人在 Hbf 吃 Som Kitchen（打包）}
-        - {id: 10-31-1-3-2, kind: reserve, certainty: estimated, start: '13:30', end: '14:00', text: Wien Hbf → 维也纳机场（REX 7 或 Railjet，按航班挑车；队友航班你说不用管，D-46）}
+        - {id: 10-31-1-3-2, kind: reserve, certainty: estimated, start: '13:30', end: '14:00', text: Wien Hbf → 维也纳机场（REX 7 或 Railjet，按航班挑车）}
     - name: 不去教堂：Blockfabrik 待到 16:35，U4 直达和平桥站，换电车到 Hannovergasse
       note: 累了、只想在岩馆歇着就选这套。从 Blockfabrik 到 Hannovergasse 坐 U4 一趟不用换车，再坐 5 路电车 2 站。Transitous 10-31 13:50–13:52 查。
       tracks:
@@ -466,9 +466,9 @@ english:
   EC 140 从 Budapest-Keleti 开，11:20 到 Wien Hbf（直达，已买）: EC 140 leaves Budapest-Keleti and arrives at Wien Hbf at 11:20 (direct, already bought)
   到 Wien Hbf，地下层储物柜存两个小箱子（现场存，只收非接触银行卡）: Arrive at Wien Hbf, store the two small suitcases in the lower-level lockers (on the spot, contactless bank cards only)
   美景宫上宫时段票: Upper Belvedere timed ticket
-  IC 742 从 Wien Hbf 开（Attnang、Gmunden 换车，Gmunden 到 Bad Ischl 是 SV170 替代巴士），20:00 到 Bad Ischl（已定，决定 D-44；4 人的票已买）: IC 742 leaves Wien Hbf (change at Attnang and Gmunden; Gmunden to Bad Ischl is the SV170 replacement bus), arrive at Bad Ischl at 20:00 (fixed, decision D-44; tickets for 4 people already bought)
-  ? 实际坐 IC 744（Wien Hbf 7 站台，15 号车厢有 4 个订座），19:58 Attnang 换 R 3432 20:08，Gmunden 换 SV170 巴士 20:28，21:21 到 Bad Ischl（10-27 下午改，决定 D-58）；行程见下面第三套“晚一班”
-  : Actually taking IC 744 (Wien Hbf platform 7, 4 reserved seats in car 15), 19:58 Attnang change to R 3432 at 20:08, Gmunden change to the SV170 bus at 20:28, arrive at Bad Ischl at 21:21 (changed on the afternoon of 10-27, decision D-58); the itinerary is in the third plan, "Later option", below
+  IC 742 从 Wien Hbf 开（Attnang、Gmunden 换车，Gmunden 到 Bad Ischl 是 SV170 替代巴士），20:00 到 Bad Ischl（已定；4 人的票已买）: IC 742 leaves Wien Hbf (change at Attnang and Gmunden; Gmunden to Bad Ischl is the SV170 replacement bus), arrive at Bad Ischl at 20:00 (fixed; tickets for 4 people already bought)
+  ? 实际坐 IC 744（Wien Hbf 7 站台，15 号车厢有 4 个订座），19:58 Attnang 换 R 3432 20:08，Gmunden 换 SV170 巴士 20:28，21:21 到 Bad Ischl（10-27 下午改）；行程见下面第三套“晚一班”
+  : Actually taking IC 744 (Wien Hbf platform 7, 4 reserved seats in car 15), 19:58 Attnang change to R 3432 at 20:08, Gmunden change to the SV170 bus at 20:28, arrive at Bad Ischl at 21:21 (changed on the afternoon of 10-27); the itinerary is in the third plan, "Later option", below
   推荐：16:57 走，20:00 到 Bad Ischl: 'Recommended: leave at 16:57, arrive in Bad Ischl at 20:00'
   Keleti 站台等车、买水: Wait for the train at the Keleti platform, buy water
   EC 140 Budapest-Keleti → Wien Hbf（直达，已买）: EC 140 Budapest-Keleti → Wien Hbf (direct, already bought)
@@ -558,7 +558,7 @@ english:
   （实际）打车到沃蒂夫教堂，看两塔之间的“∞”（只看外面）: (actual) Taxi to Votivkirche, look at the "∞" between the two towers (outside only)
   从沃蒂夫教堂打车（Uber 或 Bolt，约 15–20′，估 €15–25）去 Wiener Grill Haus: Taxi from Votivkirche (Uber or Bolt, about 15–20′, est. €15–25) to Wiener Grill Haus
   Wiener Grill Haus 晚饭（TheFork 已订，4 人；Hadikgasse 40）: Dinner at Wiener Grill Haus (booked on TheFork, 4 people; Hadikgasse 40)
-  上车前在 WienMobil 买 24 小时票（实际没买，用户后来说的；改 10-31 早上买）；Hietzing U4 → Karlsplatz 22:44，再坐 U1 回: Buy a 24-hour ticket in WienMobil before boarding (actually not bought, the user said so later; buying it on the morning of 10-31 instead); Hietzing U4 → Karlsplatz 22:44, then U1 back
+  上车前在 WienMobil 买 24 小时票（实际没买；改 10-31 早上买）；Hietzing U4 → Karlsplatz 22:44，再坐 U1 回: Buy a 24-hour ticket in WienMobil before boarding (actually not bought; buying it on the morning of 10-31 instead); Hietzing U4 → Karlsplatz 22:44, then U1 back
   今天实际 ①：19:03 到 Wien，入住，沃蒂夫教堂看“∞”，21:00 Wiener Grill Haus: 'Actual today ①: arrive in Wien at 19:03, check in, see the "∞" at Votivkirche, 21:00 Wiener Grill Haus'
   ②：入住慢了或累了：不去沃蒂夫教堂，直接去吃饭: '②: check-in slow or tired: skip Votivkirche, go straight to dinner'
   ? 入住、洗漱拖久了，或大家累了：跳过沃蒂夫教堂，从住处出门（O 路 + U1 到 Karlsplatz），坐 20:35 的 U4 到 Hietzing，步行 7′，20:53 到 Wiener Grill Haus（Transitous 查）。“∞”明天傍晚本人可以再去看（10-31 天页）。
@@ -579,7 +579,7 @@ english:
   步行 3′，REX 4415: 3′ walk, REX 4415
   Attnang-Puchheim → Wien Hbf: Attnang-Puchheim → Wien Hbf
   步行 2′，IC 743（往 Flughafen Wien）: 2′ walk, IC 743 (towards Flughafen Wien)
-  沃蒂夫教堂外面看两塔之间亮灯的“∞”光雕塑: Votivkirche (the lit-up "∞" light sculpture between the two towers, the "church with the Möbius strip" the user mentioned) (looking at the lit-up "∞" light sculpture between the two towers from outside Votivkirche)
+  沃蒂夫教堂外面看两塔之间亮灯的“∞”光雕塑: Votivkirche (the lit-up "∞" light sculpture between the two towers) (looking at the lit-up "∞" light sculpture between the two towers from outside Votivkirche)
   沃蒂夫教堂 → Wiener Grill Haus（Hadikgasse 40）: Votivkirche → Wiener Grill Haus (Hadikgasse 40)
   打车：Uber 或 Bolt app 叫车，约 15–20′: 'Taxi: hail one with the Uber or Bolt app, about 15–20′'
   Wiener Grill Haus 晚饭（TheFork 已订 21:00，4 人）: Dinner at Wiener Grill Haus (booked on TheFork for 21:00, 4 people)
@@ -618,7 +618,7 @@ english:
   Railjet RJX 19959（ÖBB 快车，往 Flughafen Wien）；或 22:53 REX 22779 → 23:15；末班 23:53 REX → 00:15: Railjet RJX 19959 (ÖBB express, to Flughafen Wien); or 22:53 REX 22779 → 23:15; last train 23:53 REX → 00:15
   维也纳机场（11-01 早班，前一晚在这里过夜）（在机场找地方过夜）: Vienna Airport (early flight on 11-01, overnight here the night before) (find a place to spend the night at the airport)
   和本人在 Hbf 吃 Som Kitchen（打包）: eat Som Kitchen (takeaway) at Hbf with me
-  Wien Hbf → 维也纳机场（REX 7 或 Railjet，按航班挑车；队友航班你说不用管，D-46）: Wien Hbf → Vienna Airport (REX 7 or Railjet, pick by flight; you said the companions' flights need no attention, D-46)
+  Wien Hbf → 维也纳机场（REX 7 或 Railjet，按航班挑车）: Wien Hbf → Vienna Airport (REX 7 or Railjet, pick by flight)
   Wien Hbf → Blockfabrik: Wien Hbf → Blockfabrik
   13A（往 Skodagasse）→ Leibenfrostgasse，步行 7′: 13A (to Skodagasse) → Leibenfrostgasse, walk 7′
   Blockfabrik 抱石馆（Blockfabrik（5 区的大型抱石馆）多待一会儿）: Blockfabrik bouldering gym (stay a bit longer at Blockfabrik (big bouldering gym in the 5th district))
