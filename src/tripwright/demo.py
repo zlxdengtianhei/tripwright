@@ -78,7 +78,8 @@ def run_demo(service: Tripwright, owner: str = "demo", output=print) -> dict:
     output(f"6. result retrieved: {second['status']}; unresolved hard-node evidence stays UNVERIFIED.")
     bad = deepcopy(plan)
     bad["days"][0]["plans"][0]["tracks"][0]["blocks"][2]["place"] = "oslo-park"
-    rejected = service.propose(owner, ctx_id=received["ctx_id"], base_version=2, plan=bad, usages=usages, idempotency_key="demo-bad-lock")
+    rejected = service.propose(owner, ctx_id=received["ctx_id"], base_version=2, plan=bad, usages=usages,
+                               changes={"revisions": []}, idempotency_key="demo-bad-lock")
     try:
         service.commit(owner, rejected["draft_id"], "demo-bad-lock", accept_unverified=True)
     except ValueError:

@@ -90,6 +90,42 @@ def placeholder_sources(record: dict, event_id: str) -> dict:
     return record
 
 
+def person_id(value, plan: dict | None, field: str):
+    """Resolve a trip person by ID or display name, without guessing partial matches."""
+    if value is None or plan is None:
+        return value
+    if not isinstance(value, str):
+        return value
+    if value == "*":
+        return value
+    people = plan.get("people", [])
+    folded = value.strip().casefold()
+    matches = [person for person in people if folded in (person["id"].casefold(), person["name"].casefold())]
+    if len(matches) == 1:
+        return matches[0]["id"]
+    choices = ", ".join(f"{person['id']} ({person['name']})" for person in people) or "no people in this trip"
+    raise ValueError(f"{field}: unknown person {value!r}; this trip's people are {choices}")
+
+
+def person_list(value, plan: dict | None, field: str):
+    if not isinstance(value, list) or plan is None:
+        return value
+    return [person_id(entry, plan, f"{field}.{index}") for index, entry in enumerate(value)]
+
+
+def normalize_record_people(record, plan: dict | None, root: str):
+    if not isinstance(record, dict):
+        return record
+    result = encode_copy(record)
+    for part, entries in result.items():
+        if not isinstance(entries, list):
+            continue
+        for index, entry in enumerate(entries):
+            if isinstance(entry, dict) and "subject" in entry:
+                entry["subject"] = person_list(entry["subject"], plan, f"{root}.{part}.{index}.subject")
+    return result
+
+
 def merged_plan(current: dict | None, days=None, places=None, bookings=None) -> dict:
     """Merge whole-day and by-ID patches, then let the normal Trip and lock checks judge the result."""
     if current is None:
@@ -213,6 +249,10 @@ class Tripwright:
              exclude_keys: list[str] | None = None, speaker: str | None = None, record: dict | None = None,
              new_trip: str | None = None, points: list | None = None) -> dict:
         self.bound(owner)
+        current_plan = self.versions.current(owner)["plan"]
+        speaker = person_id(speaker, current_plan, "speaker")
+        subject = person_list(subject, current_plan, "subject")
+        record = normalize_record_people(record, current_plan, "record")
         # S5: a record of the wrong shape (or one the ledger refuses, below) never refuses the turn: the message is
         # received and the first part drafted as without it; recorded.not_recorded says what was left out and where to
         # send it again
@@ -775,15 +815,30 @@ class Tripwright:
             current = self.versions.current(owner)["plan"]
             arguments["plan"] = merged_plan(current, days=patch.get("days") or [], places=patch.get("places") or [],
                                             bookings=patch.get("bookings") or [])
+        problems = []
         if arguments.get("plan") is not None:
-            checked_plan(arguments["plan"])
+            try:
+                checked_plan(arguments["plan"])
+            except ValueError as error:
+                problems.append(str(error))
             for index, place in enumerate(arguments["plan"].get("places") or []):
                 cited = ((place or {}).get("hours_source") or {}).get("evidence_id")
                 if cited and not self._has("evidence", owner, cited):
-                    raise ValueError(f"Invalid plan: plan.places.{index}.hours_source.evidence_id: no evidence {cited!r} in this trip; "
-                                     "record the page with query(kind=\"web_evidence\") first")
+                    problems.append(f"Invalid plan: plan.places.{index}.hours_source.evidence_id: no evidence {cited!r} in this trip; "
+                                    "record the page with query(kind=\"web_evidence\") first")
+        arguments["changes"] = normalize_record_people(arguments.get("changes") or {}, arguments.get("plan") or
+                                                         self.versions.current(owner)["plan"], "changes")
+        try:
+            Changes.model_validate(arguments["changes"])
+        except ValidationError as error:
+            problems.append("Invalid changes: " + "; ".join(input_problems(error, "changes")))
         if arguments.get("usages") is not None:
-            arguments["usages"] = checked_usages(arguments["usages"])
+            try:
+                arguments["usages"] = checked_usages(arguments["usages"])
+            except ValueError as error:
+                problems.append(str(error))
+        if problems:
+            raise ValueError("Invalid proposal: " + " | ".join(problems))
         trip = self.current_trip(owner)
         if self.repository is not None and arguments.get("plan") is not None and trip and arguments["plan"].get("id") != trip:
             raise ValueError(f"plan.id must be the current trip {trip!r}; open another trip with turn(new_trip=...)")

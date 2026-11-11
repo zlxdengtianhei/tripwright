@@ -4,7 +4,7 @@ from copy import deepcopy
 
 from tripwright.checks import check_plan, conclusion
 from tripwright.jobs import Jobs
-from tripwright.ledger import Changes, Ledger, Scope, lock_receipt, offered, refusals
+from tripwright.ledger import Changes, Ledger, Revision, Scope, lock_receipt, offered, refusals
 from tripwright.locks import (binding, changed_items, claimed, covers, decides, field_name, held, identify, lock_changes, plan_changes,
                               plan_objects, pointer, protects, recorded_snapshot, required, snapshot, stable_path, user_part)
 from tripwright.repo import snapshot as snapshots
@@ -152,14 +152,25 @@ class Versions:
         report["verified"] = bool(report["checks"]) and all(check["status"] == "passed" for check in report["checks"])
         return report
 
-    def _preview(self, owner: str, candidate: Trip, changes: Changes, usages: list[dict], *, require_usage: bool,
-                 answered: str, at: str) -> tuple[dict, dict]:
+    def _preview(self, owner: str, candidate: Trip, changes: Changes, usages: list[dict] | None, *, require_usage: bool,
+                 answered: str, at: str, auto_revisions: bool = False) -> tuple[dict, dict]:
         """The checks of a candidate with the changes applied in a preview, and the lock operations they admitted; the
         report's `guard` holds the commit's own refusals (D-52)."""
         with self.store.preview():
             self._stabilize_locks(owner)
             base, flexible, before = self._user_locks(owner), self._flexible(owner), self.current(owner)["plan"]
             plan = candidate.model_dump(mode="json")
+            filled = []
+            if auto_revisions and before is not None:
+                for decision, path in flexible:
+                    try:
+                        value, recorded = pointer(before, path), snapshot(before, path)
+                    except ValueError:
+                        continue
+                    if changed_items(path, lock_changes(plan, path, value, recorded)):
+                        filled.append(Revision(decision=decision["id"], filled_by="service",
+                                               reason="Service-filled contact: the candidate touches this decision; no preference precedence inferred."))
+                changes = changes.model_copy(update=dict(revisions=[*changes.revisions, *filled]))
             applied = self.ledger.apply(owner, changes, answered=answered, at=at, plan=plan)
             guard, _ = self._guard(owner, event=answered, base=base, before=before, plan=plan,
                                    operations=applied["locks"], changes=changes.model_dump(mode="json"))
@@ -167,7 +178,7 @@ class Versions:
                                                      operations=applied["locks"], changes=changes)
             return dict(self._check(owner, candidate, usages=usages, require_usage=require_usage, sourced=sourced(applied["locks"])),
                         crowding=applied["crowding"], possible_contradictions=applied["possible_contradictions"], guard=guard,
-                        changelog=changelog, unexplained=unexplained), applied["locks"]
+                        changelog=changelog, unexplained=unexplained, filled_revisions=filled), applied["locks"]
 
     def _user_locks(self, owner: str) -> list[tuple[dict, str]]:
         """Each current user lock (a must, D-53) with each path it holds for the user."""
@@ -317,7 +328,7 @@ class Versions:
                 changes: dict | None = None, usages: list[dict] | None = None, idempotency_key: str) -> dict:
         if not idempotency_key:
             raise ValueError("Proposal idempotency_key is required")
-        request = dict(ctx_id=ctx_id, base_version=base_version, plan=plan, changes=changes or {}, usages=usages or [])
+        request = dict(ctx_id=ctx_id, base_version=base_version, plan=plan, changes=changes or {}, usages=usages)
         # When the proposal was made: a correction it opens is asked at this time, also when committed or replayed (D-50).
         made = now()
         with self.store.transaction():
@@ -363,8 +374,9 @@ class Versions:
             others = [field for field in Changes.model_fields if field != "facts" and getattr(changes_model, field)]
             not_recorded = []
             try:
-                report, operations = self._preview(owner, candidate, changes_model, usages or [], require_usage=not without_plan,
-                                                   answered=context["source_event"], at=made)
+                report, operations = self._preview(owner, candidate, changes_model, usages, require_usage=not without_plan,
+                                                   answered=context["source_event"], at=made,
+                                                   auto_revisions="revisions" not in (changes or {}))
             except ValueError as error:
                 if not (without_plan and changes_model.facts and others):
                     raise
@@ -375,6 +387,9 @@ class Versions:
                 report, operations = self._preview(owner, candidate, changes_model, [], require_usage=False, answered=context["source_event"],
                                                    at=made)
             guard, changelog, unexplained = report.pop("guard"), report.pop("changelog"), report.pop("unexplained")
+            filled = report.pop("filled_revisions")
+            if filled:
+                changes_model = changes_model.model_copy(update=dict(revisions=[*changes_model.revisions, *filled]))
             refused = refusals(operations) + guard + unexplained
             draft_id = identifier("DR")
             draft = dict(id=draft_id, ctx_id=ctx_id, base_version=base_version, base_version_id=current["id"], revision=context["revision"],

@@ -250,11 +250,9 @@ def test_the_first_plans_people_count_only_before_a_plan_is_committed(service):
     with pytest.raises(ValueError, match=r"not admitted \(speaker\)"):
         propose(service, stranger, plan=plan, decisions=[decided(stranger, plan)])
     seed(service, fixture())
-    # A committed plan: a person the candidate adds is not yet a person of the trip.
-    newcomer = message(service, "抱石定了。", speaker="u9")
-    plan = service.state("alice")["plan"]
-    plan["people"].append(dict(id="u9", name="Newcomer"))
-    with pytest.raises(ValueError, match=r"not admitted \(speaker\).*\(u1, u2, u3, u4\), got 'u9'"):
-        propose(service, newcomer, plan=plan, decisions=[decided(newcomer, plan)])
+    # A committed plan: an unknown speaker is refused at turn with the people listed.
+    with pytest.raises(ValueError, match=r"unknown person.*u1 \(Ash\).*u2 \(Bea\)"):
+        message(service, "抱石定了。", speaker="u9")
     later = message(service, "抱石定了。")
+    plan = service.state("alice")["plan"]
     assert "people_from" not in propose(service, later, plan=plan, decisions=[decided(later, plan)])["lock_changes"]["decisions"][0]

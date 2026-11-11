@@ -56,6 +56,10 @@ async def scenario(session) -> dict:
     results = {}
 
     async def decide(label, text, *, nature="user_verbatim", speaker="u1", earlier=False):
+        if speaker == "outsider":
+            error, text, _ = await call(session, "turn", dict(text=text, request_id=label, nature=nature,
+                                                               native_ref=f"fixture:{label}", speaker=speaker))
+            return None, error, text, None, None, "on_site"
         cited = await turn(session, label, text, nature=nature, native_ref=f"fixture:{label}" if nature == "user_verbatim" else None, speaker=speaker)
         context = await turn(session, f"{label}-agent", "agent records it", nature="agent_inference") if earlier else cited
         candidate = deepcopy((await call(session, "state", {}))[2]["plan"])
@@ -73,7 +77,8 @@ async def scenario(session) -> dict:
                                     ("outsider", dict(speaker="outsider"), "speaker"),
                                     ("earlier", dict(earlier=True), "this turn")):
         _, error, text, _, _, status = await decide(label, "门票改成已经买好，定了。", **arguments)
-        results[f"A-{label}"] = (error and f"not admitted ({check})" in text and status == "on_site", text[:300])
+        results[f"A-{label}"] = (error and ("unknown person" in text if label == "outsider" else f"not admitted ({check})" in text)
+                                  and status == "on_site", text[:300])
     cited, error, text, draft, version, status = await decide("legal", "门票我们改成已经买好，定了。")
     event = cited["receipt"]["event_id"]
     proposed, committed = (draft or {}).get("lock_changes", {}), (version or {}).get("lock_changes", {})

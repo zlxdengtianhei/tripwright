@@ -60,7 +60,7 @@ def test_stale_draft_and_commit_key_reuse_refused(seeded):
 def test_missing_usage_is_a_commit_failure(seeded, item):
     recorded = propose(seeded, changes={"items": [item]}, key="pref")
     seeded.commit("alice", recorded["draft_id"], "pref")
-    missing = propose(seeded, seeded.state("alice")["plan"], key="missing")
+    missing = propose(seeded, seeded.state("alice")["plan"], usages=[], key="missing")
     assert any(check["id"].startswith("usage:") for check in missing["checks"]["conflicts"])
     with pytest.raises(ValueError, match="usage:"):
         seeded.commit("alice", missing["draft_id"], "missing")
