@@ -7,7 +7,7 @@
 <p align="center"><img src="docs/assets/hero.png" alt="Three phone screens of a real 8-day trip page made by tripwright: the route and the list of days; one day's key times and places to go; the same day's transport legs with a map" width="100%"></p>
 <p align="center"><sub>A real 8-day trip (Budapest, Vienna and the Salzkammergut, October 2026), as the page tripwright makes. Names are replaced with codes, and places to stay show only the district.</sub></p>
 
-You deploy your own copy. It also remembers your preferences across chats and records every change. It works with Claude, ChatGPT, Claude Code, Codex and other apps that support MCP (the Model Context Protocol, the open standard that lets AI apps call outside tools).
+You deploy your own copy: [three steps](#get-started), or [look at an example trip first](#see-an-example). It also remembers your preferences across chats and records every change. It works with Claude, ChatGPT, Claude Code, Codex and other apps that support MCP (the Model Context Protocol, the open standard that lets AI apps call outside tools).
 
 There is no hosted service and no signup. Each person runs their own copy, for themselves.
 

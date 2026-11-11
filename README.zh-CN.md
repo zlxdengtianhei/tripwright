@@ -7,7 +7,7 @@
 <p align="center"><img src="docs/assets/hero.zh-CN.png" alt="tripwright 生成的一趟真实 8 天行程页，三屏手机画面：路线与逐天列表；某一天的关键时刻和要去的地方；同一天的交通与地图" width="100%"></p>
 <p align="center"><sub>一趟真实的 8 天行程（布达佩斯、维也纳、萨尔茨卡默古特，2026 年 10 月）和 tripwright 生成的中文页面。人名已换成代号，住处只写到城区。</sub></p>
 
-服务由你自己部署一份。它也会跨对话记住你的偏好，记下每一次改动。它通过 MCP（模型上下文协议，让 AI App 调用外部工具的开放标准）接进 Claude、ChatGPT、Claude Code、Codex 等支持 MCP 的客户端。
+服务由你自己部署一份：[三步开始用](#开始用)，也可以[先看一趟示例行程](#看示例)。它也会跨对话记住你的偏好，记下每一次改动。它通过 MCP（模型上下文协议，让 AI App 调用外部工具的开放标准）接进 Claude、ChatGPT、Claude Code、Codex 等支持 MCP 的客户端。
 
 没有公共服务，也不开放注册：每人自己部署一份，只给自己用。
 
