@@ -141,7 +141,7 @@ Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright
 You have no Tripwright tools here. The trip repository holds the truth; you read only the files the user pastes, and you change it only through a 写回仓 block that the user commits.
 1. Read `trips/<trip>/views/packs/<date>.md` first, then only the records for the people, date and place involved. Ask for a file by its path.
 2. Send the first part.
-3. If this app can search the web, check (next section) and give the second part under its own heading. If it cannot, end the first part with “第二段要核 N 项，回“继续”我接着核。”
+3. If this app can search the web, check (next section) and give the second part under its own heading in the same reply. If it cannot, give the unchecked limits in that same reply instead of asking for another message.
 4. End every reply with one 写回仓 block that collects what its steps add; step 1 of the single-agent steps always adds the received message. Nothing is saved until the user commits it: say “写回仓块在下面，提交后才算存好”.
 5. There are no deterministic checks, no version protection and no background check. Keep explicit musts yourself; show a changed non-must choice and its reason as a draft until the user commits it.
 

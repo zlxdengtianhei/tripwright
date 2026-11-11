@@ -40,8 +40,11 @@ ITEM_SCHEMA = {
 CHANGES_SCHEMA = {"type": "object", "additionalProperties": True, "properties": {
     "items": {"type": "array", "items": ITEM_SCHEMA},
 }}
-RecordArguments = Annotated[dict[str, Any], WithJsonSchema(CHANGES_SCHEMA)]
-UsageArguments = Annotated[list[dict[str, Any]], WithJsonSchema({
+# JSON Schema guides the host; the service validates values so SDK/pydantic dumps never leak to the user.
+RecordArguments = Annotated[Any, WithJsonSchema(CHANGES_SCHEMA)]
+PlanArguments = Annotated[Any, WithJsonSchema({"type": "object"})]
+ObjectList = Annotated[Any, WithJsonSchema({"type": "array", "items": {"type": "object"}})]
+UsageArguments = Annotated[Any, WithJsonSchema({
     "type": "array", "items": {
         "type": "object", "additionalProperties": False, "required": ["item_id", "status"],
         "properties": {
@@ -206,7 +209,7 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
              channel: str = "conversation", subject: list[str] | None = None, scope: dict[str, Any] | None = None,
              scenario: Literal["quick", "status", "replan", "plan", "compare", "requirements", "system"] = "plan",
              focus_keys: list[str] | None = None, exclude_keys: list[str] | None = None, speaker: str | None = None,
-             record: RecordArguments | None = None, new_trip: str | None = None, points: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+             record: RecordArguments | None = None, new_trip: str | None = None, points: ObjectList | None = None) -> dict[str, Any]:
         return ready().turn(identity(), text, request_id, nature=nature, native_ref=native_ref, channel=channel,
                             subject=subject, scope=scope, scenario=scenario, focus_keys=focus_keys,
                             exclude_keys=exclude_keys, speaker=speaker, record=record or None, new_trip=new_trip, points=points)
@@ -221,9 +224,9 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
 
     @server.tool(title="Propose plan or ledger changes against a context", annotations=write, structured_output=True)
     @expose_errors
-    def propose(ctx_id: str, base_version: int, idempotency_key: str, plan: dict[str, Any] | None = None,
-                days: list[dict[str, Any]] | None = None, places: list[dict[str, Any]] | None = None,
-                bookings: list[dict[str, Any]] | None = None, changes: RecordArguments | None = None,
+    def propose(ctx_id: str, base_version: int, idempotency_key: str, plan: PlanArguments | None = None,
+                days: ObjectList | None = None, places: ObjectList | None = None,
+                bookings: ObjectList | None = None, changes: RecordArguments | None = None,
                 usages: UsageArguments | None = None) -> dict[str, Any]:
         """Create a draft from turn's ctx_id/base_version. Use plan for a complete trip (shape state(view='plan').plan), or patch whole days by date and places/bookings by id; for a day edit send days=[state(view='day').json], not the whole state result. Do not combine plan with patches. Omit plan for ledger-only changes. changes/usages are validated by the service; reuse IDs and this turn's source.event. Anything you chose or inferred that the user did not say belongs in changes.items with source.basis='agent_inference'. Only a user decision with must=true locks. Changing a user decision requires changes.revisions; changing a must, bought/booked item or hard node needs this user message's authority. Give reasons for trade-offs and resolve preference conflicts with the user. Returns draft_id, checks and refusals."""
         return ready().propose(identity(), ctx_id=ctx_id, base_version=base_version, idempotency_key=idempotency_key,

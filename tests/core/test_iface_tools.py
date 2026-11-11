@@ -163,6 +163,13 @@ def test_changes_item_schema_and_readable_validation_error(seeded):
     assert "changes.items.0.kind" in text and "changes.items.0.quote is required" in text
     assert "changes.items.0.strength is required" in text
     assert "For further information" not in text and "input_value=" not in text
+    async def bad_day():
+        return await create_server(seeded, local_user="alice").call_tool("propose", dict(
+            ctx_id=turn["ctx_id"], base_version=turn["base_version"], idempotency_key="bad-day-shape", days=["usages"]))
+    with pytest.raises(ToolError) as day_error:
+        asyncio.run(bad_day())
+    assert "days.0.date" in str(day_error.value)
+    assert "For further information" not in str(day_error.value) and "input_value=" not in str(day_error.value)
 
 
 def test_state_returns_editable_plan_day_and_a_valid_blank(seeded):
