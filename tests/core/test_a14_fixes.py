@@ -169,7 +169,7 @@ def test_a_shorter_coverage_claim_against_tonights_search_is_refused(make):
 def test_the_first_part_is_sent_and_the_second_is_never_sent_twice(make):
     service = make()
     turn = service.turn("local", "最晚几点出发去机场", "q6", scenario="quick", points=GO)
-    assert turn["next"].startswith("先把 first_part.text 作为文字写出来，再调任何其他工具。")
+    assert turn["next"].startswith("现在就把 first_part.text 发给用户（用户在等这第一段）；发出去之后再调 query。")
     # bad sample (on_r1): the status line sent instead of the first part is no first part
     status = "第一部分已经在上面了：今晚不用急着去机场。吃的和万圣节活动我还在查，查完会发第二部分。"
     # (S4a2: and its “我还在查” is a status line)

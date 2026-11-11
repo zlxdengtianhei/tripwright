@@ -311,13 +311,14 @@ class Tripwright:
                            request_id=request_id, promises_second=bool(first), first_text=first["text"] if first else None,
                            continues=None)
             self.store.put("contexts", owner, context)
+            instructions = self._next(considered, asked, recorded, first=first, second_title=second_title,
+                                      latest=first_part.asks_latest(text),
+                                      unknown=self._unknown_places(plan, told, language=language), language=language,
+                                      scenario=scenario)
+            # Claude reads the first fields first: the immediate action and both service-written headings lead.
+            response = dict(next=instructions, first_part=first, second_part_title=second_title, **response)
             response.update(consider={key: considered[key] for key in ("entries", "more", "more_how") if key in considered},
-                            ask=asked, offer=consider.offer(known["languages"], self.language), first_part=first,
-                            second_part_title=second_title,
-                            next=self._next(considered, asked, recorded, first=first, second_title=second_title,
-                                            latest=first_part.asks_latest(text),
-                                            unknown=self._unknown_places(plan, told, language=language), language=language,
-                                            scenario=scenario))
+                            ask=asked, offer=consider.offer(known["languages"], self.language))
             if told is not None:
                 response["points"] = told
         if self.committer is not None:
@@ -448,8 +449,9 @@ class Tripwright:
         en = (language or self.language) == "en"
         parts = []
         if first:
-            parts.append("Write first_part.text as text before any other tool call." if en else
-                         "先把 first_part.text 作为文字写出来，再调任何其他工具。")
+            parts.append("Send first_part.text to the user now (they are waiting for this first part); call query only "
+                         "after sending it." if en else
+                         "现在就把 first_part.text 发给用户（用户在等这第一段）；发出去之后再调 query。")
             parts.append(f"After checking, write {second_title!r} as the second heading; under it, first say what differs "
                          "from first_part, or 'Same as above, checked.'" if en else
                          f"核完后写第二段标题“{second_title}”；标题下先讲和第一段的不同，没有不同就写“和上面一样，已核”。")
@@ -550,6 +552,17 @@ class Tripwright:
         found = packs.clock(at or now(), zone)
         return dict(found, text=now_line(found, self.language))
 
+    def _answer_instruction(self, owner: str) -> str | None:
+        """A query-time reminder for hosts that skipped the first text; it never changes the lookup's content."""
+        contexts = [context for context in self.store.all("contexts", owner) if context.get("first_text")]
+        latest = max(contexts, key=lambda context: aware(context["created_at"]), default=None)
+        if latest is None:
+            return None
+        text = self.store.get("events", owner, latest["source_event"])["received"]["text"]
+        if re.search(r"[\u4e00-\u9fff]", text):
+            return "最终回答先写 first_part.text，再写 second_part_title 和第二段，让两段都完整出现。"
+        return "For the final response, begin with first_part.text, then write second_part_title and the second part so both appear."
+
     async def query(self, owner: str, kind: str, arguments: dict) -> dict:
         self.bound(owner)
         arguments = checked_arguments(kind, arguments)
@@ -588,7 +601,8 @@ class Tripwright:
                            consequence="This fact could not be verified in time.", alternative="Confirm locally or retain the previous safe plan."),
                     **(lookup_failed("timeout", self.language) if kind in ("latest_departure", "transit") else {})}
         self.record_evidence(owner, before, key=f"query:{identifier('Q')}")
-        return result
+        instruction = self._answer_instruction(owner)
+        return dict(answer_instruction=instruction, **result) if instruction else result
 
     def _keep_frame(self, owner: str, arguments: dict, plan: dict | None, zone: str | None) -> None:
         """A quick question whose turn asked for the latest departure is framed by the service (A10, D-67): its lookups
