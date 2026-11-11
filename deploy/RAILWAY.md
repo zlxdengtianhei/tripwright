@@ -45,7 +45,7 @@ railway ssh -- tripwright repo key | gh repo deploy-key add - --allow-write -t t
 railway ssh -- tripwright repo connect git@github.com:<owner>/tripwright-trips.git
 ```
 
-`repo connect` preserves existing local trips when pushing an empty remote. It prepares a remote trip for a fresh service and asks for a redeploy; it refuses to merge when both sides have trips. GitHub SSH uses port 443 and host keys fetched over verified HTTPS. Without GitHub, trips stay in the local Git repository on the volume and the user makes backups.
+`repo connect` preserves existing local trips when pushing an empty remote and adopts a remote trip for a fresh service. The running service applies either on its next request or health check, with no redeploy. It refuses to merge when both sides have trips. GitHub SSH uses port 443 and host keys fetched over verified HTTPS. Without GitHub, trips stay in the local Git repository on the volume and the user makes backups.
 
 ## Variables
 

@@ -42,6 +42,8 @@ The image starts as root so its entrypoint can give a named or platform volume t
 
 Only the complete `/mcp/<key>` address opens MCP. Missing and wrong keys both return 404. Host headers are not compared with `TRIPWRIGHT_PUBLIC_URL`, so localhost and tunnel addresses work together. The key never appears in `/healthz`, `/readyz` or the service log; `tripwright address` is the command that deliberately prints it.
 
+Cloudflare documents no SSE support on Quick Tunnels. Tripwright returns JSON, and an MCP `initialize` returned 200 through a Quick Tunnel in the maintainer's test; their changing addresses still make Funnel or Railway the stable choices.
+
 The address is a password. Paste it only into the user's own AI apps. Replace a leaked key with the one-line rotation command in SETUP, then update each client.
 
 ## A server with a domain: Docker and Caddy
@@ -80,7 +82,7 @@ ssh <server> 'docker exec tripwright-app tripwright repo key' | gh repo deploy-k
 ssh <server> 'docker exec tripwright-app tripwright repo connect git@github.com:<owner>/tripwright-trips.git'
 ```
 
-If `repo connect` says to restart, run `ssh <server> 'docker restart tripwright-app'`.
+The running service applies the saved connection on its next request or health check; no restart is needed.
 
 Upgrade from the source root without changing the data or settings:
 

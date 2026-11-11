@@ -25,22 +25,27 @@ If Docker is absent, install it as the agent:
 
 - **Linux:** `curl -fsSL https://get.docker.com -o install-docker.sh`; inspect with `sh install-docker.sh --dry-run`; then ask the user for the password and run `sudo sh install-docker.sh`.
 - **macOS:** prefer `brew install colima docker`, then `colima start`. This needs neither a Docker account nor Docker Desktop's license agreement.
-- **Docker Desktop** is an alternative on macOS or Windows only after the user accepts its license.
 
 Run from any folder; no environment variables, source checkout, data-directory setup or `sudo` is needed:
-
 ```bash
 docker build -t tripwright https://github.com/zlxdengtianhei/tripwright.git
 docker run -d --name tripwright --restart unless-stopped -p 127.0.0.1:8000:8000 -v tripwright-data:/data tripwright
 docker exec tripwright tripwright address     # http://localhost:8000/mcp/<key>
 ```
 
-The first command uses the Dockerfile at the repository root. The named volume keeps `/data/remote`, including the generated URL key and local trips. Check `curl -s http://localhost:8000/readyz` for `"ready":true`.
-
+The first command uses the Dockerfile at the repository root. The named volume keeps `/data/remote`, including the generated URL key and local trips. Check `curl -s http://localhost:8000/readyz` for `"ready":true`. If you publish a different host port, print the address with `docker exec tripwright tripwright address --base http://localhost:<port>`.
+Confirm MCP itself (the variable hides the key from the command's output):
+```bash
+address=$(docker exec tripwright tripwright address)
+curl -s -o /dev/null -w '%{http_code}\n' "$address" -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"setup-check","version":"0"}}}'
+```
+`200` means MCP is connected.
 For Claude, ChatGPT or a phone, use one of these and then `docker exec tripwright tripwright address --base <https://public-origin>`:
 
 - **Tailscale Funnel:** `tailscale funnel 8000`; stable address, account required.
-- **Cloudflare Quick Tunnel:** `cloudflared tunnel --url http://localhost:8000`; no account, but its address changes every time. Cloudflare documents no SSE support on Quick Tunnels; Tripwright returns JSON, and the maintainer's MCP check works through one. Use Funnel or Railway when you need a stable address.
+- **Cloudflare Quick Tunnel:** `cloudflared tunnel --url http://localhost:8000`; no account, but its address changes every time. Use Funnel or Railway for a stable address.
 
 Localhost and tunnel addresses work at the same time; a changed tunnel origin needs no restart or variable change.
 
@@ -57,9 +62,8 @@ railway up --detach
 railway ssh -- tripwright address
 ```
 
-The root Dockerfile is detected automatically; set neither a Dockerfile variable nor a key-generation switch. Keep the volume at `/data`. Check `https://<your-domain>/readyz` for `"ready":true`.
-
-Railway offers a trial and paid plans; show the user [current pricing](https://railway.com/pricing) before any payment. A limited trial can restrict outbound network access. Sleep/Serverless is off by default: enable it only after explaining that the first call after sleeping can fail and must be retried.
+The root Dockerfile is detected automatically; set neither a Dockerfile variable nor a key-generation switch. Keep the volume at `/data`. Check `https://<your-domain>/readyz` for `"ready":true`, then run the MCP initialize check above with `address=$(railway ssh -- tripwright address)`.
+Railway offers a trial and paid plans; show the user [current pricing](https://railway.com/pricing) before any payment. A limited trial can restrict outbound network access.
 
 ## 3. Optional: three commands to connect a private repository
 
@@ -78,7 +82,7 @@ railway ssh -- tripwright repo key | gh repo deploy-key add - --allow-write -t t
 railway ssh -- tripwright repo connect git@github.com:<owner>/tripwright-trips.git
 ```
 
-`repo key` prints only the public key and reuses it on later calls. `repo connect` pushes existing local trips to an empty remote. If the remote already has trips and the service has none, it prepares the remote copy and tells you to restart (`docker restart tripwright`, or redeploy Railway). If both have trips, it refuses and changes neither. Switching remotes uses the same checks; never move the mirror manually.
+`repo key` prints only the public key and reuses it on later calls. `repo connect` pushes existing local trips to an empty remote, adopts a remote trip when local has none, and a running service applies either connection on its next request or health check—no restart. If both have trips, it refuses and changes neither. Switching remotes uses the same checks; never move the mirror manually.
 
 Check `/readyz` for `"storage":"remote"`. Other SSH Git hosts work too; set `TRIPWRIGHT_KNOWN_HOSTS` when the service cannot obtain their host keys itself.
 
@@ -98,7 +102,6 @@ Ask each client: “Use tripwright: which trips are stored?” Confirm that it c
 - **Upgrade Docker:** build again, stop and remove the container, then run the same `docker run` command; the named volume and key remain.
 - **Upgrade Railway:** `railway up --detach` after pulling the source.
 - **Back up without GitHub:** `docker exec tripwright tar czf - -C /data remote > tripwright-backup.tgz` (or `railway ssh -- tar czf - -C /data remote > tripwright-backup.tgz`). The backup contains the URL key and trips; protect both.
-- The older `TRIPWRIGHT_REPO_URL` and `TRIPWRIGHT_BRANCH` variables remain available on Railway. Private keys in `TRIPWRIGHT_DEPLOY_KEY` are ignored; use `repo key`.
 
 ## 6. Troubleshooting
 
