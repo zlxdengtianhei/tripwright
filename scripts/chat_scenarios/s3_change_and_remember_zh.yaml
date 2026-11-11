@@ -1,0 +1,6 @@
+name: s3_change_and_remember_zh
+language: zh
+seed: demo
+now: "2030-06-10T20:30:00+02:00"
+messages:
+  - "我是 Mira。把 6 月 10 日在奥斯陆虚构港边咖啡馆的晚饭从 17:00 挪到 19:00。另外记一下：我对花生过敏，以后别给我安排含花生的菜。"

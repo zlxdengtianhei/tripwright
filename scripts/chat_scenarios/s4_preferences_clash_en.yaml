@@ -1,0 +1,6 @@
+name: s4_preferences_clash_en
+language: en
+seed: demo
+now: "2030-06-10T20:30:00+02:00"
+messages:
+  - "Mira here. I want June 12 in Bergen to be easy-going, but I also really want to climb up to the Example Bergen Viewpoint, a steep two-hour hike. What should we do with that day?"
