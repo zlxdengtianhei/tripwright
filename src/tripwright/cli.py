@@ -275,7 +275,7 @@ def run_share(arguments) -> int:
                 print("No trips yet; the first committed plan will publish a page.")
             published = sum(item["status"] == "published" for item in results)
             turned_off = sum(item["status"] == "off" for item in results)
-            failed = sum(item["status"] in ("blocked", "error") for item in results)
+            failed = sum(item["status"] not in ("published", "off", "no_plan") for item in results)
             print(f"{message} {published} published, {turned_off} off, {failed} not published.")
             return 2 if failed else 0
         if arguments.action == "status":

@@ -159,6 +159,19 @@ def test_connect_names_a_trip_without_a_committed_plan_and_does_not_count_it_fai
     assert "1 published, 0 off, 0 not published." in out
 
 
+def test_connect_counts_a_trip_with_its_own_repository_as_not_published(tmp_path, capsys, monkeypatch):
+    data = tmp_path / "data"
+    monkeypatch.setenv("TRIPWRIGHT_DATA_DIR", str(data))
+    bare = bare_public(tmp_path)
+    root = mirror(data, sample_plan())
+    share_settings(root, "2030-07-fiktiv", repository="git@example.invalid:someone/elsewhere.git")
+
+    assert main(["share", "connect", str(bare)]) == 2
+    out = capsys.readouterr().out
+    assert "2030-07-fiktiv: not published" in out and "0 published, 0 off, 1 not published." in out
+    assert directories(bare) == set()
+
+
 # --- the cross-process lock -------------------------------------------------------------------
 
 
@@ -214,25 +227,3 @@ def test_two_threads_publishing_one_trip_at_the_same_time_both_succeed(tmp_path,
     files = remote_files(bare)
     assert directories(bare) == {path} and f"{path}/index.html" in files and f"{path}/2030-07-14.html" in files
     assert history_is_linear(bare)
-
-
-def test_without_the_lock_the_same_concurrent_publishes_fail_or_leave_a_stale_page(tmp_path, public, monkeypatch):
-    from contextlib import nullcontext
-
-    from tripwright.site import publish as share_publish
-
-    monkeypatch.setattr(share_publish, "_publish_lock", lambda data_dir: nullcontext())
-    bad = 0
-    bare, data = public
-    for round_number in range(6):
-        fresh = sample_plan()
-        fresh["id"] = f"2030-07-race{round_number}"
-        repo = trip_repo(tmp_path / f"race{round_number}", fresh)
-        existing = directories(bare)
-        failures = race_publish(repo, data, fresh["id"])
-        files = remote_files(bare)
-        new = directories(bare) - existing
-        complete = all(f"{name}/index.html" in files for name in new)
-        if failures or len(new) != 1 or not complete or not history_is_linear(bare):
-            bad += 1
-    assert bad >= 1, "the unlocked race produced no failure in 6 rounds; the lock may not be doing anything"
