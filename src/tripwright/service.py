@@ -504,7 +504,7 @@ class Tripwright:
         return (latest or {}).get("asked") or []
 
     def _reply_flow(self) -> str:
-        return "two" if os.environ.get("TRIPWRIGHT_REPLY_FLOW", "one").lower() == "two" else "one"
+        return "one" if os.environ.get("TRIPWRIGHT_REPLY_FLOW", "two").lower() == "one" else "two"
 
     def _next(self, considered: dict, asked: list[dict], recorded: dict, *, first: dict | None,
               second_title: str | None, latest: bool = False, unknown: list[str] = (), language: str | None = None,

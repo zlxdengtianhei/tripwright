@@ -136,7 +136,7 @@ def test_the_first_part_answers_each_point_of_the_question(make, monkeypatch):
         "去维也纳机场：计划里是今晚 22:53 在 Wien Hauptbahnhof 坐 REX 7（存档，没核）；几点出门、怎么走，第二段核完给。",
         "按现在 21:01 算，假设你在北边的岩馆（计划里这时在这；不在的话说一声）",
         "明早 07:05 证件柜台关（存档，没核）"]
-    assert "latest_departure" in second["next"] and not second["next"].startswith("这一问没给 points")
+    assert "latest_departure" in second["after_first_part"] and "这一问没给 points" not in second["next"] + second["after_first_part"]
 
 
 

@@ -77,7 +77,8 @@ def test_turn_resolves_stored_place_names_without_demanding_another_turn(seeded)
     assert "call turn again" not in result["next"] and "再调一次 turn" not in result["next"]
 
 
-def test_first_part_only_for_a_quick_question_with_a_stored_answer(seeded):
+def test_first_part_only_for_a_quick_question_with_a_stored_answer(seeded, monkeypatch):
+    monkeypatch.setenv("TRIPWRIGHT_REPLY_FLOW", "one")
     place = seeded.state("alice", "plan")["plan"]["places"][0]
     point = dict(kind="do", said=place["name_local"], place=place["id"])
     quick = seeded.turn("alice", "What about this place?", scenario="quick", points=[point])
@@ -96,6 +97,7 @@ def test_first_part_only_for_a_quick_question_with_a_stored_answer(seeded):
 
 
 def test_query_result_keeps_both_parts_in_front_of_a_host_that_skipped_the_first(seeded, monkeypatch):
+    monkeypatch.setenv("TRIPWRIGHT_REPLY_FLOW", "one")
     place = seeded.state("alice", "plan")["plan"]["places"][0]
     point = dict(kind="do", said=place["name_local"], place=place["id"])
     quick = seeded.turn("alice", "What about this place?", scenario="quick", points=[point])
@@ -103,7 +105,7 @@ def test_query_result_keeps_both_parts_in_front_of_a_host_that_skipped_the_first
     assert next(iter(result)) == "reply_begins_with"
     assert result["reply_begins_with"]["text"] == quick["first_part"]["text"]
     assert "start the final response with this text" in result["reply_begins_with"]["instruction"]
-    monkeypatch.setenv("TRIPWRIGHT_REPLY_FLOW", "two")
+    monkeypatch.delenv("TRIPWRIGHT_REPLY_FLOW")  # the default flow is two messages
     two = seeded.turn("alice", "What about this place?", scenario="quick", points=[point])
     assert "first and only message" in two["next"] and "After checking" not in two["next"]
     assert two["first_part"]["later"] and "without calling turn again" in two["after_first_part"]

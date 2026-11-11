@@ -49,7 +49,7 @@ def test_a_quick_latest_question_refuses_a_lookup_that_names_a_hard_node(make, m
     service = make(tracks=WAYS)
     fixed(monkeypatch, local("21:02"))
     asked = service.turn("local", FIRST, "q1", scenario="quick", points=GO)
-    assert asked["first_part"]["asks_latest"] and "query(kind='latest_departure', arguments={origin,destination})" in asked["next"]
+    assert asked["first_part"]["asks_latest"] and "query(kind='latest_departure', arguments={origin,destination})" in asked["after_first_part"]
     framed = query(service, "latest_departure", origin="gym-north", destination="airport")
     assert framed["target"]["meaning"] == "last_connection"
     # bad sample (codex_r1 question 1): a second lookup with the plan's 05:45 queue; its “明早最晚 04:56 出门” became the

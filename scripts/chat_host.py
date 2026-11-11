@@ -392,7 +392,7 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-rounds", type=int, default=20, help="tool-call rounds allowed per user message (default 20)")
     parser.add_argument("--timeout", type=float, default=300, help="seconds per chat API call (default 300)")
     parser.add_argument("--providers", choices=["synthetic", "live"], default="synthetic", help="stdio only: TRIPWRIGHT_PROVIDERS (default synthetic)")
-    parser.add_argument("--reply-flow", choices=["one", "two"], default="one", help="stdio only: one reply with both parts, or end after the first part")
+    parser.add_argument("--reply-flow", choices=["one", "two"], default="two", help="stdio only: end the reply after the first part (the service's default), or one reply with both parts")
     parser.add_argument("--local-user", default="local", help="stdio only: the server's local user, owner of the seeded trip")
     parser.add_argument("--patch-schema", action="store_true",
                         help="host-side patch for strict validators (Kimi): enum nodes without `type` get type string; the count is in metrics")

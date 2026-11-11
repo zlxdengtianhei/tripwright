@@ -166,7 +166,8 @@ def test_a_shorter_coverage_claim_against_tonights_search_is_refused(make):
 
 # --- 6. no status line, no second part twice ---------------------------------------------------------------------------------
 
-def test_the_first_part_is_sent_and_the_second_is_never_sent_twice(make):
+def test_the_first_part_is_sent_and_the_second_is_never_sent_twice(make, monkeypatch):
+    monkeypatch.setenv("TRIPWRIGHT_REPLY_FLOW", "one")  # the one-reply wording
     service = make()
     turn = service.turn("local", "最晚几点出发去机场", "q6", scenario="quick", points=GO)
     assert turn["next"].startswith("现在就把 first_part.text 发给用户（用户在等这第一段）；发出去之后再调 query。")

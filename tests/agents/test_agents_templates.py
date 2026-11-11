@@ -100,7 +100,7 @@ def test_init_files_are_exactly_block_c_user_repo_outputs_and_load_in_a_trip_rep
     assert files["CLAUDE.md"] == b"@AGENTS.md\n"
     # Live providers: with the default synthetic data the second part would rest on fictional evidence (E3).
     assert json.loads(files[".mcp.json"]) == {"mcpServers": {"tripwright": {"command": "tripwright", "args": ["--repo", ".", "serve", "--stdio"],
-                                                                            "env": {"TRIPWRIGHT_PROVIDERS": "live", "TRIPWRIGHT_REPLY_FLOW": "two"}}}}
+                                                                            "env": {"TRIPWRIGHT_PROVIDERS": "live"}}}}
     for path, data in files.items():
         (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / path).write_bytes(data)

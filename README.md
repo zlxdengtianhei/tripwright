@@ -45,12 +45,12 @@ The agent asks you only for what only you can do: sign in to Railway, type a sys
 | Where you use it | How it connects | Replies | Checked by us |
 | --- | --- | --- | --- |
 | Claude Code | `claude mcp add --transport http tripwright <address>` | Two messages: the first part, then the checked part | Yes, connected and used |
-| Claude (web, desktop, mobile) | Settings, add a custom connector, sign-in “none” | One message with both parts | No real app connection yet |
-| ChatGPT | Web only. Business, Enterprise or Edu to use all tools; Pro is read-only | One message with both parts | No real app connection yet |
+| Claude (web, desktop, mobile) | Settings, add a custom connector, sign-in “none” | The first part, then the checked part after you reply | No real app connection yet |
+| ChatGPT | Web only. Business, Enterprise or Edu to use all tools; Pro is read-only | The same; or one message, see below | No real app connection yet |
 | Codex | `codex mcp add tripwright --url <address>` | Not measured | Command taken from the docs |
 | Cursor and other MCP clients | Streamable HTTP with the same address | Depends on the client | No |
 
-Chat apps get one reply by default. To make them send two messages like Claude Code does, set one variable when you deploy (`TRIPWRIGHT_REPLY_FLOW`, see [deploy/README.md](deploy/README.md)). Account limits, the steps for each app and problems are in [docs/CONNECT.md](docs/CONNECT.md) and [deploy/CLIENTS.md](deploy/CLIENTS.md).
+This is a default you can change. Set `TRIPWRIGHT_REPLY_FLOW=one` when you deploy to get both parts in one reply (see [deploy/README.md](deploy/README.md)); that suits GPT models, while Claude often leaves the first part out. Only quick questions on the road have two parts. Account limits, the steps for each app and problems are in [docs/CONNECT.md](docs/CONNECT.md) and [deploy/CLIENTS.md](deploy/CLIENTS.md).
 
 ## See an example
 

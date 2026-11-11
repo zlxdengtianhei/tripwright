@@ -45,12 +45,12 @@ agent 只会请你做只有你能做的事：登录 Railway、输入系统密码
 | 你在哪用 | 怎样连 | 回答 | 我们验过吗 |
 | --- | --- | --- | --- |
 | Claude Code | `claude mcp add --transport http tripwright <地址>` | 两条消息：先发第一段，再发核过的第二段 | 验过，已连通并用过 |
-| Claude（网页、桌面、手机） | 设置里加自定义连接器，认证选“无” | 一条消息，两段都在里面 | 还没连过真实 App |
-| ChatGPT | 只能在网页版加。用全部工具要 Business、Enterprise 或 Edu；Pro 只读 | 一条消息，两段都在里面 | 还没连过真实 App |
+| Claude（网页、桌面、手机） | 设置里加自定义连接器，认证选“无” | 先发第一段，你回一句后发核过的第二段 | 还没连过真实 App |
+| ChatGPT | 只能在网页版加。用全部工具要 Business、Enterprise 或 Edu；Pro 只读 | 同上；也可以改成一条，见下 | 还没连过真实 App |
 | Codex | `codex mcp add tripwright --url <地址>` | 没测 | 命令取自官方文档 |
 | Cursor 等其他 MCP 客户端 | 用同一个地址，走 Streamable HTTP | 看客户端 | 没验 |
 
-聊天 App 默认一次只回一条。想让它们像 Claude Code 一样发两条，部署时设一个变量（`TRIPWRIGHT_REPLY_FLOW`，见 [deploy/README.md](deploy/README.md)）。各家的账号限制、每个 App 的步骤和连接问题，见 [docs/CONNECT.md](docs/CONNECT.md) 与 [deploy/CLIENTS.md](deploy/CLIENTS.md)。
+这是可以改的默认。部署时设 `TRIPWRIGHT_REPLY_FLOW=one`，两段就放进同一条回复（见 [deploy/README.md](deploy/README.md)）；这适合 GPT 一类模型，Claude 常会漏掉第一段。只有路上的快问才分两段。各家的账号限制、每个 App 的步骤和连接问题，见 [docs/CONNECT.md](docs/CONNECT.md) 与 [deploy/CLIENTS.md](deploy/CLIENTS.md)。
 
 ## 看示例
 
