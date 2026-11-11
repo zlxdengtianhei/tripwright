@@ -64,6 +64,18 @@ def test_omitted_revisions_are_filled_from_actual_decision_changes(seeded):
     assert "no preference precedence" in revisions[0]["reason"]
 
 
+def test_competing_preferences_hold_plan_changes_until_user_chooses(seeded):
+    scope = dict(start="2030-06-12", end="2030-06-12", time_from="09:00", time_to="12:00")
+    items = [dict(kind="preference", key=key, quote=text, text=text, subject=["Mira"], strength="prefer", scope=scope,
+                  source=dict(event="this", basis="user_explicit"))
+             for key, text in (("pace", "easy-going morning"), ("climb", "steep two-hour hike"))]
+    result = seeded.turn("alice", "I want an easy-going morning and a steep two-hour hike", speaker="Mira",
+                         scenario="plan", record=dict(items=items))
+    assert result["recorded"].get("crowding")
+    assert "do not change the plan until the user chooses" in result["next"]
+    assert "propose(days" not in result["next"]
+
+
 def test_query_locations_accept_stored_ids_names_and_coordinate_objects(service, plan):
     for index, place in enumerate(plan["places"]):
         place["coords"] = [59.91 + index / 100, 10.75]

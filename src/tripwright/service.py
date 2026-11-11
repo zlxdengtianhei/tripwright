@@ -326,12 +326,13 @@ class Tripwright:
             anchors = self._hard_nodes(owner, plan, subject, scope, at)
             write = self.write_ref(owner, op)
             pending = memory.pending_entries(self.store, owner)
+            possible = self.ledger.possible_contradictions(owner, context["bundle"]["items"])
             response = dict(now=self.clock(owner, at), request_id=receipt.get("request_id", request_id),
                             receipt=receipt, ctx_id=context_id, base_version=current["number"],
                             snapshot=context["snapshot"],
                             write=write, notices=self.open_notices(owner),
                             pack=dict(markdown=shown["markdown"], meta=shown["meta"], tokens=shown["tokens"]),
-                            recorded=recorded, possible_contradictions=self.ledger.possible_contradictions(owner, context["bundle"]["items"]),
+                            recorded=recorded, possible_contradictions=possible,
                             current_summary=dict(trip=self.current_trip(owner), title=plan.get("title"), days=[day["date"] for day in plan.get("days", [])],
                                                  needs_replan=current.get("needs_replan", False) or recorded["needs_replan"],
                                                  warnings=current.get("warnings", [])),
@@ -355,7 +356,7 @@ class Tripwright:
             instructions = self._next(considered, asked, recorded, first=first, second_title=second_title,
                                       latest=first_part.asks_latest(text),
                                       unknown=self._unknown_places(plan, told, language=language), language=language,
-                                      scenario=scenario)
+                                      scenario=scenario, options=bool(possible or recorded.get("crowding")))
             # Claude reads the first fields first: the immediate action and both service-written headings lead.
             response = dict(next=instructions, first_part=first, second_part_title=second_title, **response)
             response.update(consider={key: considered[key] for key in ("entries", "more", "more_how") if key in considered},
@@ -488,7 +489,7 @@ class Tripwright:
 
     def _next(self, considered: dict, asked: list[dict], recorded: dict, *, first: dict | None,
               second_title: str | None, latest: bool = False, unknown: list[str] = (), language: str | None = None,
-              scenario: str | None = None) -> str:
+              scenario: str | None = None, options: bool = False) -> str:
         """Only this message's next actions, bounded for a chat tool result."""
         en = (language or self.language) == "en"
         parts = []
@@ -513,7 +514,10 @@ class Tripwright:
             parts.append("For tonight's latest, call query(kind='latest_departure', arguments={origin,destination}) and use "
                          "its first_line, sentences and window." if en else
                          "问今晚最晚：query(kind='latest_departure', arguments={origin,destination})，照它的 first_line、sentences 和 window 说。")
-        if scenario in ("plan", "replan"):
+        if options and scenario in ("plan", "compare"):
+            parts.append("These preferences compete: record the user's words, but do not change the plan until the user chooses "
+                         "an option." if en else "这些偏好互相挤：这一条只记用户说的偏好，不改计划；等用户选了一套再改。")
+        elif scenario in ("plan", "replan"):
             parts.append("For an actual plan edit, read state(view='day',date=...), edit its json, then propose(days=[json]) "
                          "and commit; do not resend the whole trip." if en else
                          "真要改计划：state(view='day',date=...)，改返回的 json，propose(days=[json])，再 commit；不重发整份行程。")
