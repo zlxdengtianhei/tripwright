@@ -99,6 +99,16 @@ ssh <server> 'mv /opt/tripwright/app /opt/tripwright/app.previous && mv /opt/tri
 
 Keep `app.previous` until the new service is ready. Roll back by swapping the source directories and rebuilding; never roll back the data automatically.
 
+An installation made before November 2026 kept its settings in `data/remote.yaml` and its repository key in `data/ssh/`. Neither is read now, and the service waits (`/readyz` shows `kind: config`) until the repository is connected again. After the upgrade commands above, run these once; the connector address, the trips and the key that the repository already trusts stay the same:
+
+```bash
+ssh <server> 'docker exec tripwright-app sh -c "mkdir -p -m 700 /data/remote/ssh && cp -p /data/ssh/personal_ed25519 /data/remote/ssh/deploy_key && cp -p /data/ssh/personal_ed25519.pub /data/remote/ssh/deploy_key.pub && cp -p /data/ssh/known_hosts /data/remote/ssh/known_hosts"'
+ssh <server> 'docker exec tripwright-app tripwright repo connect <the repo_url from data/remote.yaml>'
+ssh <server> 'docker exec tripwright-app tripwright address'
+```
+
+`repo connect` answers “Already connected” and no restart is needed. In `tripwright.env`, `TRIPWRIGHT_REMOTE_CONFIG` and `TRIPWRIGHT_TOKENS` are ignored and can be removed; set `TRIPWRIGHT_PUBLIC_URL=https://<your-domain>` so that `address` prints the public address. A compose file of your own must not set `TRIPWRIGHT_DB`: with it the service would leave the repository and open a single database file, so it stops at start instead. Rolling back to the old source needs no change to the data.
+
 ## Health, readiness and logs
 
 - `GET /healthz` returns 200 while the process runs and keeps `status`, `ready`, and `tenants.personal` in its body.

@@ -21,6 +21,14 @@ def test_github_addresses_go_over_port_443(given):
     assert github_repo(given) == "ssh://git@ssh.github.com:443/owner/trip.git"
 
 
+def test_the_compose_file_starts_the_remote_service():
+    """TRIPWRIGHT_DB or TRIPWRIGHT_REPO would put `serve --http` in single-database mode on a deployed volume."""
+    from pathlib import Path
+
+    compose = (Path(__file__).parents[2] / "deploy/compose.yaml").read_text(encoding="utf-8")
+    assert "TRIPWRIGHT_DB" not in compose and "TRIPWRIGHT_REPO:" not in compose
+
+
 def test_other_hosts_keep_their_address():
     assert github_repo("git@gitlab.com:owner/trip.git") is None
 
