@@ -125,8 +125,8 @@ def test_yaml_files_load_back_to_exactly_what_was_written(value):
 def test_a_message_file_round_trips_text_and_attributes_exactly():
     event = dict(id="E-301031-abcdef", request_id="r1", received=dict(text="---\n  多行\n原话\n", nature="user_verbatim", channel="conversation",
                                                                       native_ref="m1", speaker="u1", suspicious_words=[]),
-                 receipt=dict(event_id="E-301031-abcdef", received_text="---\n  多行\n原话\n", nature="user_verbatim", verbatim=True,
-                              received_at="2030-10-31T10:00:00+00:00", native_ref="m1"))
+                 receipt=dict(event_id="E-301031-abcdef", request_id="r1", received_text="---\n  多行\n原话\n",
+                              nature="user_verbatim", verbatim=True, received_at="2030-10-31T10:00:00+00:00", native_ref="m1"))
     path = layout.raw_name(event, "Europe/Vienna")
     assert path == "raw/2030-10-31/20301031T100000Z-u1-abcdef.md"
     assert layout.event_record(path, layout.event_text(event)) == event

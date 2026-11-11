@@ -144,7 +144,7 @@ async def probe(directory) -> dict:
             await session.initialize()
             found = {}
             schema = {tool.name: tool.input_schema for tool in (await session.list_tools()).tools}["query"]
-            found["schema"] = (schema["properties"]["kind"]["enum"], sorted(schema["properties"]["arguments"]["properties"]))
+            found["schema"] = (schema["properties"]["kind"]["enum"], schema["properties"]["arguments"])
             _, _, turn = await call(session, "turn", dict(text="Create the trip.", request_id="seed"))
             _, _, draft = await call(session, "propose", dict(ctx_id=turn["ctx_id"], base_version=0, plan=PLAN, idempotency_key="seed"))
             await call(session, "commit", dict(draft_id=draft["draft_id"], idempotency_key="seed", accept_unverified=True))
@@ -160,9 +160,9 @@ async def probe(directory) -> dict:
 
 def test_the_new_kinds_and_the_record_path_over_real_stdio(tmp_path):
     found = asyncio.run(probe(tmp_path))
-    kinds, properties = found["schema"]
+    kinds, arguments = found["schema"]
     assert {"latest_departure", "web_evidence"} <= set(kinds)
-    assert {"anchor_id", "by", "deadline", "external_deadline", "after", "url", "quote", "claim", "type", "read_from"} <= set(properties)
+    assert arguments["type"] == "object" and "properties" not in arguments
     error, text, latest = found["latest"]
     assert not error, text
     assert latest["status"] == "unverified" and latest["evidence"]["synthetic"] is True  # demo data: never checked

@@ -6,23 +6,23 @@ This repository holds one person's trips, one folder per trip under `trips/`. It
 
 ## Every user message
 
-The main agent calls `turn` first and does these steps; the skill or MCP prompt `tripwright-main` holds the full rules, to read when writing the second part. Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>` and step 7 runs `uvx --from ./tools/<wheel> tripwright --repo . query check_answer --part second --text-file -`; the lookups of step 5 go to the researcher.
+The main agent calls `turn` first and does these steps; the `tripwright-main` skill holds the full rules. Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>`. In Claude Code, a second-part draft may be checked with `uvx --from ./tools/<wheel> tripwright --repo . query check_answer --part second --text-file -`; lookups go to the researcher.
 
-1. Call `turn` first for every user message, before writing any text: the text as received, a new `request_id`, `scenario: "quick"` for a question on the road, and `points`, each thing the message names as `{"kind", "said", "place"}` in the user's words; `points: []` when the message only asks you to go on. While Tripwright's tools are still connecting, retry every few seconds (up to about 30) before using the command line; never write about connections. Done when: `turn` returned.
-2. If `turn` returned `second_part_due`, this message asks for that question's second part: go to step 5 with its `request_id`. Done when: `second_part_due` is absent, or you are at step 5.
-3. If your app runs a subagent in the background and tells you when it reports (Claude Code), dispatch one `tripwright-researcher` there now, with each fact for step 5 and what the plan stores of it. Otherwise skip this step. Done when: a researcher runs in the background, or your app has none.
-4. Send `first_part.text` as it is (only the form of address and the language may change), before any lookup. After step 3 it is the last text of this reply, and the report starts step 5. Otherwise end the reply with `first_part.later` as its last line, and the user's next message brings the second part. Done when: the first text the user sees in this reply is the first part.
-5. Check each fact the user will act on (times and hard nodes, what still runs after now, opening hours, events) with `query`: `latest_departure` with origin and destination only for the latest or last departure, `open_places` for food, `web_evidence` for what a web page says. A subagent may do the lookups (`tripwright-researcher`; in Codex `tripwright_researcher`); without one, do them yourself, one after another. Done when: each fact has a `query` result or a report line, or a reason it stays unchecked.
-6. Record in one `propose`, then `commit`, what the message decided or changed and what you inferred or chose (basis `agent_inference`); record nothing in between. Done when: `commit` accepted it, or there was nothing to record.
-7. Write the second part from the results and pass it to `query(kind="check_answer", arguments={"text": <the draft>, "part": "second", "request_id": <the question's>})`; rewrite what each `fix` says and check again, at most twice. Done when: `check_answer` returned `ok: true`.
-8. Send part 2 once: the draft that passed, unchanged. Done when: the text sent is the draft that passed.
+1. Call `turn` first with the message, `scenario: "quick"` on the road, and each named thing in `points`. While Tripwright's tools are still connecting, retry every few seconds (up to about 30) before using the command line; never write about connections. Done when: `turn` returned.
+2. If `first_part` is present, write `first_part.text` before any other tool call. It already has the service's first-part heading. Done when: the first text is the service's first part, or none was supplied.
+3. Query every fact the user will act on. In Claude Code you may dispatch one background `tripwright-researcher` after writing the first part; its report may bring the second part as a later message. Other hosts continue in the same reply. Done when: each actionable fact has a query result or an unchecked label.
+4. Record what this message states, then use `propose` and `commit` for plan changes. Put choices the agent made in `changes.items` with basis `agent_inference`. Done when: the commit was accepted, or there was nothing to write.
+5. Write `second_part_title` as the second heading. Its first sentence says what differs from the first part, or “Same as above, checked”; then give the rest. In Claude Code, `check_answer` may check this draft before sending it. Done when: the second heading and differences sentence are present.
+6. Finish the answer without asking the user to reply “continue”. Done when: the user has the complete answer.
 
-- The user sees only the two parts: send no status line before the first or between the two, nor talk of checks. No tool result or draft is shown; a part is out once sent.
-- 核过 only for a Tripwright tool result, never synthetic or demo data; what a web page says is 网上说法 with its source, a search snippet is 搜索摘要, and what stays unchecked is 没核, with why.
-- The order between preferences comes only from the user.
-- Stop for the user only before a commit with `accept_unverified`, a change to what the user called a must, or anything sent or published to others; every other step goes on without asking.
+- Call `turn` first for every trip message; use `scenario="quick"` on the road and list the message's `points`.
+- If `first_part` exists, write its text before any other tool. Query times, last services and opening hours before presenting them as facts; use the returned sentences and windows, and label anything unchecked. Then use `second_part_title`; its first sentence says what differs, or “Same as above, checked”.
+- Record a user's preferences, facts and decisions before saying they are remembered.
+- Only the user sets precedence between preferences; when they compete, offer two or three options.
+- Only the user's words in this message may change something they called a must.
+- Answer in the user's language; faithfully translate service sentences when needed.
 
-Subagents (`tripwright-verifier`, `tripwright-researcher`, `tripwright-requirements`; in Codex `tripwright_verifier` and so on) never call `turn` or `commit`; they return reports to the main agent. In Codex, spawn `tripwright_researcher` for step 5 when you can run subagents.
+Subagents (`tripwright-verifier`, `tripwright-researcher`, `tripwright-requirements`; in Codex `tripwright_verifier` and so on) never call `turn` or `commit`; they return reports to the main agent. In Codex, spawn `tripwright_researcher` for step 3 when you can run subagents.
 
 ## Read in this order
 

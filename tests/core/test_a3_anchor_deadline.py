@@ -161,8 +161,8 @@ async def over_stdio(directory) -> dict:
 
 def test_the_mcp_schema_carries_the_field_and_a_wrong_value_names_its_path(tmp_path):
     result = asyncio.run(over_stdio(tmp_path))
-    schema = str(result["tools"]["propose"])
-    assert "deadline" in schema and "'external'" in schema and "'plan'" in schema and "operator or outside rule" in schema
+    schema = result["tools"]["propose"]["properties"]["plan"]
+    assert any(branch.get("type") == "object" and "properties" not in branch for branch in schema["anyOf"])
     error, text = result["bad"]
     assert error and "deadline" in text and "anchors" in text and ("'external' or 'plan'" in text), text
     error, data = result["good"]

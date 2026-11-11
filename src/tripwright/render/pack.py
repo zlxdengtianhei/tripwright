@@ -160,7 +160,7 @@ def compose(pack: dict, dropped: list[str], sources: dict | None, over: tuple | 
             lines += section(("check",)) + section(("question",))
         elif name == "rules":
             lines += section(("rule",))
-            if not reader:
+            if not reader and not pack["header"].get("now"):
                 lines.append(writing_rules(pack["digest"]["writing_rules"]))
         elif name == "omitted":
             lines.append(omitted_line(pack["omitted"], w))

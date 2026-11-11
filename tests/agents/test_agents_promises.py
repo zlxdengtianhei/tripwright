@@ -40,7 +40,7 @@ def test_each_promise_from_the_packet_has_a_check():
     assert {promise.id for promise in PROMISES} >= {
         "turn-first", "order-only-from-user", "competing-preferences-get-options", "baggage-holder",
         "declare-relations-in-propose", "declarations-hold-only-on-overlap", "transport-text-search-term-and-triggers",
-        "write-state-words", "never-call-a-write-success", "six-single-agent-steps", "multi-agent-first",
+        "write-state-words", "never-call-a-write-success", "six-single-agent-steps", "multi-agent-optional",
         "no-tool-steps-end-with-write-back", "verifier-independent-input", "verifier-stale-gives-no-conclusion",
         "researcher-saved-first-with-provenance", "subagents-never-commit", "new-trip-carry-over",
         "possible-contradictions-named", "locks-follow-identity", "turn-records-this-message", "new-trip-calls",

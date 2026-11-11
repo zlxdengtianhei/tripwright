@@ -40,17 +40,9 @@ LATER = dict(zh="要核过的第二段，回我一句“继续”。", en="Reply
 # S5b (Claude Code replays s5_ns_on, s5_mcponly): what turn says first (`do_first`, its first field), read at the moment
 # the host acts: the first part as the reply's only message; after “继续”, nothing before the second part (the Stop hook
 # opens its push after “继续” with DO_DUE too); without usable points, call turn again first.
-DO_FIRST = dict(zh="先把 first_part.text 原样发出，作为这一轮的第一条、也是唯一一条消息，末行是 first_part.later，然后结束这一轮；"
-                   "发之前不调别的工具、不写别的字。在后台派 researcher 的（第 3 步）先派它，第一段不带 later 那一行，等它的报告。",
-                en="Send first_part.text as it is as this reply's first and only message, its last line first_part.later, then end the "
-                   "reply; call no other tool and write nothing before it. If you dispatch a researcher in the background (step 3), "
-                   "dispatch it first and leave out the later line; its report brings the second part.")
 DO_DUE = dict(zh="这一轮在第二段之前不写任何字：查、核、过 check_answer 之后只发第二段这一条，发完结束这一轮；不提检查和工具回执。",
               en="Write nothing before the second part in this reply: look up, check, pass check_answer, then send only the second "
                  "part as one message and end the reply; never mention the check or tool receipts.")
-DO_POINTS = dict(zh="先补 points（照 next 的第一句），用同一个 request_id 再调一次 turn；这之前不写字，再照那次的 do_first 做。",
-                 en="First fix points as next's first sentence says and call turn again with the same request_id; write nothing "
-                    "before that, then do what that turn's do_first says.")
 NODES = 3  # hard nodes the draft names
 # a stored claim as packs.archived_claims rewrote it inside a node's text: left out of the draft
 ARCHIVED = re.compile(r"计划里写过“[^”]*”（存档[^）]*）。?|the plan stored \"[^\"]*\" \(archived[^)]*\)\.?")
@@ -98,11 +90,14 @@ class Point(BaseModel):
 
 
 def checked_points(points: list | None) -> list[dict] | None:
-    """turn's points as plain dicts, each refused with its path: `Invalid points: points.0.kind: …`."""
+    """Turn's points as plain dicts. Long quotations are shortened, not rejected."""
     from pydantic import TypeAdapter, ValidationError
 
     if points is None:
         return None
+    if isinstance(points, list):
+        points = [dict(point, said=point["said"][:60]) if isinstance(point, dict) and isinstance(point.get("said"), str)
+                  else point for point in points]
     try:
         found = [point.model_dump() for point in TypeAdapter(list[Point]).validate_python(points)]
     except ValidationError as error:
@@ -265,8 +260,12 @@ def point_draft(question: str, now: dict, anchors: list[dict], plan: dict | None
     from tripwright.query import anchor_meaning
 
     going = {point["place"] for point in points if point["kind"] == "go"}
-    be_there = sorted((anchor for anchor in anchors if not anchor.get("passed") and anchor_meaning(anchor) == "arrival_deadline"
-                       and anchor.get("deadline") != "plan"), key=lambda anchor: (anchor.get("place") not in going, anchor["date"], anchor["time"]))
+    named_nodes = {anchor_id for point in points if point["kind"] == "go" for anchor_id in point["facts"].get("nodes", [])}
+    be_there = sorted((anchor for anchor in anchors if not anchor.get("passed")
+                       and ((anchor_meaning(anchor) == "arrival_deadline" and anchor.get("deadline") != "plan")
+                            or anchor["id"] in named_nodes)),
+                      key=lambda anchor: (not (anchor_meaning(anchor) == "arrival_deadline" and anchor.get("deadline") != "plan"),
+                                          anchor.get("place") not in going, anchor["date"], anchor["time"]))
     nodes = [node_line(anchor, plan, now["date"], words) for anchor in be_there[:1]] if len(lines) < LINES - 1 else []
     lines = list(dict.fromkeys([*lines[:LINES - 1], *nodes, said["tail"]]))
     return dict(text="\n".join(lines), lines=lines, asks_latest=asks_latest(question) or any(point["kind"] == "go" for point in points),

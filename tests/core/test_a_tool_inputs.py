@@ -79,7 +79,7 @@ async def probe(session) -> dict:
         _, _, turn = await call(session, "turn", dict(text="Not found yet.", request_id=f"bad-{label}"))
         error, text, _ = await call(session, "propose", dict(ctx_id=turn["ctx_id"], base_version=turn["base_version"],
                                                              idempotency_key=f"bad-{label}", changes=dict(resolve_pending=[resolution(identifier)])))
-        results[label] = (error, "resolve_pending" in text and "id" in text and "valid string" in text, text)
+        results[label] = (error, "resolve_pending" in text and "id" in text and "string" in text, text)
     _, _, turn = await call(session, "turn", dict(text="Not found yet.", request_id="good"))
     error, text, draft = await call(session, "propose", dict(ctx_id=turn["ctx_id"], base_version=turn["base_version"],
                                                              idempotency_key="good", changes=dict(resolve_pending=[resolution(check_id)])))

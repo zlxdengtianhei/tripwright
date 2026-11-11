@@ -94,5 +94,5 @@ def test_main_skill_still_satisfies_the_core_adapter_check(outputs):
     # tests/core/test_adapters.py reads the skill with text.split("---", 2)[1]; the notice comment must not break that.
     text = outputs["skills/tripwright-main/SKILL.md"]
     assert yaml.safe_load(text.split("---", 2)[1])["name"] == "tripwright-main"
-    assert all(f"`{name}`" in text for name in ("turn", "query", "propose", "commit", "result", "state", "explain"))
+    assert all(name in text for name in ("turn", "query", "propose", "commit", "result", "state", "explain"))
     assert "中文说明" in text

@@ -1,6 +1,7 @@
 """S5 (METHOD v0.5 2.9, 3.2, 6.1; R-147—R-149): the user's layer and the agent's layer kept apart, what a quick
 question's consider keeps when it cuts, one record by its ID, and the agent's own inferences sent back. Each promise has
 a bad sample (red before the change) and a legal one."""
+import asyncio
 from copy import deepcopy
 from itertools import count
 
@@ -226,20 +227,15 @@ def test_explain_one_record_answers_over_the_mcp_server_without_any_repository_f
 
 # --- 4. the cloud bridge: the agent sends back what it inferred or chose -----------------------------------------------
 
-def test_turn_and_the_instructions_ask_for_the_agents_own_inferences_in_the_same_proposal(trip):
-    from tripwright.agents import server_instructions
-    from tripwright.agents.assemble import INSTRUCTIONS_LIMIT
+def test_only_propose_asks_for_the_agents_own_inferences(trip):
+    from tripwright.adapters.mcp import create_server
 
     turn = said(trip, "去机场怎么走？")
-    step = next(step for step in turn["steps"] if step["step"] == 6)
-    assert "agent_inference" in step["do"] and "one `propose`" in step["do"] and "nothing in between" in step["do"]
-    # bad sample: turn returned no shape for sending the agent's own inferences back
-    hint = turn["write_back"]
-    assert "agent_inference" in hint["say"] and "propose" in hint["say"] and "commit" in hint["say"]
-    [shape] = hint["record"]["items"]
-    assert shape["source"] == {"event": turn["receipt"]["event_id"], "basis": "agent_inference"} and shape["quote"] == ""
-    text = server_instructions()
-    assert "agent_inference" in text and len(text.encode()) <= INSTRUCTIONS_LIMIT
+    assert "write_back" not in turn and "steps" not in turn
+    tools = asyncio.run(create_server(trip).list_tools())
+    description = next(tool.description for tool in tools if tool.name == "propose")
+    assert "changes.items" in description and "agent_inference" in description
+    assert all("write_back" not in (tool.description or "") for tool in tools)
 
 
 def test_inferences_sent_with_the_plan_need_no_usage_while_the_users_words_still_do(trip):
@@ -271,14 +267,14 @@ def test_inferences_sent_with_the_plan_need_no_usage_while_the_users_words_still
 def test_a_wrong_record_in_turn_still_receives_the_message_and_drafts_the_first_part(trip):
     # bad sample (gap inventory 3.5): a record of the wrong shape refused the whole turn, so the first part came late
     turn = said(trip, "去机场怎么走？", record=dict(items=["（推断）多走路"]))
-    assert turn["first_part"]["text"] and turn["receipt"]["event_id"]
+    assert turn["first_part"] is None and turn["receipt"]["event_id"] and turn["next"]
     [left] = turn["recorded"]["not_recorded"]
     assert left["part"] == "record" and "record.items.0" in left["reason"] and turn["receipt"]["event_id"] in left["fix"]
     assert "propose" in left["fix"] and "record" in turn["next"]
     # an entry the ledger refuses (a quote that is not in the message) and a part turn does not take: the same
     refused = said(trip, "晚上吃什么？", record=dict(items=[recorded("preference", "food", "便宜的", basis="agent_inference", quote="想吃便宜的")],
                                                     decisions=[dict(question="晚饭", choice="A")]))
-    assert refused["first_part"]["text"] and refused["recorded"]["not_recorded"][0]["part"] == "record"
+    assert refused["first_part"] is None and refused["recorded"]["not_recorded"][0]["part"] == "record"
     assert not [item for item in trip.store.all("items", "alice") if item["key"] == "food"]  # nothing half-recorded
     # the same request sent again returns the same receipt; a corrected record goes into propose, as fix says
     first = trip.turn("alice", "怎么走？", "s5-same", record=dict(items=["x"]))

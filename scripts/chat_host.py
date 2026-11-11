@@ -276,12 +276,15 @@ def message_metrics(entry: dict) -> dict:
     usage = entry["usage"]
     turns = [turn_info(call["result"] or "") for call in calls if call["name"] == "turn" and not call["error"]]
     last_part, last_do_first = turns[-1] if turns else (None, None)
-    # The last turn result is the one the host must act on. Its `do_first` names `first_part` when the reply is to
-    # open with it; after "continue" it asks for the second part, and then first_part has no place in the reply.
-    wants_first_part = bool(last_do_first) and "first_part" in last_do_first
-    verbatim = None
-    if wants_first_part and last_part and reply is not None:
-        verbatim = norm(last_part) in norm(reply)
+    # New servers identify the first part directly; old baseline servers used do_first.
+    wants_first_part = bool(last_part) and (last_do_first is None or "first_part" in last_do_first)
+    shown = "\n".join([*entry["mid_texts"], reply or ""])
+    verbatim = norm(last_part) in norm(shown) if wants_first_part and last_part and shown else None
+    before_query = None
+    if wants_first_part and last_part:
+        text_round = next((round_["round"] for round_ in entry["rounds"] if norm(last_part) in norm(round_["text"])), None)
+        query_round = next((round_["round"] for round_ in entry["rounds"] if "query" in round_["tool_calls"]), None)
+        before_query = bool(text_round is not None and query_round is not None and text_round <= query_round)
     return dict(
         user=entry["user"], failed=entry["failed"], reply_chars=len(reply) if reply is not None else None,
         tool_call_count=len(calls), tool_order=[call["name"] for call in calls], tool_rounds=len(entry["rounds"]),
@@ -291,6 +294,7 @@ def message_metrics(entry: dict) -> dict:
                     first_call_prompt=usage[0].get("prompt_tokens") if usage else None),
         first_tool_is_turn=bool(calls) and calls[0]["name"] == "turn",
         turn_wants_first_part=wants_first_part, first_part_verbatim_in_reply=verbatim,
+        first_part_before_query=before_query,
         mid_text_segments=len(entry["mid_texts"]),
         tool_errors=[dict(name=call["name"], round=call["round"], error=call["error"]) for call in calls if call["error"]],
     )
@@ -398,6 +402,11 @@ def write_json(path: Path, data) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def redacted_argv(argv: list[str]) -> list[str]:
+    """Keep the reproducible command without persisting the private URL key."""
+    return [argument.split("/mcp/", 1)[0] + "/mcp/***" if "/mcp/" in argument else argument for argument in argv]
+
+
 def reanalyze(directories: list[str]) -> int:
     """`chat_host.py --reanalyze DIR...`: recompute the per-message figures of finished runs from their transcript.json
     (after message_metrics changed); everything else in metrics.json stays."""
@@ -426,7 +435,7 @@ def main(argv: list[str] | None = None) -> int:
     for stale in ("metrics.json", "transcript.json", "partial_transcript.json"):
         (out / stale).unlink(missing_ok=True)
     started = datetime.now().astimezone().isoformat(timespec="seconds")
-    run_info = dict(started=started, argv=sys.argv[1:])
+    run_info = dict(started=started, argv=redacted_argv(sys.argv[1:]))
     partial: list[dict] = []
     with tempfile.TemporaryDirectory(prefix="chat-host-") as scratch:
         try:

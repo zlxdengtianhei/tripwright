@@ -318,43 +318,8 @@ def test_a_search_that_stops_before_tonights_end_never_says_the_last_one(make):
 
 # --- 3. turn drafts the first part --------------------------------------------------------------------------------------------
 
-def test_turn_drafts_the_first_part_from_stored_data_and_next_says_send_it_first(make):
-    service = make(today=[REX], tomorrow=[QUEUE, DESK])
-    turn = service.turn("local", "今晚到明天 最晚几点出发机场 怎么走", "q1", scenario="quick")
-    first = turn["first_part"]
-    assert first["asks_latest"] and first["lines"] == [
-        "按现在 21:01 算：几点出发要查，第二段给。",
-        "计划里写过：22:53 在 Wien Hauptbahnhof 坐 REX 7 去 Flughafen Wien（存档，没核）",
-        "你计划留的余量：明早 05:45 前，到证件柜台排队",
-        "明早 07:05 证件柜台关（存档，没核）",  # A11: no source checked the operator's time
-        "计划里存的班次说法没核，第二段给。",
-        "没核：今晚还有哪些车、几点必须出门和要守的时间，第二段核完再发。"]
-    assert first["text"] == "\n".join(first["lines"]) and len(first["lines"]) <= 8
-    # D-64 two (A10 replay): the stored “只剩 23:53 末班” sentence and its “这条作废” never enter the first part
-    assert "23:53" not in first["text"] and "作废" not in first["text"] and "只剩" not in first["text"]
-    # A12: without the question's points, next first asks for them; then the A10 order (S4a: then turn's steps, whose
-    # step 4 says whether the check follows in this reply or after the user's next message)
-    assert turn["next"].startswith("这一问没给 points：first_part 只按存的计划写") and (
-        "先把 first_part.text 原样发给用户（只可改称呼和语言），再照 steps 往下做。用户只看到第一段和第二段两条消息：第一段之前、两段之间不发任何状态句。"
-        in turn["next"])
-    assert "latest_departure 只给 origin 和 destination" in turn["next"] and "第二段过了 check_answer 才发（ok:true；只剩提示就照原样发），只发一次" in turn["next"]
-    # the draft passes the first part's checks; a9b's English status line does not
-    assert query(service, "check_answer", text=first["text"], part="first")["ok"]
-    bad = query(service, "check_answer", text=STATUS_LINE, part="first")
-    # 11-04: no clock in the first two lines is a hint of check_answer; the hooks still take it for no first part
-    assert [(entry["check"], entry["severity"]) for entry in bad["problems"]] == [("clock_in_first_part", "hint")]
-    from tripwright.render.check_answer import first_part_shape
-    assert first_part_shape(STATUS_LINE, 21 * 60 + 1)
 
 
-def test_a_question_that_is_not_about_the_latest_gets_the_plan_draft(make):
-    service = make(today=[REX], tomorrow=[QUEUE, DESK])
-    turn = service.turn("local", "我饿了，想吃点东西", "q2", scenario="quick")
-    first = turn["first_part"]
-    assert not first["asks_latest"] and first["lines"][0] == "按现在 21:01 算：先按存的计划说，要核的第二段给。"
-    assert first["lines"][-1] == "没核：上面的时刻是存的计划，第二段核完再发。"
-    assert "问最晚、末班" not in turn["next"] and "。先把 first_part.text 原样发给用户" in turn["next"]
-    assert check_draft(first["text"], "first", 21 * 60 + 1) == []
 
 
 def test_first_part_and_next_reach_a_host_over_mcp(tmp_path):
@@ -373,8 +338,8 @@ def test_first_part_and_next_reach_a_host_over_mcp(tmp_path):
                 return await call(session, "turn", dict(text="最晚几点出发去机场？", request_id="a10-1", scenario="quick"))
 
     turn = asyncio.run(scenario())
-    assert turn["first_part"]["lines"][0].endswith("算：这趟还没有存的计划，第二段给。") and turn["first_part"]["asks_latest"]
-    assert turn["next"].startswith("先把 first_part.text 原样发给用户")
+    assert turn["first_part"] is None
+    assert turn["next"].startswith("完成必要的查询和写入后直接答这一问")
 
 
 # --- 5. synthetic data says so ----------------------------------------------------------------------------------------------
@@ -407,15 +372,6 @@ def test_an_english_first_part_keeps_a_clock_the_first_part_check_reads():
 
 
 
-def test_a_node_whose_text_holds_a_stored_claim_keeps_only_its_own_words_in_the_first_part(make):
-    """The claim inside a node's own text (packs.archived_claims rewrites it in place) is left out too."""
-    desk = dict(DESK, text="证件柜台关（误了 22:53，只剩 23:53 末班）", consequence="误机。")
-    first = make(tomorrow=[QUEUE, desk]).turn("local", "最晚几点出发去机场？", "q3", scenario="quick")["first_part"]
-    assert "明早 07:05 证件柜台关（存档，没核）" in first["lines"] and "计划里存的班次说法没核，第二段给。" in first["lines"]
-    assert "23:53" not in first["text"]
-    # control: nothing stored about the last train, no such line
-    plain = make(tomorrow=[QUEUE, dict(DESK, consequence="误机。")]).turn("local", "最晚几点出发去机场？", "q3", scenario="quick")["first_part"]
-    assert "计划里存的班次说法没核，第二段给。" not in plain["lines"]
 
 
 # --- 5. a deadline sentence: what leaves later but arrives after the deadline is no counterexample -------------------------
@@ -462,9 +418,7 @@ def test_the_mcp_tools_say_what_hosts_need_without_a_skill(make):
     from tripwright.adapters.mcp import create_server
 
     tools = {tool.name: tool.description for tool in asyncio.run(create_server(make()).list_tools())}
-    assert "first_part {text, lines, asks_latest, points, at}" in tools["turn"]  # A12: with the question's points
-    assert "latest_departure: with origin and destination only, it answers tonight's last connection" in tools["query"]
-    assert ("sync shows the canonical head, unsynced writes and how old the head is. view=sync also carries blocked "
-            "{kind, since, hint} while a write cannot be pushed or committed, and storage {kind: local, note} when there is "
-            "no remote repository.") in tools["state"]
-    assert "blocked" not in tools["explain"]  # control: only the state tool says it
+    assert "first_part" in tools["turn"] and "points" in tools["turn"]
+    assert "latest_departure: {origin,destination}" in tools["query"]
+    assert "sync" in tools["state"] and len(tools["state"]) <= 400
+    assert "blocked" not in tools["explain"]

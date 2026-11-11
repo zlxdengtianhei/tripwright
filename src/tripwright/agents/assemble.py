@@ -252,7 +252,8 @@ def core_steps(core: Core) -> list[dict]:
 
 
 def server_instructions_text(core: Core) -> str:
-    return "\n\n".join([core.intro, core_text(core, "steps"), core_text(core, "always"), core.read]) + "\n"
+    # Chat apps receive the same six rules as turn's description, not the repository-only workflow.
+    return core.intro + "\n" + "\n".join(f"{number}. {rule}" for number, rule in enumerate(core.always, 1)) + "\n"
 
 
 def agents_md(sources: Sources) -> str:

@@ -78,7 +78,8 @@ def event_text(event: dict) -> str:
     received = event["received"]
     head = dict(id=event["id"], request_id=event["request_id"], received_at=event["receipt"]["received_at"],
                 speaker=received.get("speaker"), nature=received["nature"], channel=received["channel"],
-                native_ref=received.get("native_ref"), suspicious_words=received.get("suspicious_words") or [])
+                native_ref=received.get("native_ref"), suspicious_words=received.get("suspicious_words") or [],
+                note=event["receipt"].get("note"))
     return "---\n" + dump(head) + "---\n" + received["text"] + "\n"
 
 
@@ -92,8 +93,9 @@ def event_record(path: str, text: str) -> dict:
     body = body[:-1]
     received = dict(text=body, nature=head["nature"], channel=head["channel"], native_ref=head.get("native_ref"),
                     speaker=head.get("speaker"), suspicious_words=head.get("suspicious_words") or [])
-    receipt = dict(event_id=head["id"], received_text=body, nature=head["nature"], verbatim=head["nature"] == "user_verbatim",
-                   received_at=head["received_at"], native_ref=head.get("native_ref"))
+    receipt = dict(event_id=head["id"], request_id=head["request_id"], received_text=body, nature=head["nature"],
+                   verbatim=head["nature"] == "user_verbatim", received_at=head["received_at"], native_ref=head.get("native_ref"),
+                   **(dict(note=head["note"]) if head.get("note") else {}))
     return dict(id=head["id"], request_id=head["request_id"], received=received, receipt=receipt)
 
 

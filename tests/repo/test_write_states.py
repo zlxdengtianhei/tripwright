@@ -87,7 +87,7 @@ def test_commit_waits_for_effective_when_the_remote_answers(remote_writer):
     assert errors(version["write"], "write_ref") == []
 
 
-def test_the_same_request_returns_the_same_operation_and_a_changed_one_is_refused(remote_writer):
+def test_the_same_request_returns_the_same_operation_and_changed_content_is_a_new_message(remote_writer):
     writer = remote_writer
     seeded(writer)
     record = dict(facts=[dict(key="luggage", value="none", text="no luggage", subject=["p1"], true_from="2030-06-10T09:00:00+02:00",
@@ -95,8 +95,8 @@ def test_the_same_request_returns_the_same_operation_and_a_changed_one_is_refuse
     first = writer.turn("No luggage.", "same", record=record)
     again = writer.turn("No luggage.", "same", record=record)
     assert again["write"]["op_id"] == first["write"]["op_id"] and len(writer.store.all("facts", "local")) == 1
-    with pytest.raises(ValueError, match="different content"):
-        writer.turn("No luggage.", "same", record=dict(facts=[dict(record["facts"][0], text="other")]))
+    changed = writer.turn("No luggage.", "same", record=dict(facts=[dict(record["facts"][0], text="other")]))
+    assert changed["write"]["op_id"] != first["write"]["op_id"] and changed["request_id"] != first["request_id"]
     turn = writer.turn("Rename.", "rename")
     draft = writer.propose(turn, "rename", plan=dict(writer.service.state("local")["plan"], title="Renamed"))
     committed = writer.commit(draft, "rename", accept_unverified=True)

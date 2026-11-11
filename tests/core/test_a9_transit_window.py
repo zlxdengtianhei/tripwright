@@ -194,7 +194,7 @@ def test_stored_last_train_claims_are_marked_archived_in_turn(make):
     assert "计划里写过“误了 22:42 和 22:53，只剩 23:53 末班 REX”（存档，写于" in node["text"] and "没核" in node["text"]
     assert node["archived_claims"] and node["archived_claims"][0]["superseded"] is None
     assert node["consequence"].startswith("计划里写过")
-    assert "存档" in turn["next"] and "until" in turn["next"]
+    assert "latest_departure" in turn["next"] and "window" in turn["next"]
     # pack 里同样标存档
     assert "计划里写过" in turn["pack"]["markdown"] and "存档" in turn["pack"]["markdown"]
     # 没有存档句的对照：next 不提

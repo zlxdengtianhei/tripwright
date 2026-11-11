@@ -209,18 +209,18 @@ def test_how_to_check_is_the_first_ride_of_the_first_choice(make):
 def test_the_first_part_gives_the_stored_way_to_the_planned_train(make):
     service = make(tracks=WAYS)
     lines = service.turn("local", FIRST, "q1", scenario="quick", points=GO)["first_part"]["lines"]
-    assert lines[0] == ("去维也纳机场：计划里是 21:45 从北边的岩馆出门，22:13 到 Wien Hauptbahnhof，坐今晚 22:53 REX 7（存档，没核）；"
+    assert lines[1] == ("去维也纳机场：计划里是 21:45 从北边的岩馆出门，22:13 到 Wien Hauptbahnhof，坐今晚 22:53 REX 7（存档，没核）；"
                         "还有没有更晚的车，第二段核完给。")
-    assert lines[1] == "按现在 21:01 算，假设你在北边的岩馆（计划里这时在这；不在的话说一声）"
-    assert lines[2] == "怎么走（存档，没核）：步行 5′ 到 Beispielplatz，21:51 D → Wien Hauptbahnhof 22:03"
-    assert first_checks(service, "\n".join(lines), "q1") == {}
+    assert lines[2] == "按现在 21:01 算，假设你在北边的岩馆（计划里这时在这；不在的话说一声）"
+    assert lines[3] == "怎么走（存档，没核）：步行 5′ 到 Beispielplatz，21:51 D → Wien Hauptbahnhof 22:03"
+    assert set(first_checks(service, "\n".join(lines), "q1")) == {"clock_in_first_part"}
     # bad sample (both MCP runs): the stored train alone, no time to leave and no way although the plan stores both
-    assert "21:45" in lines[0] and "怎么走" in lines[2]
+    assert "21:45" in lines[1] and "怎么走" in lines[3]
     # controls: from another place, or once the way has begun, nothing stored applies: part 2 gives it, nothing is made up
     there = service.turn("local", SECOND, "q2", scenario="quick", points=[dict(kind="at", said="刚从第一个岩馆出来", place="gym-south"), *GO])
-    assert there["first_part"]["lines"][0] == "去维也纳机场：计划里是今晚 22:53 在 Wien Hauptbahnhof 坐 REX 7（存档，没核）；几点出门、怎么走，第二段核完给。"
+    assert there["first_part"]["lines"][1] == "去维也纳机场：计划里是今晚 22:53 在 Wien Hauptbahnhof 坐 REX 7（存档，没核）；几点出门、怎么走，第二段核完给。"
     late = make(at="21:50", tracks=WAYS).turn("local", FIRST, "q3", scenario="quick", points=GO)["first_part"]["lines"]
-    assert "几点出门、怎么走" in late[0] and not any(line.startswith("怎么走") for line in late)
+    assert "几点出门、怎么走" in late[1] and not any(line.startswith("怎么走") for line in late)
 
 
 # --- 6. a place said in other words ----------------------------------------------------------------------------------------------
@@ -232,8 +232,8 @@ def test_a_place_in_other_words_is_resolved_from_the_stored_names(make, monkeypa
     said = [dict(kind="at", said="从 Boulder Hall South 刚出来", place="Boulder Hall South"), dict(kind="eat", said="有点饿")]
     assert match_place(plan, "Boulder Hall South") is None
     lines = service.turn("local", SECOND, "q6", scenario="quick", points=said)["first_part"]["lines"]
-    assert lines[1] == "按现在 21:52 算，你在南边的岩馆（你说的“从 Boulder Hall South 刚出来”）"
-    assert lines[0].startswith("吃：汉堡店（总站店，一层）开到 00:00")
+    assert lines[2] == "按现在 21:52 算，你在南边的岩馆（你说的“从 Boulder Hall South 刚出来”）"
+    assert lines[1].startswith("吃：汉堡店（总站店，一层）开到 00:00")
     # the user's words alone do it too; the ID as before
     assert packs.resolve_place(plan, None, "刚从 Boulder Hall South 出来")["id"] == "gym-south"
     assert packs.resolve_place(plan, "gym-north")["id"] == "gym-north"
@@ -253,11 +253,12 @@ def test_without_the_tools_the_command_line_drafts_the_same_first_part(make, cap
     code = cli.main(["--db", str(service.db_path), "first-part", "--text", FIRST, "--points", json.dumps(GO, ensure_ascii=False)])
     out = json.loads(capsys.readouterr().out)
     assert code == 0 and len(service.store.all("events", "local")) == received  # nothing recorded
-    assert "不发任何状态句" in out["next"] and "用户看不到工具结果" in out["next"]
+    assert "先把 first_part.text 写出来，再调其他工具" in out["next"] and "second_part_title" in out["next"]
     turn = service.turn("local", FIRST, "q1", scenario="quick", points=GO)
     assert out["first_part"]["text"] == turn["first_part"]["text"]
     # no last or latest time before this question's lookup; the draft passes the first part's checks
-    assert not re.search(r"最晚|末班|最后一班", out["first_part"]["text"]) and first_checks(service, out["first_part"]["text"], "q1") == {}
+    assert not re.search(r"最晚|末班|最后一班", out["first_part"]["text"])
+    assert set(first_checks(service, out["first_part"]["text"], "q1")) == {"clock_in_first_part"}
     # bad sample (off_r1): the host's own first part from the plan's files
     host = ("最晚 21:45 从北边的岩馆出门，坐 22:53 REX 7 去机场（这是计划里存的车次，还没核）\n按现在 21:01 算，假设你还在北边的岩馆\n"
             "计划里存的最后一班是 23:53 REX → 00:15 到机场；还有没有更晚的车，第二段确认")

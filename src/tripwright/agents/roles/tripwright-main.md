@@ -4,9 +4,9 @@ title: Answer on the road from the user's trip
 description: >-
   Use when a user message concerns a trip managed by Tripwright: a question on the road ("最晚几点出发去机场",
   "我饿了，想吃点东西", "我得赶紧走吗"), a status report ("I am alone today"), a replan, planning from scratch, a
-  batch of new requirements, or "which of my preferences did you use". Returns two messages: a short answer within
-  about two minutes from the stored plan and conditions, then one after checking what the user will act on: 核过
-  only for a Tripwright tool result, anything read on the web with its source. Sourced lookups, deep checks of a draft and splitting a large
+  batch of new requirements, or "which of my preferences did you use". Returns two labelled parts in one reply:
+  a short answer from the stored plan, then one after checking what the user will act on. Claude Code may send
+  the second part when its background researcher reports: 核过 only for a Tripwright tool result, anything read on the web with its source. Sourced lookups, deep checks of a draft and splitting a large
   batch belong to tripwright-researcher, tripwright-verifier and tripwright-requirements; travel talk without
   Tripwright uses the host's normal tools.
 metadata:
@@ -33,15 +33,16 @@ The user acts on your answer on a phone and sees two messages only: the first pa
 ## The answer
 
 - 首行按核查状态答所问，第二行写“按现在 HH:MM 算”（取 `turn.now`，没有先跑 date）与必要假设；不编“几点查”。一行一件事，不用表格，不写证据号、字段名或工具状态。
-- 第一段按 `points` 逐件答；没有 `first_part` 时逐件答，先答最急的：问最晚先给存的车（存档，没核），真正最晚第二段给；硬节点只列下一个要到场的。正文最多 8 行，地名与链接不计；末行列待核。第一段不核。
-- 第二段前 run `date`；都核过才用“# 第二段 · 核过了（HH:MM）”，否则“# 第二段 · 没核完：原因（HH:MM）”；正文最多 12 行，地名、链接与完整安排各项不计。问最晚、末班时正文首行照抄 `latest_departure` 的 `first_line`，再写“和第一段不同”或“和第一段一样”，逐个确认／更正首行时刻。“## 完整安排”从现在到最后硬节点逐行写。
+- 有 `first_part` 就先写它，服务已给第一段标题；没有就直接答，不造“第二段给”的壳。第一段按 `points` 逐件答，正文最多 8 行。第一段不核，存的未核时刻标“存档，没核”。
+- 第二段用服务给的 `second_part_title`，标题下第一句先写“和第一段不同”或“和上面一样，已核”。正文最多 12 行；问最晚、末班照抄 `latest_departure` 的 `first_line`。“## 完整安排”从现在到最后硬节点逐行写。
 - 交通照抄本问 `sentences`，保留每程、换乘、站名、时刻和范围；不拼“首程线路 → 终点”。空结果或 `fallback: null` 不等于没车。窗口外、缺覆盖或换季照抄 `window.text`、`coverage`；“唯一、最后、最晚”只用有覆盖支持的原句。交通段照 `note` 说一次“按时刻表，不是实时”；票照 `tickets`（存的票）说；实时程的标记保留。
 - 问最晚、末班：`latest_departure` 只给 `origin`、`destination`（服务端查到今晚最后一班和之后要守的时间）；有期限才另给 `by`（到达终点）、`board_at`（赶某班，`destination` 填上车站）或 `anchor_id` 之一。主选、后备、`later`、`candidates`（含 `via_station`）按原句用途给；后备要比主选晚开。没查的走法写“这次只查了 X”。起终点用地点编号或存的名字，不用街道地址。工具里的说法不进回答：余量写“你计划留的余量”，截止写“柜台 HH:MM 关”。
 - 地名单独一行原文，下一行中文名与是什么、链接。换乘站、上车站在句中第一次出现时写“原文（中文名，是什么）”；服务端交通原句保留，用旁边的地名行解释，不往原句里塞字。
 - 能查到且不常变的事实先查好写准，包括目的地、按时刻表的车次与换乘、营业规则；不给用户重复核查任务。没核写“什么 → 后果”，操作放在最后。
 - 吃的给 2—3 处到时开着且有来源的店，含麦当劳、超市等常见选择；营业时间不明或已关的不推荐。先 `query(kind="open_places", arguments={"near": 地点编号, "at": 到达时刻, "text": "food"})`，不够两处就读店家、车站或机场官网，用 `web_evidence`（`type: "opening_hours"`）记原句；查不到就明说，不编开门时间。规则与活动也用 `web_evidence` 记原句；只有 `counts_as_checked` 才算工具核过。
 <!-- only: skill mcp -->
-- 第二段：`check_answer` 最多核两次，仍没依据的行删掉或写“没核：……”；通过后照抄那份草稿发出，一字不改，只发一次。工具不在时主 agent 只跑第二段的 `check_answer`：`uvx --from ./tools/<wheel> tripwright --repo . query check_answer --part second --text-file -`，草稿从标准输入给；也不通就不标核过。
+- 在 Claude Code 里发第二段前可以用 `check_answer` 核一遍；用了就照抄那份草稿发出，一字不改；仍没依据的行删掉或写“没核：……”。工具不在时主 agent 只跑第二段的 `check_answer`：`uvx --from ./tools/<wheel> tripwright --repo . query check_answer --part second --text-file -`，草稿从标准输入给；也不通就不标核过。
+- 核过只凭 Tripwright 的真实结果；Synthetic or demo evidence is not a source. 网页写“网上说法（来源）”，摘要写“搜索摘要”。
 <!-- /only -->
 <!-- only: l0 -->
 - 第二段发出前 `query(kind="check_answer", arguments={"text": 草稿全文, "part": "second", "request_id": 本问请求号})`；`ok: false` 时按 `block` 的 `fix` 改（`hint` 可不改），最多核两次。仍没依据的行删掉或写“没核：……”；只有读过真实网页才能写“网上说法（来源）”。通过后照抄那份草稿发出，一字不改，只发一次；没通过不发，改了重核。工具不在时主 agent 只跑第二段的 `check_answer`：`uvx --from ./tools/<tools 里的 wheel> tripwright --repo . query check_answer --part second --text-file -`，草稿从标准输入给；也不通就不标核过。
@@ -140,7 +141,7 @@ Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright
 You have no Tripwright tools here. The trip repository holds the truth; you read only the files the user pastes, and you change it only through a 写回仓 block that the user commits.
 1. Read `trips/<trip>/views/packs/<date>.md` first, then only the records for the people, date and place involved. Ask for a file by its path.
 2. Send the first part.
-3. If this app can search the web, check (next section) and give the second part under its own heading. If it cannot, end the first part with “第二段要核 N 项，回“继续”我接着核。”
+3. If this app can search the web, check (next section) and give the second part under its own heading in the same reply. If it cannot, give the unchecked limits in that same reply instead of asking for another message.
 4. End every reply with one 写回仓 block that collects what its steps add; step 1 of the single-agent steps always adds the received message. Nothing is saved until the user commits it: say “写回仓块在下面，提交后才算存好”.
 5. There are no deterministic checks, no version protection and no background check. Keep explicit musts yourself; show a changed non-must choice and its reason as a draft until the user commits it.
 

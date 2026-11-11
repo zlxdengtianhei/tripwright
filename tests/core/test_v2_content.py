@@ -93,7 +93,7 @@ def test_a_gap_in_the_night_is_said_with_the_last_one_before_it_and_the_first_af
     # the first part of a later question quotes the lookup with the gap, never “夜里一直有车”
     fixed(monkeypatch, local("21:52"))
     turn = service.turn("local", SECOND, "q2", scenario="quick", points=ASKED)
-    go = turn["first_part"]["lines"][0]
+    go = turn["first_part"]["lines"][1]
     assert "一直有车" not in go
     assert go == "去维也纳机场：夜里有空档，火车最后一班 00:53 REX 7，Wien Hauptbahnhof 开；之后要等到 02:52 的 VAB 1 才再有车（21:01 查过）"
 
@@ -146,7 +146,7 @@ def test_a_time_to_board_a_first_ride_names_it_and_where_the_named_one_leaves(ma
     assert problems(coach, second_part(found["first_line"], *found["sentences"][1:])) == {}
     # the first part of a later question names the coach's own station, never the U4's
     fixed(monkeypatch, local("21:52"))
-    go = coach.turn("local", SECOND, "q2", scenario="quick", points=ASKED)["first_part"]["lines"][0]
+    go = coach.turn("local", SECOND, "q2", scenario="quick", points=ASKED)["first_part"]["lines"][1]
     assert go == "去维也纳机场：夜里有空档，空档前最后一班 01:25 FlixBus N877，Wien Hauptbahnhof 开；之后要等到 02:52 的 VAB 1 才再有车（21:01 查过）"
     # the gap's last one is the train
     train = make(Friedensbruecke(trains=NIGHT[:5], buses=GAP_BUSES), places=places)
@@ -227,7 +227,7 @@ def test_the_last_one_with_a_change_is_said_with_its_rides(make, monkeypatch):
     ends = make(Evening(trains=NIGHT))
     query(ends, "latest_departure", origin=STREET, destination="airport")
     fixed(monkeypatch, local("21:52"))
-    go = ends.turn("local", SECOND, "q2", scenario="quick", points=ASKED)["first_part"]["lines"][0]
+    go = ends.turn("local", SECOND, "q2", scenario="quick", points=ASKED)["first_part"]["lines"][1]
     assert go == "去维也纳机场：今晚最后一班 00:33 在 Wien Matzleinsdorfer Platz 上车：D 接 REX 7，Wien Hauptbahnhof 开（21:01 查过）"
     # English
     english = make(Evening(trains=NIGHT))
@@ -243,5 +243,5 @@ def test_the_last_one_without_a_change_is_said_as_before(make, monkeypatch):
     assert any(line.startswith("赶得上 23:50 的最后一班是 23:23 REX 7（23:23 出门）") for line in found["sentences"])
     query(station, "latest_departure", origin="hbf", destination="airport")
     fixed(monkeypatch, local("21:52"))
-    go = station.turn("local", SECOND, "q2", scenario="quick", points=ASKED)["first_part"]["lines"][0]
+    go = station.turn("local", SECOND, "q2", scenario="quick", points=ASKED)["first_part"]["lines"][1]
     assert go == "去维也纳机场：今晚最后一班 00:53 REX 7，Wien Hauptbahnhof 开（21:01 查过）"

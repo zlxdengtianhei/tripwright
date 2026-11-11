@@ -19,7 +19,6 @@ from tripwright.render import first_part
 from tripwright.repo import files as repo_files, memory, notices, replay
 from tripwright.repo.outbox import Outbox
 from tripwright.repo.snapshot import received_events
-from tripwright.agents import core_steps
 from tripwright.storage import Store, answers_path, encode, identifier, now, remember_answer
 from tripwright.trip import Trip, aware, input_problems, json_type, local_instant
 from tripwright.usage import checked_usages
@@ -34,16 +33,12 @@ SKELETON = {"quick": "quick", "status": "quick"}
 SESSION_HOURS = 6
 RECENT_QUESTION_MINUTES = 30  # check_answer without question or request_id: a user message this recent is the question
 FRAME_MINUTES = packs.STEP_MINUTES  # S4h-a: a quick latest question's frame holds for lookups this long after its turn
-# S4a: an app that may not show text written between tool calls ends its reply with the first part and this line (core
-# step 4); the user's next message, sent to turn with points [], brings the second part (second_part_due)
-LATER = first_part.LATER
-# a first part that says a second part follows (the hooks' word list, render.check_answer.PROMISE)
-PROMISES_SECOND = re.compile(r"第二段|核完再发|second part", re.I)
+FIRST_TITLES = dict(zh="按存的计划先说（时刻还没核）", en="From the stored plan first (times not checked yet)")
+SECOND_TITLES = dict(zh="核过之后", en="After checking")
 UNKNOWN_QUESTION = "本问原话不明，吃的检查没做。"
 # 11-04 (quality card v2, question 4): “自动核对没通过”, “Non-blocking notice; commit.” reached the user
 NO_MENTION = "别向用户提这次检查、核对或工具回执。"
 UNKNOWN_POINTS = "这一问的 turn 没给 points（或没给 request_id），没核第一段有没有逐件回应、写没写在哪。"  # A12
-UNKNOWN_LISTED = 8  # stored place IDs `next` names when a place in points is not recognized (S4h-a)
 # explain(record_id) (S5): the ledger tables a record ID is looked up in, and the fields each adds to the record
 RECORD_TABLES = (("items", "item"), ("facts", "fact"), ("decisions", "decision"), ("pending_checks", "pending_check"),
                  ("undecided", "question"))
@@ -92,6 +87,26 @@ def placeholder_sources(record: dict, event_id: str) -> dict:
             if source.get("event") in (None, "", "this"):
                 source["event"] = event_id
     return record
+
+
+def merged_plan(current: dict | None, days=None, places=None, bookings=None) -> dict:
+    """Merge whole-day and by-ID patches, then let the normal Trip and lock checks judge the result."""
+    if current is None:
+        raise ValueError("Partial plan changes need an existing plan; use state(view='blank') and propose(plan=...)")
+    if not all(isinstance(value, list) for value in (days, places, bookings)):
+        raise ValueError("days, places and bookings must be arrays")
+    result = encode_copy(current)
+    for name, values, key in (("days", days, "date"), ("places", places, "id"), ("bookings", bookings, "id")):
+        for index, value in enumerate(values):
+            if not isinstance(value, dict) or not isinstance(value.get(key), str) or not value[key]:
+                raise ValueError(f"{name}.{index}.{key} is required and must be a string")
+            found = next((position for position, entry in enumerate(result[name]) if str(entry[key]) == value[key]), None)
+            if found is None:
+                result[name].append(encode_copy(value))
+            else:
+                result[name][found] = encode_copy(value)
+    result["days"].sort(key=lambda day: day["date"])
+    return result
 
 
 def checked_plan(plan) -> None:
@@ -191,7 +206,7 @@ class Tripwright:
 
     # --- tools -------------------------------------------------------------------------
 
-    def turn(self, owner: str, text: str, request_id: str, *, nature: str = "host_restatement",
+    def turn(self, owner: str, text: str, request_id: str | None = None, *, nature: str = "host_restatement",
              native_ref: str | None = None, channel: str = "conversation", subject: list[str] | None = None,
              scope: dict | None = None, scenario: str = "plan", focus_keys: list[str] | None = None,
              exclude_keys: list[str] | None = None, speaker: str | None = None, record: dict | None = None,
@@ -206,9 +221,16 @@ class Tripwright:
         except ValueError as error:
             record_input, refused_record = None, str(error)
         points = self._checked_places(owner, first_part.checked_points(points))
+        request_id = request_id or identifier("REQ")
         prior = self.outbox.find(owner, "turn", request_id)
-        if prior is not None and encode(prior["replay"].get("input")) != encode(record_input):
-            raise ValueError("request_id was reused with different content")
+        nature_key = "host_restatement" if nature == "user_verbatim" and not native_ref else nature
+        incoming = dict(text=text, nature=nature_key, channel=channel, native_ref=native_ref,
+                        speaker=speaker, suspicious_words=[])
+        collision = next((event for event in self.store.all("events", owner)
+                          if event.get("request_id") == request_id and encode(event["received"]) != encode(incoming)), None)
+        if collision is not None or (prior is not None and encode(prior["replay"].get("input")) != encode(record_input)):
+            request_id = identifier("REQ")
+            prior = None
         self.take_in()
         if new_trip and prior is None:
             memory.prepare_new_trip(self, owner, new_trip)
@@ -263,8 +285,8 @@ class Tripwright:
             anchors = self._hard_nodes(owner, plan, subject, scope, at)
             write = self.write_ref(owner, op)
             pending = memory.pending_entries(self.store, owner)
-            # S5b: do_first is the first field the host reads (set below, once the first part and second_part_due are known)
-            response = dict(do_first=None, now=self.clock(owner, at), receipt=receipt, ctx_id=context_id, base_version=current["number"],
+            response = dict(now=self.clock(owner, at), request_id=receipt.get("request_id", request_id),
+                            receipt=receipt, ctx_id=context_id, base_version=current["number"],
                             snapshot=context["snapshot"],
                             write=write, notices=self.open_notices(owner),
                             pack=dict(markdown=shown["markdown"], meta=shown["meta"], tokens=shown["tokens"]),
@@ -272,51 +294,72 @@ class Tripwright:
                             current_summary=dict(trip=self.current_trip(owner), title=plan.get("title"), days=[day["date"] for day in plan.get("days", [])],
                                                  needs_replan=current.get("needs_replan", False) or recorded["needs_replan"],
                                                  warnings=current.get("warnings", [])),
-                            hard_nodes=anchors, answer=dict(skeleton=SKELETON.get(scenario, "first")),
+                            hard_nodes=anchors,
                             inbox=[dict(job_id=message["job_id"], state=message["state"]) for message in self.store.all("inbox", owner)
                                    if message["state"] in ("generated", "available") and message["base_version"] == current["number"]])
-            response["write_back"] = self._write_back(event_id)
             if pending:
                 response["memory"] = dict(pending=pending, ask="长期条目待确认：在对话里问用户这趟还用不用；按回答调 turn(record={carry:[{id,status}]})。")
                 asked.append(dict(id="memory", say=response["memory"]["ask"], default=packs.WORDS["zh"]["memory_default"],
                                   record=dict(carry=[dict(id=entry["id"], status="confirmed or not_used") for entry in pending])))
-            # A10 (D-67): the first part, drafted from what is stored, for every host to send before any lookup; A12: from
-            # this question's points when the host gives them, with what the trip stores for each
-            # S4a: a message that names nothing (points []) after a question whose promised second part never passed
-            # check_answer asks for that second part; no new first part is drafted for it
-            continued = self._unanswered(owner, event_id, at) if points == [] else None
-            due = self._second_part_due(owner, continued) if continued else None
             told = packs.point_facts(self.store, owner, plan or None, points, anchors, at, self.language,
-                                     person=packs.asker(plan, speaker, subject)) if points is not None and plan and due is None else None
-            first = None if due else self._with_later(first_part.draft(text, response["now"], anchors, plan or None, self.language, told))
-            # S4h-a (stage 4 exit judge, mcponly_r1 question 2): the message asking for an earlier second part is that
-            # question's turn for the lookups that follow: its points (where the user is, where they go next) and its frame
-            # go with it, and the lookups start from its next step as they would have without the “继续”
-            context.update(points=(continued.get("points") or packs.point_record(None, anchors)) if continued else
-                           packs.point_record(told, anchors),  # what check_answer holds this question's first part to
-                           frame=continued.get("frame") if continued else
-                           dict(scenario=scenario, asks_latest=bool(first and first["asks_latest"])),
-                           request_id=request_id, promises_second=bool(first and PROMISES_SECOND.search(first["text"])),
-                           first_text=first["text"] if first else None, continues=due["request_id"] if due else None)
+                                     person=packs.asker(plan, speaker, subject)) if points is not None and plan else None
+            first = self._quick_first(text, scenario, response["now"], anchors, plan or None, told)
+            language = "zh" if re.search(r"[\u4e00-\u9fff]", text) else "en"
+            second_title = SECOND_TITLES[language] if first else None
+            context.update(points=packs.point_record(told, anchors),
+                           frame=dict(scenario=scenario, asks_latest=first_part.asks_latest(text)),
+                           request_id=request_id, promises_second=bool(first), first_text=first["text"] if first else None,
+                           continues=None)
             self.store.put("contexts", owner, context)
             response.update(consider={key: considered[key] for key in ("entries", "more", "more_how") if key in considered},
                             ask=asked, offer=consider.offer(known["languages"], self.language), first_part=first,
-                            next=self._next(considered, asked, recorded, archived=any(anchor.get("archived_claims") for anchor in anchors),
-                                            latest=bool(first and first["asks_latest"]), points=(points is not None) if plan and not due else None,
-                                            due=due, unknown=self._unknown_places(plan, told)),
-                            **core_steps())
-            key = "en" if self.language == "en" else "zh"
-            unknown = self._unknown_places(plan, told)
-            response["do_first"] = (first_part.DO_DUE if due else first_part.DO_POINTS if unknown or (plan and points is None)
-                                    else first_part.DO_FIRST)[key]
-            if due:
-                response["second_part_due"] = due
+                            second_part_title=second_title,
+                            next=self._next(considered, asked, recorded, first=first, second_title=second_title,
+                                            latest=first_part.asks_latest(text),
+                                            unknown=self._unknown_places(plan, told, language=language), language=language,
+                                            scenario=scenario))
             if told is not None:
                 response["points"] = told
         if self.committer is not None:
             response["sync"] = self.committer.status()
             self.committer.poke()
         return response
+
+    def _quick_first(self, text: str, scenario: str, clock: dict, anchors: list[dict], plan: dict | None,
+                     told: dict | None) -> dict | None:
+        """A quick first part only when stored data answers at least one named point."""
+        if scenario != "quick" or told is None or not plan:
+            return None
+
+        def useful(point):
+            facts = point["facts"]
+            if point["kind"] == "go":
+                return any(facts.get(key) for key in ("frame", "train", "way", "nodes"))
+            if point["kind"] == "eat":
+                return bool(facts.get("stored"))
+            if point["kind"] == "do":
+                return bool(facts.get("places"))
+            if point["kind"] == "ticket":
+                return bool(facts.get("tickets"))
+            return False
+
+        if not any(useful(point) for point in told["points"]):
+            return None
+        first = first_part.draft(text, clock, anchors, plan, self.language, told)
+        kept = []
+        for line in first["lines"]:
+            if line.startswith(("没核：", "Not checked:")):
+                continue
+            promised = "第二段" in line or "part 2" in line.lower()
+            stored = any(mark in line for mark in ("存档", "查过", "现在关着", "archived", "checked at", "closed now"))
+            if promised and not stored:
+                continue
+            kept.append(line)
+        if not kept:
+            return None
+        language = "zh" if re.search(r"[\u4e00-\u9fff]", text) else "en"
+        lines = [FIRST_TITLES[language], *kept[:7]]
+        return dict(first, text="\n".join(lines), lines=lines)
 
     def _refused_record(self, record, reason: str, event_id: str) -> dict:
         """recorded.not_recorded for a turn.record left out as a whole (S5), with where the corrected entries go: the same
@@ -327,20 +370,6 @@ class Tripwright:
                     fix=(f"Nothing of record was kept; the message was received. Send the corrected entries in this question's propose "
                          f"(source.event \"{event_id}\"), not again with this request_id." if en else
                          f"record 一条没记，原话已收。改好后放进这一问的 propose（source.event 写 \"{event_id}\"），不要用同一个 request_id 重发 turn。"))
-
-    def _write_back(self, event_id: str) -> dict:
-        """What turn says about the agent's own inferences and choices (S5, METHOD 6.1 three): send them back, marked as
-        the agent's, in this question's one proposal, never between propose and commit; the shape to send, with this
-        message as source."""
-        en = self.language == "en"
-        say = ("What you inferred or chose that the user did not say (a route, a place, a default): put it in this question's one "
-               "propose as changes.items with source.basis agent_inference (the user's own words: user_explicit), then commit; record "
-               "nothing between propose and commit." if en else
-               "这一问里你推断或替用户选了用户没说的（走法、店、默认）：放进这一问的同一份 propose 的 changes.items，source.basis 写 "
-               "agent_inference（用户的原话写 user_explicit），再 commit；不在 propose 与 commit 之间另记。")
-        return dict(say=say, record=dict(items=[dict(kind="preference", key="<the user's key when it is about the same thing>", quote="",
-                                                     text="<one sentence: what you inferred or chose>", subject=["*"], strength="prefer",
-                                                     source=dict(event=event_id, basis="agent_inference"))]))
 
     def _hard_nodes(self, owner: str, plan: dict, subject: list[str] | None, scope: dict | None, at: str) -> list[dict]:
         """turn's hard nodes: the plan's anchors for the subject and scope, each with its latest departure clock, where
@@ -377,10 +406,12 @@ class Tripwright:
         told = packs.point_facts(self.store, owner, plan, points, anchors, at, self.language,
                                  person=packs.asker(plan, speaker, subject)) if points is not None and plan else None
         clock = self.clock(owner, at)
-        first = self._with_later(first_part.draft(text, clock, anchors, plan or None, self.language, told))
+        first = self._quick_first(text, "quick", clock, anchors, plan or None, told)
         en = self.language == "en"
-        return dict(now=clock, first_part=first, **(dict(points=told) if told is not None else {}),
-                    next=(" " if en else "").join(self._unknown_places(plan, told) + self._send_first(en)), **core_steps())
+        return dict(now=clock, first_part=first, second_part_title=SECOND_TITLES["en" if en else "zh"] if first else None,
+                    **(dict(points=told) if told is not None else {}),
+                    next=("Write first_part.text before any other tool. After checking, use second_part_title and say differences first."
+                          if en else "先把 first_part.text 写出来，再调其他工具；核完用 second_part_title，先讲和第一段的不同。"))
 
     def _checked_places(self, owner: str, points: list[dict] | None) -> list[dict] | None:
         """Points whose place and words name two different stored places are refused before anything is recorded
@@ -390,7 +421,7 @@ class Tripwright:
             raise ValueError("Invalid points: " + "; ".join(conflicts))
         return points
 
-    def _unknown_places(self, plan: dict | None, told: dict | None) -> list[str]:
+    def _unknown_places(self, plan: dict | None, told: dict | None, *, language: str | None = None) -> list[str]:
         """What `next` says of the places in points that are no stored place and no coordinates (S4h-a, mcponly_r1
         question 1: “airport” was left unread and the first part said only that the time needs checking): which, that
         the first part names none of them and never the plan's place in their stead, and the stored IDs to send."""
@@ -398,63 +429,11 @@ class Tripwright:
                                      + ([told["at"]["unknown"]] if (told or {}).get("at") and told["at"].get("unknown") else [])))
         if not unknown:
             return []
-        en = self.language == "en"
-        stored = [place for place in (plan or {}).get("places", []) if place.get("transit_id") or place.get("coords")]
-        named = (", " if en else "、").join(f"{place['id']} {packs.short_name(place, self.language, plan)}" for place in stored[:UNKNOWN_LISTED])
+        en = (language or self.language) == "en"
         said = (", " if en else "、").join(f"“{value}”" for value in unknown)
-        return [f"These places in points are no stored place and were not recognized: {said}. The first part says nothing "
-                f"stored for them and does not put the plan's place in their stead. If one is a stored place, send its ID "
-                f"({named}) and call turn again with the same request_id; if not, answer as it is and look it up by "
-                f"coordinates or stop name." if en else
-                f"points 里这些地方不是这趟存的地点，也认不出：{said}。第一段没给它们存的车和时刻，也没拿计划里的地点顶替。"
-                f"是存的地点就改成地点编号（{named}），用同一个 request_id 再调一次 turn；不是就照这样答，第二段按坐标或站名查。"]
-
-    def _with_later(self, first: dict) -> dict:
-        """The first part and the line that ends it in an app that cannot show text between tool calls (S4a)."""
-        return dict(first, later=LATER["en" if self.language == "en" else "zh"])
-
-    def _unanswered(self, owner: str, event_id: str, at: str) -> dict | None:
-        """The context of the question before this message, when its first part said a second part follows and no second
-        part passed check_answer for its request_id (the answers file the Stop hook reads), within SESSION_HOURS (S4a).
-        An app that cannot show text between tool calls ended its reply with that first part; a host that stopped early
-        did too. None without an answers file: nothing tells whether the second part went out."""
-        # in the order they were written (one clock moment can hold two), the latest last
-        earlier = sorted((context for context in self.store.all("contexts", owner)
-                          if context.get("source_event") != event_id and context.get("request_id")),
-                         key=lambda context: aware(context["created_at"]))
-        last = earlier[-1] if earlier else None
-        path = self.answers_path()
-        if last is None or path is None:
-            return None
-        if last.get("continues"):  # the message before asked for it too, and it has still not passed
-            last = next((context for context in reversed(earlier) if context["request_id"] == last["continues"]), None)
-        if last is None or not last.get("promises_second") or aware(at) - aware(last["created_at"]) > timedelta(hours=SESSION_HOURS):
-            return None
-        try:
-            passed = json.loads(path.read_text(encoding="utf-8")).get("answers", {}) if path.is_file() else {}
-        except (OSError, ValueError):
-            passed = {}
-        return None if last["request_id"] in passed else last
-
-    def _second_part_due(self, owner: str, last: dict) -> dict:
-        """turn's `second_part_due` for the unanswered question's context (`last`, _unanswered)."""
-        event = self.store.get("events", owner, last["source_event"])
-        kept = last.get("points") or {}
-        # what step 5 looks up from: each point with its place, and where the user is (or was assumed to be)
-        return dict(request_id=last["request_id"], said=event["receipt"]["received_text"], first_part=last.get("first_text"),
-                    points=[dict(kind=point["kind"], said=point["said"], place=point.get("place")) for point in kept.get("points", [])],
-                    at=kept.get("at"))
-
-    def _send_first(self, en: bool) -> list[str]:
-        """What `next` says of the first part (A10, A14, A16), for turn and for the command line's first part."""
-        return ["Send first_part.text to the user as it is (only the form of address and the language may change), then "
-                "follow steps." if en else "先把 first_part.text 原样发给用户（只可改称呼和语言），再照 steps 往下做。",
-                # A10 replay: “Following instructions: …” before the first part, “还在核…马上发第二段” between the two
-                "The user sees two messages only, the first and the second part: send no status line before the first "
-                "or between the two." if en else "用户只看到第一段和第二段两条消息：第一段之前、两段之间不发任何状态句。",
-                # A14 (quality judge 7): “第一部分已经在上面了”, “上面这段是按存的计划写的” sent while nothing was above
-                "The user sees no tool result: the first part is there only once you send it; never write that something is "
-                "above." if en else "用户看不到工具结果：第一段要你发出来才算，不写“上面已经……”。"]
+        return [f"These places in points were not recognized: {said}. Continue without another turn; query by coordinates "
+                f"or stop name." if en else
+                f"points 里这些地方没认出：{said}。不用再调 turn，按坐标或站名查。"]
 
     def _asked(self, owner: str, event_id: str) -> list[dict]:
         """What the previous turn asked (the latest context of another message): must-go places, real-time data."""
@@ -462,63 +441,47 @@ class Tripwright:
         latest = max(earlier, key=lambda context: aware(context["created_at"]), default=None)
         return (latest or {}).get("asked") or []
 
-    def _next(self, considered: dict, asked: list[dict], recorded: dict, *, archived: bool = False, latest: bool = False,
-              points: bool | None = None, due: dict | None = None, unknown: list[str] = ()) -> str:
-        """What to do before answering (design v0.3.1 2.1 three). First (A10, D-67): send `first_part` as it is, then
-        look things up; a latest/last-service question goes to latest_departure without a deadline, whose first line
-        the second part opens with; the second part is sent once, after check_answer passes. Then: weigh the listed
-        memory, ask what ask holds, say what this message replaced. An archived last/only/late claim in the hard nodes
-        (A9) is quoted only as first_part quotes it, and said as a fact only after a lookup."""
-        w = consider.words(self.language)
-        en = self.language == "en"
-        # A12: `points` given (True) or not (False) with a plan; None without a plan, where there is nothing to answer from.
-        # Without them the draft is the stored plan's and answers nothing the user named.
-        parts = [] if points is not False else ["No points were given: first_part follows the stored plan and answers nothing this question "
-                                   "names. Write each thing it names in points (where the user is, where to, food, an event, "
-                                   "tickets; in the user's words) and call turn again with the same request_id, then follow "
-                                   "that result." if en else
-                                   "这一问没给 points：first_part 只按存的计划写，不回应这一问点名的事。先把这一问点名的每件事"
-                                   "（人在哪、去哪、吃、活动、票，用用户的话）写进 points，用同一个 request_id 再调一次 turn，再照它做。"]
-        parts = list(unknown) + parts  # S4h-a: places in points the service did not recognize come first
-        if due:
-            # S4a: the user asks for the earlier question's second part (it was promised, none passed check_answer)
-            parts.append(f"This message asks for the second part of request {due['request_id']} (“{due['said']}”): send no new "
-                         f"first part; check its facts and run check_answer with request_id {due['request_id']}, then send it." if en else
-                         f"这一句是要上一问（request_id {due['request_id']}，“{due['said']}”）的第二段：不再发第一段，核查它的事，"
-                         f"check_answer 用 request_id {due['request_id']}，过了再发。")
+    def _next(self, considered: dict, asked: list[dict], recorded: dict, *, first: dict | None,
+              second_title: str | None, latest: bool = False, unknown: list[str] = (), language: str | None = None,
+              scenario: str | None = None) -> str:
+        """Only this message's next actions, bounded for a chat tool result."""
+        en = (language or self.language) == "en"
+        parts = []
+        if first:
+            parts.append("Write first_part.text as text before any other tool call." if en else
+                         "先把 first_part.text 作为文字写出来，再调任何其他工具。")
+            parts.append(f"After checking, write {second_title!r} as the second heading; under it, first say what differs "
+                         "from first_part, or 'Same as above, checked.'" if en else
+                         f"核完后写第二段标题“{second_title}”；标题下先讲和第一段的不同，没有不同就写“和上面一样，已核”。")
         else:
-            parts += self._send_first(en)
+            parts.append("Answer this message directly after its necessary lookups and writes; do not invent a first part."
+                         if en else "完成必要的查询和写入后直接答这一问，不造第一段。")
         if latest:
-            parts.append("For the latest departure or the last service: query latest_departure with origin and destination "
-                         "only (no anchor_id, by or board_at); the service searches tonight's last connection and the next "
-                         "time to keep, and the second part opens with its first_line." if en else
-                         "问最晚、末班：query latest_departure 只给 origin 和 destination（不给 anchor_id、by、board_at），"
-                         "服务端连续查到今晚最后一班并给之后要守的时间；第二段首行照抄它的 first_line。")
-        # 11-04: a draft with hints only passes as it is; the user never hears of the check (quality card v2, question 4)
-        parts.append("Send the second part once, only after check_answer passes it (ok: true; with hints only, send it as it is); "
-                     "never mention the check or tool receipts to the user." if en else
-                     "第二段过了 check_answer 才发（ok:true；只剩提示就照原样发），只发一次；不向用户提检查、核对或工具回执。")
-        if points:
-            parts.append("The second part answers each point too; tickets as the stored tickets say (points[].facts.tickets)." if en
-                         else "第二段也逐件回应 points；讲票照存的票说（points 里的 tickets）。")
-        parts.append(considered["next"])
-        if archived:
-            parts.append("硬节点里标“存档”的“末班、只剩、最晚”是计划里存的、没核：只照 first_part 的写法引用；要说成事实就先查（latest_departure 只给起终点，或 transit 加 until）。"
-                         if not en else
-                         "Hard-node lines marked archived (末班/只剩/最晚) are stored, not checked: quote them only as first_part "
-                         "does; state one as a fact only after a lookup (latest_departure with origin and destination only, or "
-                         "transit with until).")
-        if asked:
-            parts.append(w["ask_next"])
+            parts.append("For tonight's latest, call query(kind='latest_departure', arguments={origin,destination}) and use "
+                         "its first_line, sentences and window." if en else
+                         "问今晚最晚：query(kind='latest_departure', arguments={origin,destination})，照它的 first_line、sentences 和 window 说。")
+        if scenario in ("plan", "replan"):
+            parts.append("For an actual plan edit, read state(view='day',date=...), edit its json, then propose(days=[json]) "
+                         "and commit; do not resend the whole trip." if en else
+                         "真要改计划：state(view='day',date=...)，改返回的 json，propose(days=[json])，再 commit；不重发整份行程。")
         refused = [line["fix"] for line in recorded.get("not_recorded", []) if line.get("part") == "record"]
         if refused:
             parts.append(("record: " if en else "record 没记：") + refused[0])
         if recorded.get("replaced"):
-            parts.append(("回答里说一句这次改了什么：" if self.language != "en" else "Say in the answer what this message changed: ")
-                         + w["join"].join(f"{line['old']} → {line['new']}" for line in recorded["replaced"]) + ("。" if self.language != "en" else "."))
+            w = consider.words(self.language)
+            parts.append(("Say what changed: " if en else "回答里说一句这次改了什么：")
+                         + w["join"].join(f"{line['old']} → {line['new']}" for line in recorded["replaced"]) + ("." if en else "。"))
+        optional = [*unknown, considered["next"]]
+        if asked:
+            optional.append(consider.words(self.language)["ask_next"])
         if considered.get("more_how"):
-            parts.append(considered["more_how"])
-        return " ".join(parts) if self.language == "en" else "".join(parts)
+            optional.append(considered["more_how"])
+        separator = " " if en else ""
+        for part in optional:
+            if len(separator.join([*parts, part])) <= 600:
+                parts.append(part)
+        # The first/title/refusal instructions are mandatory; a pathological server-side refusal is still bounded.
+        return separator.join(parts)[:600]
 
     def _record(self, owner: str, record: dict, event_id: str | None = None) -> tuple[dict, dict]:
         """Apply what a message states in the same transaction as its receipt, so this turn's package already has it.
@@ -772,6 +735,17 @@ class Tripwright:
 
     def propose(self, owner: str, **arguments) -> dict:
         self.bound(owner)
+        partial = [name for name in ("days", "places", "bookings") if arguments.get(name) is not None]
+        for name in ("days", "places", "bookings"):
+            if name not in partial:
+                arguments.pop(name, None)
+        if partial:
+            if arguments.get("plan") is not None:
+                raise ValueError("Send either the complete plan or days/places/bookings patches, not both")
+            patch = {name: arguments.pop(name) for name in partial}
+            current = self.versions.current(owner)["plan"]
+            arguments["plan"] = merged_plan(current, days=patch.get("days") or [], places=patch.get("places") or [],
+                                            bookings=patch.get("bookings") or [])
         if arguments.get("plan") is not None:
             checked_plan(arguments["plan"])
             for index, place in enumerate(arguments["plan"].get("places") or []):
@@ -881,12 +855,20 @@ class Tripwright:
 
     def _state(self, owner: str, view: str, date: str | None, draft_id: str | None) -> dict:
         current = self.versions.current(owner)
-        if view == "current":
+        if view in ("current", "plan"):
             return current
+        if view == "blank":
+            blank = Trip(id="new-trip", title="New trip", start="2030-01-01", end="2030-01-01", timezone="UTC",
+                         areas=["area"], people=[dict(id="p1", name="Traveler")])
+            return dict(plan=blank.model_dump(mode="json"))
         if view == "day":
-            # The day view (block B) writes the replan line itself from the version's needs_replan and warnings.
+            # The text view remains; json is the same day object that propose(days=[...]) accepts.
             text = repo_files.day_text(self, owner, date or "")
-            return dict(version=current["number"], needs_replan=current.get("needs_replan", False), warnings=current.get("warnings", []), text=text)
+            day = next((day for day in (current["plan"] or {}).get("days", []) if str(day["date"]) == date), None)
+            if day is None:
+                raise ValueError(f"Unknown plan day: {date!r}")
+            return dict(version=current["number"], needs_replan=current.get("needs_replan", False),
+                        warnings=current.get("warnings", []), text=text, json=day)
         if view == "ledger":
             return self.ledger.current(owner)
         if view == "profile":
