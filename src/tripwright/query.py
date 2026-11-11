@@ -251,7 +251,7 @@ def checked_arguments(kind: str, arguments, plan: dict | None = None) -> dict:
         if isinstance(value, dict):
             point = WeatherPlace.model_validate(value)
             arguments[key] = f"{point.lat},{point.lon}"
-    if kind == "weather" and isinstance(arguments.get("place"), str):
+    if kind in ("weather", "opening") and isinstance(arguments.get("place"), str):
         said = arguments["place"]
         found = match_place(plan, said)
         if found is None or not found.get("coords"):

@@ -333,7 +333,8 @@ class Tripwright:
             known = consider.sources(self.store, owner, plan or None, at=at, language=language)
             asked = consider.asks(self.store, owner, plan or None, scenario=scenario, scope=scope, at=at, language=language, known=known)
             considered = consider.build(self.store, owner, pack=shown["pack"], plan=plan or None, scenario=scenario, at=at, language=language)
-            context.update(pack=shown["pack"], asked=[dict(id=question["id"], scope=question.get("scope", {})) for question in asked])
+            context.update(pack=shown["pack"], asked=[dict(id=question["id"], scope=question.get("scope", {})) for question in asked],
+                           options_pending=bool(recorded.get("crowding")))
             self.store.put("contexts", owner, context)
             anchors = self._hard_nodes(owner, plan, subject, scope, at)
             write = self.write_ref(owner, op)
@@ -858,6 +859,14 @@ class Tripwright:
             raise ValueError(f"plan.id must be the current trip {trip!r}; open another trip with turn(new_trip=...)")
         self.take_in()
         draft = self.versions.propose(owner, **arguments)
+        context = self.store.get("contexts", owner, draft["ctx_id"])
+        scenario = context["bundle"]["scenario"]
+        if not ledger_only(draft) and scenario in ("plan", "compare") and (context.get("options_pending") or draft["checks"].get("crowding")):
+            # Keep both preferences on record only through a separate ledger draft; never choose a plan for the user.
+            draft.update(options_pending=True, status="rejected",
+                         refused=[*draft.get("refused", []),
+                                  "Competing preferences need the user's option; commit preferences without a plan, then change the plan after the user chooses"])
+            self.store.put("drafts", owner, draft)
         if "verify" not in draft:
             with self.store.transaction():
                 draft = self.store.get("drafts", owner, draft["id"])

@@ -483,6 +483,9 @@ class Versions:
                         raise ValueError("Commit idempotency key was reused with different input")
                     return version
             draft = self.store.get("drafts", owner, draft_id)
+            if draft.get("options_pending"):
+                raise ValueError("Plan options are waiting for the user's choice; commit preferences with a ledger-only draft, "
+                                 "then change the plan after the user chooses")
             if draft["status"] == "committed":
                 return self.store.get("versions", owner, draft["version_id"])
             if self.current(owner)["number"] != draft["base_version"]:
