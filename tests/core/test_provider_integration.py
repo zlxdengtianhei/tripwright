@@ -1,5 +1,6 @@
 import asyncio
 import threading
+import time
 from datetime import datetime, timedelta
 
 import httpx
@@ -15,11 +16,13 @@ from tripwright.storage import Store
 
 @pytest.fixture
 def upstream_service(tmp_path, plan):
-    state = dict(requests=[], mode="ok", delay=0, entered=threading.Event(), cancelled=threading.Event())
+    state = dict(requests=[], mode="ok", delay=0, until=None, entered=threading.Event(), cancelled=threading.Event())
 
     async def upstream(request):
         state["requests"].append(request)
         state["entered"].set()
+        while state["until"] is not None and not state["until"]():  # answer only once the test's condition holds
+            await asyncio.sleep(0.01)
         if state["delay"]:
             try:
                 await asyncio.sleep(state["delay"])
@@ -243,11 +246,22 @@ def test_deep_network_does_not_hold_the_store_lock_and_stale_work_cannot_publish
 
 def test_deep_timeout_and_lease_renewal_are_visible_and_bounded(upstream_service):
     service, state = upstream_service
-    state["delay"] = 0.05
-    service.jobs.lease_seconds = 0.03
+    # No race against the clock: the upstream answers only after the job's lease was renewed once, however slow the
+    # machine is. The lease is long enough that only a stall of about two seconds could lose it before a renewal.
+    service.jobs.lease_seconds = 3
     draft = draft_current(service)
+    seen = dict(renewed=False, give_up=time.monotonic() + 20)
+
+    def lease_renewed():
+        until = service.store.get("jobs", "alice", draft["job_id"])["lease_until"]
+        seen["renewed"] = seen["renewed"] or until > seen.setdefault("first", until)
+        return seen["renewed"] or time.monotonic() > seen["give_up"]  # a lease that is never renewed fails below, not hangs
+
+    state["until"] = lease_renewed
     service.jobs.run_once("alice")
-    assert service.result("alice", draft["job_id"])["status"] == "completed"
+    assert seen["renewed"] and service.result("alice", draft["job_id"])["status"] == "completed"
+    state["until"] = None
+    state["delay"] = 5  # far beyond the budget below: the budget always ends first
     service.deep_timeout = 0.01
     second = draft_current(service, "deep-timeout")
     service.jobs.run_once("alice")

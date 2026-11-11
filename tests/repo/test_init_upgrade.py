@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fnmatch import fnmatch
 
-from repo_fixtures import git
+from repo_fixtures import BY_HAND, git
 from tripwright.agents import user_repo_files
 from tripwright.cli import main
 from tripwright.repo import workspace
@@ -27,7 +27,7 @@ def test_upgrade_removes_retired_tool_files_in_the_same_commit_and_keeps_user_fi
         (root / path).parent.mkdir(parents=True, exist_ok=True)
         (root / path).write_text(USER_FILES.get(path, "retired\n"), encoding="utf-8")
     git(root, "add", "--", *OLD_FILES, *USER_FILES)
-    git(root, "commit", "-qm", "old host files")
+    git(root, *BY_HAND, "commit", "-qm", "old host files")
 
     assert main(["init", str(root), "--upgrade"]) == 0
     output = capsys.readouterr().out

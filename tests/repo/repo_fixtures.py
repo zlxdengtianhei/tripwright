@@ -13,6 +13,8 @@ from tripwright.service import Tripwright
 from tripwright.storage import Store
 
 TRIP = "2030-06-fjord"
+# A person committing in the trip repository outside the tool: the test names them, the machine supplies no identity.
+BY_HAND = ("-c", "user.name=Hand editor", "-c", "user.email=hand@example.invalid")
 
 
 def git(path: Path, *args: str) -> str:

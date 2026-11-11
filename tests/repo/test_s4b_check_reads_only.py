@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 
 import pytest
-from repo_fixtures import Writer, bare, clone, git, new_repository, seeded
+from repo_fixtures import BY_HAND, Writer, bare, clone, git, new_repository, seeded
 
 from tripwright.cli import main
 
@@ -36,9 +36,9 @@ def a_copy_under_review(tmp_path, *, moved: bool = False):
     git(folder, "checkout", "-qb", "review")
     (folder / "notes.md").write_text("checking the merge\n")
     git(folder, "add", "notes.md")
-    git(folder, "commit", "-qm", "a change under review")
+    git(folder, *BY_HAND, "commit", "-qm", "a change under review")
     git(folder, "checkout", "-q", "main")
-    git(folder, "merge", "-q", "--no-ff", "-m", "merge not yet checked", "review")
+    git(folder, *BY_HAND, "merge", "-q", "--no-ff", "-m", "merge not yet checked", "review")
     if moved:
         other = clone(remote, tmp_path / "elsewhere")
         (other / "elsewhere.md").write_text("pushed from elsewhere\n")

@@ -9,7 +9,7 @@ import sys
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-from repo_fixtures import TRIP, Writer, bare, git, new_repository, plan, seeded
+from repo_fixtures import BY_HAND, TRIP, Writer, bare, git, new_repository, plan, seeded
 from tripwright.adapters.mcp import create_server
 from tripwright.agents import server_instructions
 from tripwright.cli import main
@@ -38,12 +38,12 @@ def test_check_reports_a_generated_file_that_differs_from_its_regeneration(tmp_p
     writer.close()
     view = tmp_path / "repo" / layout.trip_folder(TRIP) / "views/today.md"
     view.write_text(view.read_text() + "hand note\n")
-    git(tmp_path / "repo", "commit", "-qam", "hand edit committed outside the tool")
+    git(tmp_path / "repo", *BY_HAND, "commit", "-qam", "hand edit committed outside the tool")
     assert main(["--repo", str(tmp_path / "repo"), "check"]) == 1
     report = json.loads(capsys.readouterr().out)
     assert any(problem.startswith(f"{layout.trip_folder(TRIP)}/views/today.md: differs") for problem in report["problems"])
     (tmp_path / "repo" / "AGENTS.md").write_text("my own rules\n")
-    git(tmp_path / "repo", "commit", "-qam", "changed agents file")
+    git(tmp_path / "repo", *BY_HAND, "commit", "-qam", "changed agents file")
     main(["--repo", str(tmp_path / "repo"), "check"])
     assert any(reminder.startswith("AGENTS.md: differs") for reminder in json.loads(capsys.readouterr().out)["reminders"])
 
