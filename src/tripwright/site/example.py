@@ -19,7 +19,10 @@ def load_example(path) -> tuple[dict, dict[str, str], dict]:
     """The plan (validated as a Trip), the English pairs and the home page extras of an example file."""
     document = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     plan = Trip.model_validate(document["trip"]).model_dump(mode="json")
-    return plan, dict(document.get("english") or {}), dict(document.get("share") or {})
+    extras = dict(document.get("share") or {})
+    if "log" in document:
+        extras["log"] = document["log"]
+    return plan, dict(document.get("english") or {}), extras
 
 
 def build_example(path, out_dir, **options) -> dict:

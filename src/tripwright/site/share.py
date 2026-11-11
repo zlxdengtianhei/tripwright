@@ -33,7 +33,7 @@ from markupsafe import Markup, escape
 
 from .assets import SHARE_SCRIPT, SHARE_STYLE
 from .privacy import POLICY_WORD, Policy, PrivacyError, STAY_WORDS, flight_numbers, phone_digits, phone_numbers, redact, scan_text, stay_text, swap_words
-from .templates import SHARE_BASE, SHARE_DAY, SHARE_INDEX, SHARE_MAP
+from .templates import SHARE_BASE, SHARE_DAY, SHARE_INDEX, SHARE_LOG, SHARE_MAP
 
 MARKER = ".tripwright-share"
 CJK = re.compile(r"[　-〿㐀-鿿＀-￯]")
@@ -460,8 +460,57 @@ def _blocks(raw_day: dict):
             yield from track.get("blocks", [])
 
 
+def _log_view(data, words):
+    def text(value, field, where="log"):
+        if not isinstance(value, dict) or not all(str(value.get(key) or "").strip() for key in ("zh", "en")):
+            raise ValueError(f"{where}: {field} requires non-empty zh and en")
+        return words(value["zh"], value["en"])
+
+    def field(record, name, where, path=None):
+        return text(record.get(name) if isinstance(record, dict) else None, path or name, where)
+
+    if not isinstance(data, dict):
+        raise ValueError("log: expected a mapping")
+    raw_pieces = data.get("pieces")
+    if not isinstance(raw_pieces, list) or not raw_pieces:
+        raise ValueError("log: pieces must contain at least one piece")
+    pieces, identifiers = [], set()
+    for number, item in enumerate(raw_pieces, 1):
+        if not isinstance(item, dict):
+            raise ValueError(f"log piece #{number}: piece must be a mapping")
+        identifier = item.get("id")
+        where = f"log piece {identifier or f'#{number}'}"
+        if not isinstance(identifier, str) or re.fullmatch(r"[a-z0-9-]+", identifier) is None:
+            raise ValueError(f"{where}: id must use only lowercase letters, digits and hyphens")
+        if identifier in identifiers:
+            raise ValueError(f"{where}: id must be unique")
+        identifiers.add(identifier)
+        raw_said = item.get("said")
+        if not isinstance(raw_said, list) or not raw_said or not all(isinstance(entry, dict) for entry in raw_said):
+            raise ValueError(f"{where}: said must contain at least one bilingual entry")
+        said = [dict(time=entry.get("time"), retold=bool(entry.get("retold")), text=text(entry, f"said[{n}]", where))
+                for n, entry in enumerate(raw_said, 1)]
+        replay = item.get("replay")
+        if replay is not None:
+            if not isinstance(replay, dict):
+                raise ValueError(f"{where}: replay must be a mapping")
+            raw_parts = replay.get("parts")
+            if not isinstance(raw_parts, list) or not raw_parts or not all(isinstance(part, dict) for part in raw_parts):
+                raise ValueError(f"{where}: replay.parts must contain at least one part")
+            replay = dict(setup=field(replay, "setup", where, "replay.setup"), asked=field(replay, "asked", where, "replay.asked"),
+                          parts=[dict(label=field(part, "label", where, f"replay.parts[{n}].label"),
+                                      text=field(part, "text", where, f"replay.parts[{n}].text"))
+                                 for n, part in enumerate(raw_parts, 1)],
+                          note=field(replay, "note", where, "replay.note") if replay.get("note") is not None else None)
+        pieces.append(dict(id=identifier, title=field(item, "title", where), when=field(item, "when", where), said=said,
+                           then=field(item, "then", where), became=field(item, "became", where),
+                           match=field(item, "match", where) if item.get("match") is not None else None, replay=replay))
+    return dict(intro=field(data, "intro", "log"), origin=field(data, "origin", "log") if data.get("origin") is not None else None,
+                pieces=pieces)
+
+
 def _environment() -> Environment:
-    return Environment(loader=DictLoader(dict(base=SHARE_BASE, map=SHARE_MAP, index=SHARE_INDEX, day=SHARE_DAY)),
+    return Environment(loader=DictLoader(dict(base=SHARE_BASE, map=SHARE_MAP, index=SHARE_INDEX, day=SHARE_DAY, log=SHARE_LOG)),
                        autoescape=select_autoescape(default=True))
 
 
@@ -483,17 +532,21 @@ def render_pages(plan: dict, rules: Rules, *, english: dict[str, str] | None = N
     page (texts as in the plan: Chinese, with their English in `english`)."""
     words = Words(rules, english)
     view = _view(plan, words, extras)
+    log = _log_view(extras["log"], words) if extras and "log" in extras else None
     clock = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     environment = _environment()
     untranslated = list(words.untranslated)
     common = dict(view, t=_t, label=_label, style=SHARE_STYLE, script=SHARE_SCRIPT, untranslated=untranslated,
-                  updated=clock.strftime("%Y-%m-%d %H:%M UTC"))
+                  updated=clock.strftime("%Y-%m-%d %H:%M UTC"), log=log)
     pages = {"index.html": environment.get_template("index").render(**dict(common, title=view["trip_title"], current="index"))}
     days = view["days"]
     for index, day in enumerate(days):
         pages[f"{day['date']}.html"] = environment.get_template("day").render(
             **dict(common, title=Text(zh=day["long"].zh, en=f"{day['long'].en} · {view['trip_title'].en}"), day=day, current=day["date"],
                    previous=days[index - 1] if index else None, following=days[index + 1] if index + 1 < len(days) else None))
+    if log:
+        pages["log.html"] = environment.get_template("log").render(
+            **dict(common, title=Text(zh="旅行实录", en=f"Trip log · {view['trip_title'].en}"), current="log"))
     pages["robots.txt"] = "User-agent: *\nDisallow: /\n"
     pages[".nojekyll"] = ""
     pages[MARKER] = "Generated by tripwright share; the whole folder is replaced on each build.\n"

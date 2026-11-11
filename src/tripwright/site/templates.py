@@ -377,6 +377,7 @@ SHARE_BASE = """<!doctype html>
 </div>
 <nav class="days" aria-label="Days">
 <a href="index.html" data-lang-link{% if current == 'index' %} aria-current="page"{% endif %}>{{ label('首页','Home') }}</a>
+{% if log %}<a href="log.html" data-lang-link{% if current == 'log' %} aria-current="page"{% endif %}>{{ label('实录','Trip log') }}</a>{% endif %}
 {% for item in days %}<a href="{{ item.date }}.html" data-lang-link{% if current == item.date %} aria-current="page"{% endif %}>{{ item.chip }}</a>
 {% endfor %}
 </nav>
@@ -398,7 +399,7 @@ SHARE_INDEX = """{% extends 'base' %}{% import 'map' as m %}{% block main %}
 <h1>{{ t(trip_title) }}</h1>
 {% if intro %}<p class="lede">{{ t(intro) }}</p>{% endif %}
 {% if travelers %}<p class="muted small">{{ label('同行','Travelling') }}: {{ t(travelers) }}</p>{% endif %}
-<p class="btnrow"><a class="btn primary" href="#days">{{ label('看每一天','See the days') }}</a><a class="btn" href="{{ days[0].date }}.html" data-lang-link>{{ label('从第 1 天开始 →','Start with day 1 →') }}</a></p>
+<p class="btnrow"><a class="btn primary" href="#days">{{ label('看每一天','See the days') }}</a><a class="btn" href="{{ days[0].date }}.html" data-lang-link>{{ label('从第 1 天开始 →','Start with day 1 →') }}</a>{% if log %}<a class="btn" href="log.html" data-lang-link>{{ label('路上的实录 →','Trip log →') }}</a>{% endif %}</p>
 </section>
 {% if route|length > 1 %}
 <h2 id="route">{{ label('路线','The route') }}</h2>
@@ -417,6 +418,41 @@ SHARE_INDEX = """{% extends 'base' %}{% import 'map' as m %}{% block main %}
 <li><a href="{{ day.date }}.html" data-lang-link><span class="dd"><b>{{ t(day.label) }}</b>{{ t(day.short) }}</span><span class="dt">{% if day.head %}<b>{{ t(day.head) }}</b> · {{ t(day.rest) }}{% else %}{{ t(day.title) }}{% endif %}</span>{% if day.stay %}<span class="ds">{{ label('住处','Stay') }}: {{ t(day.stay) }}</span>{% endif %}</a></li>
 {% endfor %}
 </ol>
+{% endblock %}"""
+
+SHARE_LOG = """{% extends 'base' %}{% block main %}
+<p class="kicker">{{ t(trip_title) }}</p>
+<h1>{{ label('旅行实录','Trip log') }}</h1>
+<p class="lede">{{ t(log.intro) }}</p>
+{% if log.origin %}<section class="card log-origin">{{ t(log.origin) }}</section>{% endif %}
+<ol class="rows">
+{% for piece in log.pieces %}<li><a href="#{{ piece.id }}"><span class="dd">{{ loop.index }}</span><span class="dt"><b>{{ t(piece.title) }}</b></span><span class="ds">{{ t(piece.when) }}</span></a></li>
+{% endfor %}
+</ol>
+{% for piece in log.pieces %}
+<section class="card log-piece" id="{{ piece.id }}">
+<h2>{{ loop.index }}. {{ t(piece.title) }}</h2>
+<p class="meta">{{ t(piece.when) }}</p>
+<h3>{{ label('我在路上说的','What I said') }}</h3>
+{% for saying in piece.said %}{% if saying.retold %}<p class="retold">{{ t(saying.text) }} <span class="tag">{{ label('转述','Retold') }}</span></p>
+{% else %}<blockquote>{% if saying.time %}<span class="time">{{ saying.time }}</span> {% endif %}{{ t(saying.text) }}</blockquote>
+{% endif %}{% endfor %}
+<h3>{{ label('当时怎样处理','How it was handled then') }}</h3>
+<p>{{ t(piece.then) }}</p>
+<h3>{{ label('tripwright 现在','tripwright now') }}{% if piece.match %} <span class="tag">{{ t(piece.match) }}</span>{% endif %}</h3>
+<p>{{ t(piece.became) }}</p>
+{% if piece.replay %}<details class="fold"><summary>{{ label('把同一句话交给现在的 tripwright','The same message, given to tripwright today') }}</summary>
+<div class="in">
+<p class="muted small">{{ t(piece.replay.setup) }}</p>
+<blockquote>{{ t(piece.replay.asked) }}</blockquote>
+{% for part in piece.replay.parts %}<h4>{{ t(part.label) }}</h4>
+<div class="log-reply">{{ t(part.text) }}</div>
+{% endfor %}
+{% if piece.replay.note %}<p>{{ t(piece.replay.note) }}</p>{% endif %}
+</div>
+</details>{% endif %}
+</section>
+{% endfor %}
 {% endblock %}"""
 
 SHARE_DAY = """{% extends 'base' %}{% import 'map' as m %}
