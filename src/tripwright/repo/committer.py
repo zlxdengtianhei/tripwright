@@ -208,7 +208,12 @@ class Committer:
             when = second()
             parent = self.repo.git.rev("HEAD")
             snapshot = view_repo(self.repo.canonical(), parent, [op["id"] for op in segment], when)
-            files, remove = self.service.repository_files(tables, trip=head["trip"] if head else None, upto=versions[-1] if versions else None,
+            current = self.head_record()
+            trip = current.get("trip") if current else None
+            if trip is None and versions:  # the first chat-created plan opens its own trip; never override a selected trip
+                plan = next((item.get("plan") for item in tables["versions"] if item["id"] == versions[-1]), None)
+                trip = (plan or {}).get("id")
+            files, remove = self.service.repository_files(tables, trip=trip, upto=versions[-1] if versions else None,
                                                           repo=snapshot, at=when, notices=notices)
             self.repo.write(files, remove)
             # Stage every tool-written path that differs from HEAD, including one a hand edit already brought to the
@@ -239,7 +244,7 @@ class Committer:
                     self.outbox.update(self.owner, stored)
                     if effective:
                         self.service.settle_notices(self.owner, stored)
-                self.set_head(commit, trip=head["trip"] if head else None, checked_at=when if effective else None)
+                self.set_head(commit, trip=trip, checked_at=when if effective else None)
             commits.append(commit)
         return commits
 

@@ -411,7 +411,7 @@ def run_share(arguments) -> int:
             repository = Repository(root, owner=arguments.local_user)
             store = Store(repository.state_path, read_only=True)
             try:
-                records = store.all("share", arguments.local_user)
+                records = [item for item in store.all("share", arguments.local_user) if item.get("status") != "superseded"]
             finally:
                 store.close()
             print(json.dumps(records, ensure_ascii=False, indent=2))

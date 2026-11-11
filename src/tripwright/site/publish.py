@@ -205,7 +205,34 @@ def _record(store, owner: str, trip: str, **changes) -> dict:
         record = dict(id=trip, trip=trip)
     record.update(changes, at=now())
     store.put("share", owner, record)
+    if changes.get("ok") and trip != "unknown":
+        try:
+            stale = store.get("share", owner, "unknown")
+            stale.update(ok=True, status="superseded", error=None, replaced_by=trip, at=now())
+            store.put("share", owner, stale)
+        except ValueError:
+            pass
     return record
+
+
+def _failure_trip(store, owner: str, trip: str | None) -> str:
+    if trip:
+        return trip
+    plans = [item.get("plan") for item in store.all("versions", owner)]
+    return next((value["id"] for value in reversed(plans) if value and value.get("id")), "unknown")
+
+
+def _reason(error: Exception) -> str:
+    if isinstance(error, PublishError):
+        return str(error)[-300:]  # PublishError messages are constructed without connector strings or found values
+    text = str(error).casefold()
+    if "current trip" in text or "committed plan" in text:
+        return "trip_unavailable"
+    if "share.yaml" in text:
+        return "settings_invalid"
+    if isinstance(error, (GitError, OSError)):
+        return "connection_or_filesystem_failed"
+    return type(error).__name__
 
 
 def publish(repo_root, *, trip: str | None = None, rev: str = "HEAD", data_dir=None, store=None, owner: str = "local",
@@ -268,15 +295,14 @@ def publish(repo_root, *, trip: str | None = None, rev: str = "HEAD", data_dir=N
         notice(store, owner, None)
         return result
     except ShareBlocked as blocked:
-        _record(store, owner, trip or "unknown", ok=False, status="blocked", plan_version=locals().get("version"),
-                blocked=blocked.findings, error=None)
+        _record(store, owner, _failure_trip(store, owner, trip), ok=False, status="blocked",
+                plan_version=locals().get("version"), blocked=blocked.findings, error=None)
         notice(store, owner, blocked.findings)
         raise
-    except (PublishError, GitError, OSError, ValueError) as error:
-        if trip:
-            _record(store, owner, trip, ok=False, status="error", plan_version=locals().get("version"),
-                    error=str(error)[-300:])
-        raise PublishError(str(error)) from None
+    except Exception as error:
+        _record(store, owner, _failure_trip(store, owner, trip), ok=False, status="error",
+                plan_version=locals().get("version"), error=_reason(error))
+        raise PublishError(_reason(error)) from None
     finally:
         if own_store:
             store.close()
