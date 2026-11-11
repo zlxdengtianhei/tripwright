@@ -27,7 +27,9 @@ def headings(markdown: str, level: str = "##") -> list[str]:
 
 def local_targets(markdown: str) -> list[str]:
     body = outside_code(markdown)
-    found = re.findall(r"\]\(([^)\s]+)\)", body) + re.findall(r'<img[^>]*\ssrc="([^"]+)"', body)
+    found = re.findall(r"\]\(([^)\s]+)\)", body)
+    found += re.findall(r'<img[^>]*\ssrc="([^"]+)"', body)
+    found += re.findall(r'<a[^>]*\shref="([^"]+)"', body)
     return [target for target in found if not re.match(r"[a-z]+:|#", target)]
 
 
@@ -51,7 +53,7 @@ def test_each_file_has_one_title_and_the_same_number_of_diagrams() -> None:
 @pytest.mark.parametrize("language, other", [("en", "README.zh-CN.md"), ("zh", "README.md")])
 def test_language_row_points_to_the_other_file_near_the_top(language: str, other: str) -> None:
     top = "\n".join(text_of(language).splitlines()[:8])
-    assert f"]({other})" in top
+    assert f'href="{other}"' in top
 
 
 @pytest.mark.parametrize("language", ["en", "zh"])
@@ -66,7 +68,12 @@ def test_both_files_link_to_the_same_files() -> None:
     def files(language: str) -> set[str]:
         return {target.split("#")[0] for target in local_targets(text_of(language))}
 
-    assert files("en") ^ files("zh") <= {"README.md", "README.zh-CN.md"}
+    assert files("en") ^ files("zh") <= {
+        "README.md",
+        "README.zh-CN.md",
+        "docs/assets/hero.png",
+        "docs/assets/hero.zh-CN.png",
+    }
 
 
 @pytest.mark.parametrize("language", ["en", "zh"])
@@ -77,6 +84,8 @@ def test_readme_stays_short(language: str) -> None:
 def test_pictures_have_their_sizes_and_the_homepage_copy_is_the_same_file() -> None:
     hero, social = ROOT / "docs/assets/hero.png", ROOT / "docs/assets/social-preview.png"
     assert png_size(social) == (1280, 640) and social.stat().st_size <= 300_000
-    assert png_size(hero)[0] == 1600 and hero.stat().st_size <= 500_000
+    for name in ("hero.png", "hero.zh-CN.png"):
+        picture = ROOT / "docs/assets" / name
+        assert png_size(picture) == (1600, 900) and picture.stat().st_size <= 350_000
     for name in ("hero.png", "social-preview.png"):
         assert (ROOT / "homepage/assets" / name).read_bytes() == (ROOT / "docs/assets" / name).read_bytes()

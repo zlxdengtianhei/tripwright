@@ -1,11 +1,13 @@
 <h1 align="center"><img src="docs/assets/logo.svg" alt="tripwright" width="317" height="64"></h1>
 
-**tripwright is an open-source trip-planning server for AI assistants. It remembers your plan and preferences across chats, checks transport facts with their sources, records every change, and turns the plan into a page you can share with friends.** You deploy your own copy. It works with Claude, ChatGPT, Claude Code, Codex and other apps that support MCP (the Model Context Protocol, the open standard that lets AI apps call outside tools).
+<p align="center">An open-source trip-planning server for AI assistants: it remembers plans across chats, checks transport facts with sources, and creates shareable pages.</p>
 
-English | [简体中文](README.zh-CN.md) | [Project page](https://zlxdengtianhei.github.io/tripwright/)
+<p align="center"><strong>English</strong> | <a href="README.zh-CN.md">简体中文</a> | <a href="https://zlxdengtianhei.github.io/tripwright/">Project page</a></p>
 
-<p align="center"><img src="docs/assets/hero.png" alt="Three phone screens of a real 8-day trip page made by tripwright: the route and the list of days; one day's key times and places to go; the same day's transport legs with a map" width="760"></p>
+<p align="center"><img src="docs/assets/hero.png" alt="Three phone screens of a real 8-day trip page made by tripwright: the route and the list of days; one day's key times and places to go; the same day's transport legs with a map" width="100%"></p>
 <p align="center"><sub>A real 8-day trip (Budapest, Vienna and the Salzkammergut, October 2026), as the page tripwright makes. Names are replaced with codes, and places to stay show only the district.</sub></p>
+
+You deploy your own copy. It also remembers your preferences across chats and records every change. It works with Claude, ChatGPT, Claude Code, Codex and other apps that support MCP (the Model Context Protocol, the open standard that lets AI apps call outside tools).
 
 There is no hosted service and no signup. Each person runs their own copy, for themselves.
 

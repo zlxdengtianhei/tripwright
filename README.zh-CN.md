@@ -1,11 +1,13 @@
 <h1 align="center"><img src="docs/assets/logo.svg" alt="tripwright" width="317" height="64"></h1>
 
-**tripwright 是给 AI 助手用的开源旅行规划服务。它让助手在不同对话里都记得你的计划和偏好，查交通事实并写明来源，记下每一次改动，还能把计划做成可以发给朋友看的网页。** 服务由你自己部署一份。它通过 MCP（模型上下文协议，让 AI App 调用外部工具的开放标准）接进 Claude、ChatGPT、Claude Code、Codex 等支持 MCP 的客户端。
+<p align="center">tripwright 是给 AI 助手用的开源旅行规划服务：跨对话记住行程，核查交通事实并附来源，生成可分享的网页。</p>
 
-[English](README.md) | 简体中文 | [项目主页](https://zlxdengtianhei.github.io/tripwright/)
+<p align="center"><a href="README.md">English</a> | <strong>简体中文</strong> | <a href="https://zlxdengtianhei.github.io/tripwright/">项目主页</a></p>
 
-<p align="center"><img src="docs/assets/hero.png" alt="tripwright 生成的一趟真实 8 天行程页，三屏手机画面：路线与逐天列表；某一天的关键时刻和要去的地方；同一天的交通与地图" width="760"></p>
-<p align="center"><sub>一趟真实的 8 天行程（布达佩斯、维也纳、萨尔茨卡默古特，2026 年 10 月）和 tripwright 生成的页面。画面是英文版；页面右上角可切中文。人名已换成代号，住处只写到城区。</sub></p>
+<p align="center"><img src="docs/assets/hero.zh-CN.png" alt="tripwright 生成的一趟真实 8 天行程页，三屏手机画面：路线与逐天列表；某一天的关键时刻和要去的地方；同一天的交通与地图" width="100%"></p>
+<p align="center"><sub>一趟真实的 8 天行程（布达佩斯、维也纳、萨尔茨卡默古特，2026 年 10 月）和 tripwright 生成的中文页面。人名已换成代号，住处只写到城区。</sub></p>
+
+服务由你自己部署一份。它也会跨对话记住你的偏好，记下每一次改动。它通过 MCP（模型上下文协议，让 AI App 调用外部工具的开放标准）接进 Claude、ChatGPT、Claude Code、Codex 等支持 MCP 的客户端。
 
 没有公共服务，也不开放注册：每人自己部署一份，只给自己用。
 
