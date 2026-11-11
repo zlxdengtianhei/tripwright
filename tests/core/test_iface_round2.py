@@ -83,6 +83,18 @@ def test_competing_preferences_hold_plan_changes_until_user_chooses(seeded):
     assert result["recorded"].get("crowding")
     assert "do not change the plan until the user chooses" in result["next"]
     assert "propose(days" not in result["next"]
+    for item in items:
+        item["source"]["event"] = result["receipt"]["event_id"]
+    day = deepcopy(seeded.state("alice", "day", date="2030-06-10")["json"])
+    day["title"] = "Agent's choice"
+    draft = seeded.propose("alice", ctx_id=result["ctx_id"], base_version=result["base_version"],
+                           idempotency_key="options-plan", days=[day], changes=dict(items=items))
+    assert draft["status"] == "rejected" and seeded.store.get("drafts", "alice", draft["draft_id"])["options_pending"]
+    with pytest.raises(ValueError, match="waiting for the user's choice"):
+        seeded.commit("alice", draft["draft_id"], "options-plan", accept_unverified=True)
+    ledger = seeded.propose("alice", ctx_id=result["ctx_id"], base_version=result["base_version"],
+                            idempotency_key="options-ledger", changes=dict(items=items))
+    assert ledger["status"] == "proposed"
 
 
 def test_query_locations_accept_stored_ids_names_and_coordinate_objects(service, plan):
