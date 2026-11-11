@@ -56,14 +56,14 @@ This is a default you can change. Set `TRIPWRIGHT_REPLY_FLOW=one` when you deplo
 
 ## See an example
 
-[examples/trip-2026-10-central-europe.yaml](examples/trip-2026-10-central-europe.yaml) is a real 8-day trip, put together from a page its owner already published. To build its nine pages on your computer (Python 3.11+ and [uv](https://docs.astral.sh/uv/)):
+[examples/trip-2026-10-central-europe.yaml](examples/trip-2026-10-central-europe.yaml) is a real 8-day trip, put together from a page its owner already published, plus a trip log of what the owner typed on the road. To build its ten pages on your computer (Python 3.11+ and [uv](https://docs.astral.sh/uv/)):
 
 ```bash
 uv sync --extra dev
 uv run python -m tripwright.site.example examples/trip-2026-10-central-europe.yaml out
 ```
 
-Open `out/index.html`. The page has an EN / 中文 switch. The [project page](https://zlxdengtianhei.github.io/tripwright/) shows more. To see the program's output for a made-up trip, run `uv run tripwright demo`.
+Open `out/index.html`. The page has an EN / 中文 switch. `out/log.html` is the trip log: what the traveler typed on the road, how it was handled then, and what tripwright does with such a message now. The [project page](https://zlxdengtianhei.github.io/tripwright/) shows more. To see the program's output for a made-up trip, run `uv run tripwright demo`.
 
 ## Status and limits
 

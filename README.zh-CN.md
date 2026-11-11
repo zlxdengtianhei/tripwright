@@ -56,14 +56,14 @@ agent 只会请你做只有你能做的事：登录 Railway、输入系统密码
 
 ## 看示例
 
-[examples/trip-2026-10-central-europe.yaml](examples/trip-2026-10-central-europe.yaml) 是一趟真实的 8 天行程，根据主人已经公开的页面整理而成。在自己电脑上生成它的 9 个页面（需要 Python 3.11+ 和 [uv](https://docs.astral.sh/uv/)）：
+[examples/trip-2026-10-central-europe.yaml](examples/trip-2026-10-central-europe.yaml) 是一趟真实的 8 天行程，根据主人已经公开的页面整理而成，另加一页旅行实录（主人在路上说过的话）。在自己电脑上生成它的 10 个页面（需要 Python 3.11+ 和 [uv](https://docs.astral.sh/uv/)）：
 
 ```bash
 uv sync --extra dev
 uv run python -m tripwright.site.example examples/trip-2026-10-central-europe.yaml out
 ```
 
-打开 `out/index.html` 即可，页面上有 EN / 中文 切换。更多展示见[项目主页](https://zlxdengtianhei.github.io/tripwright/)。想看程序对一趟虚构行程的输出，运行 `uv run tripwright demo`。
+打开 `out/index.html` 即可，页面上有 EN / 中文 切换。`out/log.html` 是旅行实录：我在路上说了什么、当时怎样处理、tripwright 现在怎样对待这类话。更多展示见[项目主页](https://zlxdengtianhei.github.io/tripwright/)。想看程序对一趟虚构行程的输出，运行 `uv run tripwright demo`。
 
 ## 现在的状态与没做到的
 

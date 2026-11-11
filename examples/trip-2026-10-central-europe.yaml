@@ -1,5 +1,6 @@
 # The 8-day trip of the public showcase (25 Oct - 1 Nov 2026), as a tripwright trip plus what the share page needs besides it.
-# Source: the pages the trip's owner already published (trip-map-2026, English and 中文); nothing from the private trip repository.
+# Source: the pages the trip's owner already published (trip-map-2026, English and 中文). The `log` section quotes the owner's
+# own messages from the road; most of them are on those pages already, a few clauses appear here for the first time.
 #   trip     the Trip shape (src/tripwright/trip.py); Chinese is the original text
 #   english  each Chinese text above -> its English, used by the share page's EN side
 #   share    editorial extras of the home page: intro and route (stops with the leg to the next one; lat/lon of the city dot)
