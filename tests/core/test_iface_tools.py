@@ -2,7 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 import json
+
+import pytest
+
+from mcp.server.mcpserver.exceptions import ToolError
 
 from tripwright.adapters.mcp import create_server
 from tripwright.trip import Trip
@@ -87,6 +92,65 @@ def test_first_part_only_for_a_quick_question_with_a_stored_answer(seeded):
     assert empty["first_part"] is None and empty["second_part_title"] is None
     planned = seeded.turn("alice", "What about this place?", scenario="plan", points=[point])
     assert planned["first_part"] is None
+
+
+def test_partial_plan_patches_merge_by_date_and_id(seeded):
+    turn = seeded.turn("alice", "Change the day and add records")
+    current = seeded.state("alice", "plan")["plan"]
+    day = deepcopy(current["days"][0])
+    day["title"] = "Changed day"
+    place = dict(id="new-place", name="New place", name_local="New place", area=current["areas"][0], kind="other")
+    booking = dict(id="new-booking", date=str(day["date"]), kind="ticket", what="New ticket", subject=["p1"],
+                   status="on_site", place=current["places"][0]["id"])
+    draft = seeded.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], idempotency_key="patch",
+                           days=[day], places=[place], bookings=[booking], changes=dict(why="User requested it"))
+    seeded.commit("alice", draft["draft_id"], "patch", accept_unverified=True)
+    changed = seeded.state("alice", "plan")["plan"]
+    assert changed["days"][0]["title"] == "Changed day" and len(changed["days"]) == len(current["days"])
+    assert changed["places"][-1]["id"] == "new-place" and changed["bookings"][-1]["id"] == "new-booking"
+    with pytest.raises(ValueError, match="days.0.date"):
+        seeded.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], idempotency_key="bad-day", days=[{}])
+
+
+def test_partial_day_cannot_replace_a_user_must(seeded):
+    current = seeded.state("alice", "plan")["plan"]
+    day = current["days"][0]
+    track = day["plans"][0]["tracks"][0]
+    block = track["blocks"][0]
+    locked = seeded.turn("alice", "This block is a must", nature="user_verbatim", native_ref="fixture:must", speaker="p1")
+    decision = dict(question="Keep this block", options=["yes"], choice="yes", subject=track["subject"], decided_by="user",
+                    must=True, source=dict(event=locked["receipt"]["event_id"], basis="user_explicit"),
+                    locked_paths={f"/blocks/{block['id']}": block})
+    draft = seeded.propose("alice", ctx_id=locked["ctx_id"], base_version=locked["base_version"], idempotency_key="lock",
+                           changes=dict(decisions=[decision]))
+    seeded.commit("alice", draft["draft_id"], "lock", accept_unverified=True)
+    turn = seeded.turn("alice", "Move it", nature="agent_inference")
+    changed = deepcopy(seeded.state("alice", "day", date=str(day["date"]))["json"])
+    changed["plans"][0]["tracks"][0]["blocks"][0].update(start="23:00", end="23:30")
+    refused = seeded.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], idempotency_key="move-lock",
+                             days=[changed], changes=dict(why="Agent chose another time"))
+    assert refused["status"] == "rejected" and block["id"] in refused["notice"]
+    assert "user decides" in refused["notice"] and "/blocks/" in refused["notice"]
+
+
+def test_changes_item_schema_and_readable_validation_error(seeded):
+    tools = {tool["name"]: tool for tool in listing(seeded)}
+    changes = next(branch for branch in tools["propose"]["inputSchema"]["properties"]["changes"]["anyOf"]
+                   if branch.get("type") == "object")
+    item = changes["properties"]["items"]["items"]
+    assert {"kind", "quote", "strength", "source"} <= set(item["required"])
+    assert item["properties"]["kind"]["type"] == "string" and "preference" in item["properties"]["kind"]["enum"]
+    turn = seeded.turn("alice", "Remember a preference")
+    async def call():
+        return await create_server(seeded, local_user="alice").call_tool("propose", dict(
+            ctx_id=turn["ctx_id"], base_version=turn["base_version"], idempotency_key="bad-item",
+            changes=dict(items=[dict(kind="fact")])))
+    with pytest.raises(ToolError) as caught:
+        asyncio.run(call())
+    text = str(caught.value)
+    assert "changes.items.0.kind" in text and "changes.items.0.quote is required" in text
+    assert "changes.items.0.strength is required" in text
+    assert "For further information" not in text and "input_value=" not in text
 
 
 def test_state_returns_editable_plan_day_and_a_valid_blank(seeded):

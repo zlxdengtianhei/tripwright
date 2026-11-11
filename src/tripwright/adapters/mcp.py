@@ -9,17 +9,39 @@ from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from importlib.metadata import version
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
+from pydantic import ValidationError, WithJsonSchema
 
 from tripwright.agents import server_instructions
 from tripwright.events import SourceNature
+from tripwright.trip import input_problems
 
 if TYPE_CHECKING:
     from tripwright.service import Tripwright
+
+ITEM_SCHEMA = {
+    "type": "object", "additionalProperties": True,
+    "required": ["kind", "key", "quote", "text", "subject", "strength", "source"],
+    "properties": {
+        "kind": {"type": "string", "enum": ["goal", "constraint", "preference", "rule", "authorization", "stop", "setting"]},
+        "key": {"type": "string"}, "quote": {"type": "string"}, "text": {"type": "string"},
+        "subject": {"type": "array", "items": {"type": "string"}},
+        "strength": {"type": "string", "enum": ["must", "forbid", "prefer", "optional"]},
+        "source": {"type": "object", "additionalProperties": True, "required": ["event"], "properties": {
+            "event": {"type": "string"},
+            "basis": {"type": "string", "enum": ["user_explicit", "direction_set", "recommended_default", "agent_inference"]},
+        }},
+    },
+}
+CHANGES_SCHEMA = {"type": "object", "additionalProperties": True, "properties": {
+    "items": {"type": "array", "items": ITEM_SCHEMA},
+}}
+RecordArguments = Annotated[dict[str, Any], WithJsonSchema(CHANGES_SCHEMA)]
+
 
 request_user: ContextVar[str | None] = ContextVar("tripwright_user", default=None)
 log = logging.getLogger("tripwright.tools")
@@ -37,6 +59,9 @@ def unexpected(name: str, error: BaseException) -> ToolError:
 
 def expose_errors(function):
     def reason(error):
+        if isinstance(error, ValidationError):
+            root = "changes" if function.__name__ == "propose" else "arguments"
+            return f"Invalid {root}: " + "; ".join(input_problems(error, root))
         if type(error) is KeyError:
             return f"Missing required argument: {error.args[0]}"
         return str(error.args[0]) if isinstance(error, LookupError) and error.args else str(error)
@@ -170,7 +195,7 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
              channel: str = "conversation", subject: list[str] | None = None, scope: dict[str, Any] | None = None,
              scenario: Literal["quick", "status", "replan", "plan", "compare", "requirements", "system"] = "plan",
              focus_keys: list[str] | None = None, exclude_keys: list[str] | None = None, speaker: str | None = None,
-             record: dict[str, Any] | None = None, new_trip: str | None = None, points: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+             record: RecordArguments | None = None, new_trip: str | None = None, points: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         return ready().turn(identity(), text, request_id, nature=nature, native_ref=native_ref, channel=channel,
                             subject=subject, scope=scope, scenario=scenario, focus_keys=focus_keys,
                             exclude_keys=exclude_keys, speaker=speaker, record=record or None, new_trip=new_trip, points=points)
@@ -186,10 +211,12 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
     @server.tool(title="Propose plan or ledger changes against a context", annotations=write, structured_output=True)
     @expose_errors
     def propose(ctx_id: str, base_version: int, idempotency_key: str, plan: dict[str, Any] | None = None,
-                changes: dict[str, Any] | None = None, usages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-        """Create a draft from turn's ctx_id and base_version. plan is the complete trip object, shaped like state(view="plan").plan; omit it for ledger-only changes. changes and usages are objects/arrays validated by the service; reuse IDs and source.event from this turn. Anything you chose or inferred that the user did not say belongs in changes.items with source.basis="agent_inference". Only a user decision with must=true locks. Changing a user decision requires changes.revisions; changing a must, bought/booked item or hard node requires authority from this user message. Keep all applicable preferences, give reasons for trade-offs, and resolve conflicts with the user. Returns draft_id, checks, refusals and commit instructions."""
+                days: list[dict[str, Any]] | None = None, places: list[dict[str, Any]] | None = None,
+                bookings: list[dict[str, Any]] | None = None, changes: RecordArguments | None = None,
+                usages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+        """Create a draft from turn's ctx_id/base_version. Use plan for a complete trip (shape state(view='plan').plan), or patch whole days by date and places/bookings by id; state(view='day').json is the day shape. Do not combine plan with patches. Omit plan for ledger-only changes. changes/usages are validated by the service; reuse IDs and this turn's source.event. Anything you chose or inferred that the user did not say belongs in changes.items with source.basis='agent_inference'. Only a user decision with must=true locks. Changing a user decision requires changes.revisions; changing a must, bought/booked item or hard node needs this user message's authority. Give reasons for trade-offs and resolve preference conflicts with the user. Returns draft_id, checks and refusals."""
         return ready().propose(identity(), ctx_id=ctx_id, base_version=base_version, idempotency_key=idempotency_key,
-                               plan=plan, changes=changes, usages=usages)
+                               plan=plan, days=days, places=places, bookings=bookings, changes=changes, usages=usages)
 
     @server.tool(title="Commit a checked current draft", annotations=replace, structured_output=True)
     @expose_errors

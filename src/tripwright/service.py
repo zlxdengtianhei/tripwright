@@ -89,6 +89,26 @@ def placeholder_sources(record: dict, event_id: str) -> dict:
     return record
 
 
+def merged_plan(current: dict | None, days=None, places=None, bookings=None) -> dict:
+    """Merge whole-day and by-ID patches, then let the normal Trip and lock checks judge the result."""
+    if current is None:
+        raise ValueError("Partial plan changes need an existing plan; use state(view='blank') and propose(plan=...)")
+    if not all(isinstance(value, list) for value in (days, places, bookings)):
+        raise ValueError("days, places and bookings must be arrays")
+    result = encode_copy(current)
+    for name, values, key in (("days", days, "date"), ("places", places, "id"), ("bookings", bookings, "id")):
+        for index, value in enumerate(values):
+            if not isinstance(value, dict) or not isinstance(value.get(key), str) or not value[key]:
+                raise ValueError(f"{name}.{index}.{key} is required and must be a string")
+            found = next((position for position, entry in enumerate(result[name]) if str(entry[key]) == value[key]), None)
+            if found is None:
+                result[name].append(encode_copy(value))
+            else:
+                result[name][found] = encode_copy(value)
+    result["days"].sort(key=lambda day: day["date"])
+    return result
+
+
 def checked_plan(plan) -> None:
     """A plan of the wrong shape is refused with one line per field path, what it needs and what was sent (B3f X1a),
     e.g. `plan.days.0.anchors.1.deadline must be 'external' or 'plan', got string`."""
@@ -709,6 +729,17 @@ class Tripwright:
 
     def propose(self, owner: str, **arguments) -> dict:
         self.bound(owner)
+        partial = [name for name in ("days", "places", "bookings") if arguments.get(name) is not None]
+        for name in ("days", "places", "bookings"):
+            if name not in partial:
+                arguments.pop(name, None)
+        if partial:
+            if arguments.get("plan") is not None:
+                raise ValueError("Send either the complete plan or days/places/bookings patches, not both")
+            patch = {name: arguments.pop(name) for name in partial}
+            current = self.versions.current(owner)["plan"]
+            arguments["plan"] = merged_plan(current, days=patch.get("days") or [], places=patch.get("places") or [],
+                                            bookings=patch.get("bookings") or [])
         if arguments.get("plan") is not None:
             checked_plan(arguments["plan"])
             for index, place in enumerate(arguments["plan"].get("places") or []):
