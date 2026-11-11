@@ -143,6 +143,24 @@ def test_the_startup_probe_finds_a_read_only_key_and_passes_a_writable_remote(re
         closed(registry)
 
 
+def test_files_that_cannot_be_made_show_as_blocked_writes_until_a_commit_succeeds(remote_config, monkeypatch):
+    tenants = PersonalRepository(remote_config)
+    try:
+        service = tenants.open()
+        made = service.repository_files
+        monkeypatch.setattr(service, "repository_files", lambda *args, **kwargs: (_ for _ in ()).throw(TypeError("no day")))
+        service.turn("local", "Written while a view cannot be made.", "unrenderable", scenario="quick")
+        with pytest.raises(TypeError):
+            service.committer.flush()
+        blocked = service.state("local", "sync")["blocked"]
+        assert blocked["kind"] == "commit"
+        monkeypatch.setattr(service, "repository_files", made)
+        assert service.committer.flush()["pushed"] == "ok"
+        assert "blocked" not in service.state("local", "sync")
+    finally:
+        closed(tenants)
+
+
 def test_a_leftover_index_lock_blocks_commits_and_reopening_the_tenant_clears_it(remote_config):
     tenants = PersonalRepository(remote_config)
     service = tenants.open()

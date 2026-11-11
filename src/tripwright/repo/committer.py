@@ -213,8 +213,12 @@ class Committer:
             if trip is None and versions:  # the first chat-created plan opens its own trip; never override a selected trip
                 plan = next((item.get("plan") for item in tables["versions"] if item["id"] == versions[-1]), None)
                 trip = (plan or {}).get("id")
-            files, remove = self.service.repository_files(tables, trip=trip, upto=versions[-1] if versions else None,
-                                                          repo=snapshot, at=when, notices=notices)
+            try:
+                files, remove = self.service.repository_files(tables, trip=trip, upto=versions[-1] if versions else None,
+                                                              repo=snapshot, at=when, notices=notices)
+            except Exception as error:  # files that cannot be made must show as blocked writes, not as a silent retry
+                self.block("commit", f"{type(error).__name__}: {error}")
+                raise
             self.repo.write(files, remove)
             # Stage every tool-written path that differs from HEAD, including one a hand edit already brought to the
             # bytes the tool writes (an adopted plan edit); held paths are not in `files` and stay out.
