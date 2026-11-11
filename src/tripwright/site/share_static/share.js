@@ -61,7 +61,8 @@
   function draw(box) {
     var data = JSON.parse(document.getElementById(box.dataset.src).textContent);
     var map = L.map(box, { scrollWheelZoom: false });
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+    // the pages send no referrer; OpenStreetMap's tile servers block requests without one, so tiles send the origin only
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap", referrerPolicy: "strict-origin" }).addTo(map);
     var points = [];
     data.points.forEach(function (point) {
       var marker = L.circleMarker([point.lat, point.lon], { radius: data.big ? 9 : 7, color: "#1d1d1f", weight: 2, fillColor: point.color || "#2f6fdb", fillOpacity: 0.95 }).addTo(map);
