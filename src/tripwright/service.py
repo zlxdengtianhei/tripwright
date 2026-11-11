@@ -520,6 +520,13 @@ class Tripwright:
             parts.append(f"After checking, write {second_title!r} as the second heading; under it, first say what differs "
                          "from first_part, or 'Same as above, checked.'" if en else
                          f"核完后写第二段标题“{second_title}”；标题下先讲和第一段的不同，没有不同就写“和上面一样，已核”。")
+            # Blind comparison of 2026-11-11: without these two, hosts stated web findings they had not fetched through
+            # the service and told the user what they had looked up or not recorded.
+            parts.append("Something found online: fetch its sentence with query(kind='web_evidence') before stating it, or "
+                         "label it unchecked. Leave out process remarks such as 'checked again' or 'nothing was recorded'."
+                         if en else
+                         "网上查到的说法先用 query(kind='web_evidence') 取到原句再写，取不到就标没核。"
+                         "不写“重新查过了”“没写入记录”这类过程话。")
         else:
             parts.append("Answer this message directly after its necessary lookups and writes; do not invent a first part."
                          if en else "完成必要的查询和写入后直接答这一问，不造第一段。")
