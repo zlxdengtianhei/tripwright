@@ -335,7 +335,7 @@ def test_turn_drafts_the_first_part_from_stored_data_and_next_says_send_it_first
     # A12: without the question's points, next first asks for them; then the A10 order (S4a: then turn's steps, whose
     # step 4 says whether the check follows in this reply or after the user's next message)
     assert turn["next"].startswith("这一问没给 points：first_part 只按存的计划写") and (
-        "先把 first_part.text 原样发给用户（只可改称呼和语言），再照 steps 往下做。用户只看到第一段和第二段两条消息：第一段之前、两段之间不发任何状态句。"
+        "先把 first_part.text 原样发给用户（只可改称呼和语言），再照 steps 往下做。用户看到同一条回复里的两段：第一段之前、两段之间不发任何状态句。"
         in turn["next"])
     assert "latest_departure 只给 origin 和 destination" in turn["next"] and "第二段过了 check_answer 才发（ok:true；只剩提示就照原样发），只发一次" in turn["next"]
     # the draft passes the first part's checks; a9b's English status line does not

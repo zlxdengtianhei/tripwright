@@ -168,30 +168,6 @@ def test_a_place_not_recognized_is_said_and_never_taken_for_the_plans(make):
 
 # --- 3. the “继续” turn carries the question it continues -------------------------------------------------------------------------
 
-def test_the_lookups_after_go_on_start_where_the_continued_question_goes_next(make, monkeypatch):
-    service = make(places=(NORTH, SOUTH, *STATION_FOOD))
-    fixed(monkeypatch, local("21:52"))
-    question = service.turn("local", SECOND, "q2", scenario="quick", points=ASKED)
-    assert question["points"]["next"]["place"] == "hbf-burger"
-    fixed(monkeypatch, local("21:53"))
-    going_on = service.turn("local", GO_ON, "q3", scenario="quick", points=[])
-    assert going_on["second_part_due"]["request_id"] == "q2"
-    # bad sample (mcponly_r1 question 2): after “继续” the last connection started at the gym, as if the user went straight to
-    # the airport; without the “继续” (sub_on, codex) it started from the meal at the station
-    found = query(service, "latest_departure", origin="gym-south", destination="airport")
-    assert found["resolved"]["origin"]["next_step"]["place"] == "hbf-burger"
-    assert found["sentences"][1] == "按你先去汉堡店算（你说的“有点饿想吃点东西”）"
-    # and the question's frame: no hard node in its lookups
-    with pytest.raises(ValueError, match=r"turn request_id q2\) asks for the latest departure"):
-        query(service, "latest_departure", origin="gym-south", destination="airport", anchor_id="hn-queue")
-    # a second “继续” still points at q2 and carries it too
-    fixed(monkeypatch, local("21:54"))
-    assert service.turn("local", GO_ON, "q4", scenario="quick", points=[])["second_part_due"]["request_id"] == "q2"
-    assert query(service, "latest_departure", origin="gym-south", destination="airport")["resolved"]["origin"]["next_step"]["place"] == "hbf-burger"
-    # control: a new question with points is its own; its lookups follow it
-    fixed(monkeypatch, local("21:55"))
-    service.turn("local", FIRST, "q5", scenario="quick", points=[dict(kind="at", said="刚从第一个岩馆出来", place="gym-south"), *GO])
-    assert "next_step" not in query(service, "latest_departure", origin="gym-south", destination="airport")["resolved"]["origin"]
 
 
 # --- 4. the stored closing on a line that says 核过 -----------------------------------------------------------------------------

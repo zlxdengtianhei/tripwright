@@ -138,16 +138,14 @@ PROMISES = (
     # D-46 (v2f pre-checks): asked to write the first part before dispatching, the host drafted it in its thinking in 8 of 8
     # questions; dispatching first and ending the step with the first part kept two parts in 16 of 16 (v2e).
     # S4a: the same order in core.yaml's steps 3 and 4, for every entry; a subagent is used only where the app has one.
-    Promise("dispatch-before-the-first-part", CORE_TEXTS, must=(r"dispatch one `tripwright-researcher` there now",
-                                                               r"After step 3 it is the last text of this reply")),
+    Promise("first-part-before-lookups", CORE_TEXTS, must=(r"first_part\.text`? as it is", r"before any lookup")),
     # S4a (td/apps-github.md 5.3): no entry is assumed to have subagents or to run lookups side by side; without a
     # subagent the agent looks things up itself, one after another.
     Promise("subagents-optional", CORE_TEXTS, must=(r"Otherwise skip this step", r"without one, do them yourself, one after another"),
             must_not=(r"(?:searches|lookups|subagents|agents) (?:at once|in parallel|side by side)", r"请并行", r"同时派"),
             bad_sample="Without subagents: the first part, then several searches at once, then the second part."),
-    # S4a: an app that may not show text written between tool calls ends the reply with the first part and a line
-    # saying how to get the second; the next message brings it (turn's second_part_due).
-    Promise("second-part-in-the-next-reply", CORE_TEXTS, must=(r"`first_part\.later`", r"`second_part_due`")),
+    Promise("one-reply-no-continuation", CORE_TEXTS, must=(r"same reply|one reply",),
+            must_not=(r"first_part\.later", r"second_part_due"), bad_sample="first_part.later and second_part_due"),
     # S4a2 (D-89, s4c): after an effective commit the share page is published again; a blocked scan is fixed by category,
     # never by writing the value; the first public repository is published to others, so the user is asked first.
     Promise("share-page-after-commit", (SINGLE, MCP_MAIN),

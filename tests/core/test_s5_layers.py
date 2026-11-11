@@ -231,7 +231,7 @@ def test_turn_and_the_instructions_ask_for_the_agents_own_inferences_in_the_same
     from tripwright.agents.assemble import INSTRUCTIONS_LIMIT
 
     turn = said(trip, "去机场怎么走？")
-    step = next(step for step in turn["steps"] if step["step"] == 6)
+    step = next(step for step in turn["steps"] if "one `propose`" in step["do"])
     assert "agent_inference" in step["do"] and "one `propose`" in step["do"] and "nothing in between" in step["do"]
     # bad sample: turn returned no shape for sending the agent's own inferences back
     hint = turn["write_back"]

@@ -85,25 +85,6 @@ def test_the_plans_train_sentence_says_whether_the_plans_own_way_still_holds(mak
     assert not any("计划的 21:45" in line for line in other["sentences"])
 
 
-def test_a_second_part_that_drops_the_first_parts_time_without_saying_so_is_refused(make, monkeypatch):
-    service = make(TwoWays(trains=NIGHT[:5], buses=BUSES), tracks=WAYS, places=(CLOSING, SOUTH, *FOOD))
-    service.turn("local", FIRST, "q1", scenario="quick", points=GO)
-    service.turn("local", GO_ON, "q2", scenario="quick", points=[])  # the reply ended with the first part; the user asks on
-    fixed(monkeypatch, local("21:05"))
-    found = query(service, "latest_departure", origin="gym-north", destination="airport")
-    note = "以上交通时刻按时刻表，不是实时。"
-    # bad sample (mcponly_r1 question 1 after S4h): the main choice changed to the latest way and the plan's 21:45 is gone
-    changed = draft(found["first_line"], "主选：计划里的 22:53 REX 7 赶得上，22:10 关门出来（按存的营业时间），走到 Wien Matzleinsdorfer Platz "
-                                         "坐 22:33 的 D 去 Hbf。", note)
-    assert second_checks(service, changed)["first_times_followed"] == [
-        "第一段首行说了 21:45，第二段没再提，也没说改了 | "
-        "可以改得更好（不改也能发）：照 latest_departure 的句子写第一段那条还用不用（“计划的 21:45 出门那条也赶得上…”），或加一行“和第一段不同：21:45 那条……”"]
-    # the “继续” turn's request_id names the same question and its first part
-    assert "first_times_followed" in second_checks(service, changed, request_id="q2")
-    # controls: the time said again, or the change said, passes; without the turn's first part nothing is checked
-    assert "first_times_followed" not in second_checks(service, changed.replace("去 Hbf。", "去 Hbf；计划的 21:45 出门那条也行。"))
-    assert "first_times_followed" not in second_checks(service, changed.replace(note, "和第一段不同：计划那条不用了，关门再走。\n" + note))
-    assert "first_times_followed" not in second_checks(service, changed, request_id=None)
 
 
 # --- 2. the timetable, said once -----------------------------------------------------------------------------------------------

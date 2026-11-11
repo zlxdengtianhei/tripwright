@@ -21,7 +21,7 @@ PLACES = (MAIN, f"{GENERATED}/mcp/tripwright-main.md", f"{GENERATED}/server/inst
 def test_server_instructions_hold_every_step_and_its_check_within_the_limit(sources):
     text = server_instructions()
     core = sources.core
-    assert len(core.steps) == 8 and all(do and done for do, done in core.steps)
+    assert len(core.steps) == 7 and all(do and done for do, done in core.steps)
     for number, (do, done) in enumerate(core.steps, 1):
         assert f"\n{number}. {do} Done when: {done}" in text
     assert all(f"\n- {rule}" in text for rule in core.always)
@@ -29,7 +29,7 @@ def test_server_instructions_hold_every_step_and_its_check_within_the_limit(sour
     assert INSTRUCTIONS_LIMIT == 3600 and len(text.encode()) <= INSTRUCTIONS_LIMIT
     # each check names what a tool returns or what was sent, not a feeling of being done
     assert sum(bool(re.search(r"`turn`|`second_part_due`|`check_answer`|`commit`|`query`|first part|draft|researcher", done))
-               for _, done in core.steps) == 8
+               for _, done in core.steps) == 7
 
 
 def test_the_build_refuses_instructions_over_the_limit_and_a_step_without_its_check(sources):

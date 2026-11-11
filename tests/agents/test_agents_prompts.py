@@ -57,7 +57,7 @@ def test_the_real_server_gains_all_four_prompts(tmp_path):
 def test_server_instructions_are_the_generated_text_without_the_notice():
     # S4a: core.yaml's numbered steps (they were one run of the main role's rules, all on one line)
     text = server_instructions()
-    assert text.startswith("Tripwright answers each user message about a stored trip in two parts")
+    assert text.startswith("Tripwright answers each user message about a stored trip in one reply with two parts")
     assert "\n1. Call `turn` first for every user message" in text
     assert "不要手改" not in text
 
