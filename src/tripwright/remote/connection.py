@@ -130,7 +130,7 @@ def _environment(config: RemoteConfig) -> dict:
 
 def connect(data_dir: str | Path, repo_url: str, branch: str = "main", *, environ=os.environ,
             fetch_keys=None) -> str:
-    """Connect without force-push or merging. A nonempty replacement is installed by the next service start."""
+    """Connect without force-push or merging. A running service applies a saved change on its next request or health check."""
     from tripwright.remote.envconfig import resolved, ssh_files
 
     data_dir = Path(data_dir)
@@ -184,8 +184,7 @@ def connect(data_dir: str | Path, repo_url: str, branch: str = "main", *, enviro
                          ". To keep local, choose an empty remote. To keep remote, use a new data volume or remove the local trips first.")
     if remote_trips:
         write_connection(data_dir, repo_url, branch)
-        return (f"Prepared {repo_url} on {branch} ({', '.join(remote_trips)}). Restart after this command: "
-                "docker restart tripwright. On Railway, redeploy the service.")
+        return f"Connected to {repo_url} on {branch}; the service will adopt {', '.join(remote_trips)} on its next request or health check."
     shutil.rmtree(replacement, ignore_errors=True)
     raise ValueError("The remote has commits but no trips, so it cannot be pushed or adopted without replacing history. "
                      "Choose an empty remote for the local history, or a tripwright repository with trips for an empty local service.")

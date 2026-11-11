@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import stat
 import subprocess
 
+import httpx2
 import pytest
 
+from tripwright.remote.app import create_app
 from tripwright.remote.config import RemoteConfig
 from tripwright.remote.connection import connect, connection_file, mirror_path, read_connection, repo_key, trips
 from tripwright.remote.tenants import PersonalRepository
@@ -66,13 +69,13 @@ def test_connect_pushes_existing_trips_to_an_empty_remote(tmp_path):
     assert read_connection(data) == dict(repo_url=str(remote), branch="main")
 
 
-def test_connect_adopts_a_remote_trip_only_at_restart(tmp_path):
+def test_connect_adopts_a_remote_trip_on_the_next_open(tmp_path):
     data = tmp_path / "remote"
     seeded(mirror_path(data), None)
     remote = bare(tmp_path / "remote.git")
     seeded(tmp_path / "seed", "2030-07-remote", remote=str(remote))
     result = connect(data, str(remote))
-    assert "docker restart tripwright" in result
+    assert "next request or health check" in result
     assert trips(Git(mirror_path(data))) == []
     assert connection_file(data).is_file()
     registry = PersonalRepository(RemoteConfig(public_url="http://localhost", data_dir=data, repo_url=str(remote)))
@@ -84,6 +87,57 @@ def test_connect_adopts_a_remote_trip_only_at_restart(tmp_path):
         service.jobs.stop()
         service.committer.stop()
         registry.close()
+
+
+def test_running_service_applies_an_empty_remote_without_restart_and_pushes(tmp_path):
+    data = tmp_path / "remote"
+    seeded(mirror_path(data), "2030-06-local")
+    remote = bare(tmp_path / "empty.git")
+    config = RemoteConfig(public_url="https://trip.example", data_dir=data)
+
+    async def run():
+        app = create_app(config, key="k" * 40, warm=False)
+        async with app.router.lifespan_context(app):
+            async with httpx2.AsyncClient(base_url="https://trip.example", transport=httpx2.ASGITransport(app=app)) as client:
+                initial = (await client.get("/readyz")).json()
+                assert initial["tenants"]["personal"]["storage"] == "local"
+                assert app.state.remote.reloads == 0
+                connect(data, str(remote))
+                connected = (await client.get("/readyz")).json()
+                assert connected["tenants"]["personal"]["storage"] == "remote"
+                assert app.state.remote.reloads == 1
+                await client.get("/readyz")
+                assert app.state.remote.reloads == 1, "an unchanged connection does not reopen"
+            service = app.state.remote.repository.service
+            receipt = service.turn("local", "Write after live connect.", "live-connect", scenario="quick")
+            service.committer.flush()
+            return receipt["write"]["op_id"]
+    operation = asyncio.run(run())
+    assert operation in Git(remote).run("log", "--format=%B", "main")
+
+
+def test_running_service_adopts_a_remote_trip_without_restart(tmp_path):
+    data = tmp_path / "remote"
+    seeded(mirror_path(data), None)
+    remote = bare(tmp_path / "remote.git")
+    seeded(tmp_path / "seed", "2030-07-remote", remote=str(remote))
+    config = RemoteConfig(public_url="https://trip.example", data_dir=data)
+
+    async def run():
+        app = create_app(config, key="k" * 40, warm=False)
+        async with app.router.lifespan_context(app):
+            async with httpx2.AsyncClient(base_url="https://trip.example", transport=httpx2.ASGITransport(app=app)) as client:
+                await client.get("/readyz")
+                original = app.state.remote.repository.service
+                connect(data, str(remote))
+                connected = (await client.get("/readyz")).json()
+                assert connected["tenants"]["personal"]["storage"] == "remote"
+                service = app.state.remote.repository.service
+                assert service is not original and service.current_trip("local") == "2030-07-remote"
+                assert app.state.remote.reloads == 1
+                await client.get("/readyz")
+                assert app.state.remote.reloads == 1
+    asyncio.run(run())
 
 
 def test_connect_rejects_two_trip_histories_without_changing_either(tmp_path):

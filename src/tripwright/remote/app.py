@@ -55,6 +55,11 @@ class Remote:
         self.lifetime = None
         self.lock = asyncio.Lock()
         self.hits: deque = deque()
+        self.connection = (config.repo_url, config.branch)
+        self.reloads = 0
+        self.active = 0
+        self.active_done = asyncio.Event()
+        self.active_done.set()
 
     def add_url_key(self, key: str) -> None:
         if not isinstance(key, str) or len(key) < URL_KEY_MIN:
@@ -63,39 +68,85 @@ class Remote:
             raise ValueError("A URL key may contain only ASCII letters, digits, '-' and '_'")
         self.url_keys = {hashlib.sha256(key.encode()).digest(): "personal"}
 
+    async def refresh_locked(self):
+        """Reload only a changed saved connection. The caller holds self.lock; active requests finish on the old app."""
+        from tripwright.remote.connection import read_connection
+
+        saved = read_connection(self.config.data_dir)
+        desired = (saved["repo_url"], saved["branch"]) if saved else self.connection
+        if desired == self.connection:
+            return
+        if self.active:
+            await self.active_done.wait()
+        if self.stop is not None:
+            self.stop.set()
+        if self.lifetime is not None:
+            await asyncio.gather(self.lifetime, return_exceptions=True)
+        self.repository.close()
+        self.config = self.config.model_copy(update={"repo_url": desired[0], "branch": desired[1]})
+        self.repository = PersonalRepository(self.config)
+        self.ready = self.stop = self.lifetime = None
+        self.health = dict(status="starting")
+        self.connection = desired
+        self.reloads += 1
+
+    async def open_locked(self):
+        ready = self.ready
+        if ready is None:
+            ready = asyncio.get_running_loop().create_future()
+            self.ready = ready
+            self.stop = asyncio.Event()
+
+            async def lifetime():
+                try:
+                    # Opening and the transport task group belong to this task.
+                    # Cancelling an HTTP request cannot start a second writer.
+                    try:
+                        service = await asyncio.to_thread(self.repository.open)
+                    except Exception as error:
+                        self.failed(error)
+                        raise
+                    if self.health.get("status") != "ok":
+                        storage = "remote" if service.repository is not None and service.repository.remote() else "local"
+                        self.health = dict(status="ok", storage=storage, checked_at=_stamp())
+                    security = TransportSecuritySettings(enable_dns_rebinding_protection=False)
+                    child = http_app(service, host=self.host, transport_security=security)
+                    async with child.router.lifespan_context(child):
+                        ready.set_result(child)
+                        await self.stop.wait()
+                except Exception as error:
+                    if not ready.done():
+                        ready.set_exception(error)
+                        self.ready = None
+                    else:
+                        raise
+
+            self.lifetime = asyncio.create_task(lifetime(), name="tripwright-personal")
+        return await asyncio.shield(ready)
+
     async def personal_app(self):
         async with self.lock:
-            ready = self.ready
-            if ready is None:
-                ready = asyncio.get_running_loop().create_future()
-                self.ready = ready
-                self.stop = asyncio.Event()
+            await self.refresh_locked()
+            return await self.open_locked()
 
-                async def lifetime():
-                    try:
-                        # Opening and the transport task group belong to this task.
-                        # Cancelling an HTTP request cannot start a second writer.
-                        try:
-                            service = await asyncio.to_thread(self.repository.open)
-                        except Exception as error:
-                            self.failed(error)
-                            raise
-                        if self.health.get("status") != "ok":
-                            self.health = dict(status="ok", checked_at=_stamp())
-                        security = TransportSecuritySettings(enable_dns_rebinding_protection=False)
-                        child = http_app(service, host=self.host, transport_security=security)
-                        async with child.router.lifespan_context(child):
-                            ready.set_result(child)
-                            await self.stop.wait()
-                    except Exception as error:
-                        if not ready.done():
-                            ready.set_exception(error)
-                            self.ready = None
-                        else:
-                            raise
+    async def request_app(self):
+        async with self.lock:
+            await self.refresh_locked()
+            child = await self.open_locked()
+            self.active += 1
+            self.active_done.clear()
+            return child
 
-                self.lifetime = asyncio.create_task(lifetime(), name="tripwright-personal")
-        return await asyncio.shield(ready)
+    def release_request(self):
+        self.active -= 1
+        if not self.active:
+            self.active_done.set()
+
+    async def check_health(self):
+        try:
+            await self.personal_app()
+        except Exception:
+            pass  # readiness reports the stored error; liveness stays up
 
     # --- startup checks and health ------------------------------------------------------
 
@@ -113,7 +164,7 @@ class Remote:
         except Exception:
             return  # failed() logged it and keeps it for /readyz; the next request tries again
         repository = self.repository.service.repository
-        if not repository.remote():
+        if repository is None or not repository.remote():
             self.health = dict(status="ok", storage="local", checked_at=_stamp())
             log.info("personal repository ready (local repository only)")
             return
@@ -155,6 +206,7 @@ class Remote:
 
     async def healthz(self, request):
         """Liveness: 200 while the process serves; the body keeps the existing health shape."""
+        await self.check_health()
         report = self.readiness()
         return JSONResponse(dict(status="ok", ready=report["ready"],
                                  tenants={tenant: view["status"] for tenant, view in report["tenants"].items()}),
@@ -162,6 +214,7 @@ class Remote:
 
     async def readyz(self, request):
         """Readiness: 200 only when the repository opened, its remote answered and no write is blocked."""
+        await self.check_health()
         report = self.readiness()
         return JSONResponse(report, status_code=200 if report["ready"] else 503, headers={"Cache-Control": "no-store"})
 
@@ -188,7 +241,7 @@ class Remote:
                                            headers={"Retry-After": "60"})(scope, receive, send)
         self.hits.append(current)
         try:
-            child = await self.personal_app()
+            child = await self.request_app()
         except (GitError, ValueError, OSError, TimeoutError, subprocess.TimeoutExpired) as error:
             kind = error.kind if isinstance(error, TenantProblem) else "other"
             return await JSONResponse({"error": "Trip repository is unavailable; ask the operator to check its deploy key and configuration",
@@ -199,6 +252,7 @@ class Remote:
             await child(scope, receive, send)
         finally:
             request_user.reset(identity)
+            self.release_request()
 
 
 def _stamp() -> str:
