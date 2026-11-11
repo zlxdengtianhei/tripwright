@@ -66,11 +66,20 @@ def loose_end(text: str) -> str:
     return "".join(text.split()).translate(str.maketrans("", "", "“”\"「」『』'‘’")).rstrip("。.!！")
 
 
+# the service's part headings (service.FIRST_TITLES, SECOND_TITLES): a reply with the first and without the second
+# stopped after the first part (reply flow "two"), so the user's next word is “继续”
+FIRST_TITLE = {"zh": "按存的计划先说", "en": "From the stored plan first"}
+SECOND_TITLE = {"zh": "核过之后", "en": "After checking"}
+
+
 def asks_to_continue(texts: list[str]) -> str | None:
-    """The language of the `later` sentence the reply ends with (its last text's last line), or None."""
+    """The language to say “继续” in: the reply ends with the old `later` sentence, or holds only the first part."""
     lines = [line for line in (texts[-1] if texts else "").splitlines() if line.strip()]
     last = loose_end(lines[-1]) if lines else ""
-    return next((language for language, sentence in LATER.items() if last.endswith(loose_end(sentence))), None)
+    asked = next((language for language, sentence in LATER.items() if last.endswith(loose_end(sentence))), None)
+    whole = "\n".join(texts)
+    return asked or next((language for language, title in FIRST_TITLE.items()
+                          if title in whole and SECOND_TITLE[language] not in whole), None)
 
 
 def main_texts(stream: Path) -> list[str]:
