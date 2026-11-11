@@ -131,7 +131,7 @@ def test_names_stays_and_flights_are_rewritten_from_the_trip_records(tmp_path):
     for private in PRIVATE:
         assert private not in text, private
     assert "Traveler A" in text and "旅伴 A" in text and "Traveler B" in text
-    assert "Staying in 1070 Wien (hotel)" in text and "住在 1070 Wien（酒店）" in text
+    assert "a hotel in 1070 Wien" in text and "1070 Wien 的酒店" in text
     assert "回程：07:45 航班" in text and "Going home: 07:45 flight" in text and "航班 起飞" in text
     assert "回 住处 放行李" in text and "晚上回 住处" in text
 
@@ -140,7 +140,7 @@ def test_places_keep_names_and_map_links_and_stays_have_none(tmp_path):
     html = (build(tmp_path)["out"] / "2030-07-14.html").read_text()
     assert "Kunsthalle Beispiel, Museumsplatz 1, 1070 Wien" in html
     assert 'href="https://www.google.com/maps/search/?api=1&amp;query=Kunsthalle%20Beispiel%2C%20Museumsplatz%201%2C%201070%20Wien"' in html
-    assert "Café Muster" in html and html.count("google.com/maps/search") == 3  # the museum, the café block and its candidate
+    assert "Café Muster" in html and html.count("google.com/maps/search") == 5  # museum and café in the list of places and in the timeline, the café's candidate
     assert "U6 → Westbahnhof，换 18 路电车，€2.40" in html
 
 
@@ -150,44 +150,59 @@ def test_default_english_switches_to_chinese_and_uses_given_english(tmp_path):
     result = build(tmp_path, english=english)
     html = (result["out"] / "2030-07-14.html").read_text()
     assert '<html lang="en" data-language="en">' in html
-    assert 'data-language-button="en"' in html and 'data-language-button="zh"' in html
+    assert 'data-lang-button="en"' in html and 'data-lang-button="zh"' in html
     assert '<span class="en">Arriving in Vienna: a gallery and coffee</span>' in html
     assert "Traveler A and Traveler B see the exhibition" in html and "Kasimir" not in html
     assert '<span class="zh" lang="zh-CN">到维也纳：美术馆和咖啡</span>' in html
-    assert '<span class="en" lang="zh-CN">下雨就多待在美术馆 <span class="orig">(中文)</span></span>' in html
+    assert '<span class="en" lang="zh-CN">下雨就多待在美术馆</span>' in html and "(中文)" not in html  # no tag after each Chinese text
     assert "下雨就多待在美术馆" in result["untranslated"] and "到维也纳：美术馆和咖啡" not in result["untranslated"]
     assert not any(private in text for text in result["untranslated"] for private in PRIVATE)
-    assert 'aria-pressed' not in html.split("<script>")[0]  # the buttons' state is set by the script from ?lang=
+    assert 'aria-pressed' not in html.split("<script>")[0]  # the buttons' state is set by the script from ?lang= or the last choice
+    assert "部分内容只有中文" in html and "Some texts are in Chinese only" in html  # said once in the footer
 
 
 # --- the scan: legal controls pass, private data blocks -------------------------------------------------------------
 
 
-def test_a_segment_to_or_from_the_stay_says_only_the_order(tmp_path):
-    """S4h-b (verdict 17, mechanism 6): the day pages kept "22:47 U1 → our stop 22:52, back at about 22:55", which put
-    the stay inside one station's walking circle. A timeline segment that starts or ends at a stay now shows no
-    minute-level time, no walking minutes, no arrival times and no door wording, in either language; it says the order
-    (and the line), while times between public places stay."""
+def test_the_way_in_and_out_of_a_stay_keeps_line_stops_and_times_but_not_the_walk_from_the_door(tmp_path):
+    """Rule: a segment that starts or ends at a stay is written as any other (line, stops, departure and arrival
+    times); the minutes of walking from the door and door wording are cut, in both languages. Positive: they are gone.
+    Counter-example: the line, the public station and its times, and the times between public places are all there."""
     result = build(tmp_path, quiet_plan(), english=QUIET_ENGLISH)
     html = (result["out"] / "2030-07-14.html").read_text()
-    for absent in ("09:30", "09:45", "09:31", "09:38", "步行 4 分钟", "4 minute walk", "21:00", "21:30",
-                   "22:47", "22:52", "22:55", "我们那站", "our stop", "回到住处", "Back at the lodging by", "walk_minutes"):
-        assert absent not in html, absent
-    # the order is still said, with the line, in both languages
-    assert "从住处出发" in html and "From the lodging" in html
-    assert "回住处" in html and "Back to the lodging" in html
-    assert "住在 1070 Wien（酒店）" in html and "Staying in 1070 Wien (hotel)" in html
-    assert ">U6<" in html and ">U1<" in html  # the lines without their times
-    # times between public places stay, in this plan and in the untouched one
-    assert "10:05" in html and "10:00" in html
+    for gone in ("步行 4 分钟", "4 minute walk", "walk_minutes", "3 min walk"):
+        assert gone not in html, gone
+    for kept in ("09:31", "09:38", "Beispielplatz", "22:47", "22:52", "我们那站", "our stop"):
+        assert kept in html, kept
+    assert ">U6" in html and ">U1" in html
+    assert "a hotel in 1070 Wien" in html and "1070 Wien 的酒店" in html
+    assert "10:05" in html and "10:00" in html  # times between public places
     assert "05:12" in (build(tmp_path)["out"] / "2030-07-15.html").read_text()
 
 
-def test_stay_words_in_a_clean_segment_text_stay_visible(tmp_path):
-    """A stay-touching block whose own words carry no time, walk or door keeps them: only what localizes is
-    dropped (S4h-b)."""
-    html = (build(tmp_path)["out"] / "2030-07-14.html").read_text()
-    assert "回 住处 放行李" in html and "晚上回 住处" in html  # the evening block's text and the day's notes
+def test_door_wording_and_bare_minutes_next_to_the_lodging_are_cut_from_a_stay_segment():
+    from tripwright.site.privacy import stay_text
+
+    assert stay_text("U6 09:31 → Beispielplatz 09:38，步行 4 分钟") == "U6 09:31 → Beispielplatz 09:38"
+    assert stay_text("Tram 1 + bus 80 + walk 5′") == "Tram 1 + bus 80"
+    assert stay_text("Walk 7′ + bus 85 + walk 19′") == "bus 85"
+    assert stay_text("出门口走 3 分钟，然后坐 U4") == "然后坐 U4"  # the clause with the door word goes whole
+    assert stay_text("楼下") is None
+    for public in ("U1 22:47 → 22:52，回到住处", "22:47 U1 → our stop 22:52", "REX 7 05:20", "Wien Hbf → Flughafen 22:42–22:57"):
+        assert stay_text(public) == public  # a station, a line and times are not what localizes the stay
+
+
+def test_a_segment_from_a_stay_by_bus_names_line_stops_and_times(tmp_path):
+    plan = sample_plan()
+    plan["places"].append(dict(id="stop-2", kind="transport", name="某站", name_local="Beispielplatz, 1070 Wien", area="Wien"))
+    plan["days"][0]["plans"][0]["tracks"][0]["blocks"] = [
+        block("s1", "08:10", "08:40", "travel", text="住处 → Beispielplatz 站", mode="从门口走 3 分钟，坐 18 路电车 08:14 → Beispielplatz 08:31，换 U6 08:36 → Westbahnhof 08:40"),
+        block("s2", "09:00", "10:00", "visit", place="kunsthalle")]
+    plan["days"][0]["base"] = "stay-1"
+    html = (build(tmp_path, plan, english={"住处 → Beispielplatz 站": "From the lodging to Beispielplatz"})["out"] / "2030-07-14.html").read_text()
+    for line_stop_time in ("18 路电车 08:14", "Beispielplatz 08:31", "U6 08:36", "Westbahnhof 08:40"):
+        assert line_stop_time in html, line_stop_time
+    assert "门口" not in html and "3 分钟" not in html
 
 
 @pytest.mark.parametrize("legal", ["订位打 +43 1 555 0199", "REX 7", "U6", "18 路", "RJX 19959", "RJX", "S45", "N25", "IC 540", "RJ 641", "U1 03:22",
@@ -272,7 +287,7 @@ def test_a_stays_town_and_country_stay_public(tmp_path):
     plan["places"][0]["name_local"] = "Hotel Fictiva Rosengarten, Musterweg 17, Neubau, 1070 Wien, Austria"
     plan["days"][0]["notes"] = "Neubau 和 Austria 照写；Rosengarten 不写"
     html = (build(tmp_path, plan)["out"] / "2030-07-14.html").read_text()
-    assert "Neubau 和 Austria 照写；住处 不写" in html and "Staying in 1070 Wien (hotel)" in html
+    assert "Neubau 和 Austria 照写；住处 不写" in html and "a hotel in 1070 Wien" in html
 
 
 def test_an_unrelated_folder_is_never_replaced(tmp_path):

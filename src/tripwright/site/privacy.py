@@ -3,7 +3,7 @@ from __future__ import annotations
 import html
 import re
 from collections.abc import Iterable
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
 
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
@@ -29,29 +29,36 @@ PHONE = (
 )
 POLICY_WORD = "private policy word"
 
-# S4h-b (verdict 17, mechanism 6): a timeline segment that starts or ends at a stay says only the order. Minute
-# times, walking minutes, arrival times and "from your door" wording put the stay inside one station's walking circle
-# ("22:47 U1 → our stop 22:52, back at about 22:55", "a 20–25 minute walk"), so a text of such a segment never
-# carries them, in either language. What such a segment may still say: the order ("Back to the lodging by U1").
-MINUTE_TIME = re.compile(r"(?<!\d)(?:[01]?\d|2[0-3])[：:][0-5]\d(?!\d)")
-WALK_MINUTES = re.compile(r"(?:步行|走路|走)\s*[0-9０-９]+\s*(?:分钟|分)|(?:walk(?:ed|s|ing)?|foot)\b[^。\n;；]{0,12}?\b[0-9]+\s*"
-                          r"(?:分钟|分\b|\bmin\b|\bminutes?)\b|[0-9０-９]+\s*[-–~]?\s*[0-9０-９]*\s*(?:分钟|分\b|\bmin\b|\bminutes?)\s*"
+# A stay is shown as its district and type, never as a point: the way in and out of it is written as for any other
+# place (line, stops, times), without what pins it to one corner of the district: minutes of walking from the door
+# ("步行 4 分钟", "walk 5′", "a 4 minute walk") and door wording ("门口", "楼下", "at the door").
+WALK_MINUTES = re.compile(r"(?:步行|走路|走)\s*[0-9０-９]+\s*(?:分钟|分|[′'])|(?:walk(?:ed|s|ing)?|foot)\b[^。\n;；]{0,12}?\b[0-9]+\s*"
+                          r"(?:分钟|分\b|\bmin\b|\bminutes?|[′'])|[0-9０-９]+\s*[-–~]?\s*[0-9０-９]*\s*(?:分钟|分\b|\bmin\b|\bminutes?|[′'])\s*"
                           r"(?:步行|walks?|on foot)", re.I)
 AT_THE_DOOR = re.compile(r"门口|门前|楼下|\bdoors?\b|\bdoorstep\b|\bdoor step\b", re.I)
 STAY_WORDS = re.compile(r"住处|住宿|\bour stay\b|\bour lodging\b|\bthe lodging\b", re.I)
+CLAUSE_END = re.compile(r"(?<=[，,;；。])")
+CONNECTORS = " +,，;；:：→-–"
 
 
-def stay_segment_dirty(*texts: str) -> bool:
-    """True when one of a stay-touching segment's texts carries what it must not show (S4h-b): a minute-level time, a
-    walking distance, a door, or bare minutes next to the lodging's own words."""
-    for text in texts:
-        if not text:
+def stay_text(text: str) -> str | None:
+    """A text of a segment that starts or ends at a stay, without what pins the stay to one point: walking minutes are
+    cut out of their clause, a clause with door wording or minutes next to the lodging's own words is dropped. The line,
+    the stops and the times stay. None when nothing is left."""
+    kept = []
+    for clause in CLAUSE_END.split(text or ""):
+        if AT_THE_DOOR.search(clause) or (STAY_WORDS.search(clause) and re.search(r"[0-9０-９]+\s*(?:分钟|分\b|\bmin\b|\bminutes?\b)", clause, re.I)):
             continue
-        if MINUTE_TIME.search(text) or WALK_MINUTES.search(text) or AT_THE_DOOR.search(text):
-            return True
-        if STAY_WORDS.search(text) and re.search(r"[0-9０-９]+\s*(?:分钟|分\b|\bmin\b|\bminutes?\b)", text, re.I):
-            return True
-    return False
+        body, tail = re.match(r"(.*?)([，,;；。]?\s*)$", clause, re.S).groups()
+        cleaned = WALK_MINUTES.sub("", body)
+        if cleaned != body:
+            cleaned = re.sub(r"(?:\s*\+\s*){2,}", " + ", cleaned).strip(CONNECTORS)
+            cleaned = re.sub(r"^(?:to|towards)\s+", "", cleaned, flags=re.I)
+            if len(re.findall(r"[A-Za-z0-9\u3400-\u9fff]", cleaned)) < 3:
+                continue
+        kept.append(cleaned + tail)
+    result = re.sub(r"\s{2,}", " ", "".join(kept)).strip(CONNECTORS)
+    return result or None
 
 
 class PrivacyError(ValueError):
@@ -100,6 +107,7 @@ class Policy:
         self.replacements = []
         self.forbidden = []
         self.categories: dict[re.Pattern, str] = {}
+        self.swaps: list[tuple[str, str]] = []
         self.flight = flight
         self.public_phones: set[str] = set()
         for raw in lines:
@@ -115,6 +123,7 @@ class Policy:
             self.forbidden.append(pattern)
             self.categories[pattern] = category
         if replacement:
+            self.swaps.append((word, replacement))
             self.replacements.append((pattern, replacement))
             # longer words first, so a full name or address is replaced before a part of it
             self.replacements.sort(key=lambda pair: -len(pair[0].pattern))
@@ -124,6 +133,18 @@ class Policy:
 def redact(text: str, policy: Policy) -> str:
     for pattern, replacement in policy.replacements:
         text = pattern.sub(lambda match: replacement, text)
+    if policy.flight:
+        for number in sorted(set(flight_numbers(text)), key=len, reverse=True):
+            text = re.sub(rf"(?<![A-Za-z0-9]){re.escape(number)}(?![A-Za-z0-9])", policy.flight, text)
+    return text
+
+
+def swap_words(text: str, policy: Policy) -> str:
+    """Replace the policy's words wherever they are in a finished page, also as written in HTML or in a URL, and flight
+    numbers as `policy.flight`. The words with a replacement only; a page is still scanned afterwards."""
+    for word, replacement in sorted(policy.swaps, key=lambda pair: -len(pair[0])):
+        for form in dict.fromkeys((word, html.escape(word), html.escape(word, quote=False), quote(word), quote(word, safe=""))):
+            text = word_pattern(form).sub(lambda match: replacement, text)
     if policy.flight:
         for number in sorted(set(flight_numbers(text)), key=len, reverse=True):
             text = re.sub(rf"(?<![A-Za-z0-9]){re.escape(number)}(?![A-Za-z0-9])", policy.flight, text)

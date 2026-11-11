@@ -1,12 +1,16 @@
 """The page friends read: the committed plan as a static site with the private parts rewritten (D-83).
 
-Only a home page and one page per day: when, where, what, how to get there, a map link per place. Decisions, memory,
-messages, evidence, fares and bookings are never read into it. Rewrites, from the trip's own records:
+A home page (intro, route, map, one row per day) and one page per day: key times, places to go with a map link each,
+how to get around, then the details folded. Decisions, memory, messages, evidence, fares and bookings are never read
+into it. Rewrites, from the trip's own records:
 - every person in `profile/people.yaml` and the plan's `people` becomes a code (Traveler A / 旅伴 A), the user too;
-- a place to stay loses its name, address and coordinates: "Staying in <area> (hotel)";
+- a place to stay loses its name, address and coordinates: "a hostel in 1100 Wien" / "1100 Wien 的青旅"; the way in
+  and out of it is written as for any other place, but minutes of walking from the door and door wording are cut;
 - a flight number becomes "flight" / "航班".
-The pages are written to a new folder beside the output and scanned there (`scan_tree`); only a clean folder replaces
-the output, in one rename. A finding names its category and page, never the value.
+The pages are written to a new folder beside the output and scanned there (`scan_tree`). A name, a stay's name or a
+flight number the scan still finds is swapped for its generic word and the page is kept; an email, a phone number,
+an order or ticket number, a passport number or a word of the user's own list stops the build: the old output stays,
+and the finding names its category and page, never the value. Only a clean folder replaces the output, in one rename.
 
 English is the default language. Program words are bilingual; the user's own words (Chinese in the plan) are shown in
 English from `english` (rewritten Chinese → English, supplied by the agent), else as they are, and listed in
@@ -18,16 +22,18 @@ import re
 import shutil
 import tempfile
 from dataclasses import dataclass
+import json
 from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from urllib.parse import quote
 
 from jinja2 import DictLoader, Environment, select_autoescape
 from markupsafe import Markup, escape
 
-from .assets import SCRIPT, STYLE
-from .privacy import POLICY_WORD, Policy, PrivacyError, STAY_WORDS, flight_numbers, phone_digits, phone_numbers, redact, scan_text, stay_segment_dirty
-from .templates import SHARE_BASE, SHARE_DAY, SHARE_INDEX
+from .assets import SHARE_SCRIPT, SHARE_STYLE
+from .privacy import POLICY_WORD, Policy, PrivacyError, STAY_WORDS, flight_numbers, phone_digits, phone_numbers, redact, scan_text, stay_text, swap_words
+from .templates import SHARE_BASE, SHARE_DAY, SHARE_INDEX, SHARE_MAP
 
 MARKER = ".tripwright-share"
 CJK = re.compile(r"[　-〿㐀-鿿＀-￯]")
@@ -68,14 +74,26 @@ def is_stay(place: dict | None) -> bool:
     return bool(place) and str(place.get("kind") or "").strip().casefold() in STAY_KINDS
 
 
+DISTRICT = re.compile(r"(?:district|bezirk|ward|kerület)\b|\b(?:\d{1,2}\.?\s*)?(?:kerület|bezirk)", re.I)
+
+
 def stay_area(place: dict) -> str:
-    """The district a stay is in: its `district`, else the postcode and town at the end of its address, else its area."""
+    """The district a stay is in: its `district`, else the postcode and town at the end of its address, else a part of
+    the address that names a district ("District X", then the area it is in), else its area."""
     if place.get("district"):
         return str(place["district"])
-    for segment in reversed(str(place.get("name_local") or "").split(",")[1:]):
+    segments = str(place.get("name_local") or "").split(",")[1:]
+    for segment in reversed(segments):
         if re.fullmatch(r"\d{4,5}\s+[^\d,]+", segment.strip()):
             return segment.strip()
+    for segment in segments:
+        if DISTRICT.search(segment):
+            return f"{segment.strip()}, {place.get('area')}"
     return str(place.get("area") or "")
+
+
+def article(word: str) -> str:
+    return "an" if word[:1].lower() in "aeiou" else "a"
 
 
 def _tokens(text: str) -> list[str]:
@@ -120,10 +138,11 @@ class Rules:
                   " ".join(str(day.get("area") or "") for day in plan.get("days", []))).casefold()
         for place in filter(is_stay, places):
             area = stay_area(place).casefold()
+            shown = {area, *(part.strip() for part in area.split(","))}
             words = {str(place[key]) for key in ("name", "name_local") if place.get(key)}
             segments = [segment.strip() for segment in str(place.get("name_local") or "").split(",") if segment.strip()]
             # the name and the street; the district, town or country after them stay public
-            words.update(segment for segment in segments[:2] if segment.casefold() != area and segment.casefold() not in public)
+            words.update(segment for segment in segments[:2] if segment.casefold() not in shown and segment.casefold() not in public)
             for source in (segments[:2] if segments else []) + [str(place.get("name") or "")]:
                 for token in _tokens(source):
                     folded = token.casefold()
@@ -187,7 +206,11 @@ class Words:
 
     def __init__(self, rules: Rules, english: dict[str, str] | None):
         self.rules = rules
-        self.english = {str(key).strip(): str(value) for key, value in (english or {}).items() if value}
+        self.english = {}
+        for key, value in (english or {}).items():
+            if value:
+                # a key written with a name in it is found as the rewritten text the page shows
+                self.english[redact(str(key).strip(), rules.zh)] = str(value)
         self.untranslated: dict[str, None] = {}
 
     def __call__(self, text, english: str | None = None) -> Text | None:
@@ -204,82 +227,102 @@ class Words:
         return Text(zh=zh, en=en)
 
 
-def _date_words(day: str) -> tuple[Text, Text]:
+def _date_words(day: str, number: int) -> tuple[Text, Text, Text, str]:
     value = date.fromisoformat(day)
-    weekday = WEEKDAYS[value.weekday()]
-    short = Text(zh=f"{value.month}月{value.day}日", en=f"{MONTHS[value.month - 1]} {value.day}")
-    long = Text(zh=f"{value.month}月{value.day}日 {weekday[0]}", en=f"{weekday[1]} {value.day} {MONTHS[value.month - 1]}")
-    return short, long
+    weekday, month = WEEKDAYS[value.weekday()], MONTHS[value.month - 1]
+    short = Text(zh=f"{value.month}月{value.day}日", en=f"{value.day} {month}")
+    long = Text(zh=f"{value.month}月{value.day}日 {weekday[0]}", en=f"{weekday[1]} {value.day} {month}")
+    label = Text(zh=f"第 {number} 天 · {weekday[0]}", en=f"Day {number} · {weekday[1]}")
+    return short, long, label, f"{value.month}/{value.day}"
+
+
+def _span(start: str, end: str) -> Text:
+    first, last = date.fromisoformat(str(start)), date.fromisoformat(str(end))
+    zh = f"{first.year} 年 {first.month} 月 {first.day} 日 — {last.month} 月 {last.day} 日"
+    en = f"{first.day} {MONTHS[first.month - 1]} – {last.day} {MONTHS[last.month - 1]} {last.year}"
+    return Text(zh=zh, en=en)
 
 
 def _quiet(item: Text | None) -> Text | None:
-    """A text of a segment that starts or ends at a stay: the text itself when it carries nothing that localizes the
-    stay (S4h-b), else None (minute times, walking minutes, arrival times and door wording are dropped whole, in both
-    languages; what localizes never survives by hiding behind only one of them)."""
-    return item if item is not None and not stay_segment_dirty(item.zh, item.en) else None
+    """A text of a segment that starts or ends at a stay: the text without what pins the stay to one point (walking
+    minutes from the door, door wording), in both languages; None when nothing is left in one of them."""
+    if item is None:
+        return None
+    zh, en = stay_text(item.zh), stay_text(item.en)
+    return Text(zh=zh, en=en, translated=item.translated) if zh and en else None
 
 
-def _view(plan: dict, words: Words) -> dict:
+def _json(data) -> str:
+    """JSON for a script tag: no `<`, `>` or `&`, and the characters as they are (a scan reads them)."""
+    return json.dumps(data, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+
+
+def _view(plan: dict, words: Words, extras: dict | None = None) -> dict:
     rules = words.rules
+    extras = extras or {}
     places = {place["id"]: place for place in plan.get("places", [])}
+    everyone = {person.get("id") or person.get("name") for person in plan.get("people", [])}
+    zone = ZoneInfo(plan.get("timezone") or "UTC")
 
     def who(subject) -> Text:
+        if everyone and set(subject or []) >= everyone:
+            return words.pair("大家", "Everyone")
         codes = [rules.codes.get(identifier, ("旅伴", "a traveler")) for identifier in subject or []]
         return words.pair("、".join(code[0] for code in codes), ", ".join(code[1] for code in codes))
+
+    def stay_phrase(place: dict) -> Text:
+        kind, area = STAY_KINDS[str(place.get("kind")).strip().casefold()], stay_area(place)
+        return words.pair(f"{area} 的{kind[0]}", f"{article(kind[1])} {kind[1]} in {area}")
 
     def place_view(identifier) -> dict | None:
         place = places.get(identifier)
         if place is None:
             return None
         if is_stay(place):
-            kind = STAY_KINDS[str(place.get("kind")).strip().casefold()]
-            area = stay_area(place)
-            return dict(stay=words.pair(f"住在 {area}（{kind[0]}）", f"Staying in {area} ({kind[1]})"))
+            return dict(id=identifier, stay=stay_phrase(place))
         local = redact(str(place.get("name_local") or place.get("name") or ""), rules.en)
         name = words(place.get("name"))
         if name is not None and name.zh == local:
             name = None
-        return dict(stay=None, local=local, name=name,
+        return dict(id=identifier, stay=None, local=local, name=name, coords=list(place.get("coords") or []) or None,
                     map_url="https://www.google.com/maps/search/?api=1&query=" + quote(local))
 
     def block_view(block: dict, quiet: bool = False, arriving: bool = False) -> dict:
         place = place_view(block.get("place"))
         kind = KINDS.get(block.get("kind"), (str(block.get("kind") or ""), str(block.get("kind") or "")))
+        scrub = _quiet if quiet else (lambda item: item)
         if place and place["stay"]:
             title = place["stay"]
         elif place:
             title = place["name"] or words(place["local"])
         else:
-            title = words(block.get("text"))
-            # S4h-b: a stay-touching segment says only the order; its own words may carry what localizes the stay
-            if quiet and _quiet(title) is None:
-                title = None
+            # a segment that starts or ends at the stay is written as any other, without what pins the stay to a point
+            title = scrub(words(block.get("text")))
             title = title or (words.pair("回住处", "Back to the lodging") if quiet and arriving else None) \
                 or (words.pair("从住处出发", "From the lodging") if quiet else None) or words.pair(*kind)
         how = []
         if block.get("mode"):
-            mode = _quiet(words(block.get("mode"))) if quiet else words(block.get("mode"))
+            mode = scrub(words(block.get("mode")))
             if mode:
                 how.append(mode)
         if block.get("line") and not any(str(block["line"]) in part for item in how for part in (item.zh, item.en)):
-            # S4h-b: a line whose mode was dropped (it carried what localizes the stay) still says which service
-            line = _quiet(words(block["line"])) if quiet else words(block["line"])
+            line = scrub(words(block["line"]))
             if line:
                 how.insert(0, line)
         if block.get("walk_minutes") and not block.get("mode") and not quiet:
             how.append(words.pair(f"步行 {block['walk_minutes']} 分钟", f"{block['walk_minutes']} min walk"))
-        how = [item for item in how if item]
         text = words(block.get("text")) if place else None
-        return dict(start=None if quiet else block.get("start"), end=None if quiet else block.get("end"), kind=words.pair(*kind),
-                    title=title, text=_quiet(text) if quiet else text,
+        return dict(key=str(block.get("kind") or ""), certainty=str(block.get("certainty") or ""),
+                    start=block.get("start"), end=block.get("end"), kind=words.pair(*kind),
+                    title=title, text=scrub(text), place=place,
                     how=words.pair(" · ".join(item.zh for item in how), " · ".join(item.en for item in how)) if how else None,
-                    note=_quiet(words(block.get("note"))) if quiet else words(block.get("note")), place=place,
-                    options=[view for view in map(place_view, block.get("options") or []) if view])
+                    note=scrub(words(block.get("note"))),
+                    options=[view for view in map(place_view, block.get("options") or []) if view and not view["stay"]])
 
     def quiet_flags(blocks: list, base_is_stay: bool) -> list[tuple[bool, bool]]:
-        """Per timeline block: (it starts or ends at a stay, and the stay is the arriving end) — S4h-b. A block touches
-        the stay when its own place is one, its neighbour's is, its words name the lodging, or it is the day's first
-        move out of the stay the day is based at."""
+        """Per timeline block: (it starts or ends at a stay, and the stay is the arriving end). A block touches the stay
+        when its own place is one, its neighbour's is, its words name the lodging, or it is the day's first move out of
+        the stay the day is based at."""
         flags = []
         for index, block in enumerate(blocks):
             here = places.get(block.get("place"))
@@ -299,38 +342,126 @@ def _view(plan: dict, words: Words) -> dict:
             flags.append((touching, arriving))
         return flags
 
+    def glance(main: dict) -> tuple[list[dict], list[dict], list[dict]]:
+        """From the day's main plan: the places to go and the legs, in time order, and the public points for a map."""
+        stops, legs, seen, points = [], [], set(), {}
+        many = len(main["tracks"]) > 1
+        for track in main["tracks"]:
+            label = track["who"] if many and not track["everyone"] else None
+            for block in track["blocks"]:
+                if block["key"] == "travel":
+                    signature = (block["start"], block["end"], block["title"].en, block["how"] and block["how"].en)
+                    if signature not in seen:
+                        seen.add(signature)
+                        legs.append(dict(block, who=label))
+                    continue
+                items = [item for item in ([block["place"]] if block["place"] else block["options"]) if item and not item["stay"]]
+                signature = (block["start"], block["end"], tuple(item["id"] for item in items))
+                if items and signature not in seen:
+                    seen.add(signature)
+                    stops.append(dict(start=block["start"], end=block["end"], kind=block["key"], spots=items, who=label))
+                for item in items:
+                    if item["coords"]:
+                        points.setdefault(item["id"], dict(lat=item["coords"][0], lon=item["coords"][1], href=item["map_url"], external=True,
+                                                           zh=(item["name"].zh if item["name"] else item["local"]),
+                                                           en=(item["name"].en if item["name"] else item["local"])))
+        return sorted(stops, key=lambda row: row["start"] or ""), sorted(legs, key=lambda row: row["start"] or ""), list(points.values())
+
+    def split_title(title: Text | None) -> tuple[Text | None, Text | None]:
+        """"Place: what happens" into the place and the rest, when both languages have the colon."""
+        if title is None:
+            return None, None
+        zh_head, zh_colon, zh_rest = title.zh.partition("：")
+        en_head, en_colon, en_rest = title.en.partition(": ")
+        if zh_colon and en_colon and zh_rest.strip() and en_rest.strip():
+            return Text(zh=zh_head, en=en_head, translated=title.translated), Text(zh=zh_rest, en=en_rest, translated=title.translated)
+        return None, None
+
     days = []
-    for raw in sorted(plan.get("days", []), key=lambda day: day["date"]):
-        short, long = _date_words(raw["date"])
+    raw_days = sorted(plan.get("days", []), key=lambda day: day["date"])
+    for number, raw in enumerate(raw_days, 1):
+        short, long, label, chip = _date_words(raw["date"], number)
         base = places.get(raw.get("base"))
         stay = None
         if base is not None:
-            stay = place_view(base["id"])["stay"] if is_stay(base) else words.pair(
+            stay = stay_phrase(base) if is_stay(base) else words.pair(
                 f"过夜：{redact(str(base.get('name') or base.get('name_local')), rules.zh)}",
                 f"Overnight: {redact(str(base.get('name_local') or base.get('name')), rules.en)}")
+        plans = [dict(name=words(item.get("name")), note=words(item.get("note")),
+                      tracks=[dict(who=who(track.get("subject")), everyone=who(track.get("subject")).en == "Everyone",
+                                   blocks=[block_view(block, quiet=quiet, arriving=arriving)
+                                           for block, (quiet, arriving)
+                                           in zip(track.get("blocks", []), quiet_flags(track.get("blocks", []), is_stay(base)))])
+                              for track in item.get("tracks", [])])
+                 for item in raw.get("plans", [])]
+        stops, legs, points = glance(plans[0]) if plans else ([], [], [])
         days.append(dict(
-            date=raw["date"], short=short, long=long, title=words(raw.get("title")) or long, area=words(raw.get("area")),
-            sunset=raw.get("sunset"), stay=stay, notes=words(raw.get("notes")), rain=words(raw.get("rain_plan")),
-            anchors=[dict(time=anchor.get("time"), text=words(anchor.get("text"))) for anchor in raw.get("anchors", [])],
-            plans=[dict(name=words(item.get("name")), tracks=[dict(who=who(track.get("subject")),
-                                                                    blocks=[block_view(block, quiet=quiet, arriving=arriving)
-                                                                            for block, (quiet, arriving)
-                                                                            in zip(track.get("blocks", []), quiet_flags(track.get("blocks", []), is_stay(base)))])
-                                                               for track in item.get("tracks", [])])
-                   for item in raw.get("plans", [])],
+            date=raw["date"], short=short, long=long, label=label, chip=chip, title=words(raw.get("title")) or long,
+            head=None, rest=None,
+            area=words(raw.get("area")), sunset=raw.get("sunset"), stay=stay, notes=words(raw.get("notes")), rain=words(raw.get("rain_plan")),
+            anchors=[dict(time=anchor.get("time"), text=words(anchor.get("text")),
+                          at=datetime.fromisoformat(f"{raw['date']}T{anchor.get('time')}").replace(tzinfo=zone).isoformat())
+                     for anchor in sorted(raw.get("anchors", []), key=lambda anchor: anchor.get("time") or "")],
+            stops=stops, legs=legs, map_json=_json(dict(points=points)) if points else None, plans=plans,
             candidates=[dict(name=words(slot), places=[view for view in map(place_view, identifiers) if view])
                         for slot, identifiers in (raw.get("candidates") or {}).items()]))
-    people = sorted(rules.codes.items(), key=lambda pair: pair[1])
-    trip_people = [person.get("id") or person.get("name") for person in plan.get("people", [])]
-    travelers = who([identifier for identifier, _ in people if identifier in trip_people])
-    return dict(trip_title=words(plan.get("title")) or words.pair("行程", "Trip"), days=days,
-                span=words.pair(f"{plan.get('start')} → {plan.get('end')}", f"{plan.get('start')} → {plan.get('end')}"),
-                areas=[words(area) for area in plan.get("areas", []) if area],
-                travelers=travelers if travelers.en else None)
+    codes = sorted(rules.codes[person.get("id") or person.get("name")] for person in plan.get("people", [])
+                   if (person.get("id") or person.get("name")) in rules.codes)
+    travelers = Text(zh="、".join(code[0] for code in codes), en=", ".join(code[1] for code in codes))
+    for day in days:
+        day["head"], day["rest"] = split_title(day["title"])
+    route = _route(days, extras, words, places, raw_days)
+    dots = [dict(lat=stop["lat"], lon=stop["lon"], zh=stop["name"].zh, en=stop["name"].en, href=stop["href"], color="#1d1d1f")
+            for stop in route if stop["lat"] is not None]
+    return dict(trip_title=words(plan.get("title")) or words.pair("行程", "Trip"), days=days, route=route,
+                kicker=_span(plan.get("start"), plan.get("end")), intro=words(extras.get("intro")), zone=plan.get("timezone") or "UTC",
+                map_json=_json(dict(points=dots, line=True, big=True)) if dots else None,
+                travelers=travelers if len(everyone) > 1 and travelers.en else None)
+
+
+def _route(days: list[dict], extras: dict, words: Words, places: dict, raw_days: list[dict]) -> list[dict]:
+    """Where the trip goes: the stops given with the trip (`route` in the share extras: name, note, leg to the next stop,
+    the city's lat/lon, the day to open), else runs of days in one area with the nights at a stay between them."""
+    dates = {day["date"] for day in days}
+    given = extras.get("route") or []
+    if given:
+        return [dict(name=words(stop.get("name")), note=words(stop.get("note")), leg=words(stop.get("leg")),
+                     lat=stop.get("lat"), lon=stop.get("lon"),
+                     href=f"{stop['day']}.html" if stop.get("day") in dates else None)
+                for stop in given if stop.get("name")]
+    runs: list[list[int]] = []
+    for index, raw in enumerate(raw_days):
+        if runs and raw_days[runs[-1][-1]].get("area") == raw.get("area"):
+            runs[-1].append(index)
+        else:
+            runs.append([index])
+    route = []
+    for run in runs:
+        first, last = date.fromisoformat(raw_days[run[0]]["date"]), date.fromisoformat(raw_days[run[-1]]["date"])
+        nights = sum(1 for index in run if is_stay(places.get(raw_days[index].get("base"))))
+        points = [place["coords"] for index in run for block in _blocks(raw_days[index]) if (place := places.get(block.get("place")))
+                  and not is_stay(place) and place.get("coords")]
+        span = (f"{first.day}–{last.day} {MONTHS[last.month - 1]}" if first.month == last.month else
+                f"{first.day} {MONTHS[first.month - 1]} – {last.day} {MONTHS[last.month - 1]}") if first != last else \
+            f"{first.day} {MONTHS[first.month - 1]}"
+        zh_span = f"{first.month} 月 {first.day}—{last.day} 日" if first != last and first.month == last.month else \
+            f"{first.month} 月 {first.day} 日—{last.month} 月 {last.day} 日" if first != last else f"{first.month} 月 {first.day} 日"
+        note = words.pair(zh_span + (f" · 住 {nights} 晚" if nights else ""), span + (f" · {nights} night{'s' * (nights != 1)}" if nights else ""))
+        route.append(dict(name=words(raw_days[run[0]].get("area")), note=note, leg=None,
+                          lat=sum(point[0] for point in points) / len(points) if points else None,
+                          lon=sum(point[1] for point in points) / len(points) if points else None,
+                          href=f"{raw_days[run[0]]['date']}.html"))
+    return route
+
+
+def _blocks(raw_day: dict):
+    for item in (raw_day.get("plans") or [])[:1]:
+        for track in item.get("tracks", []):
+            yield from track.get("blocks", [])
 
 
 def _environment() -> Environment:
-    return Environment(loader=DictLoader(dict(base=SHARE_BASE, index=SHARE_INDEX, day=SHARE_DAY)),
+    return Environment(loader=DictLoader(dict(base=SHARE_BASE, map=SHARE_MAP, index=SHARE_INDEX, day=SHARE_DAY)),
                        autoescape=select_autoescape(default=True))
 
 
@@ -338,7 +469,7 @@ def _t(text: Text | None) -> Markup:
     if text is None:
         return Markup("")
     english = (Markup('<span class="en">{}</span>').format(text.en) if text.translated else
-               Markup('<span class="en" lang="zh-CN">{} <span class="orig">(中文)</span></span>').format(text.en))
+               Markup('<span class="en" lang="zh-CN">{}</span>').format(text.en))
     return Markup('<span class="zh" lang="zh-CN">{}</span>').format(text.zh) + english
 
 
@@ -346,18 +477,22 @@ def _label(chinese: str, english: str) -> Markup:
     return Markup('<span class="zh" lang="zh-CN">{}</span><span class="en">{}</span>').format(escape(chinese), escape(english))
 
 
-def render_pages(plan: dict, rules: Rules, *, english: dict[str, str] | None = None, now: datetime | None = None) -> tuple[dict[str, str], list[str]]:
-    """Page name → HTML, and the rewritten Chinese texts that had no English."""
+def render_pages(plan: dict, rules: Rules, *, english: dict[str, str] | None = None, now: datetime | None = None,
+                 extras: dict | None = None) -> tuple[dict[str, str], list[str]]:
+    """Page name → HTML, and the rewritten Chinese texts that had no English. `extras`: `intro` and `route` of the home
+    page (texts as in the plan: Chinese, with their English in `english`)."""
     words = Words(rules, english)
-    view = _view(plan, words)
+    view = _view(plan, words, extras)
     clock = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     environment = _environment()
-    common = dict(view, t=_t, label=_label, style=STYLE, script=SCRIPT, updated=clock.strftime("%Y-%m-%d %H:%M UTC"))
-    pages = {"index.html": environment.get_template("index").render(**dict(common, title=view["trip_title"]))}
+    untranslated = list(words.untranslated)
+    common = dict(view, t=_t, label=_label, style=SHARE_STYLE, script=SHARE_SCRIPT, untranslated=untranslated,
+                  updated=clock.strftime("%Y-%m-%d %H:%M UTC"))
+    pages = {"index.html": environment.get_template("index").render(**dict(common, title=view["trip_title"], current="index"))}
     days = view["days"]
     for index, day in enumerate(days):
         pages[f"{day['date']}.html"] = environment.get_template("day").render(
-            **dict(common, title=Text(zh=day["long"].zh, en=f"{day['long'].en} · {view['trip_title'].en}"), day=day,
+            **dict(common, title=Text(zh=day["long"].zh, en=f"{day['long'].en} · {view['trip_title'].en}"), day=day, current=day["date"],
                    previous=days[index - 1] if index else None, following=days[index + 1] if index + 1 < len(days) else None))
     pages["robots.txt"] = "User-agent: *\nDisallow: /\n"
     pages[".nojekyll"] = ""
@@ -393,31 +528,44 @@ def _replace(stage: Path, output: Path):
         stage.rename(output)
 
 
+SWAPPED = ("person name", "lodging", "flight number")
+
+
 def share_site(plan: dict, out_dir, *, people: list[dict] = (), english: dict[str, str] | None = None,
-               privacy_policy: Policy | None = None, now: datetime | None = None) -> dict:
+               privacy_policy: Policy | None = None, now: datetime | None = None, extras: dict | None = None) -> dict:
     """Build the share pages into `out_dir`: written and scanned in a new folder beside it, swapped in only when clean.
 
-    Raises ShareBlocked (categories and pages, no values) and leaves `out_dir` as it was. Returns
-    `{out, pages, untranslated, rules}`."""
+    A person's name, a stay's name or a flight number that the scan finds anyway is swapped for its generic word in the
+    page it was found on, and the build goes on; anything else it finds raises ShareBlocked (categories and pages, no
+    values) and leaves `out_dir` as it was. Returns `{out, pages, untranslated, swapped, rules}`; `swapped` maps each
+    swapped category to its pages."""
     if not plan or not plan.get("days"):
         raise ValueError("No committed plan with days to share")
     rules = Rules.of(plan, list(people), privacy_policy)
-    pages, untranslated = render_pages(plan, rules, english=english, now=now)
+    pages, untranslated = render_pages(plan, rules, english=english, now=now, extras=extras)
     output = Path(out_dir).expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     stage = Path(tempfile.mkdtemp(prefix=f".{output.name}.new-", dir=output.parent))
     stage.chmod(0o755)  # mkdtemp's 0700 would make the published folder private to this user
+    swapped: dict[str, list[str]] = {}
     try:
         for name, text in pages.items():
             (stage / name).write_text(text, encoding="utf-8")
         findings = scan_tree(stage, rules.zh)
+        if any(category in SWAPPED for category in findings):
+            for category in SWAPPED:
+                for name in findings.get(category, []):
+                    (stage / name).write_text(swap_words((stage / name).read_text(encoding="utf-8"), rules.en), encoding="utf-8")
+                    swapped.setdefault(category, []).append(name)
+            findings = scan_tree(stage, rules.zh)
         if findings:
             raise ShareBlocked(findings)
         _replace(stage, output)
     finally:
         if stage.exists():
             shutil.rmtree(stage, ignore_errors=True)
-    return dict(out=output, pages=sorted(name for name in pages if name.endswith(".html")), untranslated=untranslated, rules=rules)
+    return dict(out=output, pages=sorted(name for name in pages if name.endswith(".html")), untranslated=untranslated,
+                swapped=swapped, rules=rules)
 
 
 def load_trip(root, *, trip: str | None = None, rev: str | None = None) -> tuple[dict, list[dict]]:
