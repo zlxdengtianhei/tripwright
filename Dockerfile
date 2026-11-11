@@ -15,21 +15,21 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates git openssh-client \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 tripwright \
-    && useradd --uid 10001 --gid 10001 --create-home tripwright
+    && useradd --uid 10001 --gid 10001 --create-home tripwright \
+    && install -d -o 10001 -g 10001 -m 700 /data
 # Live travel data by default (set TRIPWRIGHT_PROVIDERS=synthetic only for a demo); the route-search counter lives on
 # the data volume because the root file system is read-only and /tmp forgets it on restart.
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    TRIPWRIGHT_DB=/data/tripwright.sqlite3 \
     TRIPWRIGHT_PROVIDERS=live \
     TRIPWRIGHT_TRANSITOUS_USAGE=/data/transitous-routing.log
 WORKDIR /app
 COPY --from=build /app/.venv/ /app/.venv/
 COPY deploy/healthcheck.py /app/healthcheck.py
 COPY deploy/entrypoint.py /app/entrypoint.py
-# The image starts as root only so the entrypoint can give a platform's root-owned volume (Railway) to UID 10001; it
-# then drops to that user. compose runs it as 10001 from the start (`user:`), and the entrypoint only execs.
+# The image starts as root only so the entrypoint can give a named or platform volume to UID 10001; it then drops to
+# that user. A hardened deployment may instead start as 10001 because /data already belongs to that user.
 EXPOSE 8000
 ENTRYPOINT ["python", "/app/entrypoint.py"]
 # Listens on $PORT when the platform sets it (Railway), else 8000.

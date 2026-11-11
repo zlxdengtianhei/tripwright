@@ -57,7 +57,7 @@ def test_serve_http_without_remote_config_is_live_by_default(tmp_path, monkeypat
 
     seen = {}
     monkeypatch.delenv("TRIPWRIGHT_PROVIDERS", raising=False)
-    monkeypatch.setenv("TRIPWRIGHT_URL_KEY", "t" * 40)
+    monkeypatch.delenv("TRIPWRIGHT_URL_KEY", raising=False)
     monkeypatch.setattr(cli, "serve_http", lambda app, arguments: seen.setdefault("app", app))
     original = cli.open_service
 
@@ -231,8 +231,14 @@ def test_an_existing_personal_data_directory_opens_in_place_from_environment(rem
         app = create_app(config, warm=False, key_file=urlkey.key_file(data, environ))
         async with app.router.lifespan_context(app):
             assert "state" in await tools_at(app, f"https://trip.example/mcp/{KEY}")
-            assert app.state.remote.repository.service.repository.root == mirror
-    asyncio.run(run())
+            service = app.state.remote.repository.service
+            assert service.repository.root == mirror
+            service.committer.sync()
+            receipt = service.turn("local", "Existing deployment still writes.", "old-deploy-write", scenario="quick")
+            service.committer.flush()
+            return receipt["write"]["op_id"]
+    operation = asyncio.run(run())
+    assert operation in remote_log(remote_config)
     assert mirror.is_dir() and all(path.read_bytes() == content for path, content in before.items())
 
 
@@ -243,12 +249,12 @@ def test_url_key_login_opens_the_tenant_and_a_wrong_or_missing_key_does_not(remo
     async def run():
         app = create_app(config, key=KEY, warm=False)
         async with app.router.lifespan_context(app):
-            assert "state" in await tools_at(app, f"https://trip.example/mcp/{KEY}")
+            assert "state" in await tools_at(app, f"https://trip.example/mcp/{KEY}", headers={"Host": "anything.example"})
             async with httpx2.AsyncClient(base_url="https://trip.example", transport=httpx2.ASGITransport(app=app)) as client:
                 wrong = await client.post("/mcp/" + KEY[:-1] + "x", json={})
                 assert wrong.status_code == 404
                 bare = await client.post("/mcp", json={})
-                assert bare.status_code == 401
+                assert bare.status_code == 404
         plain = create_app(config.model_copy(update={"data_dir": config.data_dir.with_name("plain")}), warm=False)
         async with plain.router.lifespan_context(plain):
             async with httpx2.AsyncClient(base_url="https://trip.example", transport=httpx2.ASGITransport(app=plain)) as client:

@@ -4,8 +4,8 @@ This page is step 3 of [SETUP.md](SETUP.md), one section per client. Use it agai
 
 ## What every client needs
 
-- **Address:** `https://<your-domain>/mcp/<key>`, or `http://localhost:8000/mcp/<key>` for Docker without a tunnel. Write the host and port exactly as `TRIPWRIGHT_PUBLIC_URL` has them (`localhost`, not `127.0.0.1`), or the service answers `421`.
-- **Where the commands below get it:** [SETUP.md step 3](SETUP.md#step-3-add-the-address-to-each-client) puts it on the clipboard and checks it. Without a clipboard it is in `~/.tripwright-url`; then use `cat ~/.tripwright-url` wherever a command below uses `pbpaste`. Run the check again before each client, because the user may have copied something else since. Commands such as `claude mcp add … "$(pbpaste)"` keep the address out of what you type, but pass it to the program while it runs, where other accounts on the same computer could see it in the process list.
+- **Address:** `https://<your-domain>/mcp/<key>`, or `http://localhost:8000/mcp/<key>` for Docker without a tunnel. Localhost and tunnel addresses work together; Host headers are not restricted.
+- **Where the commands below get it:** [SETUP.md step 4](SETUP.md#4-add-the-address-to-each-ai-app) prints the address with `tripwright address`. Copy it from your own terminal and paste it into the commands below. The `pbpaste` substitutions are optional conveniences, not a requirement to hide it from the terminal; use the printed address directly where that is simpler.
 - **Transport:** Streamable HTTP. Clients often call it "HTTP".
 - **Authentication:** none ("No sign-in", "No authentication"). The key is in the address.
 - **Name:** `tripwright` in coding clients (Claude Code, Codex, Cursor): the trip repository's settings and subagents expect this name. Chat apps such as Claude and ChatGPT only display the name, so `Tripwright` is fine there.
@@ -100,7 +100,7 @@ link=$(pbpaste | python3 -c 'import sys, urllib.parse as u; print("https://claud
 open "$link"; unset link      # Linux: xdg-open
 ```
 
-The link only fills in the form; nothing is added until the user confirms. The browser history keeps the link, and the link contains the key. Without a browser on this computer, leave the address on the clipboard and give the user the steps below; if the clipboard cannot reach the user, see the one exception in [SETUP.md step 3](SETUP.md#step-3-add-the-address-to-each-client).
+The link only fills in the form; nothing is added until the user confirms. The browser history keeps the link, and the link contains the key. Without a browser on this computer, give the user the printed address and the steps below.
 
 **User does:**
 
@@ -124,7 +124,7 @@ The link only fills in the form; nothing is added until the user confirms. The b
 - **Pro:** only tools marked read-only. Tripwright marks only `state` and `explain` read-only, so on Pro ChatGPT can read the trip but cannot look up transport or change the plan.
 - **Plus, Go, Free:** the article does not say. Check whether **Add custom MCP server** appears.
 
-**Agent does:** put the address on the clipboard and give the user the steps below; if the clipboard cannot reach the user, see the one exception in [SETUP.md step 3](SETUP.md#step-3-add-the-address-to-each-client). We found no install link or interface that adds it for them.
+**Agent does:** give the user the printed address and the steps below. We found no install link or interface that adds it for them.
 
 **User does,** on chatgpt.com in a browser (the mobile app cannot add one):
 

@@ -227,7 +227,7 @@ async def over_http(directory: Path) -> dict:
                 if process.poll() is not None:
                     raise RuntimeError("HTTP server exited: " + process.stderr.read())
                 try:
-                    if (await client.get(base)).status_code == 401:
+                    if (await client.get(base)).status_code == 404:
                         break
                 except httpx2.TransportError:
                     await asyncio.sleep(0.05)

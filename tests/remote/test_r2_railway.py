@@ -12,7 +12,6 @@ import pytest
 from tripwright.remote.envconfig import config_from_env, github_repo, wanted
 
 URL_KEY = "u" * 40
-KEY = "fixture-deploy-key-line-1\nfixture-deploy-key-line-2"  # stand-in text: the service stores it as given, never parses it
 HOST_KEYS = ["ssh-ed25519 AAAAC3fixture", "ecdsa-sha2-nistp256 AAAAE2fixture"]
 
 
@@ -28,13 +27,13 @@ def test_other_hosts_keep_their_address():
 
 def test_railway_variables_make_a_github_tenant_with_a_600_key_and_pinned_443_host_keys(tmp_path):
     environ = {"RAILWAY_PUBLIC_DOMAIN": "trip-production.up.railway.app", "TRIPWRIGHT_DATA_DIR": str(tmp_path / "remote"),
-               "TRIPWRIGHT_REPO_URL": "https://github.com/owner/trip",
-               "TRIPWRIGHT_DEPLOY_KEY": KEY.replace("\n", "\\n")}  # a one-line web form keeps literal \n
+               "TRIPWRIGHT_REPO_URL": "https://github.com/owner/trip"}
     assert wanted(environ)
     config = config_from_env(environ, fetch_keys=lambda: HOST_KEYS)
     assert config.public_url == "https://trip-production.up.railway.app"
     assert config.repo_url == "ssh://git@ssh.github.com:443/owner/trip.git"
-    assert config.ssh_key.read_text() == KEY + "\n" and stat.S_IMODE(config.ssh_key.stat().st_mode) == 0o600
+    assert config.ssh_key.is_file() and stat.S_IMODE(config.ssh_key.stat().st_mode) == 0o600
+    assert (tmp_path / "remote" / "ssh" / "deploy_key.pub").read_text().startswith("ssh-ed25519 ")
     hosts = config.known_hosts.read_text().splitlines()
     assert "[ssh.github.com]:443 ssh-ed25519 AAAAC3fixture" in hosts and "github.com ssh-ed25519 AAAAC3fixture" in hosts
 
@@ -44,13 +43,13 @@ def test_without_a_repository_the_variables_make_a_local_repository(tmp_path):
     assert config.repo_url is None
 
 
-def test_missing_pieces_are_refused_with_what_to_set(tmp_path):
+def test_no_variables_are_needed_and_an_old_private_key_variable_is_ignored(tmp_path, caplog):
     assert not wanted({"TRIPWRIGHT_URL_KEY": URL_KEY})
-    with pytest.raises(ValueError, match="TRIPWRIGHT_DEPLOY_KEY"):
-        config_from_env({"TRIPWRIGHT_PUBLIC_URL": "https://trip.example", "TRIPWRIGHT_DATA_DIR": str(tmp_path),
-                         "TRIPWRIGHT_REPO_URL": "git@github.com:owner/trip.git"})
-    with pytest.raises(ValueError, match="TRIPWRIGHT_PUBLIC_URL"):
-        config_from_env({"TRIPWRIGHT_REPO_URL": "git@github.com:owner/trip.git"})
+    config = config_from_env({"TRIPWRIGHT_DATA_DIR": str(tmp_path), "PORT": "18000",
+                              "TRIPWRIGHT_DEPLOY_KEY": "old-unused-private-value"})
+    assert config.public_url == "http://localhost:18000" and config.repo_url is None
+    assert not (tmp_path / "ssh" / "deploy_key").exists()
+    assert "TRIPWRIGHT_DEPLOY_KEY is ignored" in caplog.text and "old-unused-private-value" not in caplog.text
 
 
 def test_serve_reads_port_and_starts_the_remote_app_from_variables(tmp_path, monkeypatch):

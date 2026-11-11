@@ -4,12 +4,10 @@ from __future__ import annotations
 import logging
 import os
 import shlex
-import subprocess
-import tempfile
 from pathlib import Path
 
 from tripwright.remote.config import RemoteConfig
-from tripwright.repo.git import Git, failure_kind, run_group
+from tripwright.repo.git import Git
 from tripwright.repo.workspace import Repository
 from tripwright.storage import Store
 
@@ -85,26 +83,27 @@ class PersonalRepository:
         root.mkdir(parents=True, exist_ok=True, mode=0o700)
         root.chmod(0o700)
         mirror = root / "mirror"
+        if config.repo_url is not None:
+            from tripwright.remote.connection import connect_for_open
+
+            try:
+                connect_for_open(config)
+            except ValueError as error:
+                raise TenantProblem("auth", str(error)) from error
         command = ssh_command(config)
         if not mirror.exists():
-            with tempfile.TemporaryDirectory(prefix=".clone-", dir=root) as staging:
-                incoming = Path(staging) / "mirror"
-                if config.repo_url is None:
-                    from tripwright.repo.workspace import init
+            from tripwright.repo.workspace import init
 
-                    init(incoming, branch=config.branch)
-                    log.warning("created a local trip repository (no repo_url); back up the data volume")
-                else:
-                    self._clone(config, command, incoming)
-                incoming.rename(mirror)
+            init(mirror, branch=config.branch)
+            log.warning("created a local trip repository (no repo_url); back up the data volume")
         # This process is the mirror's only writer (one instance per data volume), so a lock file is a crash's leftover.
         removed = Git(mirror).clear_locks()
         if removed:
             log.warning("removed leftover Git locks %s", ", ".join(removed))
         repository = Repository(mirror, owner="local", branch=config.branch)
         if repository.git.remote_url("origin") != config.repo_url:
-            raise TenantProblem("config", "Existing personal mirror has a different origin; refusing to repoint it "
-                                          "(move the mirror folder away to clone the new repository)")
+            raise TenantProblem("config", "Existing personal mirror has a different origin; run `tripwright repo connect` "
+                                          "to check and connect it without moving data by hand")
         if repository.git.branch() != config.branch:
             raise TenantProblem("config", "Existing personal mirror follows a different branch; refusing to push its HEAD")
         if command:
@@ -125,23 +124,6 @@ class PersonalRepository:
             raise
         self.opened["personal"] = (store, service)
         return service
-
-    def _clone(self, config: RemoteConfig, command: str | None, incoming: Path):
-        try:
-            process = run_group(
-                ["git", "-c", "core.hooksPath=/dev/null", "clone", "--quiet", "--branch", config.branch,
-                 "--", config.repo_url, str(incoming)],
-                env={**os.environ, "GIT_TERMINAL_PROMPT": "0", **({"GIT_SSH_COMMAND": command} if command else {})},
-                timeout=45,
-            )
-        except subprocess.TimeoutExpired:
-            raise TenantProblem("network", "git clone timed out after 45 s") from None
-        if process.returncode:
-            # SSH diagnostics may contain local paths: they go to the operator's log, never to a caller.
-            text = process.stderr.decode(errors="replace").strip()
-            lowered = text.casefold()
-            kind = "branch" if "not found in upstream" in lowered or "remote branch" in lowered else failure_kind(text)
-            raise TenantProblem(kind if kind in HINTS else "other", text or f"git clone exited {process.returncode}")
 
     def close(self):
         for store, _ in self.opened.values():

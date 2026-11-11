@@ -12,7 +12,6 @@ from collections import deque
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
@@ -83,8 +82,7 @@ class Remote:
                             raise
                         if self.health.get("status") != "ok":
                             self.health = dict(status="ok", checked_at=_stamp())
-                        security = TransportSecuritySettings(enable_dns_rebinding_protection=True,
-                            allowed_hosts=[urlsplit(self.config.public_url).netloc], allowed_origins=[self.config.public_url])
+                        security = TransportSecuritySettings(enable_dns_rebinding_protection=False)
                         child = http_app(service, host=self.host, transport_security=security)
                         async with child.router.lifespan_context(child):
                             ready.set_result(child)
@@ -174,7 +172,7 @@ class Remote:
             return
         path = scope["path"]
         if path in ("/mcp", "/mcp/"):
-            return await PlainTextResponse("URL key required", status_code=401)(scope, receive, send)
+            return await PlainTextResponse("Not found", status_code=404)(scope, receive, send)
         if not path.startswith("/mcp/"):
             return await PlainTextResponse("Not found", status_code=404)(scope, receive, send)
         # /mcp/<key> is the whole credential. Never logged (uvicorn's access log is off).

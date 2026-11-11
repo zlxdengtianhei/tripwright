@@ -469,15 +469,48 @@ def serve_http(app, arguments):
                 access_log=False, timeout_graceful_shutdown=5)
 
 
-def environment_config() -> bool:
-    from tripwright.remote.envconfig import wanted
+def print_address(arguments) -> int:
+    from tripwright.remote.envconfig import config_from_env
+    from tripwright.remote.urlkey import key_file, ensure
 
-    return wanted()
+    try:
+        from tripwright.remote.connection import use_data_directory
+
+        use_data_directory(os.environ.get("TRIPWRIGHT_DATA_DIR") or "/data/remote")
+        config = config_from_env()
+        path = key_file(config.data_dir)
+        key = os.environ.get("TRIPWRIGHT_URL_KEY") or (ensure(path) if path is not None else None)
+        if key is None:
+            raise ValueError("URL-key generation is off; set TRIPWRIGHT_URL_KEY or remove TRIPWRIGHT_URL_KEY_GENERATE=0")
+        base = arguments.base or config.public_url
+        from tripwright.remote.config import RemoteConfig
+
+        base = RemoteConfig(public_url=base, data_dir=config.data_dir).public_url
+        print(f"{base}/mcp/{key}")
+    except (ValueError, OSError) as error:
+        print(f"tripwright: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def run_repo(arguments) -> int:
+    from tripwright.remote.connection import connect, data_directory, repo_key, use_data_directory
+
+    try:
+        data_dir = use_data_directory(data_directory())
+        if arguments.repo_command == "key":
+            print(repo_key(data_dir))
+        else:
+            print(connect(data_dir, arguments.repository, arguments.branch))
+    except (ValueError, OSError, GitError) as error:
+        print(f"tripwright: {error}", file=sys.stderr)
+        return 1
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="tripwright", description="Travel planning with a scoped requirements ledger and committed versions.")
-    parser.add_argument("--db", default=os.environ.get("TRIPWRIGHT_DB", str(Path.home() / ".local/share/tripwright/tripwright.sqlite3")))
+    parser.add_argument("--db", default=os.environ.get("TRIPWRIGHT_DB"))
     parser.add_argument("--repo", default=os.environ.get("TRIPWRIGHT_REPO"),
                         help="Trip repository folder: its files are the canonical records; the index lives in <repo>/.tripwright/")
     parser.add_argument("--local-user", default="local", help="Local CLI/stdio identity")
@@ -489,6 +522,14 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--port", type=int, default=int(os.environ.get("PORT") or 8000), help="Default: $PORT, else 8000")
     serve.add_argument("--host", default="127.0.0.1")
     commands.add_parser("demo", help="Run the fictional vertical slice in a temporary database")
+    address = commands.add_parser("address", help="Print the complete MCP connector address (this prints the URL key)")
+    address.add_argument("--base", help="Public origin to use instead of TRIPWRIGHT_PUBLIC_URL or localhost:$PORT")
+    repo = commands.add_parser("repo", help="Create the deploy key or connect the personal trip repository")
+    repo_commands = repo.add_subparsers(dest="repo_command", required=True)
+    repo_commands.add_parser("key", help="Print the stable ed25519 public deploy key; the private key stays on the volume")
+    connect = repo_commands.add_parser("connect", help="Connect a repository safely, pushing an empty remote or adopting its trips")
+    connect.add_argument("repository")
+    connect.add_argument("--branch", default="main")
     hook = commands.add_parser("hook", help="Claude Code hooks: stop blocks a second part that differs from what check_answer passed; "
                                             "first-part denies lookups until the first part is sent")
     hook.add_argument("event", choices=["stop", "first-part"])
@@ -547,6 +588,13 @@ def main(argv: list[str] | None = None) -> int:
     restore = commands.add_parser("import", help="Import an exported directory into an empty user store")
     restore.add_argument("source")
     arguments = parser.parse_args(argv)
+    local_http = arguments.command == "serve" and arguments.http and bool(arguments.repo or arguments.db)
+    if arguments.db is None:
+        arguments.db = str(Path.home() / ".local/share/tripwright/tripwright.sqlite3")
+    if arguments.command == "address":
+        return print_address(arguments)
+    if arguments.command == "repo":
+        return run_repo(arguments)
     if arguments.command == "agents":
         from tripwright.agents.__main__ import main as agents_main
 
@@ -594,7 +642,7 @@ def main(argv: list[str] | None = None) -> int:
         return run_first_part(arguments)
     if arguments.command == "serve" and arguments.http:
         server_logging()
-    if arguments.command == "serve" and arguments.http and environment_config():
+    if arguments.command == "serve" and arguments.http and not local_http:
         from tripwright.remote.app import create_app, url_key
         from tripwright.remote.envconfig import config_from_env
         from tripwright.remote.urlkey import key_file

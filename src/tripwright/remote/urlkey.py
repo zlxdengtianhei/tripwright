@@ -1,6 +1,5 @@
-"""A URL key the service makes itself (TRIPWRIGHT_URL_KEY_GENERATE=1), so the key is never typed into a command line, a
-platform's variable form or a chat: the first start writes it to `url-key` in the data directory (mode 600) and every
-later start reads it. Only the file holds it; the log says where it is, never what it is."""
+"""The service generates a URL key by default. The first start writes `url-key` (mode 600); later starts read it.
+Set TRIPWRIGHT_URL_KEY_GENERATE=0 only to disable generation, or TRIPWRIGHT_URL_KEY to choose a key explicitly."""
 from __future__ import annotations
 
 import logging
@@ -18,7 +17,8 @@ ON, OFF = {"1", "true", "yes", "on"}, {"", "0", "false", "no", "off"}
 
 
 def requested(environ=os.environ) -> bool:
-    value = (environ.get(SWITCH) or "").strip().casefold()
+    given = environ.get(SWITCH)
+    value = ("1" if given is None else given).strip().casefold()
     if value in ON | OFF:
         return value in ON
     raise ValueError(f"{SWITCH} must be 1 (generate a URL key) or 0; it is a switch, not the key")
@@ -77,10 +77,6 @@ def ensure(path: Path) -> str:
             return read(path)
     finally:
         scratch.unlink(missing_ok=True)
-    log.warning("generated a URL key in %s (not shown in logs): read it with %s; "
-                "delete the file and restart to replace it", path, reader(path))
+    log.warning("generated a URL key in %s (not shown in logs): run `tripwright address` to print the connector; "
+                "delete the file and restart to replace it", path)
     return key
-
-
-def reader(path: Path) -> str:
-    return f"`railway ssh -- cat {path}` on Railway or `docker exec <container> cat {path}` with Docker"

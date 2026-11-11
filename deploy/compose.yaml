@@ -6,7 +6,7 @@ services:
     container_name: tripwright-app
     build:
       context: ..
-      dockerfile: deploy/Dockerfile
+      dockerfile: Dockerfile
     restart: unless-stopped
     init: true
     # Runs as the image's unprivileged user; the entrypoint's root-only volume fix is for platforms without compose.

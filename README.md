@@ -24,7 +24,7 @@ The server's tools, MCP prompts and local role instructions put these rules into
 2. **Connect a private GitHub repository** to hold your trips. This step is optional. Without it, the trips stay in a Git repository inside your deployment, and you make the backups yourself.
 3. **Add the address to your client.** In Claude and ChatGPT, only the account owner can add a connector, in the app's settings.
 
-For the first deployment, give [deploy/SETUP.md](deploy/SETUP.md) to your coding agent (Claude Code, Codex or similar) and let it follow the steps. You only create a Railway account or install Docker, and add the connector in your app; the agent gives you the address once, at the end. SETUP.md also covers Railway costs, and [deploy/CLIENTS.md](deploy/CLIENTS.md) has the steps for each client (Claude Code, Codex, Claude, ChatGPT, Cursor and others).
+For the first deployment, give [deploy/SETUP.md](deploy/SETUP.md) to your coding agent (Claude Code, Codex or similar) and let it follow the steps. The agent installs and configures Docker or Railway; you only confirm account access, a system password or payment when needed, and click Add in your app. Docker starts with three commands, and connecting a private repository takes three more. SETUP.md also covers Railway costs, and [deploy/CLIENTS.md](deploy/CLIENTS.md) has the steps for each client (Claude Code, Codex, Claude, ChatGPT, Cursor and others).
 
 ## Try locally
 

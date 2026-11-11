@@ -1,6 +1,5 @@
-"""R2d: the service makes its own URL key (TRIPWRIGHT_URL_KEY_GENERATE=1) so nobody types it into a command line or a
-chat. The file is 600 in the data directory, a restart reads it instead of making another, a key given explicitly
-wins, and the key appears in no log line and no health answer."""
+"""The service makes its own URL key by default. The file is 600, a restart reads it, an explicit key wins,
+and the key appears in no log line and no health answer."""
 from __future__ import annotations
 
 import asyncio
@@ -62,7 +61,7 @@ def test_the_first_start_generates_a_600_key_that_signs_in_and_is_never_logged(r
     assert remote.volume["state"] == "new" and (config.data_dir / MARKER).exists()
     lines = server_lines(caplog)
     made = [line for line in lines if line.startswith("generated a URL key")]
-    assert len(made) == 1 and str(key_file) in made[0] and "railway ssh -- cat" in made[0] and "docker exec" in made[0]
+    assert len(made) == 1 and str(key_file) in made[0] and "tripwright address" in made[0]
     assert not any(key in line for line in lines), "the key itself is never logged"
     assert key not in bodies, "/healthz and /readyz never carry it"
     assert not list(config.data_dir.glob(".url-key.*")), "no scratch file is left behind"
@@ -112,7 +111,7 @@ def test_an_explicit_key_wins_and_the_log_says_so(remote_config, tmp_path, monke
     assert len(seen["app"].state.remote.url_keys) == 1 and not (tmp_path / "railway" / "url-key").exists()
 
 
-def test_serve_with_only_the_switch_generates_the_key_on_railway(tmp_path, monkeypatch, caplog):
+def test_serve_generates_the_key_by_default_on_railway(tmp_path, monkeypatch, caplog):
     from tripwright import cli
 
     seen = {}
@@ -120,7 +119,7 @@ def test_serve_with_only_the_switch_generates_the_key_on_railway(tmp_path, monke
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("RAILWAY_PUBLIC_DOMAIN", "trip.up.railway.app")
     monkeypatch.setenv("TRIPWRIGHT_DATA_DIR", str(tmp_path / "remote"))
-    monkeypatch.setenv(urlkey.SWITCH, "1")
+    monkeypatch.delenv(urlkey.SWITCH, raising=False)
     monkeypatch.setattr(cli, "serve_http", lambda app, arguments: seen.update(app=app))
     assert cli.main(["serve", "--http"]) == 0
     key_file = tmp_path / "remote" / "url-key"
@@ -148,7 +147,7 @@ def test_the_switch_is_a_switch_not_a_key(value):
 @pytest.mark.parametrize("value", ["", "0", "false", "off"])
 def test_the_switch_off_reads_and_makes_nothing(value, tmp_path):
     assert urlkey.key_file(tmp_path, {urlkey.SWITCH: value}) is None
-    assert urlkey.key_file(tmp_path, {}) is None
+    assert urlkey.key_file(tmp_path, {}) == tmp_path / "url-key"
 
 
 @pytest.mark.parametrize("content", ["", "short-key\n", "x" * 31, "a" * 40 + " b", "ключ" * 10])

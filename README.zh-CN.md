@@ -24,7 +24,7 @@
 2. **连 GitHub 私有仓**存行程。这一步可以不做；不做时，行程存在部署里的一个本地 Git 仓，备份要自己做。
 3. **把地址加进你的客户端。** 在 Claude 和 ChatGPT 里，只有账号主人能在 App 的设置里加连接器。
 
-第一次部署，把 [deploy/SETUP.md](deploy/SETUP.md) 交给你的编码 agent（Claude Code、Codex 等）照做。你只需要注册 Railway 或装好 Docker，再在 App 里加连接器；地址由 agent 在最后交给你一次。Railway 的费用也写在 SETUP.md 里；各客户端（Claude Code、Codex、Claude、ChatGPT、Cursor 等）的步骤在 [deploy/CLIENTS.md](deploy/CLIENTS.md)。
+第一次部署，把 [deploy/SETUP.md](deploy/SETUP.md) 交给你的编码 agent（Claude Code、Codex 等）照做。Docker 或 Railway 的安装和配置都由 agent 做；你只需在需要时确认账号、输入一次系统密码或处理付费，再在 App 里点添加。Docker 三条命令起服务，连私有仓再用三条。Railway 的费用也写在 SETUP.md 里；各客户端（Claude Code、Codex、Claude、ChatGPT、Cursor 等）的步骤在 [deploy/CLIENTS.md](deploy/CLIENTS.md)。
 
 ## 本地试用
 

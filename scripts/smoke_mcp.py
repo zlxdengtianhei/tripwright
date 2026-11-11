@@ -82,7 +82,7 @@ async def http(directory: Path):
                 except httpx2.TransportError:
                     await asyncio.sleep(0.05)
                 else:
-                    assert response.status_code == 401
+                    assert response.status_code == 404
                     break
             else:
                 raise RuntimeError("HTTP server did not start")
