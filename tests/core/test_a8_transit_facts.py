@@ -162,7 +162,7 @@ def make(tmp_path, monkeypatch):
                                      clock=lambda: moment)
         service = Tripwright(store, query_router=QueryRouter(store, transit=transit))
         made.append((service, store))
-        turn = service.turn("local", "Create the trip.", "seed")
+        turn = service.turn("local", "创建行程。", "seed")
         draft = service.propose("local", ctx_id=turn["ctx_id"], base_version=0, plan=vienna_plan(anchors), idempotency_key="seed")
         service.commit("local", draft["draft_id"], "seed", accept_unverified=True)
         return service

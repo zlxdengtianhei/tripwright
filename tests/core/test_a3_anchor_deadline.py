@@ -53,7 +53,7 @@ def service(tmp_path):
 
 
 def committed(service, plan) -> dict:
-    turn = service.turn("alice", "Create the trip.", "seed")
+    turn = service.turn("alice", "创建行程。", "seed")
     draft = service.propose("alice", ctx_id=turn["ctx_id"], base_version=0, plan=plan, idempotency_key="seed")
     return service.commit("alice", draft["draft_id"], "seed", accept_unverified=True)
 
@@ -69,7 +69,7 @@ def test_old_data_without_the_field_reads_and_counts_as_not_marked():
 def test_the_pack_writes_external_plan_and_unmarked_apart(service, monkeypatch):
     version = committed(service, anchored_plan(**{"hn-counter": "external", "hn-arrive": "plan"}))
     monkeypatch.setattr(snapshots, "now", lambda: "2030-06-10T20:00:00+02:00")
-    turn = service.turn("alice", "How late can I leave for the ferry?", "q", scenario="quick", scope={"start": DAY})
+    turn = service.turn("alice", "坐渡轮最晚几点出发？", "q", scenario="quick", scope={"start": DAY})
     records = turn["pack"]["meta"]["required"]["hard_nodes"]["ids"]
     assert records == ["hn-arrive", "hn-counter", "hn-last-bus"]
     lines = {line.split("]")[0].split("[")[1]: line for line in turn["pack"]["markdown"].splitlines() if line.startswith("硬节点：")}

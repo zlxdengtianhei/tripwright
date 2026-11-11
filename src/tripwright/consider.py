@@ -187,6 +187,7 @@ def sources(store, owner: str, plan: dict | None, *, at: str, language: str = "z
     entries = settings(store, owner, at=at)
     overridden = overrides(entries)
     rows = [region_row(region)] if region else regions_of(plan)
+    rows = [dict(row, name=row["name_en"] if key == "en" else row["name"]) for row in rows]
     found = []
 
     def add(entry_id: str, kind: str, text: str, source: dict, **extra):

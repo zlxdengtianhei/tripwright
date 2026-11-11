@@ -31,7 +31,7 @@ def anchored_plan() -> dict:
 def anchored(tmp_path):
     store = Store(tmp_path / "a2.sqlite3")
     service = Tripwright(store)
-    turn = service.turn("alice", "Create the example.", "seed")
+    turn = service.turn("alice", "创建示例行程。", "seed")
     draft = service.propose("alice", ctx_id=turn["ctx_id"], base_version=0, plan=anchored_plan(), idempotency_key="seed")
     service.commit("alice", draft["draft_id"], "seed", accept_unverified=True)
     yield service
@@ -41,7 +41,7 @@ def anchored(tmp_path):
 
 def test_turn_says_now_in_the_trip_zone_and_the_pack_starts_with_it(anchored, monkeypatch):
     monkeypatch.setattr(snapshots, "now", lambda: "2030-06-10T10:25:00+00:00")
-    turn = anchored.turn("alice", "How late can I leave?", "q1", scenario="quick")
+    turn = anchored.turn("alice", "最晚几点出发？", "q1", scenario="quick")
     assert turn["now"] == dict(at="2030-06-10T12:25:00+02:00", date="2030-06-10", time="12:25", weekday=1, timezone="Europe/Oslo",
                                text="现在 12:25（Europe/Oslo，06-10 周一）")
     assert turn["pack"]["markdown"].startswith("# 现在 12:25（Europe/Oslo，06-10 周一）｜约束包 ")
@@ -60,7 +60,7 @@ def test_turn_marks_passed_hard_nodes_lists_upcoming_first_and_says_where_each_t
 
 
 def test_every_state_view_carries_now(anchored):
-    turn = anchored.turn("alice", "Plan check.", "q3")
+    turn = anchored.turn("alice", "检查计划。", "q3")
     draft = anchored.propose("alice", ctx_id=turn["ctx_id"], base_version=1, plan=anchored_plan(), idempotency_key="again")
     views = dict(current={}, day=dict(date="2030-06-10"), ledger={}, decisions={}, profile={}, memory={}, pack=dict(draft_id=draft["draft_id"]),
                  sync={}, export={})

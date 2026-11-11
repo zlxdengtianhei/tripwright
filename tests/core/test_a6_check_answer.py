@@ -52,7 +52,7 @@ def test_latest_departure_is_compact_by_default_and_full_on_request(tmp_path, mo
     store = Store(tmp_path / "street.sqlite3")
     service = Tripwright(store, query_router=QueryRouter(store, transit=timetable.provider(clock=lambda: NOW)))
     try:
-        turn = service.turn("local", "Create the trip.", "seed")
+        turn = service.turn("local", "创建行程。", "seed")
         draft = service.propose("local", ctx_id=turn["ctx_id"], base_version=0, plan=PLAN, idempotency_key="seed")
         service.commit("local", draft["draft_id"], "seed", accept_unverified=True)
         arguments = dict(origin="Lindenallee 12, Nordstadt", destination=DESTINATION, anchor_id="hn-arrive", after="2030-06-10T19:00:00+02:00")

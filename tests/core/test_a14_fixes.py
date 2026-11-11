@@ -56,7 +56,7 @@ def make(tmp_path, monkeypatch):
         area = plan["places"][0]["area"]
         plan["places"] += [dict(deepcopy(place), area=area) for place in (NORTH, SOUTH, LUNCH, *FOOD)]
         plan["days"][0]["plans"] = [dict(name="Recommended", tracks=deepcopy(tracks))]
-        turn = service.turn("local", "Create the trip.", "seed")
+        turn = service.turn("local", "创建行程。", "seed")
         made_draft = service.propose("local", ctx_id=turn["ctx_id"], base_version=0, plan=plan, idempotency_key="seed")
         service.commit("local", made_draft["draft_id"], "seed", accept_unverified=True)
         return service

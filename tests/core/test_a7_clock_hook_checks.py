@@ -42,10 +42,10 @@ def test_evidence_reads_the_pinned_clock(tmp_path, monkeypatch):
     store = Store(tmp_path / "pinned.sqlite3")
     service = Tripwright(store, query_router=QueryRouter(store, transit=Timetable().provider(), pages=page_reader()))
     try:
-        turn = service.turn("alice", "Create the trip.", "seed")
+        turn = service.turn("alice", "创建行程。", "seed")
         draft = service.propose("alice", ctx_id=turn["ctx_id"], base_version=0, plan=anchored_plan(), idempotency_key="seed")
         service.commit("alice", draft["draft_id"], "seed", accept_unverified=True)
-        asked = service.turn("alice", "How late can I leave?", "q1", scenario="quick")
+        asked = service.turn("alice", "检查现在时间。", "q1", scenario="quick")
         assert asked["now"]["date"] == "2030-06-10" and asked["now"]["time"] == "20:45"
         assert asked["pack"]["markdown"].startswith("# 现在 20:45（Europe/Oslo，06-10 周一）")
         latest = asyncio.run(service.query("alice", "latest_departure", dict(origin=ORIGIN, destination=DESTINATION, anchor_id="hn-counter")))

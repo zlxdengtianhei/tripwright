@@ -85,7 +85,7 @@ def make(tmp_path, monkeypatch):
         made.append((service, store))
         plan = airport_plan([deepcopy(anchor) for anchor in today], [deepcopy(anchor) for anchor in tomorrow])
         plan["places"] += [dict(place, area=plan["places"][0]["area"]) for place in places]
-        turn = service.turn("local", "Create the trip.", "seed")
+        turn = service.turn("local", "创建行程。", "seed")
         made_draft = service.propose("local", ctx_id=turn["ctx_id"], base_version=0, plan=plan, idempotency_key="seed")
         service.commit("local", made_draft["draft_id"], "seed", accept_unverified=True)
         return service

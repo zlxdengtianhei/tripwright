@@ -69,7 +69,7 @@ def seeded(path) -> None:
     store = Store(path)
     service = Tripwright(store, query_router=QueryRouter(store, mode="synthetic"))
     try:
-        turn = service.turn("local", "Create the trip.", "seed")
+        turn = service.turn("local", "创建行程。", "seed")
         draft = service.propose("local", ctx_id=turn["ctx_id"], base_version=0, plan=PLAN, idempotency_key="seed")
         service.commit("local", draft["draft_id"], "seed", accept_unverified=True)
     finally:

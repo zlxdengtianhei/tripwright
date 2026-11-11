@@ -102,7 +102,7 @@ async def stdio_round(folder) -> dict:
                 assert not response.is_error, response.content
                 return response.structured_content
 
-            turn = await call("turn", dict(text="Create the trip.", request_id="seed"))
+            turn = await call("turn", dict(text="创建行程。", request_id="seed"))
             draft = await call("propose", dict(ctx_id=turn["ctx_id"], base_version=0, plan=plan(), idempotency_key="seed"))
             committed = await call("commit", dict(draft_id=draft["draft_id"], idempotency_key="seed", accept_unverified=True))
             verify = await call("state", dict(view="pack", draft_id=draft["draft_id"]))

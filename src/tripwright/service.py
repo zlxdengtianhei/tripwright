@@ -31,6 +31,15 @@ SKELETON = {"quick": "quick", "status": "quick"}
 FRAME_MINUTES = packs.STEP_MINUTES  # S4h-a: a quick latest question's frame holds for lookups this long after its turn
 FIRST_TITLES = dict(zh="按存的计划先说（时刻还没核）", en="From the stored plan first (times not checked yet)")
 SECOND_TITLES = dict(zh="核过之后", en="After checking")
+MEMORY_ASK = dict(zh="长期条目待确认：在对话里问用户这趟还用不用；按回答调 turn(record={carry:[{id,status}]})。",
+                  en="Long-term entries need confirmation: ask whether they still apply to this trip; record the answer with "
+                     "turn(record={carry:[{id,status}]}).")
+
+
+def message_language(text: str) -> str:
+    return "zh" if re.search(r"[\u4e00-\u9fff]", text) else "en"
+
+
 # Reply flow "two" (TRIPWRIGHT_REPLY_FLOW): the one sentence a host follows reliably is "send this and end the reply"
 # with the first part's own closing line; anything about the second part in the same field makes it go on (replays
 # of 2026-11-11). What comes after waits in after_first_part.
@@ -253,6 +262,7 @@ class Tripwright:
              exclude_keys: list[str] | None = None, speaker: str | None = None, record: dict | None = None,
              new_trip: str | None = None, points: list | None = None) -> dict:
         self.bound(owner)
+        language = message_language(text)
         current_plan = self.versions.current(owner)["plan"]
         speaker = person_id(speaker, current_plan, "speaker")
         subject = person_list(subject, current_plan, "subject")
@@ -292,13 +302,15 @@ class Tripwright:
                 if record_input:
                     try:
                         with self.store.attempt():
-                            changes, recorded = self._record(owner, placeholder_sources(record_input, event_id), event_id)
+                            changes, recorded = self._record(owner, placeholder_sources(record_input, event_id), event_id,
+                                                            language=language)
                     except ValueError as error:
                         refused_record = str(error)
                 if refused_record:
-                    recorded = dict(recorded, not_recorded=[*recorded["not_recorded"], self._refused_record(record, refused_record, event_id)])
+                    recorded = dict(recorded, not_recorded=[*recorded["not_recorded"],
+                                                            self._refused_record(record, refused_record, event_id, language=language)])
                 # What the last turn asked and this message leaves unanswered takes its default (M1, R-58, R-67).
-                silent = consider.defaults(self.store, owner, self._asked(owner, event_id), record_input, at=now(), language=self.language)
+                silent = consider.defaults(self.store, owner, self._asked(owner, event_id), record_input, at=now(), language=language)
                 if silent:
                     recorded = dict(recorded, defaulted=silent)
                 self.ledger.ensure_profile(owner)
@@ -312,28 +324,27 @@ class Tripwright:
             context_id = identifier("CTX")
             context = self.versions.context(owner, event_id, subject=subject, scope=dict(scope or {}, channel=channel),
                                             scenario=scenario, focus_keys=focus_keys, exclude_keys=exclude_keys, context_id=context_id)
+            # The memory this question must weigh, what it must ask and the offer to draft a question (M1). What
+            # silence settled is stored with this context first, so this turn does not ask it again.
+            context.update(language=language, settled=recorded.get("defaulted", []))
+            self.store.put("contexts", owner, context)
             shown = self.present_pack(owner, kind="narrow", scenario=scenario, pack_id=context_id, snapshot=context["snapshot"],
                                       at=context["snapshot"]["taken_at"], subject=subject, scope=dict(scope or {}, channel=channel),
                                       live=True)
             current = self.versions.current(owner)
             plan = current["plan"] or {}
             at = context["snapshot"]["taken_at"]
-            # The memory this question must weigh, what it must ask and the offer to draft a question (M1). What
-            # silence settled is stored with this context first, so this turn does not ask it again.
-            context.update(settled=recorded.get("defaulted", []))
-            self.store.put("contexts", owner, context)
-            language = "zh" if re.search(r"[\u4e00-\u9fff]", text) else "en"
             known = consider.sources(self.store, owner, plan or None, at=at, language=language)
             asked = consider.asks(self.store, owner, plan or None, scenario=scenario, scope=scope, at=at, language=language, known=known)
             considered = consider.build(self.store, owner, pack=shown["pack"], plan=plan or None, scenario=scenario, at=at, language=language)
             context.update(pack=shown["pack"], asked=[dict(id=question["id"], scope=question.get("scope", {})) for question in asked],
                            options_pending=bool(recorded.get("crowding")))
             self.store.put("contexts", owner, context)
-            anchors = self._hard_nodes(owner, plan, subject, scope, at)
+            anchors = self._hard_nodes(owner, plan, subject, scope, at, language=language)
             write = self.write_ref(owner, op)
             pending = memory.pending_entries(self.store, owner)
             possible = self.ledger.possible_contradictions(owner, context["bundle"]["items"])
-            response = dict(now=self.clock(owner, at), request_id=receipt.get("request_id", request_id),
+            response = dict(now=self._clock(owner, at, language), request_id=receipt.get("request_id", request_id),
                             receipt=receipt, ctx_id=context_id, base_version=current["number"],
                             snapshot=context["snapshot"],
                             write=write, notices=self.open_notices(owner),
@@ -346,8 +357,8 @@ class Tripwright:
                             inbox=[dict(job_id=message["job_id"], state=message["state"]) for message in self.store.all("inbox", owner)
                                    if message["state"] in ("generated", "available") and message["base_version"] == current["number"]])
             if pending:
-                response["memory"] = dict(pending=pending, ask="长期条目待确认：在对话里问用户这趟还用不用；按回答调 turn(record={carry:[{id,status}]})。")
-                asked.append(dict(id="memory", say=response["memory"]["ask"], default=packs.WORDS["zh"]["memory_default"],
+                response["memory"] = dict(pending=pending, ask=MEMORY_ASK[language])
+                asked.append(dict(id="memory", say=response["memory"]["ask"], default=packs.WORDS[language]["memory_default"],
                                   record=dict(carry=[dict(id=entry["id"], status="confirmed or not_used") for entry in pending])))
             told = packs.point_facts(self.store, owner, plan or None, points, anchors, at, language,
                                      person=packs.asker(plan, speaker, subject)) if points is not None and plan else None
@@ -370,7 +381,7 @@ class Tripwright:
             else:
                 response = dict(next=instructions, first_part=first, second_part_title=second_title, **response)
             response.update(consider={key: considered[key] for key in ("entries", "more", "more_how") if key in considered},
-                            ask=asked, offer=consider.offer(known["languages"], self.language))
+                            ask=asked, offer=consider.offer(known["languages"], language))
             if told is not None:
                 response["points"] = told
         if self.committer is not None:
@@ -410,21 +421,22 @@ class Tripwright:
             kept.append(line)
         if not kept:
             return None
-        language = "zh" if re.search(r"[\u4e00-\u9fff]", text) else "en"
+        language = message_language(text)
         lines = [FIRST_TITLES[language], *kept[:7]]
         return dict(first, text="\n".join(lines), lines=lines)
 
-    def _refused_record(self, record, reason: str, event_id: str) -> dict:
+    def _refused_record(self, record, reason: str, event_id: str, *, language: str) -> dict:
         """recorded.not_recorded for a turn.record left out as a whole (S5), with where the corrected entries go: the same
         request_id now holds this receipt, so they go into this question's propose (or the next turn's record)."""
         count = sum(len(value) for value in record.values() if isinstance(value, list)) if isinstance(record, dict) else 0
-        en = self.language == "en"
+        en = language == "en"
         return dict(part="record", records=count, reason=reason,
                     fix=(f"Nothing of record was kept; the message was received. Send the corrected entries in this question's propose "
                          f"(source.event \"{event_id}\"), not again with this request_id." if en else
                          f"record 一条没记，原话已收。改好后放进这一问的 propose（source.event 写 \"{event_id}\"），不要用同一个 request_id 重发 turn。"))
 
-    def _hard_nodes(self, owner: str, plan: dict, subject: list[str] | None, scope: dict | None, at: str) -> list[dict]:
+    def _hard_nodes(self, owner: str, plan: dict, subject: list[str] | None, scope: dict | None, at: str, *,
+                    language: str) -> list[dict]:
         """turn's hard nodes: the plan's anchors for the subject and scope, each with its latest departure clock, where
         its time comes from, its archived claims and whether it has passed (passed ones last)."""
         anchors = [dict(date=day["date"], **anchor) for day in plan.get("days", []) for anchor in day.get("anchors", [])
@@ -439,7 +451,7 @@ class Tripwright:
             # A9 (D-64): a stored "末班 / 只剩 / 最晚" sentence is marked as archive (when written, source), never a
             # current fact; a later departure found this session voids it.
             anchor.update(packs.archived_claims(self.store, owner, plan or None, anchor["date"], anchor, anchor, at,
-                                                language=self.language))
+                                                language=language))
             instant = local_instant(anchor["date"], anchor["time"], plan["timezone"])
             anchor["passed"] = instant is not None and instant <= aware(at)
         anchors.sort(key=lambda anchor: anchor["passed"])
@@ -452,15 +464,16 @@ class Tripwright:
         reads the trip and records nothing: the message is not received, no context is kept. Returns the clock, the
         draft (`first_part`, as turn's) and what to do with it (`next`)."""
         self.bound(owner)
+        language = message_language(text)
         points = self._checked_places(owner, first_part.checked_points(points))
         plan = self.versions.current(owner)["plan"] or {}
         at = now()
-        anchors = self._hard_nodes(owner, plan, subject, None, at) if plan else []
-        told = packs.point_facts(self.store, owner, plan, points, anchors, at, self.language,
+        anchors = self._hard_nodes(owner, plan, subject, None, at, language=language) if plan else []
+        told = packs.point_facts(self.store, owner, plan, points, anchors, at, language,
                                  person=packs.asker(plan, speaker, subject)) if points is not None and plan else None
-        clock = self.clock(owner, at)
-        first = self._quick_first(text, "quick", clock, anchors, plan or None, told)
-        en = self.language == "en"
+        clock = self._clock(owner, at, language)
+        first = self._quick_first(text, "quick", clock, anchors, plan or None, told, language=language)
+        en = language == "en"
         return dict(now=clock, first_part=first, second_part_title=SECOND_TITLES["en" if en else "zh"] if first else None,
                     **(dict(points=told) if told is not None else {}),
                     next=("Write first_part.text before any other tool. After checking, use second_part_title and say differences first."
@@ -536,12 +549,12 @@ class Tripwright:
         if refused:
             parts.append(("record: " if en else "record 没记：") + refused[0])
         if recorded.get("replaced"):
-            w = consider.words(self.language)
+            w = consider.words(language or self.language)
             parts.append(("Say what changed: " if en else "回答里说一句这次改了什么：")
                          + w["join"].join(f"{line['old']} → {line['new']}" for line in recorded["replaced"]) + ("." if en else "。"))
         optional = [*unknown, considered["next"]]
         if asked:
-            optional.append(consider.words(self.language)["ask_next"])
+            optional.append(consider.words(language or self.language)["ask_next"])
         if considered.get("more_how"):
             optional.append(considered["more_how"])
         separator = " " if en else ""
@@ -551,7 +564,7 @@ class Tripwright:
         # The first/title/refusal instructions are mandatory; a pathological server-side refusal is still bounded.
         return separator.join(parts)[:600]
 
-    def _record(self, owner: str, record: dict, event_id: str | None = None) -> tuple[dict, dict]:
+    def _record(self, owner: str, record: dict, event_id: str | None = None, *, language: str) -> tuple[dict, dict]:
         """Apply what a message states in the same transaction as its receipt, so this turn's package already has it.
         Facts never wait for the rest of the message (B3c): an invalid other part leaves them recorded alone. An item
         that would replace a stable entry without the user's own words in this message is left out and listed in
@@ -578,7 +591,7 @@ class Tripwright:
             changes = changes.model_copy(update=dict(items=[item for item in changes.items if item not in [entry for entry, _ in refused]]))
             not_recorded.append(dict(part="items", records=len(refused), ids=[item.id for item, _ in refused],
                                      reason="; ".join(reason for _, reason in refused),
-                                     ask="这条定了基本不变，用户本轮没说要改：先问用户，用户说了再记。" if self.language != "en" else
+                                     ask="这条定了基本不变，用户本轮没说要改：先问用户，用户说了再记。" if language != "en" else
                                          "This entry is set once and the user did not say to change it this turn: ask the user first."))
         dumped = changes.model_dump(mode="json")
         try:
@@ -605,10 +618,13 @@ class Tripwright:
                             crowding=applied["crowding"], **(dict(replaced=replaced) if replaced else {}))
 
     def present_pack(self, owner: str, **arguments) -> dict:
-        pack = packs.build(self.store, owner, trip_folder=self.trip_folder(owner), language=self.language, **arguments)
+        pack = packs.build(self.store, owner, trip_folder=self.trip_folder(owner), language=self._reply_language(owner), **arguments)
         return packs.present(pack)
 
     def clock(self, owner: str, at: str | None = None) -> dict:
+        return self._clock(owner, at, self._reply_language(owner))
+
+    def _clock(self, owner: str, at: str | None, language: str) -> dict:
         """What "now" is for an answer (A2): the moment of the read in the trip's time zone (the plan's, else the
         repository's default, else UTC), with the sentence the pack's first line uses."""
         from tripwright.render.pack import now_line
@@ -616,7 +632,12 @@ class Tripwright:
         plan = self.versions.current(owner)["plan"]
         zone = plan["timezone"] if plan else (self.repository.timezone() if self.repository is not None else None) or "UTC"
         found = packs.clock(at or now(), zone)
-        return dict(found, text=now_line(found, self.language))
+        return dict(found, text=now_line(found, language))
+
+    def _reply_language(self, owner: str) -> str:
+        contexts = self.store.all("contexts", owner)
+        latest = max(reversed(contexts), key=lambda context: aware(context["created_at"]), default=None)
+        return (latest or {}).get("language", self.language)
 
     def _answer_instruction(self, owner: str) -> dict | None:
         """The first text itself for one-reply hosts, never a second-message flow's state."""
@@ -628,13 +649,14 @@ class Tripwright:
             return None
         text = self.store.get("events", owner, latest["source_event"])["received"]["text"]
         instruction = ("还没把第一段发给用户的话，最终回答以这段开头，再写 second_part_title 和第二段。"
-                       if re.search(r"[\u4e00-\u9fff]", text) else
+                       if message_language(text) == "zh" else
                        "If you have not sent the first part, start the final response with this text, then write "
                        "second_part_title and the second part.")
         return dict(text=latest["first_text"], instruction=instruction)
 
     async def query(self, owner: str, kind: str, arguments: dict) -> dict:
         self.bound(owner)
+        language = self._reply_language(owner)
         plan = self.versions.current(owner)["plan"]
         arguments = checked_arguments(kind, arguments, plan)
         if kind == "transit" and arguments.get("action") == "plan_day":
@@ -658,7 +680,7 @@ class Tripwright:
 
         async def lookup():
             async with asyncio.timeout(self.query_timeout):
-                return await self.query_router.query(owner, kind, arguments, plan, zone=zone, at=now(), language=self.language)
+                return await self.query_router.query(owner, kind, arguments, plan, zone=zone, at=now(), language=language)
 
         before = {record["id"] for record in self.store.all("evidence", owner)}
         try:
@@ -667,7 +689,7 @@ class Tripwright:
             # A11: a timed-out departure lookup says nothing was checked; “retain the plan” sent a host to its stored “末班”
             return {**dict(status="unverified", reason="The data-source query exceeded its time budget.",
                            consequence="This fact could not be verified in time.", alternative="Confirm locally or retain the previous safe plan."),
-                    **(lookup_failed("timeout", self.language) if kind in ("latest_departure", "transit") else {})}
+                    **(lookup_failed("timeout", language) if kind in ("latest_departure", "transit") else {})}
         self.record_evidence(owner, before, key=f"query:{identifier('Q')}")
         instruction = self._answer_instruction(owner)
         return dict(reply_begins_with=instruction, **result) if instruction else result
@@ -937,8 +959,9 @@ class Tripwright:
         """Everything turn's consider can list, for the whole trip and everyone (M1): `consider` and `sources`."""
         at = now()
         plan = self.versions.current(owner)["plan"]
-        listed = consider.build(self.store, owner, pack=None, plan=plan, scenario="plan", at=at, language=self.language, limit=None)
-        return dict(consider=listed["entries"], sources=consider.sources(self.store, owner, plan, at=at, language=self.language))
+        language = self._reply_language(owner)
+        listed = consider.build(self.store, owner, pack=None, plan=plan, scenario="plan", at=at, language=language, limit=None)
+        return dict(consider=listed["entries"], sources=consider.sources(self.store, owner, plan, at=at, language=language))
 
     def explain(self, owner: str, record_id: str | None = None, version: int | None = None) -> dict:
         self.bound(owner)
@@ -1003,7 +1026,7 @@ class Tripwright:
             seen.add(current)
         text = (f"{found['question']} → {found['choice']}" if name == "decision" else found.get("text") or found.get("question"))
         card = dict(id=record_id, table=name, status=found["status"], text=text, quote=found.get("quote"), basis=basis,
-                    layer=consider.words(self.language)["layer"][code] if code else None, said=packs.message(found, events),
+                    layer=consider.words(self._reply_language(owner))["layer"][code] if code else None, said=packs.message(found, events),
                     subject=found.get("subject"), scope=packs.bare_scope(found.get("scope")), superseded_by=replaced_by,
                     current=current, relations=found.get("relations") or {})
         card.update({key: found[key] for key in RECORD_FIELDS[name] if found.get(key) is not None})

@@ -123,7 +123,7 @@ def renamed(tmp_path, monkeypatch):
         plan["days"][0]["plans"] = [dict(name="Recommended", tracks=deepcopy(WAYS))]
         plan = swapped(plan)
         next(place for place in plan["places"] if place["id"] == "vie-airport")["kind"] = "transport"
-        turn = service.turn("local", "Create the trip.", "seed")
+        turn = service.turn("local", "创建行程。", "seed")
         draft = service.propose("local", ctx_id=turn["ctx_id"], base_version=0, plan=plan, idempotency_key="seed")
         service.commit("local", draft["draft_id"], "seed", accept_unverified=True)
         return service

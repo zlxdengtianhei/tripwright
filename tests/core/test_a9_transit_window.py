@@ -52,7 +52,7 @@ def make(tmp_path, monkeypatch):
                                      clock=lambda: moment, **({"routing_per_day": budget} if budget else {}))
         service = Tripwright(store, query_router=QueryRouter(store, transit=transit))
         made.append((service, store))
-        turn = service.turn("local", "Create the trip.", "seed")
+        turn = service.turn("local", "创建行程。", "seed")
         plan = vienna_plan(anchors)
         plan["places"].append(dict(id="airport", name="维也纳机场", name_local="Flughafen Wien", area=plan["places"][0]["area"],
                                    kind="airport", coords=[48.1203, 16.5636]))

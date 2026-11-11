@@ -36,7 +36,7 @@ def seeded(service, plan):
                     service.store.put("evidence", "alice", dict(id=evidence_id, source="fixture:first-hand", fetched_at=now(),
                         valid_until="2100-01-01T00:00:00+00:00", stale=False, date=day["date"], place_id=block["place"], facts=["opening_hours"]), insert=True)
                     block["evidence_ids"] = [evidence_id]
-    turn = service.turn("alice", "Create the example.", "seed")
+    turn = service.turn("alice", "创建示例行程。", "seed")
     draft = service.propose("alice", ctx_id=turn["ctx_id"], base_version=0, plan=plan, idempotency_key="seed")
     service.commit("alice", draft["draft_id"], "seed")
     return service

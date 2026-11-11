@@ -132,7 +132,7 @@ def make(tmp_path, monkeypatch):
             router = QueryRouter(store, transit=transit)
         service = Tripwright(store, query_router=router)
         made.append((service, store))
-        turn = service.turn("local", "Create the trip.", "seed")
+        turn = service.turn("local", "创建行程。", "seed")
         draft = service.propose("local", ctx_id=turn["ctx_id"], base_version=0,
                                 plan=airport_plan([deepcopy(anchor) for anchor in today], [deepcopy(anchor) for anchor in tomorrow]),
                                 idempotency_key="seed")

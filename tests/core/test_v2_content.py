@@ -222,7 +222,7 @@ def test_the_last_one_with_a_change_is_said_with_its_rides(make, monkeypatch):
     assert go == "去维也纳机场：今晚最后一班 00:33 在 Wien Matzleinsdorfer Platz 上车：D 接 REX 7，Wien Hauptbahnhof 开（21:01 查过）"
     # English
     english = make(Evening(trains=NIGHT))
-    english.language = "en"
+    english.turn("local", "Check services.", "english")
     said = query(english, "latest_departure", origin=STREET, destination="airport", by="23:50", date=DAY)["sentences"]
     assert "The last one that arrives by 23:50 starts at 23:03: D then REX 7, which leaves Wien Hauptbahnhof (leave 23:00)" in \
         " ".join(said)

@@ -32,7 +32,7 @@ def make(tmp_path):
                              QueryRouter(store, transit=(timetable or Timetable()).provider(), pages=page_reader()))
         made.append((service, store))
         if plan is not None:
-            turn = service.turn("alice", "Create the trip.", "seed")
+            turn = service.turn("alice", "创建行程。", "seed")
             draft = service.propose("alice", ctx_id=turn["ctx_id"], base_version=0, plan=plan, idempotency_key="seed")
             service.commit("alice", draft["draft_id"], "seed", accept_unverified=True)
         return service
