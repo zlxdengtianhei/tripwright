@@ -42,7 +42,8 @@ def message_language(text: str) -> str:
 
 # Stored plans and quotes keep the language they were written in, and a host answers in that language unless told: with
 # a Chinese trip GPT answered an English question in Chinese in 3 of 5 runs, and in 0 of 5 with this sentence first in
-# `next` (2026-11-11). The opposite direction (a Chinese question on an English trip) has not been measured.
+# `next` (2026-11-11). The opposite direction needs no sentence: on an English trip GLM, Kimi and DeepSeek answered
+# Chinese questions in Chinese in all 26 conversations (2026-11-11).
 REPLY_IN_ENGLISH = "Reply in English: translate the stored text you use; keep place names as written."
 
 
