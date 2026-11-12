@@ -513,8 +513,16 @@ class Ledger:
             if not self.store.all("profiles", owner):
                 self.store.put("profiles", owner, self.profile(owner), insert=True)
 
+    def _message(self, owner: str, event_id: str) -> dict:
+        """The stored message a source names; an unknown ID says which ID to send instead."""
+        try:
+            return self.store.get("events", owner, event_id)
+        except ValueError:
+            raise ValueError(f"Unknown message {event_id!r}: source.event is the event_id that turn returned for the message; "
+                             '"this" works only in turn\'s record') from None
+
     def _source(self, owner: str, source: Source, quote: str | None = None) -> Source:
-        event = self.store.get("events", owner, source.event)
+        event = self._message(owner, source.event)
         if "received" not in event:
             raise ValueError("Source must reference a received message")
         received = event["received"]
@@ -636,7 +644,7 @@ class Ledger:
             raise ValueError(f"{what} not admitted ({check}): {detail}")
 
         answered = proposal.answered
-        event = self.store.get("events", owner, source.event)
+        event = self._message(owner, source.event)
         if "received" not in event:
             refuse("received message", f"Source must reference a received message, got {source.event}")
         if answered is None:

@@ -264,3 +264,11 @@ def test_the_record_item_schema_says_subject_is_people_and_the_quote_is_exact():
 
     assert "never a place" in ITEM_SCHEMA["properties"]["subject"]["description"]
     assert "character for character" in ITEM_SCHEMA["properties"]["quote"]["description"]
+
+
+def test_a_proposal_that_names_this_as_its_source_event_says_to_use_the_turns_event_id(seeded):
+    """Real-model runs (2026-11-12) sent source.event "this", which works only in turn's record, to propose."""
+    preference = dict(kind="preference", key="soup", quote="Fish soup", text="Fish soup", subject=["p1"],
+                      strength="prefer", source={"event": "this"})
+    with pytest.raises(ValueError, match="^Unknown message 'this'.*event_id.*only in turn's record"):
+        propose(seeded, changes={"items": [preference]}, key="this")
