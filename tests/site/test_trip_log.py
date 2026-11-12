@@ -66,7 +66,9 @@ def test_the_shipped_example_has_a_trip_log_of_eight_pieces_that_passes_the_scan
     result = build_example(EXAMPLE, tmp_path / "site", now=NOW)
     html = (result["out"] / "log.html").read_text(encoding="utf-8")
     assert html.count('class="card log-piece"') == 8 and result["untranslated"] == [] and result["swapped"] == {}
-    assert "tripwright did not exist yet" in html and "Our note" in html  # which handling was the old setup's; replies are commented
+    assert "tripwright did not exist yet" in html  # which handling was the old setup's
+    # the owner asked (2026-11-11) not to publish replies that answered badly; the shipped log carries no replay for now
+    assert "The same message, given to tripwright today" not in html
 
 
 def test_a_log_builds_a_page_with_ordered_sections_and_navigation_on_every_page(tmp_path):
