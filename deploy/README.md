@@ -89,25 +89,25 @@ ssh <server> 'docker exec tripwright-app tripwright repo connect git@github.com:
 
 The running service applies the saved connection on its next request or health check; no restart is needed.
 
-Upgrade from the source root without changing the data or settings:
+Upgrade from the source root without changing the data or settings. The new image is built while the old service keeps running; then only the application container is recreated (about 3 s without answers; Caddy keeps serving):
 
 ```bash
 ssh <server> 'test ! -e /opt/tripwright/app.next && mkdir /opt/tripwright/app.next'
 git archive HEAD | ssh <server> 'tar -xf - -C /opt/tripwright/app.next'
-ssh <server> 'mv /opt/tripwright/app /opt/tripwright/app.previous && mv /opt/tripwright/app.next /opt/tripwright/app && cd /opt/tripwright/app/deploy && docker-compose --env-file /opt/tripwright/compose.env up -d --build --force-recreate'
+ssh <server> 'docker tag tripwright-app:local tripwright-app:before-upgrade && cd /opt/tripwright/app.next/deploy && docker-compose --env-file /opt/tripwright/compose.env build tripwright'
+ssh <server> 'cd /opt/tripwright && mv app app.before-$(date +%Y%m%d-%H%M) && mv app.next app && cd app/deploy && docker-compose --env-file /opt/tripwright/compose.env up -d --no-deps --no-build --force-recreate tripwright'
 ```
 
-Keep `app.previous` until the new service is ready. Roll back by swapping the source directories and rebuilding; never roll back the data automatically.
+Keep the `app.before-*` directory and the `tripwright-app:before-upgrade` image until the new service is ready. The directory gets a new name each time because `mv` into an existing directory would put the old source inside it. Naming the `tripwright` service keeps Caddy running; without it compose recreates Caddy too, and Caddy waits for the new container's health check (up to about 30 s). Roll back with `docker tag tripwright-app:before-upgrade tripwright-app:local`, the source directories swapped back and the same `up` command; never roll back the data automatically.
 
-An installation made before November 2026 kept its settings in `data/remote.yaml` and its repository key in `data/ssh/`. Neither is read now, and the service waits (`/readyz` shows `kind: config`) until the repository is connected again. After the upgrade commands above, run these once; the connector address, the trips and the key that the repository already trusts stay the same:
+An installation made before November 2026 kept its settings in `data/remote.yaml` and its repository key in `data/ssh/`. Neither is read now: without the steps below the new service waits (`/readyz` shows `kind: config`) and the connector answers 503. Run them after the `build` command and before swapping the directories. The old service keeps running and does not read what they write; the connector address, the trips and the key that the repository already trusts stay the same:
 
 ```bash
-ssh <server> 'docker exec tripwright-app sh -c "mkdir -p -m 700 /data/remote/ssh && cp -p /data/ssh/personal_ed25519 /data/remote/ssh/deploy_key && cp -p /data/ssh/personal_ed25519.pub /data/remote/ssh/deploy_key.pub && cp -p /data/ssh/known_hosts /data/remote/ssh/known_hosts"'
-ssh <server> 'docker exec tripwright-app tripwright repo connect <the repo_url from data/remote.yaml>'
-ssh <server> 'docker exec tripwright-app tripwright address'
+ssh <server> 'printf "TRIPWRIGHT_GITHUB_PORT_22=1\nTRIPWRIGHT_PUBLIC_URL=https://<your-domain>\n" >> /opt/tripwright/tripwright.env'
+ssh <server> 'docker run --rm --user 10001:10001 --env-file /opt/tripwright/tripwright.env -v /opt/tripwright/data:/data --entrypoint sh tripwright-app:local -c "mkdir -p -m 700 /data/remote/ssh && cp -p /data/ssh/personal_ed25519 /data/remote/ssh/deploy_key && cp -p /data/ssh/personal_ed25519.pub /data/remote/ssh/deploy_key.pub && cp -p /data/ssh/known_hosts /data/remote/ssh/known_hosts && tripwright repo connect <the repo_url from data/remote.yaml>"'
 ```
 
-`repo connect` answers “Already connected” and no restart is needed. In `tripwright.env`, `TRIPWRIGHT_REMOTE_CONFIG` and `TRIPWRIGHT_TOKENS` are ignored and can be removed; set `TRIPWRIGHT_PUBLIC_URL=https://<your-domain>` so that `address` prints the public address. A compose file of your own must not set `TRIPWRIGHT_DB`: with it the service would leave the repository and open a single database file, so it stops at start instead. Rolling back to the old source needs no change to the data.
+`repo connect` must answer “Already connected”; if it answers anything else, stop before the swap: nothing has changed yet. `TRIPWRIGHT_GITHUB_PORT_22=1` stays set: the repository was connected as `git@github.com:…`, and the service now writes GitHub addresses for port 443. Under the other address `repo connect` would read the remote and refuse because both sides have trips, and the old `known_hosts` has no key for the port-443 host. `TRIPWRIGHT_PUBLIC_URL` makes `address` print the public address; the key in it does not change. Keep `TRIPWRIGHT_REMOTE_CONFIG` and `TRIPWRIGHT_TOKENS` in `tripwright.env` while a rollback is possible: the new service ignores them, the old one needs them. A compose file of your own must not set `TRIPWRIGHT_DB`: with it the service would leave the repository and open a single database file, so it stops at start instead. Rolling back to the old source needs no change to the data.
 
 ## Health, readiness and logs
 
