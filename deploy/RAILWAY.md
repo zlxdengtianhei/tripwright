@@ -13,6 +13,21 @@ No Dockerfile-path variable, URL-key switch, application configuration file or m
 
 Only the user creates the Railway account, confirms `railway login`, verifies or pays for an account, and clicks **Add** in chat apps. Never accept payment or account terms for them.
 
+## One-click template
+
+The **Deploy on Railway** button in the [README](../README.md) opens the Tripwright template. It creates one service built from this repository's `main` branch, a volume at `/data`, a Railway domain and the `/healthz` health check, and it sets two variables:
+
+| Variable | Value at deploy time |
+| --- | --- |
+| `TRIPWRIGHT_URL_KEY` | A new random 43-character key, made by Railway for your deployment. |
+| `TRIPWRIGHT_ADDRESS` | `https://${{RAILWAY_PUBLIC_DOMAIN}}/mcp/${{TRIPWRIGHT_URL_KEY}}`: your complete connection address. The service does not read it; it is there for you to copy. |
+
+1. Sign in to Railway and click **Deploy**. No other value is needed.
+2. Wait until `https://<your-domain>/readyz` shows `"ready":true`.
+3. Copy `TRIPWRIGHT_ADDRESS` from the service's **Variables** tab and add it to your app with [CLIENTS.md](CLIENTS.md). Treat it like a password.
+
+To change the key later, set a new `TRIPWRIGHT_URL_KEY` (at least 32 letters, digits, `-` or `_`) and redeploy; the old address stops working, and `TRIPWRIGHT_ADDRESS` follows. A private repository is connected as below, with the Railway CLI.
+
 ## Dashboard sequence
 
 1. **New Project → Deploy from GitHub repo** and select Tripwright or the user's fork.
