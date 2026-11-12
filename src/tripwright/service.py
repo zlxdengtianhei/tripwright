@@ -819,7 +819,10 @@ class Tripwright:
             except ValueError as error:
                 problems.append(str(error))
             for index, place in enumerate(arguments["plan"].get("places") or []):
-                cited = ((place or {}).get("hours_source") or {}).get("evidence_id")
+                # a wrong shape (2026-11-12: hours_source sent as a sentence) is already in problems from checked_plan;
+                # reading it as a mapping here raised AttributeError, and the host got only “unexpected server error”
+                source = place.get("hours_source") if isinstance(place, dict) else None
+                cited = source.get("evidence_id") if isinstance(source, dict) else None
                 if cited and not self._has("evidence", owner, cited):
                     problems.append(f"Invalid plan: plan.places.{index}.hours_source.evidence_id: no evidence {cited!r} in this trip; "
                                     "record the page with query(kind=\"web_evidence\") first")
