@@ -863,6 +863,9 @@ class Tripwright:
         records = {part: changes[part] for part in TURN_RECORDS if changes.get(part)}
         if not records or all(arguments.get(part) is None for part in ("plan", "days", "places", "bookings")):
             return arguments, None
+        context = self.store.get("contexts", owner, arguments.get("ctx_id")) if arguments.get("ctx_id") else None
+        if context is None or self._message_recorded(owner, context["source_event"]):
+            return arguments, None  # already in the ledger (the turn recorded it): nothing to put first
         key = f"{arguments.get('idempotency_key')}:requirements"
         try:
             ledger = self._propose_tool(owner, ctx_id=arguments.get("ctx_id"), base_version=arguments.get("base_version"),

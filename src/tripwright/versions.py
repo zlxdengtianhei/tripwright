@@ -364,14 +364,18 @@ class Versions:
                     return previous
             context = self.store.get("contexts", owner, ctx_id)
             current = self.current(owner)
-            if base_version == context["base_version"] and self._only_own_ledger_commits(owner, context, current):
+            if base_version == context.get("moved_from", context["base_version"]) and context["base_version"] != current["number"] \
+                    and self._only_own_ledger_commits(owner, context, current):
                 # 2026-11-12: this message's requirements were committed first as their own ledger-only version, so
                 # that a plan draft held back by the verifier never takes them with it; the plan is then proposed
                 # against the same context, moved onto that version (nothing else changed since the turn).
-                context = dict(context, base_version=current["number"], base_version_id=current["id"],
+                context = dict(context, moved_from=context.get("moved_from", context["base_version"]),
+                               base_version=current["number"], base_version_id=current["id"],
                                revision=self.ledger.revision(owner), snapshot=snapshots.take(self.store, owner))
                 self.store.put("contexts", owner, context)
                 base_version = current["number"]
+            if base_version == context.get("moved_from") and context["base_version"] == current["number"]:
+                base_version = current["number"]  # the turn's version, for a context already moved onto its own ledger commit
             if current["number"] != base_version or context["base_version"] != base_version:
                 raise ValueError("Stale version; call turn again")
             if context["revision"] != self.ledger.revision(owner) or "ledger" in self.fresh(owner, context.get("snapshot")):

@@ -47,8 +47,9 @@ def test_old_running_job_result_cannot_overwrite_new_version(seeded):
     assert seeded.result("alice", job["id"])["status"] == "stale"
     # commit now also returns its write state (CONTRACTS 2.2); the version itself is what state shows, read at `now` (A2)
     shown = seeded.state("alice")
+    shown.pop("flow")  # the per-call reminder, not the version
     assert shown.pop("now")["timezone"] == new_version["plan"]["timezone"]
-    assert shown == {key: value for key, value in new_version.items() if key not in ("accepted", "write")}
+    assert shown == {key: value for key, value in new_version.items() if key not in ("accepted", "write", "flow")}
     assert all(message["job_id"] != job["id"] for message in seeded.store.all("inbox", "alice"))
 
 

@@ -28,7 +28,8 @@ def test_vertical_slice_preference_turn_answer_commit(seeded, item):
     assert seeded.result("alice", draft["job_id"])["status"] == "completed"
     committed = seeded.commit("alice", draft["draft_id"], "plan")
     assert committed["number"] == 3
-    assert seeded.commit("alice", draft["draft_id"], "plan") == committed
+    # flow is the per-call reminder, not the version
+    assert {**seeded.commit("alice", draft["draft_id"], "plan"), "flow": None} == {**committed, "flow": None}
 
 
 def test_user_decided_fields_cannot_be_changed_even_with_unknowns_accepted(seeded):
@@ -82,12 +83,27 @@ def test_unverified_critical_fact_never_becomes_passed(seeded):
 
 
 def test_failed_commit_rolls_back_ledger_changes(seeded, item):
+    """A refused plan commit changes nothing. Since 2026-11-12 the message's requirements are committed first, on
+    their own (the user: requirements must never be lost), so they stay; everything else the draft carried rolls back."""
     plan = seeded.state("alice")["plan"]
+    before = seeded.state("alice")["plan"]
     plan["days"][0]["plans"][0]["tracks"][0]["blocks"][1]["start"] = "10:30"
     bad = propose(seeded, plan, {"items": [item]}, key="rollback")
+    assert bad["recorded_first"]["committed"] is True
     with pytest.raises(ValueError, match="Commit refused"):
         seeded.commit("alice", bad["draft_id"], "rollback")
-    assert seeded.ledger.current("alice")["items"] == []
+    assert [entry["key"] for entry in seeded.ledger.current("alice")["items"]] == [item["key"]]
+    assert seeded.state("alice")["plan"]["days"] == before["days"]
+    # a message already in the ledger keeps its records in the draft, and a refused commit rolls them back
+    received = seeded.turn("alice", "Update the plan again. Prefer a relaxed pace.", "again",
+                            record={"items": [dict(item, key="first:again", source=dict(event="this"))]})
+    other = dict(item, key="second:again", source=dict(item["source"], event=received["receipt"]["event_id"]))
+    held = seeded.propose("alice", ctx_id=received["ctx_id"], base_version=received["base_version"], plan=plan,
+                          changes={"items": [other]}, idempotency_key="again")
+    assert "recorded_first" not in held
+    with pytest.raises(ValueError, match="Commit refused"):
+        seeded.commit("alice", held["draft_id"], "again")
+    assert "second:again" not in [entry["key"] for entry in seeded.ledger.current("alice")["items"]]
 
 
 def test_handles_cannot_access_another_user(seeded):
