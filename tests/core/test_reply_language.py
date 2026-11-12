@@ -77,6 +77,42 @@ def test_query_without_a_context_or_with_a_legacy_context_uses_the_default_langu
     assert all(HAN.search(sentence) for sentence in service_sentences(query(service)))
 
 
+def test_the_latest_context_of_one_moment_is_the_last_written(seeded):
+    newest = seeded.store.all("contexts", "alice")[-1]
+    seeded.store.put("contexts", "alice", dict(newest, id="CTX-tie-zh", language="zh"), insert=True)
+    seeded.store.put("contexts", "alice", dict(newest, id="CTX-tie-en", language="en"), insert=True)
+
+    assert seeded._reply_language("alice") == "en"
+
+
+def test_the_reply_language_read_decodes_one_record(seeded, monkeypatch):
+    import json
+
+    seeded.turn("alice", "再问一句。", "second")
+    calls = []
+    real_loads = json.loads
+    monkeypatch.setattr(json, "loads", lambda payload: (calls.append(payload), real_loads(payload))[1])
+
+    assert seeded._reply_language("alice") == "zh"
+    assert len(calls) == 1  # the latest context only, not every record of the user
+
+
+def test_the_first_text_read_decodes_one_record(seeded, monkeypatch):
+    import json
+
+    monkeypatch.setenv("TRIPWRIGHT_REPLY_FLOW", "one")
+    place = seeded.state("alice", "plan")["plan"]["places"][0]
+    points = [dict(kind="do", said=place["name_local"], place=place["id"])]
+    seeded.turn("alice", "What about this place?", scenario="quick", points=points)
+    seeded.turn("alice", "Anything else?", scenario="quick", points=[dict(kind="other", said="anything else")])
+    calls = []
+    real_loads = json.loads
+    monkeypatch.setattr(json, "loads", lambda payload: (calls.append(payload), real_loads(payload))[1])
+
+    assert seeded._answer_instruction("alice")["text"]
+    assert len(calls) == 2  # the latest context holding first_text, then its source event
+
+
 def test_memory_and_explain_labels_after_an_english_turn_are_english(seeded, item):
     record_id = seeded.ledger.apply("alice", {"items": [item]})["changed"][0]
     seeded.turn("alice", "Show my memory.", "english-memory")

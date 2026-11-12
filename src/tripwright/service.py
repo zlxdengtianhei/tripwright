@@ -649,16 +649,13 @@ class Tripwright:
         return dict(found, text=now_line(found, language))
 
     def _reply_language(self, owner: str) -> str:
-        contexts = self.store.all("contexts", owner)
-        latest = max(reversed(contexts), key=lambda context: aware(context["created_at"]), default=None)
-        return (latest or {}).get("language", self.language)
+        return (self.store.latest("contexts", owner) or {}).get("language", self.language)
 
     def _answer_instruction(self, owner: str) -> dict | None:
         """The first text itself for one-reply hosts, never a second-message flow's state."""
         if self._reply_flow() == "two":
             return None
-        contexts = [context for context in self.store.all("contexts", owner) if context.get("first_text")]
-        latest = max(contexts, key=lambda context: aware(context["created_at"]), default=None)
+        latest = self.store.latest("contexts", owner, field="first_text")
         if latest is None:
             return None
         text = self.store.get("events", owner, latest["source_event"])["received"]["text"]
