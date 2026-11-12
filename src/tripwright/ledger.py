@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import unicodedata
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -343,6 +344,17 @@ POSSIBLE = "possible_contradiction_with"
 LIMITS = {"constraint", "rule"}
 
 
+WIDTH_HINT = ("; it differs from the message only in punctuation or character width (for example ， and ,): "
+              "copy the quote character for character from the message text")
+
+
+def quote_hint(quote: str, text: str) -> str:
+    """The extra words for an absent quote that matches once full-width and half-width forms are folded (NFKC): a
+    host that transcribed a screenshot into the message often re-types the punctuation in the quote."""
+    fold = lambda value: unicodedata.normalize("NFKC", value)
+    return WIDTH_HINT if fold(quote) in fold(text) else ""
+
+
 def user_layer(basis: str | None) -> bool:
     """METHOD 2.9 and 4 (S5): the user's layer is what the user said, set or confirmed (consider.USER_LAYER); the agent's
     is its inferences and recommended defaults. On the same object (key or declaration, overlapping people and scope) an
@@ -509,7 +521,7 @@ class Ledger:
         if source.nature is not None and source.nature != received["nature"]:
             raise ValueError("Source nature cannot be upgraded or rewritten")
         if quote is not None and quote not in received["text"]:
-            raise ValueError("Quote is absent from the received message")
+            raise ValueError("Quote is absent from the received message" + quote_hint(quote, received["text"]))
         if source.basis == "user_explicit" and received["nature"] == "agent_inference":
             raise ValueError("Agent inference cannot become user explicit")
         return source.model_copy(update={"nature": received["nature"]})
@@ -645,7 +657,7 @@ class Ledger:
                               f"({', '.join(sorted(people)) or 'no plan committed or proposed yet'}), got {received.get('speaker')!r}; "
                               "pass speaker on the turn that received it")
         if quote is not None and quote not in received["text"]:
-            refuse("quote", f"Quote is absent from message {source.event}: {quote!r}")
+            refuse("quote", f"Quote is absent from message {source.event}: {quote!r}" + quote_hint(quote, received["text"]))
         return source.model_copy(update={"nature": received["nature"], "basis": "user_explicit"})
 
     def _said(self, owner: str, source: Source, proposal: Proposal) -> dict:

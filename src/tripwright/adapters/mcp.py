@@ -29,8 +29,10 @@ ITEM_SCHEMA = {
     "required": ["kind", "key", "quote", "text", "subject", "strength", "source"],
     "properties": {
         "kind": {"type": "string", "enum": ["goal", "constraint", "preference", "rule", "authorization", "stop", "setting"]},
-        "key": {"type": "string"}, "quote": {"type": "string"}, "text": {"type": "string"},
-        "subject": {"type": "array", "items": {"type": "string"}},
+        "key": {"type": "string"}, "text": {"type": "string"},
+        "quote": {"type": "string", "description": "Copied character for character from the message text"},
+        "subject": {"type": "array", "items": {"type": "string"},
+                    "description": "The trip's people it applies to (IDs or names, ['*'] for all); never a place"},
         "strength": {"type": "string", "enum": ["must", "forbid", "prefer", "optional"]},
         "source": {"type": "object", "additionalProperties": True, "required": ["event"], "properties": {
             "event": {"type": "string"},

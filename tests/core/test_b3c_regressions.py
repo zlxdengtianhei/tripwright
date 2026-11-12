@@ -240,3 +240,27 @@ def test_s4_undeclared_compatible_items_stay_active_with_a_crowding_notice(seede
 def test_x1_unknown_timezone_is_a_readable_validation_error(plan):
     with pytest.raises(ValidationError, match="Unknown IANA timezone: 'Europe/Viena'"):
         Trip.model_validate(dict(plan, timezone="Europe/Viena"))
+
+
+def test_a_quote_that_differs_only_in_punctuation_width_says_how_to_fix_it(seeded):
+    """A transcribed screenshot (2026-11-12 real-model runs): the message has 绝! and the quote re-typed it as 绝！."""
+    receipt = seeded.events.receive("alice", "Fiskebar Nord 鱼汤真的绝!周一闭店。", "width")
+    preference = dict(kind="preference", key="soup", quote="Fiskebar Nord 鱼汤真的绝！周一闭店。", text="Fish soup", subject=["p1"],
+                      strength="prefer", source={"event": receipt["event_id"]})
+    with pytest.raises(ValueError, match="^Quote is absent from the received message; .*character for character"):
+        propose(seeded, changes={"items": [preference]}, key="width")
+
+
+def test_an_unrelated_quote_gets_no_width_hint():
+    from tripwright.ledger import quote_hint
+
+    assert quote_hint("A quote the user never wrote", "Today I am alone.") == ""
+    assert quote_hint("绝！", "绝!") and quote_hint("Ａ1", "A1")
+
+
+def test_the_record_item_schema_says_subject_is_people_and_the_quote_is_exact():
+    """Real-model runs put a café's name in subject and re-typed punctuation in quotes."""
+    from tripwright.adapters.mcp import ITEM_SCHEMA
+
+    assert "never a place" in ITEM_SCHEMA["properties"]["subject"]["description"]
+    assert "character for character" in ITEM_SCHEMA["properties"]["quote"]["description"]
