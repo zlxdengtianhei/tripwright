@@ -53,7 +53,9 @@ def test_points_of_one_kind_to_one_place_share_one_line(make, capsys):
     kinds = service.turn("local", FIRST, "q3", scenario="quick",
                          points=[TWICE[0], dict(kind="do", said="机场里逛逛", place="airport")])["first_part"]["lines"]
     assert kinds[1].startswith("去维也纳机场：") and any(line.startswith("机场里逛逛") for line in kinds)
-    other = service.turn("local", FIRST, "q4", scenario="quick",
+    # not FIRST: a latest-time question whose points are all `other` now gets the plan's hard nodes (2026-11-12); this
+    # control is about points not of the trip getting no placeholder line
+    other = service.turn("local", "这附近怎么样", "q4", scenario="quick",
                          points=[dict(kind="other", said="天气"), dict(kind="other", said="厕所")])["first_part"]
     assert other is None
 

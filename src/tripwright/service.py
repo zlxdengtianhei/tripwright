@@ -403,7 +403,8 @@ class Tripwright:
 
     def _quick_first(self, text: str, scenario: str, clock: dict, anchors: list[dict], plan: dict | None,
                      told: dict | None, *, language: str | None = None) -> dict | None:
-        """A quick first part only when stored data answers at least one named point."""
+        """A quick first part only when stored data answers at least one named point, or, when the host could use none
+        of its points, when the service itself reads an intent of the trip in the message."""
         if scenario != "quick" or told is None or not plan:
             return None
 
@@ -419,7 +420,13 @@ class Tripwright:
                 return bool(facts.get("tickets"))
             return False
 
-        if not any(useful(point) for point in told["points"]):
+        # The host's points come first. When it marked every point `other` (it named no place, so no stored place can
+        # stand in for one it named, which A12 and S4h guard against), an intent the service reads in the words
+        # themselves backs it up. One intent so far: a latest-time question gets the plan's hard nodes (H-02: no long
+        # silence; 2026-11-12, GPT marked “最最迟的时间……机场能不能进去” all `other` and the first reply came 8 to 27 s
+        # later). Another intent goes here, measured the same way first.
+        unread = bool(told["points"]) and all(point["kind"] == "other" for point in told["points"])
+        if not any(useful(point) for point in told["points"]) and not (unread and first_part.LATEST.search(text)):
             return None
         first = first_part.draft(text, clock, anchors, plan, language or self.language, told)
         kept = []
