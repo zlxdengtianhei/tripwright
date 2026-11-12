@@ -10,6 +10,10 @@
 #            none does for now.
 # A place to stay appears only as its district and type ("stay-N" is a placeholder name that the share page never prints).
 # Build the page: uv run python -m tripwright.site.example examples/trip-2026-10-central-europe.yaml <out-folder>
+# Stored in a service, the plan check still reports 8 key times as conflicts: 26 Oct 12:44; 29 Oct 14:35, 15:00, 16:52 and
+# 17:47; 31 Oct 17:30, 21:50 and 23:53. They are moments inside a block (taking the metro on the way, signing up at the
+# climbing hall), a latest time to leave, or times that belong to one of the day's plans; the check reads every key time as
+# a place to reach after the block before it. They are not contradictions in the trip.
 trip:
   id: 2026-10-central-europe
   title: 中欧 8 日：布达佩斯、维也纳与萨尔茨卡默古特湖区
@@ -158,10 +162,9 @@ trip:
     - {id: a10-27-2, time: '08:30', text: 'EC 140 从 Budapest-Keleti 开，11:20 到 Wien Hbf（直达，已买）', subject: [me, mate-1, mate-2, mate-3]}
     - {id: a10-27-3, time: '11:20', text: 到 Wien Hbf，地下层储物柜存两个小箱子（现场存，只收非接触银行卡）, subject: [me, mate-1, mate-2, mate-3]}
     - {id: a10-27-4, time: '12:00', text: 美景宫上宫时段票, subject: [me, mate-1, mate-2, mate-3]}
-    - {id: a10-27-5, time: '16:57', text: 'IC 742 从 Wien Hbf 开（Attnang、Gmunden 换车，Gmunden 到 Bad Ischl 是 SV170 替代巴士），20:00 到 Bad Ischl（已定；4 人的票已买）', subject: [me, mate-1, mate-2, mate-3]}
-    - {id: a10-27-6, time: '17:57', text: '实际坐 IC 744（Wien Hbf 7 站台，15 号车厢有 4 个订座），19:58 Attnang 换 R 3432 20:08，Gmunden 换 SV170 巴士 20:28，21:21 到 Bad Ischl（10-27 下午改）；行程见下面第三套“晚一班”', subject: [me, mate-1, mate-2, mate-3]}
+    - {id: a10-27-6, time: '17:57', text: '实际坐 IC 744（Wien Hbf 7 站台，15 号车厢有 4 个订座），19:58 Attnang 换 R 3432 20:08，Gmunden 换 SV170 巴士 20:28，21:21 到 Bad Ischl（10-27 下午由原定的 16:57 IC 742 改坐这一班）', subject: [me, mate-1, mate-2, mate-3]}
     plans:
-    - name: 推荐：16:57 走，20:00 到 Bad Ischl
+    - name: 实际：17:57 走，21:21 到 Bad Ischl
       tracks:
       - subject:
         - me
@@ -184,9 +187,9 @@ trip:
         - {id: 10-27-1-2-15, kind: travel, certainty: estimated, start: '14:44', end: '14:56', text: 卡尔教堂 → 纳什市场, mode: 步行 12′}
         - {id: 10-27-1-2-16, kind: meal, certainty: estimated, start: '14:56', end: '15:42', options: [naschmarkt-flohmarkt-kettenbrckengasse, caf-sperl, chen-s-ramen], text: 吃：纳什市场与周六跳蚤市场、Café Sperl（《爱在黎明破晓前》同款咖啡馆）、陈家面馆 Chen's Ramen}
         - {id: 10-27-1-2-17, kind: travel, certainty: fixed, start: '15:42', end: '16:03', text: 纳什市场 → Wien Hbf, mode: '步行 11′ + U1 Karlsplatz → Hbf（约 15:51 一班）+ 步行 6′'}
-        - {id: 10-27-1-2-18, kind: flex, certainty: estimated, start: '16:03', end: '16:40', text: 取箱子，在 Interspar 买今晚和明早的菜（Bad Ischl 晚上商店关得早）}
-        - {id: 10-27-1-2-19, kind: flex, certainty: estimated, start: '16:40', end: '16:57', text: 上站台，确认订座}
-        - {id: 10-27-1-2-20, kind: anchor, certainty: fixed, start: '16:57', end: '20:00', text: 'IC 742 Wien Hbf → Attnang-Puchheim 18:58，换 REX 4420 19:05 → Gmunden 19:19，换 SV170 巴士 19:23 → Bad Ischl 20:00'}
+        - {id: 10-27-1-2-18, kind: flex, certainty: estimated, start: '16:03', end: '17:20', text: 取箱子，在 Interspar 买今晚和明早的菜（Bad Ischl 晚上商店关得早）}
+        - {id: 10-27-1-2-19, kind: flex, certainty: estimated, start: '17:20', end: '17:57', text: 上站台，确认订座}
+        - {id: 10-27-1-2-20, kind: anchor, certainty: fixed, start: '17:57', end: '21:21', text: 'IC 744 Wien Hbf（7 站台）→ Attnang-Puchheim 19:58，换 R 3432 20:08 → Gmunden，换 SV170 巴士 20:28 → Bad Ischl 21:21'}
     rain_plan: 美景宫在室内，照常；Rennweg 的教堂和卡尔教堂只看外观，下雨就跳过，13:30 起坐 18 路电车回 Hbf 附近，在 Interspar 吃，纳什市场换 Café Sperl（室内）。
     notes: 从酒店出发去 Keleti（1 路电车 + 80 路公交）
   - date: '2026-10-28'
@@ -471,10 +474,9 @@ english:
   EC 140 从 Budapest-Keleti 开，11:20 到 Wien Hbf（直达，已买）: EC 140 leaves Budapest-Keleti and arrives at Wien Hbf at 11:20 (direct, already bought)
   到 Wien Hbf，地下层储物柜存两个小箱子（现场存，只收非接触银行卡）: Arrive at Wien Hbf, store the two small suitcases in the lower-level lockers (on the spot, contactless bank cards only)
   美景宫上宫时段票: Upper Belvedere timed ticket
-  IC 742 从 Wien Hbf 开（Attnang、Gmunden 换车，Gmunden 到 Bad Ischl 是 SV170 替代巴士），20:00 到 Bad Ischl（已定；4 人的票已买）: IC 742 leaves Wien Hbf (change at Attnang and Gmunden; Gmunden to Bad Ischl is the SV170 replacement bus), arrive at Bad Ischl at 20:00 (fixed; tickets for 4 people already bought)
-  ? 实际坐 IC 744（Wien Hbf 7 站台，15 号车厢有 4 个订座），19:58 Attnang 换 R 3432 20:08，Gmunden 换 SV170 巴士 20:28，21:21 到 Bad Ischl（10-27 下午改）；行程见下面第三套“晚一班”
-  : Actually taking IC 744 (Wien Hbf platform 7, 4 reserved seats in car 15), 19:58 Attnang change to R 3432 at 20:08, Gmunden change to the SV170 bus at 20:28, arrive at Bad Ischl at 21:21 (changed on the afternoon of 10-27); the itinerary is in the third plan, "Later option", below
-  推荐：16:57 走，20:00 到 Bad Ischl: 'Recommended: leave at 16:57, arrive in Bad Ischl at 20:00'
+  ? 实际坐 IC 744（Wien Hbf 7 站台，15 号车厢有 4 个订座），19:58 Attnang 换 R 3432 20:08，Gmunden 换 SV170 巴士 20:28，21:21 到 Bad Ischl（10-27 下午由原定的 16:57 IC 742 改坐这一班）
+  : Actually taking IC 744 (Wien Hbf platform 7, 4 reserved seats in car 15), 19:58 Attnang change to R 3432 at 20:08, Gmunden change to the SV170 bus at 20:28, arrive at Bad Ischl at 21:21 (on the afternoon of 10-27, changed to this train from the 16:57 IC 742 first planned)
+  实际：17:57 走，21:21 到 Bad Ischl: 'As travelled: leave at 17:57, arrive in Bad Ischl at 21:21'
   Keleti 站台等车、买水: Wait for the train at the Keleti platform, buy water
   EC 140 Budapest-Keleti → Wien Hbf（直达，已买）: EC 140 Budapest-Keleti → Wien Hbf (direct, already bought)
   Hbf 地下层存两个小箱子（XL 一格，现场存，只收非接触银行卡）；在 Interspar 买点吃的垫一口: Store the two small suitcases on the lower level of Hbf (one XL compartment, on the spot, contactless bank cards only); buy a bite at Interspar to tide you over
@@ -501,7 +503,7 @@ english:
   步行 11′ + U1 Karlsplatz → Hbf（约 15:51 一班）+ 步行 6′: Walk 11′ + U1 Karlsplatz → Hbf (one at about 15:51) + walk 6′
   取箱子，在 Interspar 买今晚和明早的菜（Bad Ischl 晚上商店关得早）: Pick up the suitcases, buy tonight's and tomorrow morning's food at Interspar (shops in Bad Ischl close early in the evening)
   上站台，确认订座: Get on the platform, confirm the seat reservation
-  IC 742 Wien Hbf → Attnang-Puchheim 18:58，换 REX 4420 19:05 → Gmunden 19:19，换 SV170 巴士 19:23 → Bad Ischl 20:00: IC 742 Wien Hbf → Attnang-Puchheim 18:58, change to REX 4420 19:05 → Gmunden 19:19, change to SV170 bus 19:23 → Bad Ischl 20:00
+  IC 744 Wien Hbf（7 站台）→ Attnang-Puchheim 19:58，换 R 3432 20:08 → Gmunden，换 SV170 巴士 20:28 → Bad Ischl 21:21: IC 744 Wien Hbf (platform 7) → Attnang-Puchheim 19:58, change to R 3432 20:08 → Gmunden, change to SV170 bus 20:28 → Bad Ischl 21:21
   Wolfgangsee：St. Wolfgang 与朝圣教堂；坐船过湖到 St. Gilgen；雨前回 Bad Ischl 在 K³ 抱石；晚上做火锅: 'Wolfgangsee: St. Wolfgang and its pilgrimage church; boat across the lake to St. Gilgen; bouldering at K³ in Bad Ischl before the rain; hotpot in the evening'
   Bad Ischl Bahnhof 坐 546 直达 St. Wolfgang Markt（12:46）；11:18 重排，已吃过饭: Bus 546 from Bad Ischl Bahnhof direct to St. Wolfgang Markt (12:46); rescheduled at 11:18, lunch already eaten
   船 St. Wolfgang Markt → St. Gilgen 14:45（不看天气每天开）: Boat St. Wolfgang Markt → St. Gilgen 14:45 (runs every day regardless of the weather)
