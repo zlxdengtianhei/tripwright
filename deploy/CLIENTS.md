@@ -115,6 +115,7 @@ The link only fills in the form; nothing is added until the user confirms. The b
 
 - One connector works in Claude on the web, the desktop app and the mobile apps. The documentation does not say that the mobile app can add one, so add it on the web.
 - For a new key, edit the connector's URL from its three-dot menu, or remove the connector and add it again.
+- Tested on 2026-11-12 through the Claude API's MCP connector, which also connects from Anthropic's cloud: Claude Sonnet 5.5 and Opus 5.5 found the tools without any instruction about them, answered on-the-road questions in two parts, changed plans, and saved screenshots and found them again (45 of 48 Sonnet runs and 6 of 6 Opus runs passed).
 
 ## ChatGPT
 
@@ -179,7 +180,7 @@ What each app can hold is taken from the vendors' pages listed under [Sources](#
 
 | App | What it can hold (vendor docs) | How the roles get there | How they run |
 |---|---|---|---|
-| Claude Code (CLI, desktop) | Project sub-agents in `.claude/agents/`, project skills in `.claude/skills/<name>/SKILL.md` | `tripwright init` writes them into the trip repository; `tripwright init --upgrade` refreshes them | As sub-agents; tested |
+| Claude Code (CLI, desktop) | Project sub-agents in `.claude/agents/`, project skills in `.claude/skills/<name>/SKILL.md` | `tripwright init` writes them into the trip repository; `tripwright init --upgrade` refreshes them | As sub-agents; tested on 2026-11-12 with Claude Sonnet 5.5 (screenshots, plan changes, verifier before saving) |
 | Claude Code on the web | A cloud session clones the repository with its `.claude/agents/` and `.claude/skills/`; not in a Claude project's cloud threads | Open a session on the trip repository; connect the service with the connector, as in the notes under [Claude Code](#claude-code) | Documented, not tested |
 | Codex (CLI, IDE) | Project agents in `.codex/agents/`, skills in `.agents/skills/`; Codex delegates when asked directly or when `AGENTS.md` or a skill asks for it | Written by `tripwright init`; the generated `AGENTS.md` says to dispatch whom `flow.dispatch` names | Documented, not tested |
 | Codex cloud | No page says cloud tasks can use a custom MCP server (openai/codex#4226 is open) | — | Not checked |

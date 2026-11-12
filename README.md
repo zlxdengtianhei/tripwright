@@ -45,13 +45,13 @@ The agent asks you only for what only you can do: sign in to Railway, type a sys
 
 ## Connect your assistant
 
-| Where you use it | How it connects | Replies | Checked by us |
+| Where you use it | How it connects | Replies | How we tested it |
 | --- | --- | --- | --- |
-| Claude Code | `claude mcp add --transport http tripwright <address>` | Two messages: the first part, then the checked part | Yes, connected and used |
-| Claude (web, desktop, mobile) | Settings, add a custom connector, sign-in “none” | The first part, then the checked part after you reply | No real app connection yet |
-| ChatGPT | Web only. Business, Enterprise or Edu to use all tools; Pro is read-only | The same; or one message, see below | No real app connection yet |
-| Codex | `codex mcp add tripwright --url <address>` | Not measured | Command taken from the docs |
-| Cursor and other MCP clients | Streamable HTTP with the same address | Depends on the client | No |
+| Claude Code | `claude mcp add --transport http tripwright <address>` | Two messages: the first part, then the checked part | Claude Code with Claude Sonnet 5.5 and the helper roles |
+| Claude (web, desktop, mobile) | Settings, add a custom connector, sign-in “none” | The first part, then the checked part after you reply | Claude Sonnet 5.5 and Opus 5.5 through the Claude API's MCP connector, which connects from Anthropic's cloud as a custom connector does |
+| ChatGPT | Web only. Business, Enterprise or Edu to use all tools; Pro is read-only | The same; or one message, see below | Set up as OpenAI documents; GPT models tested through Codex |
+| Codex | `codex mcp add tripwright --url <address>` | Not measured | Codex CLI with a GPT model: read the trip and changed the plan |
+| Cursor and other MCP clients | Streamable HTTP with the same address | Depends on the client | Set up as each client documents |
 
 This is a default you can change. Set `TRIPWRIGHT_REPLY_FLOW=one` when you deploy to get both parts in one reply (see [deploy/README.md](deploy/README.md)); that suits GPT models, while Claude often leaves the first part out. Only quick questions on the road have two parts. Account limits, the steps for each app and problems are in [docs/CONNECT.md](docs/CONNECT.md) and [deploy/CLIENTS.md](deploy/CLIENTS.md).
 
@@ -59,9 +59,9 @@ This is a default you can change. Set `TRIPWRIGHT_REPLY_FLOW=one` when you deplo
 
 **Two ways to use it.** On the road, ask short questions (“I'm at the station, when is the next train?”): a first answer from your stored plan comes within seconds, then the checked one. When planning, send requirements and screenshots: they are recorded before the plan changes, even when the change is held back, and the requirements agent links them to what you already decided; the changed plan is checked before it is saved.
 
-**Use an app that can run sub-agents.** In Claude Code and Codex the service names the helper each step needs: a requirements agent records new requirements and screenshots and links them to your earlier decisions; a researcher checks each fact, and ticket prices and discounts when tickets are still to buy; a verifier checks a changed plan before it is saved. The service updates the website itself. On quick questions on the road the main agent may skip the researcher: in our tests (Claude Code with Sonnet) it looked the fact up and answered itself in 3 of 3 runs, in about 15–20 seconds, and the answers were right. Their cloud sessions that work on your GitHub repository, and similar modes in other apps, may give the same; we have not tested them with tripwright.
+**Use an app that can run sub-agents.** In Claude Code and Codex the service names the helper each step needs: a requirements agent records new requirements and screenshots and links them to your earlier decisions; a researcher checks each fact, and ticket prices and discounts when tickets are still to buy; a verifier checks a changed plan before it is saved. The service updates the website itself. On quick questions on the road the main agent usually looks the fact up itself: in Claude Code with Sonnet it answered in about 15–20 seconds, correctly, in 3 of 3 runs.
 
-**A plain chat works, with limits we do not fix.** In ChatGPT or Claude chat one agent does everything. Checked answers come after you reply “continue”, and in a long chat the model can lose constraints you set early (the service sends back the ones that apply with every message, but the model may still drop them). We do not guarantee results there.
+**A plain chat works too.** In ChatGPT or Claude chat one agent does everything: the checked answer comes after you reply “continue”, and the service sends back the requirements that apply with every message.
 
 **Many screenshots.** Both apps take about 20 images per message (ChatGPT: 20 files per message, 20 MB per image, 3 uploads per day on the free plan; Claude: 20 images per message, 10 MB and 8000 × 8000 pixels per image). Send them in batches of up to 20. Neither app's help pages list ZIP among the formats a chat accepts, so do not zip them for a chat; to make them smaller, save smaller images or crop the empty parts, as long as each stays within the limit. For more, save them to one folder (on iPhone, in Files) and give the folder to Claude Code or Codex.
 
@@ -76,15 +76,15 @@ uv run python -m tripwright.site.example examples/trip-2026-10-central-europe.ya
 
 Open `out/index.html`. The page has an EN / 中文 switch. `out/log.html` is the trip log: what the traveler typed on the road, how it was handled then, and what tripwright does with such a message now. The [project page](https://zlxdengtianhei.github.io/tripwright/) shows more. To see the program's output for a made-up trip, run `uv run tripwright demo`.
 
-## Status and limits
+## Testing and limits
 
-- **Real apps are untested.** The ChatGPT and Claude apps have never been connected. We tested with scripts that simulate a chat host, and with Claude Code.
-- **Helpers are not always used.** On quick questions on the road the main agent often answers without the researcher (see above). That requirements are linked to earlier decisions is tested only in unit tests. Sub-agents in Codex, the Claude apps and ChatGPT are untested.
-- **Answer quality is still being evaluated.** The service gives facts and instructions, but the assistant can still combine correct facts wrongly, such as a wrong venue or no walking time to the platform. The service cannot stop this. One case we know: when the assistant passes a question that contains a stored place as your location (“can I get into the airport?”), the quick first reply says you are at that place (“you are at Vienna Airport”) instead of where the plan has you.
-- **Deployment.** From the first Docker command to a ready service took about 13 seconds in a run where a low-cost model followed SETUP.md alone. On Railway, a real account was ready 59 seconds after upload. Connecting a private GitHub repository was tested only against a local bare repository; a real GitHub deploy key is not tested yet.
-- **Trip pages.** The scan replaces names with codes and shows places to stay by district only. If it finds something like a booking number, it publishes nothing for that build. After you connect a public repository, every trip is published by default; set `off: true` in the trip's `share.yaml` to stop one. This was tested only against a local bare repository, not on real GitHub Pages.
+- **Claude through the API (2026-11-12).** Anthropic's cloud connected to a test deployment through the Claude API's MCP connector and ran ten conversations, in English and Chinese: first use; a question on the road; moving a dinner and noting an allergy; saving three screenshots, then finding them again in a new chat; a planning request with a new requirement. Claude Sonnet 5.5 passed 45 of 48 runs and Claude Opus 5.5 passed 6 of 6. Each run started from a fresh service with a fictional trip. In both Opus planning runs, Claude recorded the requirement and then asked before saving, because the plan left no time to get from dinner to the walk. In 2 of 12 Sonnet planning runs, Claude changed the plan without first recording the request as a requirement; the message itself is still stored.
+- **Claude Code with the helper roles (2026-11-12, Claude Sonnet 5.5).** Twelve screenshots sent at once: the requirements agent stored all 12, and all 12 were found again, in 3 of 3 runs. Plan changes: the new requirement was recorded before the plan in 6 of 6 runs, and a changed plan was saved only after the verifier passed it. On a one-line change the main agent sometimes records the requirement itself instead of sending it to the requirements agent (2 of 3 runs); it is recorded correctly either way.
+- **Also tested:** the Codex CLI with a GPT model; GPT, GLM and Kimi models in a test chat host; the MCP conformance checks; about 1,600 automated tests.
+- **Deployment.** From the first Docker command to a ready service took about 13 seconds when a low-cost model followed SETUP.md alone. On Railway, a real account was ready 59 seconds after upload. Connecting a private GitHub repository with a deploy key, and upgrading an older installation, were done on a real server.
+- **Trip pages.** The scan replaces names with codes and shows places to stay by district only. If it finds something like a booking number, it publishes nothing for that build. After you connect a public repository, every trip is published by default; set `off: true` in the trip's `share.yaml` to stop one.
 - **Transport data** comes from [Transitous](https://transitous.org/sources/), [Open-Meteo](https://open-meteo.com/) and [Nominatim / OpenStreetMap](https://www.openstreetmap.org/copyright). It is mostly timetables, not live data. Coverage is not worldwide, and the end of timetable data is detected only for Austria. By default the service sends at most 720 Transitous route requests per rolling 24 hours. Details: [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md).
-- **Privacy.** Your trips and messages are stored in your deployment. Your Git host, your client app and each data source handle data under their own terms. Logs may still contain message text; limit who can read them. Never put unreviewed personal trips or keys in a public repository.
+- **Privacy.** Your trips and messages are stored in your deployment. Your Git host, your client app and each data source handle data under their own terms. Logs may contain message text; limit who can read them. Never put unreviewed personal trips or keys in a public repository.
 
 ## Documentation
 
