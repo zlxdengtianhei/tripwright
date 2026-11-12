@@ -13,6 +13,7 @@ There is no hosted service and no signup. Each person runs their own copy, for t
 
 ## What you get
 
+- **Your own travel library, from screenshots.** Send a batch of guide screenshots at once, from Xiaohongshu or anywhere. Your assistant transcribes them, stores the places in your trip and the tips in its records, and later answers draw on them. Ask it to research something, and it records what it found with the source. When a question needs a fact that is not stored, it looks it up and records it. The screenshots themselves are not kept; their transcription is, marked as such.
 - **One trip, many chats.** Your preferences, travel companions, decisions and places to see are stored once. Each new message brings back the ones that apply, in any app that is connected to your service.
 - **Quick answers on the road, then checked ones.** For a quick question, your assistant first answers from the stored plan and marks what is not checked. It then checks and tells you what changed.
 - **Transport facts with their limits.** Each leg comes with departures, transfers, the time window searched and where the data stops. No result means “not found”, never “no service”.
@@ -53,6 +54,14 @@ The agent asks you only for what only you can do: sign in to Railway, type a sys
 | Cursor and other MCP clients | Streamable HTTP with the same address | Depends on the client | No |
 
 This is a default you can change. Set `TRIPWRIGHT_REPLY_FLOW=one` when you deploy to get both parts in one reply (see [deploy/README.md](deploy/README.md)); that suits GPT models, while Claude often leaves the first part out. Only quick questions on the road have two parts. Account limits, the steps for each app and problems are in [docs/CONNECT.md](docs/CONNECT.md) and [deploy/CLIENTS.md](deploy/CLIENTS.md).
+
+## Getting the best results
+
+**Use an app that can run sub-agents.** Claude Code and Codex start a separate researcher for each fact to check, while the main agent keeps answering. Their cloud sessions that work on your GitHub repository, and similar modes in other apps, may give the same; we have not tested them with tripwright.
+
+**A plain chat works, with limits we do not fix.** In ChatGPT or Claude chat one agent does everything. Checked answers come after you reply “continue”, and in a long chat the model can lose constraints you set early (the service sends back the ones that apply with every message, but the model may still drop them). We do not guarantee results there.
+
+**Many screenshots.** Both apps take about 20 images per message (ChatGPT: 20 files per message, 20 MB per image, 3 uploads per day on the free plan; Claude: 20 images per message, 10 MB and 8000 × 8000 pixels per image). Send them in batches of up to 20. Neither app's help pages list ZIP among the formats a chat accepts, so do not zip them for a chat; to make them smaller, save smaller images or crop the empty parts, as long as each stays within the limit. For more, save them to one folder (on iPhone, in Files) and give the folder to Claude Code or Codex.
 
 ## See an example
 

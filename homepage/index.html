@@ -50,6 +50,7 @@
         <a class="btn" href="#start"><span class="zh">本地试用</span><span class="en">Try locally</span></a>
       </div>
       <ul class="facts">
+        <li><span class="zh">攻略截图一次发来，转写成你自己的资料库，以后的建议从这里出。</span><span class="en">Send guide screenshots in one go; they become your own library that later answers draw on.</span></li>
         <li><span class="zh">每问取出相关记忆，避免只看最近一句话。</span><span class="en">Relevant memories each turn, beyond the latest message.</span></li>
         <li><span class="zh">能查的先查好；拿不到的说明去哪里查。</span><span class="en">Check what can be checked; show where to find what is missing.</span></li>
         <li><span class="zh">数据存在自己的行程仓或本地库，可查看与导出。</span><span class="en">Keep a trip repository or local database you can inspect and export.</span></li>
@@ -130,6 +131,12 @@
       <article class="host"><div class="hd"><b>Codex</b><span class="chip plan"><span class="zh">按 0.162 核过</span><span class="en">Checked on 0.162</span></span></div><p class="zh">本机 CLI、桌面 App 和 IDE 插件都用 <code>codex mcp add tripwright --url "&lt;地址&gt;"</code>。查交通的 <code>query</code> 要先批准，也可以在配置里设成自动批准。<code>codex mcp list</code> 会打印完整地址，别在共享屏幕上跑。</p><p class="en">The local CLI, desktop app and IDE extension all use <code>codex mcp add tripwright --url "&lt;address&gt;"</code>. The transport tool <code>query</code> needs approval first, or you can set automatic approval in the config. <code>codex mcp list</code> prints the full address, so do not run it on a shared screen.</p></article>
     </div>
     <p class="note" style="margin-top:16px"><span class="zh">其他 MCP 客户端要支持远程 Streamable HTTP；用了标准协议，不等于每个聊天 App 都已兼容。各家限制按 2026-11-02 的官方文档写，没有逐家完整实测。真实 App 登录、两段接续和回答质量要分别验证；回答质量还在评测中。</span><span class="en">Other MCP clients need remote Streamable HTTP support; a standard server does not mean every chat app is compatible. Client limits follow the official documentation as of 2026-11-02 and are not tested end to end in every app. App sign-in, continuation between parts and answer quality need separate checks; answer quality is still being evaluated.</span></p>
+    <div class="kicker" style="margin-top:28px"><span class="zh">怎样用效果最好</span><span class="en">Getting the best results</span></div>
+    <div class="grid3">
+      <article class="card"><h3><span class="zh">用能派子代理的 App</span><span class="en">Use sub-agents</span></h3><p><span class="zh">Claude Code、Codex 会为每件要核的事实另起一个查证员，主 agent 照常回答。云端会话和别的 App 的类似模式可能也一样，没测过。</span><span class="en">Claude Code and Codex start a separate researcher for each fact to check while the main agent answers. Cloud sessions and similar modes elsewhere may do the same; not tested.</span></p></article>
+      <article class="card"><h3><span class="zh">聊天是兜底</span><span class="en">Chat is the fallback</span></h3><p><span class="zh">聊天里只有一个 agent：核过的回答要回“继续”才来，长对话可能丢掉早先的约束。不保证效果。</span><span class="en">One agent does everything: checked answers come after “continue”, and a long chat can lose early constraints. No guarantee.</span></p></article>
+      <article class="card"><h3><span class="zh">截图分批发</span><span class="en">Screenshots in batches</span></h3><p><span class="zh">两家每条消息约 20 张，聊天不收 zip。张数多就存进一个文件夹，交给 Claude Code 或 Codex。</span><span class="en">About 20 images per message in both apps, and chats do not take ZIP. For more, put them in a folder for Claude Code or Codex.</span></p></article>
+    </div>
   </div>
 </section>
 
