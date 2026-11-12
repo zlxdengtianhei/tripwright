@@ -441,7 +441,7 @@ SHARE_LOG = """{% extends 'base' %}{% block main %}
 <p>{{ t(piece.then) }}</p>
 <h3>{{ label('tripwright 现在','tripwright now') }}{% if piece.match %} <span class="tag">{{ t(piece.match) }}</span>{% endif %}</h3>
 <p>{{ t(piece.became) }}</p>
-{% if piece.replay %}<details class="fold"><summary>{{ label('把同一句话交给现在的 tripwright','The same message, given to tripwright today') }}</summary>
+{% if piece.replay %}<details class="fold"><summary>{{ label('把同一句话再交给 tripwright','The same message, given to tripwright again') }}</summary>
 <div class="in">
 <p class="muted small">{{ t(piece.replay.setup) }}</p>
 <blockquote>{{ t(piece.replay.asked) }}</blockquote>

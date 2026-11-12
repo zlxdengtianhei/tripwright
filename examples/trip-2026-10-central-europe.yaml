@@ -6,8 +6,8 @@
 #   share    editorial extras of the home page: intro and route (stops with the leg to the next one; lat/lon of the city dot)
 #   log      the trip log page: what the traveler typed on the road, how the old setup (a private Git repository plus a
 #            Claude Code session) handled it, and what tripwright does now. Texts are {zh, en} pairs; `retold` marks a
-#            paraphrase. A piece may also carry a `replay` (the same message given to tripwright, shown as given);
-#            none does for now.
+#            paraphrase. A piece may also carry a `replay` (the same message given to tripwright, shown as given).
+#            The two replays below were run on 2026-11-12 with real timetables, at commits 6a3135b and 822ac26 (same code).
 # A place to stay appears only as its district and type ("stay-N" is a placeholder name that the share page never prints).
 # Build the page: uv run python -m tripwright.site.example examples/trip-2026-10-central-europe.yaml <out-folder>
 # Stored in a service, the plan check still reports 8 key times as conflicts: 26 Oct 12:44; 29 Oct 14:35, 15:00, 16:52 and
@@ -716,8 +716,8 @@ log:
     zh: '这一页沿着一趟真实的旅行，看路上最难的几个时刻。每一段先写我当时打的字，再写当时是怎样处理的，最后写 tripwright 现在怎样对待这类话。'
     en: 'This page follows one real trip through its hardest moments. Each piece shows what I typed on the road, how it was handled at the time, and what tripwright does with that kind of message now.'
   origin:
-    zh: '当时的处理来自旧做法：一个私有 Git 仓加一个 Claude Code 会话，那时 tripwright 还不存在。tripwright 是旅行之后照这些话重做的。'
-    en: 'How it was handled then comes from the old setup, a private Git repository plus a Claude Code session; tripwright did not exist yet. tripwright was built after the trip from these messages.'
+    zh: '当时的处理来自旧做法：一个私有 Git 仓加一个 Claude Code 会话，那时 tripwright 还不存在。tripwright 是旅行之后照这些话重做的。“误了一班车”和“最晚几点”两段下面能展开的回复，是 2026-11-12 用现在的版本把同一句话重新跑出来的，原样贴出，不是旅行当时的记录。'
+    en: 'How it was handled then comes from the old setup, a private Git repository plus a Claude Code session; tripwright did not exist yet. tripwright was built after the trip from these messages. The replies you can unfold under two pieces, the missed bus and the latest time, were made on 12 Nov 2026 by giving the same message to the current version of tripwright. They are shown as given, apart from one English translation marked as such, and are not records from the trip.'
   pieces:
   - id: missed-bus
     title: {zh: 误了一班车：现在怎么走, en: 'Missed the bus: how do we go now?'}
@@ -741,6 +741,54 @@ log:
       zh: '“先在对话里答、再更新别的”现在是默认顺序。存着的计划答得上时，第一条回复先从计划里给出，没核过的时刻标明；查过时刻表之后给第二条，先说和第一条不同的地方。每一程写明在哪个 App 搜什么，地名照原文。边界：时刻表不是实时数据，“晚点 9 分钟”这类事仍要旅行者自己说。'
       en: '“Answer in the chat first, update the rest afterwards” is now the default order. When the stored plan can answer, the first reply comes from the plan, with unchecked times marked. The second reply comes after the timetable lookups and starts with what differs from the first. Each leg names the app and the exact term to search, with place names in their original spelling. The limit: timetable data is not live, so a 9-minute delay still has to come from the traveler.'
     match: {zh: 对上，有一条边界, en: 'Matches, with one limit'}
+    replay:
+      setup:
+        zh: '这一段是用现在的版本重放的，不是旅行当时的记录。2026-11-12 跑的：tripwright 提交 6a3135b；一个只连着 tripwright 的聊天宿主（没有别的说明文件），模型 GLM；时钟拨回 2026-10-29 10:24；时刻表是 2026-11-12 从 Transitous 查的真实时刻表。存着的行程是这份公开示例，其中 10-29 改回了当天早上的计划（坐 10:22 的 541），因为示例里存的是误车之后重排的结果。同一句话用中文问了 2 次，这里放其中 1 次，原样；两次回复里查过的班次，给出的时刻都与当次查到的一致。示例数据里这一段路没填起点和终点，所以这次没有先从计划里回的那一段，回复是查完时刻表之后给的。10:24 那句话的前半句讲表格，没有发；脚本随后发的“继续”和它的回复没有放。'
+        en: 'This was replayed with the current version; it is not a record from the trip. Run on 12 Nov 2026: tripwright at commit 822ac26; a chat host connected only to tripwright (no other instruction file), model GLM; the clock set back to 29 Oct 2026, 10:24; real timetables, looked up from Transitous on 12 Nov 2026. The stored trip is this public example, with 29 Oct put back to the plan of that morning (bus 541 at 10:22), because the example stores the day as it was re-planned after the missed bus. The message was sent 2 times in English; shown here is 1 of them, as given. The example data gives no start and end stop for this leg, so this run had no first part from the stored plan; the reply came after the timetable lookups. The first half of the 10:24 message, about tables, was not sent; the script''s follow-up “Continue” and its reply are left out.'
+      asked:
+        zh: '我们现在好像错过了一个车 现在的话怎么走'
+        en: 'It looks like we just missed a bus. How do we go now?'
+      parts:
+      - label: {zh: '回复（查过时刻表后给出，66 秒）', en: 'Reply (given after the timetable lookups, 63 s)'}
+        text:
+          zh: |-
+            看来是错过了原计划 **10:22 的 541**（现在 10:24）。查了下（按时刻表、非实时），你们还在 Bad Ischl 的话这样走：
+
+            **首选：赶 11:14 那班（路线和原计划完全一样，只晚一小时）**
+            - **11:14 541** Bad Ischl Bahnhof（C 站台）→ Hallstatt Gosaumühle 11:41
+            - 原站换 **11:45 542**（1 站台）→ Zwieselalmbahn 12:09
+            - 走 24 分钟，约 12:35 到前湖北端
+
+            **没赶上就坐：**
+            - 12:04 REX 3414（火车）→ Steeg-Gosau Bahnhof 12:17，走 2 分钟换 **12:25 542** → Zwieselalmbahn 12:56
+            - 12:30 前出发的班次都在这里了；再下一班是 13:14 的 541
+
+            **对行程的影响（回程 16:52 的 542 硬节点不用动）：**
+            - 坐 11:14：湖边约 4 小时，前湖走到后湖来回＋野餐来不及（单程约 2 小时），建议按备选案走——只走到 Gosaulacke 或只在前湖边走走，Gasthof 歇脚后再回 16:52 的车。
+            - 坐 12:04：约 13:20 才到湖边，基本只能前湖转转了。
+
+            两点提醒：
+            - 以上是时刻表数据、非实时；这一带 Google 地图查不到巴士，出发前用 **ÖBB App** 核一下实时（本地默认）。需要的话我也可以帮你们起草英语/德语问司机的话。
+            - 计划里存过“Zwieselalmbahn 末班 542 是 17:47”（没核过），万一 16:52 赶不上还有退路。
+
+            要不要我把今天的行程改成 11:14 出发的版本（湖边部分缩短）？
+          en: |-
+            No worries — the next connection is easy. Here's what changed and what to do:
+
+            **Take the same route, one hour later**
+            - Walk to **Bad Ischl Schröpferplatz** (about 5 min from where you are)
+            - **11:18 bus 541** → Hallstatt Gosaumühle 11:41
+            - Change to **11:45 bus 542** → Hintertal b.Gosau Zwieselalmbahn **12:09**
+            - That's exactly one hour behind the original plan, so the day still works: you'd reach the lake's north end ~12:35, have ~12:35–16:25 around the front + back lake (a bit tighter for the picnic), and the **16:52 return from Zwieselalmbahn stays unchanged** (sunset is 16:53).
+
+            **Backup if you somehow miss that too**
+            - 12:04 REX 3414 from Bad Ischl Bahnhof → Steeg-Gosau Bahnhof 12:17, then 12:25 bus 542 → Zwieselalmbahn 12:56. Arrives ~47 min later; the hike would get squeezed.
+
+            Two notes I checked against your travel defaults:
+            - **ÖBB app / Scotty** is the right tool here (Google Maps doesn't show the Salzkammergut buses). These times are **timetable, not real-time** — worth a quick check: [ÖBB / Scotty link](https://fahrplan.oebb.at/bin/query.exe/dn?S=Bad+Ischl+Schr%C3%B6pferplatz&Z=Hintertal+b.Gosau+Zwieselalmbahn&date=29.10.2026&time=11:18&timesel=depart&start=1). The Vienna entries (Google Maps, Sunday closures) don't apply today.
+            - Unticked as unverified: actual bus stop location and any delays.
+
+            Want me to shift today's plan in the app by that hour, or draft a quick question in English/German for the driver (e.g. "Is this the bus for Gosaumühle / Gosau?")?
   - id: budget-line
     title: {zh: 预算红线：“这也太贵了”, en: 'A budget line: “that''s too expensive”'}
     when:
@@ -888,3 +936,81 @@ log:
       zh: '计划里定死的时刻存成硬节点；问“今晚最晚几点”时，服务用查到的班次算末班和最晚出发时刻，查询盖不到的时段要说没查到。只有第三方说法的事（例如机场夜里能不能待）写成“没核”，并写后果和到现场怎么办。你像这里这样明说了偏好的先后，就存成你定的顺序。'
       en: 'Fixed times in the plan are stored as hard nodes. For “what is the latest tonight”, the service works out the last connection and the latest time to leave from the departures it looked up, and has to say which hours the lookup did not cover. A claim that comes only from a third party, such as staying in the airport overnight, is written as not checked, with the consequence and what to do on site. When you state an order between preferences, as here, it is stored as your order.'
     match: {zh: 对上, en: Matches}
+    replay:
+      setup:
+        zh: '这一段是用现在的版本重放的，不是旅行当时的记录。2026-11-12 跑的：tripwright 提交 822ac26；一个只连着 tripwright 的聊天宿主（没有别的说明文件），模型 DeepSeek V4.1 Flash；时钟拨回 2026-10-31 13:48；时刻表是 2026-11-12 从 Transitous 查的真实时刻表。存着的行程是公开仓里这趟旅行的行程仓副本（examples/trip-2026-10-bud-wien），它存的是 10-31 这天结束时的计划，所以计划里已经有当天下午定下的安排。同一句话用中文问了 2 次，这里放其中 1 次，原样；两次回复里查过的班次，给出的时刻都与当次查到的一致。发的是第三句，中间省掉的几个字没有发。'
+        en: 'This was replayed with the current version; it is not a record from the trip. It was replayed in Chinese; translated here. Run on 12 Nov 2026: tripwright at commit 822ac26; a chat host connected only to tripwright (no other instruction file), model DeepSeek V4.1 Flash; the clock set back to 31 Oct 2026, 13:48; real timetables, looked up from Transitous on 12 Nov 2026. The stored trip is the copy of this trip''s repository in the public repository (examples/trip-2026-10-bud-wien). It holds the plan as it stood at the end of 31 Oct, so the plan already contains what was decided that afternoon. The message was sent 2 times in Chinese; shown here is 1 of them, translated sentence by sentence, with times, lines and stop names unchanged. In both replies, the times given for the rides it looked up match what that run found. Only the third message was sent, without the words left out in the middle.'
+      asked:
+        zh: '你去说一个最最迟的时间，让我有一个这个底。机场能不能进去，我过夜怎么过'
+        en: 'Tell me the very latest time, so I have a bottom line. Can I get into the airport, and how do I spend the night?'
+      parts:
+      - label: {zh: '第一条回复（8 秒，来自存着的计划）', en: 'First reply (8 s, from the stored plan; replayed in Chinese, translated here)'}
+        text:
+          zh: |-
+            按存的计划先说（时刻还没核）
+            按现在 13:48 算，假设你在 Som Kitchen （计划里这时在这；不在的话说一声）
+            明早 05:45 Ryanair 网上值机截止（起飞前 2 小时）；拿非欧盟/EEA 护照的，这时前排到 Visa/Document check 柜台盖章（存档，没核）
+
+            要核过的第二段，回我一句“继续”。
+          en: |-
+            From the stored plan first (times not checked yet)
+            As of now, 13:48, assuming you are at Som Kitchen (the plan has you here at this time; say so if not)
+            Tomorrow morning 05:45: Ryanair online check-in deadline (2 hours before departure); with a non-EU/EEA passport, be in the queue at the Visa/Document check counter by this time to get the stamp (archived, not checked)
+
+            For the checked second part, reply “Continue”.
+      - label: {zh: '回“继续”之后的第二条回复（51 秒）', en: 'Second reply, after “Continue” (51 s; replayed in Chinese, translated here)'}
+        text:
+          zh: |-
+            ## 核过之后
+
+            **和上面不一样的地方有三点：**一是计划里“误了 22:42 和 22:53 就只剩 23:53 末班 REX”这个说法不对——机场方向真正的末班火车是 **00:53 REX 22787**；二是 22:42 那班 RJX 19959 确认赶得上；三是**“机场能不能进、怎么过夜”我还没核到**（没有能查航站楼开放时间的来源），下面标出来。
+
+            **最最迟的时间（底线）**
+            - 从 Wien Hauptbahnhof 上车的最后一班：**00:50 出门，00:53 坐 REX 22787 → 01:15 到 Flughafen Wien Bahnhof，01:16 出来**。这是今晚“还能坐火车进机场”的最后一条线。
+            - 错过它，火车就有空档，下一段要等到**凌晨 02:46 出门**：02:52 坐 U1 到 Wien Praterstern，03:03 换 VAB 5，03:31 到机场巴士站，03:33 到。再之后一班是 03:13 出门、03:42 到。
+            - 真正不能碰的硬性时间点还是明早 **05:45**：Ryanair 网上值机截止，拿非欧盟/EEA 护照的这时要站到 Visa/Document check 柜台前。从 Wien Hbf 最晚 **05:13 出门**（05:15 VAB 1 从 Wien Hauptbahnhof Süd → 05:40 到 Busterminal，05:42 到）。之后 07:05 柜台关、07:15 登机口关、07:45 起飞、10:05 到斯德哥尔摩 ARN（这几条是存的旧记录，没重核）。
+
+            **今晚完整怎么走（三家岩馆那部分不改）**
+            - boulderbar Hannovergasse 22:00 关门，所以 22:00 左右你本来就得出来。出来后有两条：**22:06 出门**，22:19 U4 到 Wien Mitte-Landstraße，22:30 换 CAT 到机场巴士站 22:55（22:56 到）；或者**22:11 出门**，22:16 坐 5B 到 Praterstern，22:33 换 VAB 5，23:01 到（23:03 到）。
+            - 如果你更想按原计划走车站那条：**22:39 从 Wien Hbf 出门**，22:42 RJX 19959 → 22:57 到机场火车站。
+            - 到机场后就是过夜，明早 05:45 前去盖章。查这些时刻用 ÖBB App 搜 Wien Hauptbahnhof → Flughafen Wien Bahnhof，出发时间填 22:42；想查末班就填 00:53。实时晚点和临时停运时刻表里没有，出门前在 App 里看一眼。
+
+            **票**
+            已经买了 24 Stunden Wien 数字票（10-31 下午起市内车，每人约 €9.70），盖到去机场火车的市内段。机场那一段要现场补 ÖBB 机场段补票，约 €2.30；**怎么在 ÖBB Tickets app 里只选“机场 → 维也纳市界”这一段，还没核到**——最省事的做法是到 Hbf 站内售票机或窗口，说你有 24 小时票、只买到机场那一段；实在买不到就买 €5.50 的全程票（多花约 €3.20）。
+
+            **机场能不能进去、过夜怎么过——这块没核到**
+            我没有能查航站楼开放时间的第一手来源，所以“夜里能不能留在航站楼里、有没有能躺的地方”这两点现在不能给你当事实。我也试了存过的地点，附近没有任何记着营业时间的地方。要确认只能看维也纳机场官网或问机场：用浏览器开 viennaairport.com 查“night / opening hours”，或者直接打机场服务电话问“can I stay in the terminal overnight”。
+
+            **过夜这块给你两个方案（都能省钱，但方式不同）**
+            1. **坐 22:42 / 22:11 的车，23:00 前后就到机场**：在航站楼里等七八个小时，最省，但前提是航站楼夜里能留人——这一点没核，风险在这儿。
+            2. **在岩馆待到最后，坐 00:53 末班车，01:16 到**：少在机场干等四五个小时，不用多花一分钱，也不用担心“进不去”占太久；代价是万一末班车出问题就得等 02:46 那趟。
+            我倾向方案 2：既把今晚玩满，又把“机场进不进得去”这个没核的风险压到最短时间。要不要我按这个把计划里的出发时间改成 00:50 从 Wien Hbf 出门？
+
+            （今晚这段我按“省钱、少走路、最后一天轻松”来排，把“22:53 REX”那条旧选择放掉了，因为确认还有 00:53 的末班车，没必要早走；万圣节活动想参加、想在岩馆歇着的偏好都保住了。）
+          en: |-
+            ## After checking
+
+            **Three things differ from the part above:** first, the plan's claim “miss the 22:42 and the 22:53 and only the 23:53 last REX is left” is wrong — the real last train towards the airport is the **00:53 REX 22787**; second, the 22:42 RJX 19959 is confirmed as catchable; third, **“can you get into the airport, and how to spend the night” I have not been able to check yet** (there is no source that can look up the terminal's opening hours), marked below.
+
+            **The very latest time (bottom line)**
+            - The last one boarding at Wien Hauptbahnhof: **leave at 00:50, take the 00:53 REX 22787 → at Flughafen Wien Bahnhof 01:15, out at 01:16**. This is tonight's last line that “still gets you into the airport by train”.
+            - Miss it and the trains have a gap; for the next leg you wait until **leaving at 02:46 in the early morning**: 02:52 U1 to Wien Praterstern, change at 03:03 to VAB 5, at the airport bus station 03:31, arrive 03:33. The one after that leaves at 03:13 and arrives 03:42.
+            - The hard time you really must not miss is still tomorrow morning's **05:45**: Ryanair online check-in deadline; with a non-EU/EEA passport you have to be standing at the Visa/Document check counter by then. From Wien Hbf, **leave at 05:13 at the latest** (05:15 VAB 1 from Wien Hauptbahnhof Süd → at the Busterminal 05:40, arrive 05:42). After that: counter closes 07:05, gate closes 07:15, takeoff 07:45, arrival at Stockholm ARN 10:05 (these are old stored records, not re-checked).
+
+            **Tonight, the whole way (the part with the three climbing gyms stays as it is)**
+            - boulderbar Hannovergasse closes at 22:00, so you have to come out around 22:00 anyway. After that there are two ways: **leave at 22:06**, 22:19 U4 to Wien Mitte-Landstraße, change at 22:30 to the CAT to the airport bus station 22:55 (arrive 22:56); or **leave at 22:11**, 22:16 5B to Praterstern, change at 22:33 to VAB 5, 23:01 (arrive 23:03).
+            - If you would rather take the station route of the original plan: **leave Wien Hbf at 22:39**, 22:42 RJX 19959 → at the airport train station 22:57.
+            - At the airport you spend the night; go for the stamp before 05:45 tomorrow morning. To look these times up, search Wien Hauptbahnhof → Flughafen Wien Bahnhof in the ÖBB App with departure time 22:42; for the last train, enter 00:53. Real-time delays and short-notice cancellations are not in the timetable; check the App before you leave.
+
+            **Tickets**
+            You have already bought the 24 Stunden Wien digital ticket (city transport from the afternoon of 10-31, about €9.70 per person); it covers the city part of the train to the airport. For the airport part, buy the ÖBB airport supplement on site, about €2.30; **how to choose only the “airport → Vienna city boundary” part in the ÖBB Tickets app is not checked yet** — the easiest way is to go to a ticket machine or the counter in Hbf station, say you have a 24-hour ticket, and buy only the part to the airport; if that really cannot be bought, buy the €5.50 full ticket (about €3.20 more).
+
+            **Can you get into the airport, how to spend the night — this part is not checked**
+            I have no first-hand source for the terminal's opening hours, so “can you stay in the terminal at night, is there somewhere to lie down” are two points I cannot give you as fact now. I also tried the stored places: nearby there is nothing with stored opening hours. The only way to confirm is the Vienna Airport website or asking the airport: open viennaairport.com in a browser and look for “night / opening hours”, or call the airport service line and ask “can I stay in the terminal overnight”.
+
+            **Two options for the night (both save money, in different ways)**
+            1. **Take the 22:42 / 22:11, at the airport around 23:00**: wait seven or eight hours in the terminal; cheapest, but it assumes people can stay in the terminal at night — that is not checked, and that is the risk.
+            2. **Stay at the gym until the end, take the 00:53 last train, arrive 01:16**: four or five fewer hours of waiting at the airport, not a cent more, and the worry about “not getting in” lasts a shorter time; the cost is that if the last train has a problem you must wait for the 02:46 one.
+            I lean towards option 2: it makes the most of tonight and keeps the unchecked risk of “getting into the airport or not” as short as possible. Shall I change the departure time in the plan to leaving Wien Hbf at 00:50 accordingly?
+
+            (I planned tonight by “save money, walk little, an easy last day”, and dropped the old choice of the “22:53 REX”, because the 00:53 last train is confirmed, so there is no need to leave early; the preferences of joining the Halloween event and resting at the gym are both kept.)
