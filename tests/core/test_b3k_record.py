@@ -130,16 +130,19 @@ def test_a_revision_must_name_a_current_decision_that_is_not_a_must(chosen):
 def test_a_revision_naming_a_recorded_condition_says_how_to_replace_it(chosen):
     # DeepSeek Flash, 2026-11-12: to narrow “no peanuts” to “no peanut butter” it sent revisions naming the item I-…
     # five times over and gave up; an item is replaced by a new statement with exclusive_with, and the user is asked
-    with pytest.raises(ValueError, match="I-peanuts is a recorded condition, not a decision: to replace or narrow it, record "
-                                         "the new statement in items with exclusive_with naming I-peanuts"):
+    # an item ID that names no active item (made up, or replaced and waiting on a question): only what holds, no promise
+    with pytest.raises(ValueError, match=r"I-peanuts is not an active recorded condition; revisions take decision IDs \(D-…\); to "
+                                         "replace or narrow a recorded condition, record the new statement in items with exclusive_with"):
         by_agent(chosen, with_block(chosen, text=OTHER), revisions=[dict(decision="I-peanuts", reason="x")])
-    # by its key: the hint names the item's ID
+    # an active item, by its ID or its key: the hint names the item's ID and says the user is asked
     quote = "我对花生过敏"
     item = dict(kind="constraint", key="peanut_allergy", quote=quote, text="No peanuts", subject=["u1"], strength="forbid",
                 source=dict(event="this", basis="user_explicit"))
     item_id = chosen.turn("alice", quote, "allergy", record=dict(items=[item]))["recorded"]["changed"][0]
-    with pytest.raises(ValueError, match=f"peanut_allergy is a recorded condition, not a decision: .* exclusive_with naming {item_id}"):
-        by_agent(chosen, with_block(chosen, text=OTHER), revisions=[dict(decision="peanut_allergy", reason="x")])
+    for name in (item_id, "peanut_allergy"):
+        with pytest.raises(ValueError, match=f"{name} is a recorded condition, not a decision: .* exclusive_with naming {item_id}, "
+                                             "and the user is asked which one stays"):
+            by_agent(chosen, with_block(chosen, text=OTHER), revisions=[dict(decision=name, reason="x")])
 
 
 # --- a must: a lock ---------------------------------------------------------------------------------------------------------

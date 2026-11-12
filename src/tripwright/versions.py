@@ -226,10 +226,12 @@ class Versions:
                 # an item's ID or key (2026-11-12: a host named both): say how an item is replaced
                 item = next((entry["id"] for entry in self.store.all("items", owner)
                              if entry["status"] == "active" and decision_id in (entry["id"], entry["key"])), None)
-                item = item or (decision_id if decision_id.startswith("I-") else None)
                 item = (f"; {decision_id} is a recorded condition, not a decision: to replace or narrow it, record the new "
                         f"statement in items with exclusive_with naming {item}, and the user is asked which one stays"
-                        if item else "")
+                        if item else
+                        f"; {decision_id} is not an active recorded condition; revisions take decision IDs (D-…); to replace "
+                        "or narrow a recorded condition, record the new statement in items with exclusive_with naming that "
+                        "item's ID or key" if decision_id.startswith("I-") else "")
                 raise ValueError(f"changes.revisions: {decision_id} is not a current decision of the user without must; a must "
                                  f"changes only by the user's new decision, report or confirmed correction{item}")
         refused, revised = [], []
