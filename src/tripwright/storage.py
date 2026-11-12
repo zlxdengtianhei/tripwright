@@ -174,8 +174,10 @@ class Store:
                 (owner, *values))]
 
     def latest(self, table: str, owner: str, field: str | None = None) -> dict | None:
-        """The owner's record written last, or the last one holding `field`, decoding only that row: a query's reply
-        language and first-text instruction no longer read every context of a long-running user."""
+        """The owner's record created last (`created_at`, a UTC ISO time, so its text sorts by time; of one moment the
+        one written last), or the last one holding `field`, decoding only that row: a query's reply language and
+        first-text instruction no longer read every context of a long-running user. Not the highest rowid alone: a Git
+        rebuild that replays a pending operation writes its older context after newer ones."""
         self._table(table)
         holds = ""
         if field is not None:
@@ -184,7 +186,8 @@ class Store:
             holds = f" AND json_extract(payload, '$.{field}') IS NOT NULL"
         with self.lock:
             row = self.connection.execute(
-                f"SELECT payload FROM {table} WHERE owner=?{holds} ORDER BY rowid DESC LIMIT 1", (owner,)
+                f"SELECT payload FROM {table} WHERE owner=?{holds} "
+                "ORDER BY json_extract(payload, '$.created_at') DESC, rowid DESC LIMIT 1", (owner,)
             ).fetchone()
         return json.loads(row[0]) if row else None
 

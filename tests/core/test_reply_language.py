@@ -188,3 +188,13 @@ def test_an_english_first_part_without_stored_chinese_is_sent_as_it_is(service, 
 
     assert not HAN.search(english["first_part"]["text"])
     assert english["next"] == SEND_AND_END["en"]
+
+
+def test_an_older_context_written_later_does_not_win(seeded):
+    # A Git rebuild replays a pending operation and writes its (older) context after newer ones: the latest is still
+    # the one created last, as when every context was read and the maximum created_at taken.
+    newer = seeded.turn("alice", "What should we do today?", "newer-english")
+    context = dict(seeded.store.get("contexts", "alice", newer["ctx_id"]))
+    older = dict(context, id="CTX-older-replayed", language="zh", created_at="2000-01-01T00:00:00+00:00")
+    seeded.store.put("contexts", "alice", older)
+    assert seeded._reply_language("alice") == "en"
