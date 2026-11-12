@@ -130,3 +130,12 @@ def test_existing_bookings_and_hard_nodes_cannot_be_removed(service):
     assert any(check["id"].startswith("preserved-anchor:") for check in conflicts)
     with pytest.raises(ValueError, match="Commit refused"):
         service.commit("alice", draft["draft_id"], "delete-hard", accept_unverified=True)
+
+
+def test_a_refused_plan_after_the_requirements_went_first_says_they_are_recorded(seeded, item):
+    """Review of 2026-11-12, point 1: when the plan part is rejected at propose, the answer must not say nothing was kept."""
+    plan = seeded.state("alice")["plan"]
+    plan["days"][0]["plans"][0]["tracks"][0]["blocks"][1]["start"] = "10:30"
+    bad = propose(seeded, plan, {"items": [item]}, key="refused-plan")
+    assert bad["status"] == "rejected" and bad["recorded_first"]["committed"]
+    assert "requirements are recorded" in bad["notice"] and "nothing will be recorded" not in bad["notice"]

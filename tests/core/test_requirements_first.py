@@ -82,3 +82,15 @@ def test_a_plan_draft_with_nothing_of_the_message_recorded_names_the_requirement
     assert [entry["role"] for entry in draft["flow"]["dispatch"]][:2] == ["tripwright-requirements", "tripwright-verifier"]
     turn2, recorded = ask(service, plan, "with")
     assert [entry["role"] for entry in recorded["flow"]["dispatch"]][0] == "tripwright-verifier"
+
+
+def test_the_same_propose_sent_again_returns_the_same_draft(service, plan, monkeypatch):
+    """Review point 2: a client retrying the same call with the same key gets the first result, not an error."""
+    seeded(service, plan, monkeypatch)
+    turn, first = ask(service, plan, "retry")
+    item = dict(kind="preference", key="evening:retry", quote="咖啡不要了", text="10 号晚饭后不要咖啡", subject=["p1"],
+                strength="prefer", source=dict(event=turn["receipt"]["event_id"], basis="user_explicit"))
+    again = service.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], plan=edited(plan),
+                            changes=dict(items=[item]), idempotency_key="retry")
+    assert again["draft_id"] == first["draft_id"] and again["recorded_first"]["draft_id"] == first["recorded_first"]["draft_id"]
+    assert len([entry for entry in service.store.all("items", "alice") if entry["key"] == "evening:retry"]) == 1

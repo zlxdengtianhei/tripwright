@@ -840,6 +840,14 @@ class Tripwright:
         response = self._propose_tool(owner, **arguments)
         if first:
             response = dict(response, recorded_first=first)
+            if first.get("committed") and response["status"] == "rejected":
+                # The requirements are already in the ledger: say so, not "nothing will be recorded", so the agent
+                # neither tells the user nothing was kept nor proposes the same entries again.
+                reasons = [reason.replace("commit preferences without a plan, then change the plan after the user chooses",
+                                          "they are recorded; change the plan after the user chooses")
+                           for reason in self.store.get("drafts", owner, response["draft_id"]).get("refused") or []]
+                response["notice"] = (f"The message's requirements are recorded (version {first['version']}); only the plan change "
+                                      "was refused" + (": " + "; ".join(reasons) if reasons else "") + ".")
         draft = self.store.get("drafts", owner, response["draft_id"])
         scenario = self.store.get("contexts", owner, draft["ctx_id"])["bundle"]["scenario"]
         named = self.flow.after_propose(draft, scenario, self._reply_language(owner))
@@ -863,10 +871,17 @@ class Tripwright:
         records = {part: changes[part] for part in TURN_RECORDS if changes.get(part)}
         if not records or all(arguments.get(part) is None for part in ("plan", "days", "places", "bookings")):
             return arguments, None
+        key = f"{arguments.get('idempotency_key')}:requirements"
+        done = next((draft for draft in self.store.all("drafts", owner) if draft.get("idempotency_key") == key), None)
+        rest = {part: value for part, value in changes.items() if part not in records}
+        if done is not None and done.get("status") == "committed":
+            # the same call sent again (a client retrying): the records went first then; send the rest as then
+            version = next((v["number"] for v in self.store.all("versions", owner) if v.get("draft_id") == done["id"]), None)
+            return dict(arguments, changes=rest or None), dict(committed=True, draft_id=done["id"], version=version,
+                                                                parts=sorted(records))
         context = self.store.get("contexts", owner, arguments.get("ctx_id")) if arguments.get("ctx_id") else None
         if context is None or self._message_recorded(owner, context["source_event"]):
             return arguments, None  # already in the ledger (the turn recorded it): nothing to put first
-        key = f"{arguments.get('idempotency_key')}:requirements"
         try:
             ledger = self._propose_tool(owner, ctx_id=arguments.get("ctx_id"), base_version=arguments.get("base_version"),
                                         changes=records, idempotency_key=key)
@@ -875,7 +890,6 @@ class Tripwright:
             version = self._commit_tool(owner, ledger["draft_id"], key)
         except ValueError as error:
             return arguments, dict(committed=False, reason=str(error))
-        rest = {part: value for part, value in changes.items() if part not in records}
         return dict(arguments, changes=rest or None), dict(committed=True, draft_id=ledger["draft_id"], version=version["number"],
                                                             parts=sorted(records))
 

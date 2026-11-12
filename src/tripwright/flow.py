@@ -102,14 +102,17 @@ class Flow:
         not a new message: it names nobody again."""
         language = "en" if language == "en" else "zh"
         seen = self.seen.setdefault(owner, Seen())
-        if recorded and (text == seen.text or nature == "screenshot_extraction"):
-            # the requirements step of the message just received (or its screenshots' transcription), not a new message
+        transcribed = (nature == "screenshot_extraction" and "tripwright-requirements" in seen.named
+                       and "record" not in seen.did)  # the transcription the named requirements role returned
+        if recorded and (text == seen.text or transcribed):
+            # the requirements step of the message just received, not a new message: it names nobody again
             seen.did.add("record")
+            seen.last_turn = at
             return dict(dispatch=[], reminder=SHORT[language][seen.mode or mode_of(scenario)])
         mode = mode_of(scenario)
         why = WHY[language]
         dispatch = []
-        if nature == "screenshot_extraction":
+        if nature == "screenshot_extraction" and not recorded:  # recorded: the main agent transcribed and recorded them
             dispatch.append(dict(role="tripwright-requirements", why=why["requirements_shots"]))
         elif changed:
             dispatch.append(dict(role="tripwright-requirements", why=why["requirements_changed"]))

@@ -179,3 +179,14 @@ def test_the_dispatch_lead_keeps_next_to_whole_sentences():
     text = "先派 tripwright-requirements（理由）。" + "第一句很长。" * 120
     cut = whole_sentences(text, 600)
     assert len(cut) <= 600 and cut.endswith("。") and whole_sentences("短。", 600) == "短。"
+
+
+def test_screenshots_the_main_agent_transcribed_and_recorded_still_name_the_researcher_for_a_lookup(service, plan, monkeypatch):
+    """Review point 3: only the transcription the named requirements role returned names nobody; the main agent's own
+    transcription with a question in it still names the researcher."""
+    seeded(service, plan, monkeypatch)
+    item = dict(kind="preference", key="saved:fish2", quote="港口边的鱼汤店", text="截图里的鱼汤店", subject=["p1"],
+                strength="prefer", source=dict(event="this"))
+    turn = service.turn("alice", SHOTS + "\n今晚回酒店最晚一班车几点？", "own", nature="screenshot_extraction", scenario="quick",
+                        record=dict(items=[item]))
+    assert "tripwright-researcher" in roles(turn["flow"]) and "tripwright-requirements" not in roles(turn["flow"])
