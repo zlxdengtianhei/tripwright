@@ -39,5 +39,5 @@ The client itself calls `turn`, uses the memories it gets, quotes the transport 
 
 - `/mcp` without a key and a wrong key both return 404. After a new key, replace the address in each client.
 - Host headers are not compared with `TRIPWRIGHT_PUBLIC_URL`; localhost and tunnel addresses work together.
-- Check the service first: `/healthz` returns 200 while the process runs; `/readyz` returns 200 only when the trip repository is open, its remote answered and no write is stuck. Otherwise `/readyz` returns 503 with a `kind` and a `hint` ([troubleshooting](../deploy/SETUP.md#troubleshooting)). A healthy `/healthz` does not prove that the trips can be read and written; `/readyz` does.
+- Check the service first: `/healthz` returns 200 while the process runs; `/readyz` returns 200 only when the trip repository is open, its remote answered (when one is connected; without one, `storage` reads `local`) and no write is stuck. Otherwise `/readyz` returns 503 with a `kind` and a `hint` ([troubleshooting](../deploy/SETUP.md#troubleshooting)). A healthy `/healthz` does not prove that the trips can be read and written; `/readyz` does.
 - When the client shows only read tools, check its plan and permissions ([deploy/CLIENTS.md](../deploy/CLIENTS.md)); Tripwright does not report a request as saved when it was not.

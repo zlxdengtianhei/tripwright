@@ -1,6 +1,6 @@
 # Connect a client to Tripwright
 
-This page is step 3 of [SETUP.md](SETUP.md), one section per client. Use it again whenever the user adds another app.
+This page is step 4 of [SETUP.md](SETUP.md), one section per client. Use it again whenever the user adds another app.
 
 ## What every client needs
 
