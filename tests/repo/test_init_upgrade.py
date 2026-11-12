@@ -8,15 +8,12 @@ from tripwright.agents import user_repo_files
 from tripwright.cli import main
 from tripwright.repo import workspace
 
+# A role the tool no longer ships (the requirements and verifier roles were this example until they came back, 2026-11-12).
 OLD_FILES = (
-    ".agents/skills/tripwright-requirements/SKILL.md",
-    ".agents/skills/tripwright-verifier/SKILL.md",
-    ".claude/agents/tripwright-requirements.md",
-    ".claude/agents/tripwright-verifier.md",
-    ".claude/skills/tripwright-requirements/SKILL.md",
-    ".claude/skills/tripwright-verifier/SKILL.md",
-    ".codex/agents/tripwright_requirements.toml",
-    ".codex/agents/tripwright_verifier.toml",
+    ".agents/skills/tripwright-retired/SKILL.md",
+    ".claude/agents/tripwright-retired.md",
+    ".claude/skills/tripwright-retired/SKILL.md",
+    ".codex/agents/tripwright_retired.toml",
 )
 USER_FILES = {".claude/agents/my-own.md": "my own agent\n", ".claude/skills/other/SKILL.md": "my own skill\n"}
 
@@ -35,7 +32,7 @@ def test_upgrade_removes_retired_tool_files_in_the_same_commit_and_keeps_user_fi
     assert all(not (root / path).exists() for path in OLD_FILES)
     assert all(not (root / path).parent.exists() for path in OLD_FILES if "/skills/" in path)
     assert all((root / path).read_bytes() == data for path, data in user_repo_files().items())
-    assert len(user_repo_files()) == 22
+    assert len(user_repo_files()) == 30
     assert all((root / path).read_text(encoding="utf-8") == text for path, text in USER_FILES.items())
     deleted = {line.split("\t", 1)[1] for line in git(root, "diff-tree", "--no-commit-id", "--name-status", "-r", "HEAD").splitlines()
                if line.startswith("D\t")}

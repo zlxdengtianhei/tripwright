@@ -25,7 +25,8 @@ def test_directory_export_import_preserves_current_view_and_audit(seeded, item, 
     other_store.import_directory("alice", directory)
     restored = Tripwright(other_store)
     assert restored.ledger.current("alice") == seeded.ledger.current("alice")
-    assert restored.state("alice") == seeded.state("alice")
+    # flow is each service instance's reminder state, not trip data
+    assert {**restored.state("alice"), "flow": None} == {**seeded.state("alice"), "flow": None}
     assert restored.store.all("events", "alice") == seeded.store.all("events", "alice")
     with pytest.raises(ValueError, match="empty"):
         other_store.import_directory("alice", directory)

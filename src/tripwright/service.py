@@ -945,9 +945,10 @@ class Tripwright:
 
     def result(self, owner: str, job_id: str, *, cancel: bool = False, ack_events: list[str] | None = None) -> dict:
         self.bound(owner)
+        # result keeps its contract's exact shape (CONTRACTS 1.4): no flow line here
         if cancel:
-            return self._flowed(owner, "result", self.jobs.cancel(owner, job_id))
-        return self._flowed(owner, "result", self._job_result(owner, job_id, ack_events))
+            return self.jobs.cancel(owner, job_id)
+        return self._job_result(owner, job_id, ack_events)
 
     def _job_result(self, owner: str, job_id: str, ack_events: list[str] | None) -> dict:
         return self.jobs.result(owner, job_id, ack_events=ack_events, body=lambda job, message: self._verdict(owner, job, message))
