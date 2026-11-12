@@ -9,7 +9,7 @@ You are the agent setting up a personal Tripwright service. Do the work for the 
 
 - **Docker** is simplest for coding clients on that computer. Claude, ChatGPT and phone apps also need an HTTPS tunnel.
 - **Railway** needs no always-on computer and gives a stable HTTPS address. It can cost money.
-- Assume the user has a GitHub account and recommend a private repository for the trips (section 3). Without one the service still works; the trips are then kept only in a local Git repository on its data volume.
+- Assume the user has a GitHub account; section 3 says when and how to recommend a private repository for the trips. Without one the service still works; the trips are then kept only in a local Git repository on its data volume.
 
 Only the user may do these things; wait when one is needed. Everything else is the agent's job.
 
@@ -33,7 +33,7 @@ docker run -d --name tripwright --restart unless-stopped -p 127.0.0.1:8000:8000 
 docker exec tripwright tripwright address     # http://localhost:8000/mcp/<key>
 ```
 
-The first command uses the Dockerfile at the repository root. The named volume keeps `/data/remote`, including the generated URL key and local trips. Check `curl -s http://localhost:8000/readyz` for `"ready":true` (with a different published host port, use that port here). If you publish a different host port, print the address with `docker exec tripwright tripwright address --base http://localhost:<port>`.
+The first command uses the Dockerfile at the repository root. The named volume keeps `/data/remote`, including the generated URL key and local trips. The commands here use the container name `tripwright`; if the service runs under another name, use that name. Check `curl -s http://localhost:8000/readyz` for `"ready":true` (with a different published host port, use that port here). If you publish a different host port, print the address with `docker exec tripwright tripwright address --base http://localhost:<port>`.
 Confirm MCP itself (the variable hides the key from the command's output):
 ```bash
 address=$(docker exec tripwright tripwright address)
@@ -71,10 +71,10 @@ Tell the user what this step does: with a private GitHub repository, everything 
 
 Look at where you are running before you recommend it:
 
-- **You can run commands where the service runs** (Claude Code, Codex, Cursor or another coding agent with a shell; for Railway, a shell where `railway` is logged in): run `gh auth status`. If `gh` is logged in, or the user will run `gh auth login`, recommend connecting now and run the commands below; install `gh` first when it is missing.
+- **You can run commands where the service runs** (Claude Code, Codex, Cursor or another coding agent with a shell; for Railway, a shell where `railway` is logged in): run `gh auth status`, tell the user what this step does and recommend connecting now. If `gh` is not logged in, ask whether they will run `gh auth login`; when `gh` is ready, run the commands below. Install `gh` first when it is missing.
 - **You cannot** (a chat app is guiding the setup and has no shell): do not walk the user through the commands by hand. Tell them where to do it: start Claude Code or Codex on the computer that runs the service (for Railway, any computer where `railway` is logged in) and give it this section.
 
-If the user skips this step, or set the service up another way, say it plainly: “Your trips, private details included, are kept only on the server: in the Docker volume `tripwright-data`, or in the Railway volume. Nothing is uploaded to GitHub. They are copied to your private repository only after you connect one; you can do that later, and the existing trips go with it.” Then show the backup command in section 5.
+If the user skips this step, or set the service up another way, say it plainly: “Your trips, private details included, are kept only on the server: in the service's Docker volume (`tripwright-data` in section 2), or in the Railway volume. Nothing is uploaded to GitHub. They are copied to your private repository only after you connect one; you can do that later, and the existing trips go with it.” Then show the backup command in section 5.
 
 Ask for the GitHub owner (the user's GitHub username, or an organization they own) and use `tripwright-trips` as the repository name. If needed, ask the user to run `gh auth login`. Create an **empty** private repository:
 
@@ -99,7 +99,7 @@ Check `/readyz` for `"storage":"remote"`. Other SSH Git hosts work too; set `TRI
 
 Public trip pages need GitHub: this guide publishes them through a public GitHub repository with GitHub Pages, and the service makes no public page until this step is done. A user who wants a page to share must connect it; the private repository of section 3 is not needed for it.
 
-Ask the user first: this makes a public repository in their account that holds only the trip pages (it is not the private trip repository and not the Tripwright code repository), anyone with a page's link can read that trip page, and after this step every trip gets a page unless the user turns it off. The public repository receives only the scanned pages; the trips themselves stay in the private repository, or on the service's volume when there is none. Then create a separate **empty public** repository, enable Pages from `/` on `main`, and add the distinct public-page deploy key:
+Ask the user first: this makes a public repository in their account that holds only the trip pages (it is not the private trip repository and not the Tripwright code repository), anyone with a page's link can read that trip page, and after this step every trip gets a page unless the user turns it off. The public repository receives only the scanned pages; the trips themselves stay in the private repository, or on the service's volume when there is none. Then create a separate **empty public** repository with Pages enabled, and add the distinct public-page deploy key:
 ```bash
 gh repo create <owner>/tripwright-pages --public && gh api -X POST repos/<owner>/tripwright-pages/pages -f 'source[branch]=main' -f 'source[path]=/'
 docker exec tripwright tripwright share key | gh repo deploy-key add - --allow-write -t tripwright-pages -R <owner>/tripwright-pages
