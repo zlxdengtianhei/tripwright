@@ -47,3 +47,12 @@ def test_both_readmes_call_the_github_step_recommended_and_say_the_same_two_thin
     assert "**Recommended: connect GitHub.**" in english and "**推荐：连 GitHub。**" in chinese
     assert "kept only on the server" in english and "只存在服务器上" in chinese
     assert "public pages need it" in english and "要公开页就得连它" in chinese
+
+
+def test_the_setup_guide_turns_on_pages_after_the_first_push() -> None:
+    """GitHub answers 422 "The main branch must exist before GitHub Pages can be built" for an empty repository
+    (2026-11-12, a one-off public test repository): Pages is turned on after `share connect` pushed main."""
+    _, body = section("3A")
+    connect = body.index("tripwright share connect git@github.com:")
+    pages = body.index("/pages -f 'source[branch]=main'")
+    assert connect < pages

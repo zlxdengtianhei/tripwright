@@ -99,13 +99,14 @@ Check `/readyz` for `"storage":"remote"`. Other SSH Git hosts work too; set `TRI
 
 Public trip pages need GitHub: this guide publishes them through a public GitHub repository with GitHub Pages, and the service makes no public page until this step is done. A user who wants a page to share must connect it; the private repository of section 3 is not needed for it.
 
-As in section 3, `gh` must be logged in (`gh auth status`); if it is not, ask the user to run `gh auth login`. Ask the user first: this makes a public repository in their account that holds only the trip pages (it is not the private trip repository and not the Tripwright code repository), anyone with a page's link can read that trip page, and after this step every trip gets a page unless the user turns it off. The public repository receives only the trip pages, after the service's privacy scan; the trips themselves stay in the private repository, or on the service's volume when there is none. Then create a separate **empty public** repository with Pages enabled, and add the distinct public-page deploy key:
+As in section 3, `gh` must be logged in (`gh auth status`); if it is not, ask the user to run `gh auth login`. Ask the user first: this makes a public repository in their account that holds only the trip pages (it is not the private trip repository and not the Tripwright code repository), anyone with a page's link can read that trip page, and after this step every trip gets a page unless the user turns it off. The public repository receives only the trip pages, after the service's privacy scan; the trips themselves stay in the private repository, or on the service's volume when there is none. Then create a separate **empty public** repository, add the distinct public-page deploy key, connect, and turn on Pages last. GitHub refuses Pages for an empty repository (“The main branch must exist”), and `share connect` pushes the first commit:
 ```bash
-gh repo create <owner>/tripwright-pages --public && gh api -X POST repos/<owner>/tripwright-pages/pages -f 'source[branch]=main' -f 'source[path]=/'
+gh repo create <owner>/tripwright-pages --public
 docker exec tripwright tripwright share key | gh repo deploy-key add - --allow-write -t tripwright-pages -R <owner>/tripwright-pages
 docker exec tripwright tripwright share connect git@github.com:<owner>/tripwright-pages.git
+gh api -X POST repos/<owner>/tripwright-pages/pages -f 'source[branch]=main' -f 'source[path]=/'
 ```
-On Railway, replace `docker exec tripwright` with `railway ssh --`. The last command verifies a push, publishes every existing trip once (one line per trip) and prints the URL shape; no restart or token is needed.
+On Railway, replace `docker exec tripwright` with `railway ssh --`. `share connect` verifies a push, publishes every existing trip once (one line per trip) and prints the URL shape; no restart or token is needed. In our test with a real public repository, a page showed a committed change within a minute.
 Every committed trip publishes after about 20 quiet seconds. Its first publish creates `trips/<trip>/share.yaml`; edit its random `path`, or set `off: true` to remove its page. Optional `english`, `intro` and `route` match the example file. `tripwright share status` shows the outcome; a failed publish is tried again by running `share connect` once more, or after the next plan commit. A per-trip `repository` needs another deployment or manual publication.
 
 ## 4. Add the address to each AI app
