@@ -141,3 +141,16 @@ def test_every_path_the_wheel_force_includes_exists():
     root = Path(__file__).parents[2]
     included = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
     assert [path for path in included if not (root / path).exists()] == []
+
+
+def test_the_wheel_force_includes_every_role_skill():
+    """The installed package (Docker image, uv tool) has no checkout to fall back on: a role skill missing here
+    makes `check` and connecting an empty repository fail with LookupError."""
+    import tomllib
+    from pathlib import Path
+
+    from tripwright.agents import ROLES
+
+    root = Path(__file__).parents[2]
+    included = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
+    assert {f"skills/{role}" for role in ROLES} <= set(included)
