@@ -5,7 +5,8 @@ told the user afterwards that the opening hours were not checked. The service co
 committed" from "committed, then told". Now a host agent's commit (ask_first, set by the MCP adapter) counts
 accept_unverified only when a message of the user arrived after a draft returned those facts. Only what the change
 brings in is asked: the fictional trip carries ten unverified facts from the start, and a change that leaves them alone
-saves as before."""
+saves as before. And only facts of the outside world are asked (2026-11-13): gaps in the plan itself, such as a travel
+time that was not given, are named in the result and hold nothing back."""
 import asyncio
 import time
 from copy import deepcopy
@@ -170,10 +171,10 @@ def test_a_refused_draft_also_names_the_unverified_facts_so_the_corrected_one_ne
     clash = trip.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"],
                          days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("18:30", "19:30"))], idempotency_key="clash")
     assert clash["status"] == "rejected" and clash["checks"]["conflicts"]
-    asked = [check["id"] for check in clash["ask_user"]["unverified"]]
-    # the dinner hour, and for each person the unknown way from the gallery to a coffee that now comes before dinner
-    assert asked[0] == DINNER and len(asked) == 4 and all(name.startswith("chain:") and name.endswith(":d1-coffee") for name in asked[1:])
-    assert "草稿没被接受" in clash["ask_user"]["how"]
+    # only the dinner hour: the unknown way from the gallery to a coffee that now comes before dinner (one "chain"
+    # line per person) is in checks.unverified, and the user is not asked about it
+    assert [check["id"] for check in clash["ask_user"]["unverified"]] == [DINNER] and "草稿没被接受" in clash["ask_user"]["how"]
+    assert len([check for check in clash["checks"]["unverified"] if check["id"].startswith("chain:")]) == 3
     answer = trip.turn("alice", "那把咖啡顺延到 20:30，照这样存", "fix", scenario="replan")
     assert "waiting_draft" not in answer  # a refused draft is not what waits; the corrected one is proposed now
     fixed = trip.propose("alice", ctx_id=answer["ctx_id"], base_version=answer["base_version"],
@@ -188,15 +189,83 @@ def test_an_english_conversation_gets_the_same_steps_in_english(trip):
     answer = trip.turn("alice", "Yes, save it like that.", "yes", scenario="plan")
     assert answer["next"].startswith(f"Draft {draft['draft_id']} was waiting for this reply (1 unverified fact(s)).")
     assert host_commit(trip, draft, accept_unverified=True)["number"] == 2
-    turn = trip.turn("alice", "Move the coffee before dinner, to 18:30.", "clash", scenario="replan")
+    turn = trip.turn("alice", "Move the dinner once more, to 20:30.", "clash", scenario="replan")  # onto the coffee
     clash = trip.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"],
-                         days=[day_with(trip, d1_coffee=("18:30", "19:30"))], idempotency_key="clash")
+                         days=[day_with(trip, d1_dinner=("20:30", "21:30"))], idempotency_key="clash")
     assert clash["status"] == "rejected" and clash["ask_user"]["how"].startswith("The draft was not accepted")
     fact = dict(key="luggage", value=False, text="Mira has no suitcase", subject=["p1"], true_from="2030-06-10T16:00:00+02:00",
                 invalidated_by="user says otherwise", source=dict(event="this", basis="user_explicit"))
     _, again = moved(trip, key="again", text="Move the dinner on June 10 to 19:30.", dinner=("19:30", "20:30"))
     stale = trip.turn("alice", "Yes. And I have no suitcase.", "yes-and", scenario="plan", record=dict(facts=[fact]))
     assert stale["waiting_draft"]["stale"] is True and "propose the same change again" in stale["waiting_draft"]["say"]
+
+
+def new_unverified(trip, draft, prefix):
+    """IDs of the critical unverified checks of a draft that the saved plan (version 1) did not have, by kind."""
+    before = {check["id"] + check["text"] for check in trip.store.all("versions", "alice")[0]["checks"]["unverified"]}
+    return [check["id"] for check in draft["checks"]["unverified"]
+            if check["critical"] and check["id"].startswith(prefix) and check["id"] + check["text"] not in before]
+
+
+def test_only_outside_facts_wait_for_the_user_gaps_in_the_plan_itself_do_not(trip):
+    """2026-11-13 (the user's choice put as B): the service waits for the user about facts a lookup could settle
+    (opening hours, timetable, weather, ticket, hard node). A travel time that was not given, a must without a test
+    and unknown fares stay in checks.unverified for the answer and hold nothing back."""
+    # a walk that is only text: nothing outside to check, three "chain" lines (one per person) for the way to it
+    turn = trip.turn("alice", "晚上加一段海边散步。", "walk", scenario="replan")
+    day = day_with(trip)
+    day["plans"][0]["tracks"][0]["blocks"].append(dict(id="d1-walk", start="20:00", end="21:00", kind="flex", text="Harbour walk"))
+    walk = trip.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], days=[day], idempotency_key="walk")
+    assert len(new_unverified(trip, walk, "chain:")) == 3 and "ask_user" not in walk
+    assert host_commit(trip, walk, key="walk")["number"] == 2  # no flag, no answer
+    # a park visit: its opening hours and the weather are asked, the three "chain" lines are not
+    turn = trip.turn("alice", "中午加个公园。", "park", scenario="replan")
+    day = day_with(trip)
+    day["plans"][0]["tracks"][0]["blocks"].append(dict(id="d1-park", start="12:00", end="13:00", kind="visit", place="oslo-park"))
+    park = trip.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], days=[day], idempotency_key="park")
+    assert [check["id"] for check in park["ask_user"]["unverified"]] == [
+        "evidence:2030-06-10:d1-park:opening_hours", "evidence:2030-06-10:d1-park:weather"]
+    assert new_unverified(trip, park, "chain:")
+    with pytest.raises(ValueError, match="brings in 2 fact"):
+        host_commit(trip, park, key="park", accept_unverified=True)
+
+
+def test_the_price_of_that_choice_a_squeezed_gap_with_no_travel_time_is_saved_without_asking(trip):
+    """Intended, and the cost of asking only about outside facts: the dinner block gives no transfer time any more and
+    the gallery now ends five minutes before it, at another place. The service cannot tell whether five minutes are
+    enough ("chain", unverified, critical), says so in checks.unverified, and saves without waiting for the user."""
+    turn = trip.turn("alice", "画廊改到下午，16:55 结束。", "late", scenario="replan")
+    day = day_with(trip, d1_art=("15:55", "16:55"))
+    dinner = next(block for block in day["plans"][0]["tracks"][0]["blocks"] if block["id"] == "d1-dinner")
+    dinner["transfer_minutes"] = None
+    # the gallery's own opening hours at the new time are an outside fact; keep them out of this case with evidence
+    art = next(block for block in day["plans"][0]["tracks"][0]["blocks"] if block["id"] == "d1-art")
+    trip.store.put("evidence", "alice", dict(id="EV-art-late", source="fixture:first-hand", fetched_at="2030-06-10T15:00:00+02:00",
+                                             valid_until="2100-01-01T00:00:00+00:00", stale=False, date="2030-06-10",
+                                             place_id="oslo-art", facts=["opening_hours"]), insert=True)
+    art["evidence_ids"] = ["EV-art-late"]
+    draft = trip.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], days=[day], idempotency_key="late")
+    squeezed = [check for check in draft["checks"]["unverified"] if check["id"].startswith("chain:") and check["id"].endswith(":d1-dinner")]
+    assert len(squeezed) == 3 and all("5.0 minutes available" in check["text"] and check["critical"] for check in squeezed)
+    assert draft["status"] == "proposed" and "ask_user" not in draft
+    assert host_commit(trip, draft, key="late")["number"] == 2
+
+
+def test_a_must_recorded_with_the_plan_change_does_not_ask_about_its_untestable_lines(trip):
+    """2026-11-13, GLM: "yes, save it; and cancel the coffee" was recorded as a must in the draft that removed the
+    coffee, and the four "Hard condition has no deterministic predicate" lines (one per day) cost the user a round."""
+    fact = dict(key="luggage", value=False, text="Mira 没有箱子", subject=["p1"], true_from="2030-06-10T16:00:00+02:00",
+                invalidated_by="user says otherwise", source=dict(event="this", basis="user_explicit"))
+    turn = trip.turn("alice", "咖啡取消吧，太晚了。我没带箱子。", "drop", scenario="replan", record=dict(facts=[fact]))
+    must = dict(kind="constraint", key="no-coffee", quote="咖啡取消吧", text="取消饭后咖啡", subject=["p1"], strength="must",
+                source=dict(event=turn["receipt"]["event_id"], basis="user_explicit"))
+    day = day_with(trip)
+    day["plans"][0]["tracks"][0]["blocks"] = [block for block in day["plans"][0]["tracks"][0]["blocks"] if block["id"] != "d1-coffee"]
+    draft = trip.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], days=[day], changes=dict(items=[must]),
+                         idempotency_key="drop")
+    assert "recorded_first" not in draft  # the turn already recorded for this message, so the must stays in the draft
+    assert len(new_unverified(trip, draft, "item:")) == 4 and "ask_user" not in draft
+    assert host_commit(trip, draft, key="drop")["number"] == 2
 
 
 def test_a_change_that_brings_in_nothing_new_is_saved_at_once(trip):

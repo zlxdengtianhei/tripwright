@@ -36,6 +36,13 @@ def lock_reason(check: dict) -> str:
 
 
 REPLY_NATURES = ("user_verbatim", "host_restatement")
+# The unverified facts a change waits for the user about: facts of the outside world that a lookup could settle
+# (evidence: opening hours, a timetable, the weather, whether a ticket applies, a block's own critical facts;
+# anchor-evidence: a hard node). The other critical checks describe the plan itself: a travel time between two blocks
+# that was not given (chain, one line per person), a must the service has no test for (item, one line per day), fares
+# not known yet (budget). They stay in checks.unverified for the answer and hold no change back (2026-11-13: adding a
+# walk asked the user about three "chain" lines, and a must recorded with a plan change about four "item" lines).
+OUTSIDE_FACTS = ("evidence:", "anchor-evidence:")
 SHOWN_IN_REFUSAL = 5
 
 
@@ -46,8 +53,9 @@ def unknown_key(check: dict) -> str:
 
 
 def brought_in(known: set[str], checks: dict) -> list[dict]:
-    """The critical unverified facts a candidate brings in: those the saved plan does not already carry."""
-    return [check for check in checks["unverified"] if check["critical"] and unknown_key(check) not in known]
+    """The unverified outside facts a candidate brings in: those the saved plan does not already carry."""
+    return [check for check in checks["unverified"] if check["critical"] and check["id"].startswith(OUTSIDE_FACTS)
+            and unknown_key(check) not in known]
 
 
 def not_saved(facts: list[dict], *, asks: bool = True, answered: bool = False) -> str:
@@ -602,13 +610,13 @@ class Versions:
     def commit(self, owner: str, draft_id: str, idempotency_key: str, *, accept_unverified: bool = False,
                ask_first: bool = False, version_id: str | None = None, replaying: bool = False,
                answered: dict | None = None) -> dict:
-        """A change that brings in critical unverified facts (`brought_in`) is saved only with `accept_unverified`.
+        """A change that brings in unverified outside facts (`brought_in`) is saved only with `accept_unverified`.
         `ask_first` is how a host agent's call is treated (the MCP adapter sets it): the acceptance then counts only
         when turn has received another message since those facts were returned (`unanswered`), and the version
         records that message in `answered`. Messages that came after it still have to be settled. Without
         `ask_first` the caller vouches for the user itself (seeds, tests, replay, an operator's
         TRIPWRIGHT_SAVE_UNVERIFIED=agent). Unverified facts the saved plan already carries never hold a change back,
-        in either mode.
+        in either mode, and neither do the checks on the plan itself (OUTSIDE_FACTS).
 
         `version_id`, `replaying` and `answered` are for replay on a new head (repo.replay): the version keeps its ID
         and its acceptance record, and the checks on later messages, which held when the user saw the draft, are not
