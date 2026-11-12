@@ -2239,7 +2239,24 @@ class QueryRouter:
                 places = (plan or {}).get("places", [])
                 if kind == "saved":
                     words = arguments.get("text", "").casefold().split()
-                    values = [place for place in places if all(word in str(place).casefold() for word in words)]
+
+                    def hit(record):
+                        return all(word in str(record).casefold() for word in words)
+
+                    values = [place for place in places if hit(place)]
+                    # 2026-11-12 (the user: guides sent as screenshots and the agent's research become the user's own
+                    # database for later answers): besides places, the facts and items in force and the web checks
+                    # recorded, each with its words, where it came from and whether it counts as checked
+                    values += [dict(found="fact", id=record["id"], key=record["key"], text=record["text"], value=record.get("value"),
+                                    nature=(record.get("source") or {}).get("nature"))
+                               for record in self.store.all("facts", owner) if record.get("status") == "active" and hit(record)]
+                    values += [dict(found="item", id=record["id"], kind=record["kind"], key=record["key"], text=record["text"],
+                                    quote=record.get("quote"), nature=(record.get("source") or {}).get("nature"))
+                               for record in self.store.all("items", owner) if record.get("status") in ("active", "pending") and hit(record)]
+                    values += [dict(found="web", id=record["id"], claim=record["claim"], quote=record["quote"], url=record["url"],
+                                    fetched_at=record["fetched_at"], counts_as_checked=record.get("counts_as_checked", False))
+                               for record in self.store.all("evidence", owner)
+                               if record.get("kind") == "web" and hit([record.get(key) for key in ("claim", "quote", "url")])]
                 else:
                     latitude, longitude = arguments["lat"], arguments["lon"]
                     values = []
@@ -2255,7 +2272,7 @@ class QueryRouter:
                             values.append(dict(place=place, distance_km=round(distance, 3)))
                     values.sort(key=lambda place: place["distance_km"])
                 fetched = clock()
-                sourced = Sourced(values, "user-saved places; not live opening or ticket data", fetched, None)
+                sourced = Sourced(values, "user-saved places" + ("" if kind == "nearby" else ", facts, items and web checks") + "; not live opening or ticket data", fetched, None)
             elif kind == "opening":
                 return dict(status="unverified", reason="No opening-hours provider is configured; consult the exact branch's first-hand source.",
                             consequence="The branch may be closed.", alternative="Choose a confirmed alternative or check at the branch.")
