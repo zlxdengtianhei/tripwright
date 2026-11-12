@@ -147,6 +147,23 @@ def test_a_refused_draft_also_names_the_unverified_facts_so_the_corrected_one_ne
     assert host_commit(trip, fixed, accept_unverified=True)["answered"]["unverified"] == [DINNER]
 
 
+def test_an_english_conversation_gets_the_same_steps_in_english(trip):
+    _, draft = moved(trip, text="Move the dinner on June 10 from 17:00 to 19:00.")
+    assert draft["ask_user"]["how"].startswith("This change brings in 1 unverified fact(s); commit waits for the user's answer.")
+    answer = trip.turn("alice", "Yes, save it like that.", "yes", scenario="plan")
+    assert answer["next"].startswith(f"Draft {draft['draft_id']} was waiting for this reply (1 unverified fact(s)).")
+    assert host_commit(trip, draft, accept_unverified=True)["number"] == 2
+    turn = trip.turn("alice", "Move the coffee before dinner, to 18:30.", "clash", scenario="replan")
+    clash = trip.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"],
+                         days=[day_with(trip, d1_coffee=("18:30", "19:30"))], idempotency_key="clash")
+    assert clash["status"] == "rejected" and clash["ask_user"]["how"].startswith("The draft was not accepted")
+    fact = dict(key="luggage", value=False, text="Mira has no suitcase", subject=["p1"], true_from="2030-06-10T16:00:00+02:00",
+                invalidated_by="user says otherwise", source=dict(event="this", basis="user_explicit"))
+    _, again = moved(trip, key="again", text="Move the dinner on June 10 to 19:30.", dinner=("19:30", "20:30"))
+    stale = trip.turn("alice", "Yes. And I have no suitcase.", "yes-and", scenario="plan", record=dict(facts=[fact]))
+    assert stale["waiting_draft"]["stale"] is True and "propose the same change again" in stale["waiting_draft"]["say"]
+
+
 def test_a_change_that_brings_in_nothing_new_is_saved_at_once(trip):
     turn = trip.turn("alice", "把第一天的标题改成 Oslo day。", "title", scenario="replan")
     day = day_with(trip)
