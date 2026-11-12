@@ -322,15 +322,16 @@ def publish(repo_root, *, trip: str | None = None, rev: str = "HEAD", data_dir=N
                 changed = True
         base = (connection.get("pages_url") or "").rstrip("/") + "/" if connection.get("pages_url") else None
         url = f"{base}{path}/" if base else path
-        result = _record(store, owner, trip, ok=True, status="off" if settings.get("off") else "published",
-                         url=None if settings.get("off") else url, path=path, plan_version=version, revision=rev,
-                         public_commit=commit, changed=changed, blocked=None, error=None)
+        # The notice first, then the record: whoever reads the record (a test polling it, a visitor's next turn) then
+        # sees the notice that goes with it, never the one from the version before (CI 43153221577, 2026-11-12).
         notice(store, owner, None)
-        return result
+        return _record(store, owner, trip, ok=True, status="off" if settings.get("off") else "published",
+                       url=None if settings.get("off") else url, path=path, plan_version=version, revision=rev,
+                       public_commit=commit, changed=changed, blocked=None, error=None)
     except ShareBlocked as blocked:
+        notice(store, owner, blocked.findings)
         _record(store, owner, _failure_trip(store, owner, trip), ok=False, status="blocked",
                 plan_version=locals().get("version"), blocked=blocked.findings, error=None)
-        notice(store, owner, blocked.findings)
         raise
     except Exception as error:
         _record(store, owner, _failure_trip(store, owner, trip), ok=False, status="error",
