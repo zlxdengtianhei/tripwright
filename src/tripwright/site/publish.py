@@ -166,7 +166,8 @@ def _publish_lock(data_dir):
         except OSError:
             if time.monotonic() >= deadline:
                 handle.close()
-                raise PublishError("Another publish has held the public repository for 120 seconds; try again later") from None
+                raise PublishError(f"Another publish has held the public repository for {_PUBLISH_LOCK_TIMEOUT:g} seconds; "
+                                   "try again later") from None
             time.sleep(0.05)
     try:
         yield

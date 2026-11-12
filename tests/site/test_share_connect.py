@@ -255,7 +255,7 @@ def test_publish_lock_timeout_is_recorded_and_shown_by_share_status(tmp_path, pu
     finally:
         release.set()
         holder.join(5)
-    message = "Another publish has held the public repository for 120 seconds; try again later"
+    message = "Another publish has held the public repository for 0.1 seconds; try again later"  # the timeout in force, not a fixed 120
     assert str(raised.value) == message
     assert record(repo, "2030-07-fiktiv")["status"] == "error"
 
