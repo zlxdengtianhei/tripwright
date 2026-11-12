@@ -4,6 +4,8 @@ All people, places and numbers are invented; the public repository is a local ba
 """
 from __future__ import annotations
 
+import fcntl
+import json
 import subprocess
 import threading
 from copy import deepcopy
@@ -14,6 +16,7 @@ import pytest
 from test_share import GIT, public, remote_files, sample_plan, share_settings, trip_repo  # noqa: F401 (public is a fixture)
 from tripwright.cli import main
 from tripwright.repo import layout
+from tripwright.site import publish as publish_module
 from tripwright.site import share as share_module
 from tripwright.site.publish import publish
 from tripwright.storage import Store
@@ -227,3 +230,75 @@ def test_two_threads_publishing_one_trip_at_the_same_time_both_succeed(tmp_path,
     files = remote_files(bare)
     assert directories(bare) == {path} and f"{path}/index.html" in files and f"{path}/2030-07-14.html" in files
     assert history_is_linear(bare)
+
+
+def test_publish_lock_timeout_is_recorded_and_shown_by_share_status(tmp_path, public, monkeypatch, capsys):
+    bare, data = public
+    repo = trip_repo(tmp_path / "trip", sample_plan())
+    locked = threading.Event()
+    release = threading.Event()
+    monkeypatch.setattr(publish_module, "_PUBLISH_LOCK_TIMEOUT", 0.1)
+
+    def hold_lock():
+        with (data / "share" / "publish.lock").open("a+") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            locked.set()
+            release.wait(5)
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+    holder = threading.Thread(target=hold_lock)
+    holder.start()
+    assert locked.wait(5)
+    try:
+        with pytest.raises(publish_module.PublishError) as raised:
+            publish(repo, data_dir=data)
+    finally:
+        release.set()
+        holder.join(5)
+    message = "Another publish has held the public repository for 120 seconds; try again later"
+    assert str(raised.value) == message
+    assert record(repo, "2030-07-fiktiv")["status"] == "error"
+
+    assert main(["--repo", str(repo), "share", "status"]) == 0
+    shown = json.loads(capsys.readouterr().out)
+    assert [(item["status"], item["error"]) for item in shown] == [("error", message)]
+
+
+def test_connect_waits_for_the_publish_lock_before_replacing_the_public_clone(tmp_path, monkeypatch):
+    data = tmp_path / "data"
+    monkeypatch.setenv("TRIPWRIGHT_DATA_DIR", str(data))
+    bare = bare_public(tmp_path)
+    stage = data / "share" / ".connect-public"
+    pushed = threading.Event()
+    swapped = threading.Event()
+    original_run = publish_module.run
+    original_rename = Path.rename
+
+    def watch_push(command, *, cwd=None, env=None):
+        result = original_run(command, cwd=cwd, env=env)
+        if command[:2] == ["git", "push"] and cwd == stage:
+            pushed.set()
+        return result
+
+    def watch_swap(self, target):
+        if self == stage:
+            swapped.set()
+        return original_rename(self, target)
+
+    monkeypatch.setattr(publish_module, "run", watch_push)
+    monkeypatch.setattr(Path, "rename", watch_swap)
+    failures: list[Exception] = []
+
+    def connect():
+        try:
+            publish_module.connect(data, str(bare))
+        except Exception as error:
+            failures.append(error)
+
+    with publish_module._publish_lock(data):
+        worker = threading.Thread(target=connect)
+        worker.start()
+        assert pushed.wait(5)
+        assert not swapped.wait(0.2)
+    worker.join(5)
+    assert not worker.is_alive() and failures == [] and swapped.is_set()

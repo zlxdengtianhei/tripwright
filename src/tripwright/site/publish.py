@@ -22,6 +22,7 @@ from .share import ShareBlocked, scan_tree, share_site
 AUTHOR = {"GIT_AUTHOR_NAME": "tripwright", "GIT_AUTHOR_EMAIL": "share@tripwright.invalid",
           "GIT_COMMITTER_NAME": "tripwright", "GIT_COMMITTER_EMAIL": "share@tripwright.invalid"}
 NOTICE_KEY = "share-blocked"
+_PUBLISH_LOCK_TIMEOUT = 120
 PATH = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$")
 log = logging.getLogger("tripwright.share")
 
@@ -132,12 +133,13 @@ def connect(data_dir, repo_url: str, branch: str = "main", *, environ=os.environ
     except (PublishError, GitError, OSError) as error:
         shutil.rmtree(stage, ignore_errors=True)
         raise PublishError(f"Public repository connection failed; nothing was saved: {error}") from None
-    old = clone.with_name(".old-public")
-    shutil.rmtree(old, ignore_errors=True)
-    if clone.exists():
-        clone.rename(old)
-    stage.rename(clone)
-    shutil.rmtree(old, ignore_errors=True)
+    with _publish_lock(data_dir):
+        old = clone.with_name(".old-public")
+        shutil.rmtree(old, ignore_errors=True)
+        if clone.exists():
+            clone.rename(old)
+        stage.rename(clone)
+        shutil.rmtree(old, ignore_errors=True)
     write_json(connection_file(data_dir), dict(repo_url=repo_url, branch=branch, pages_url=pages_url(repo_url)))
     base = pages_url(repo_url) or "<public-pages-base>/"
     return (f"Connected on {branch}. Public pages: {base}<path>/. Every trip with a committed plan publishes when you "
@@ -156,7 +158,7 @@ def _publish_lock(data_dir):
     folder = Path(data_dir) / "share"
     folder.mkdir(parents=True, exist_ok=True, mode=0o700)
     handle = open(folder / "publish.lock", "a+")
-    deadline = time.monotonic() + 120
+    deadline = time.monotonic() + _PUBLISH_LOCK_TIMEOUT
     while True:
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
