@@ -424,10 +424,15 @@ class Tripwright:
         # stand in for one it named, which A12 and S4h guard against), an intent the service reads in the words
         # themselves backs it up. One intent so far: a latest-time question gets the plan's hard nodes (H-02: no long
         # silence; 2026-11-12, GPT marked “最最迟的时间……机场能不能进去” all `other` and the first reply came 8 to 27 s
-        # later). Another intent goes here, measured the same way first.
+        # later). The host's `at` is a mark too: such a draft says where the plan has the user. Another intent goes
+        # here, measured the same way first.
         unread = bool(told["points"]) and all(point["kind"] == "other" for point in told["points"])
-        if not any(useful(point) for point in told["points"]) and not (unread and first_part.LATEST.search(text)):
-            return None
+        if not any(useful(point) for point in told["points"]):
+            if not (unread and first_part.LATEST.search(text)):
+                return None
+            # drafted from the words, so where the plan has the user, said as assumed; the host's `at` only when the
+            # plan has no place now
+            told = dict(told, at=told.get("planned") or told["at"])
         first = first_part.draft(text, clock, anchors, plan, language or self.language, told)
         kept = []
         for line in first["lines"]:

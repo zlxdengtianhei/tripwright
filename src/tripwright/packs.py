@@ -912,11 +912,14 @@ def point_facts(store: Store, owner: str, plan: dict | None, points: list[dict],
                              coordinates(plan, said_at["place"]) if said_at.get("place") else None), assumed=False)
         if said_at.get("place") and place is None and where["coords"] is None:
             where["unknown"] = said_at["place"]  # S4h-a: said, never the plan's place in its stead
-    else:
-        planned = plan_place(plan, now["date"], now["time"], person or asker(plan))
-        planned = match_place(plan, planned) if planned else None
-        where = dict(said=None, place=planned["id"], name=short_name(planned, language, plan), assumed=True,
-                     coords=tuple(planned["coords"]) if planned.get("coords") else None) if planned else None
+    planned = plan_place(plan, now["date"], now["time"], person or asker(plan))
+    planned = match_place(plan, planned) if planned else None
+    # where the plan has the user now, kept even when the host sent an `at`: a first part drafted from the words alone
+    # (rule C) does not take the host's `at` (2026-11-12: “机场能不能进去” sent as `at` became “你在维也纳机场”)
+    assumed = dict(said=None, place=planned["id"], name=short_name(planned, language, plan), assumed=True,
+                   coords=tuple(planned["coords"]) if planned.get("coords") else None) if planned else None
+    if said_at is None:
+        where = assumed
     tickets = stored_tickets(plan, now["date"], language)
     upcoming = [anchor for anchor in anchors if not anchor.get("passed")]
     def named(row):  # an English line names a place as its go and at lines do, by the local name
@@ -953,7 +956,7 @@ def point_facts(store: Store, owner: str, plan: dict | None, points: list[dict],
         else:
             facts = {}
         told.append(dict(entry, facts=facts, keys=[key for key in dict.fromkeys(keys) if key]))
-    return dict(at=where, points=told, next=next_place(plan, where, told, language), party=(tickets or {}).get("party"))
+    return dict(at=where, planned=assumed, points=told, next=next_place(plan, where, told, language), party=(tickets or {}).get("party"))
 
 
 def next_place(plan: dict | None, where: dict | None, told: list[dict], language: str) -> dict | None:

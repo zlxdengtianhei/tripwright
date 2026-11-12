@@ -13,8 +13,8 @@ GPT_POINTS = [dict(kind="other", said="要一个最晚时间作为底"), dict(ki
               dict(kind="other", said="怎么在机场过夜")]
 
 
-def trip_with_a_node(service, plan, monkeypatch):
-    monkeypatch.setenv("TRIPWRIGHT_NOW", "2030-06-10T12:00:00+02:00")
+def trip_with_a_node(service, plan, monkeypatch, now="2030-06-10T12:00:00+02:00"):
+    monkeypatch.setenv("TRIPWRIGHT_NOW", now)
     monkeypatch.setenv("TRIPWRIGHT_NOW_SET_AT", str(time.time()))
     plan["days"][0]["anchors"] = [dict(id="desk", time="21:30", text="值机柜台关闭（虚构）", subject=["p1", "p2", "p3"], place="oslo-cafe")]
     turn = service.turn("alice", "创建示例行程。", "seed")
@@ -53,3 +53,14 @@ def test_a_latest_question_with_no_points_or_a_place_the_host_named_keeps_the_ol
     # a place the host named and the service cannot place: no stored place stands in for it (S4h)
     named = [dict(kind="other", said="最晚几点"), dict(kind="do", said="去一家没存的咖啡馆", place="Café Nirgendwo")]
     assert service.turn("alice", ASKED, None, scenario="quick", points=named)["first_part"] is None
+
+
+def test_the_hosts_at_does_not_say_where_the_user_is_on_this_path(service, plan, monkeypatch):
+    # GLM, 2026-11-12: “机场能不能进去” sent as `at`, and the first part said “按现在 13:48 算，你在维也纳机场（你说的“机场”）”
+    # while the plan had the user at lunch. A draft from the words alone says where the plan has the user, as assumed.
+    next(place for place in plan["places"] if place["id"] == "oslo-cafe")["coords"] = [59.9100, 10.7300]  # fictional
+    trip_with_a_node(service, plan, monkeypatch, now="2030-06-10T17:30:00+02:00")  # the plan: dinner at the café, 17:00-18:00
+    points = [dict(kind="other", said="最晚时间"), dict(kind="at", said="机场能不能进去", place="机场")]
+    lines = service.turn("alice", ASKED, None, scenario="quick", points=points)["first_part"]["lines"]
+    assert lines[1].startswith("按现在 17:30 算，假设你在") and "计划里这时在这" in lines[1]
+    assert "机场能不能进去" not in "".join(lines)
