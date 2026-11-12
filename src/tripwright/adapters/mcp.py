@@ -11,9 +11,10 @@ from importlib.metadata import version
 from functools import wraps
 from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal
 
+import pydantic_core
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp.types import ToolAnnotations
+from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import ValidationError, WithJsonSchema
 
 from tripwright.agents import server_instructions
@@ -71,6 +72,15 @@ def unexpected(name: str, error: BaseException) -> ToolError:
                      "tell the user the server operator must check its log")
 
 
+def compact(result):
+    """A dict result as compact JSON text beside the same structured content. The library indents the text by two
+    spaces, about 29% of a `turn` result's bytes (2026-11-12); the text is what a model reads."""
+    if not isinstance(result, dict):
+        return result
+    text = pydantic_core.to_json(result, fallback=str).decode()
+    return CallToolResult(content=[TextContent(type="text", text=text)], structured_content=pydantic_core.from_json(text))
+
+
 def expose_errors(function):
     def reason(error):
         if isinstance(error, ValidationError):
@@ -84,7 +94,7 @@ def expose_errors(function):
         @wraps(function)
         async def asynchronous(*args, **kwargs):
             try:
-                return await function(*args, **kwargs)
+                return compact(await function(*args, **kwargs))
             except (ValueError, KeyError, TypeError) as error:
                 raise ToolError(reason(error)) from None
             except ToolError:
@@ -96,7 +106,7 @@ def expose_errors(function):
     @wraps(function)
     def synchronous(*args, **kwargs):
         try:
-            return function(*args, **kwargs)
+            return compact(function(*args, **kwargs))
         except (ValueError, KeyError, TypeError) as error:
             raise ToolError(reason(error)) from None
         except ToolError:
