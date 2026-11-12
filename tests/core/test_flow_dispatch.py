@@ -113,3 +113,11 @@ def test_a_transcription_the_requirements_role_returns_is_recorded_as_screenshot
     [found] = [value for value in asyncio.run(service.query("alice", "saved", dict(text="鱼汤")))["evidence"]["value"]
                if value.get("found") == "item"]
     assert found["nature"] == "screenshot_extraction"
+
+
+def test_while_planning_the_first_instruction_names_whom_to_dispatch(service, plan, monkeypatch):
+    seeded(service, plan, monkeypatch)
+    turn = service.turn("alice", "10 号晚饭后的咖啡不要了，改成去公园散步。", "edit", scenario="replan")
+    assert turn["next"].startswith("先派 tripwright-requirements") and len(turn["next"]) <= 600
+    road = service.turn("alice", "我在车站，下一班车几点？", "road", scenario="quick")
+    assert "先派" not in road["next"][:10]

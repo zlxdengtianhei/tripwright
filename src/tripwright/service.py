@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model
 
 from tripwright import consider, packs
-from tripwright.flow import Flow
+from tripwright.flow import PLANNING, Flow
 from tripwright.checks import check_plan, departure_clock
 from tripwright.events import Events
 from tripwright.jobs import Jobs
@@ -409,6 +409,15 @@ class Tripwright:
                                               recorded=bool(record_input), changed=bool(recorded.get("replaced")),
                                               review=[entry["decision"] for entry in review], second=bool(first), latest=first_part.asks_latest(text),
                                               unknown=bool(self._unknown_places(plan, told, language=language)))
+            # The agent acts on the instruction it reads first: whom to dispatch leads it (2026-11-12 live runs: as a
+            # separate field only, a short planning edit went to the requirements role 2 times in 10).
+            named = response["flow"]["dispatch"]
+            if named and scenario in PLANNING:  # on the road the first instruction stays the first part or the answer
+                lead = ("Dispatch " if language == "en" else "先派 ") + ("; " if language == "en" else "；").join(
+                    f"{entry['role']} ({entry['why']})" if language == "en" else f"{entry['role']}（{entry['why']}）" for entry in named)
+                lead += ". " if language == "en" else "。"
+                head = REPLY_IN_ENGLISH + " " if response["next"].startswith(REPLY_IN_ENGLISH + " ") else ""  # it opens the reply
+                response["next"] = (head + lead + response["next"][len(head):])[:600]
             if told is not None:
                 response["points"] = told
         if self.committer is not None:
