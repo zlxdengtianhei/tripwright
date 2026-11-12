@@ -342,7 +342,8 @@ def archived_claims(store: Store, owner: str, plan: dict | None, day: str, ancho
                       else f"The plan stored \"{claim}\" (archived{', written ' + stamp_day_clock(written, zone) if written else ''}"
                            f", not checked{'; a later one at ' + later + ' was found this session: void' if later else ''})")
             parts.append(marked + ("。" if part.endswith("。") else ""))
-        updates[field] = "".join(parts)
+        # an English sentence after a part with no closing space (the stored text is often Chinese, “…回 Bad Ischl”)
+        updates[field] = "".join(parts) if language == "zh" else " ".join(part.strip() for part in parts if part.strip())
     if claims:
         updates["archived_claims"] = claims
     return updates
