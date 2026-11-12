@@ -86,8 +86,11 @@ def test_the_same_words_sent_again_or_a_screenshot_turn_are_not_the_users_answer
     again = trip.turn("alice", MOVE, "move-again", scenario="replan")
     shots = trip.turn("alice", "截图一：港边咖啡馆菜单", "shot", nature="screenshot_extraction")
     assert "waiting_draft" not in again and "waiting_draft" not in shots
-    with pytest.raises(ValueError, match="the user has not answered"):
+    with pytest.raises(ValueError, match="no message of the user has arrived since they were returned"):
         host_commit(trip, draft, accept_unverified=True)
+    # the answer settles what came before it, these two turns included
+    trip.turn("alice", YES, "yes", scenario="plan")
+    assert host_commit(trip, draft, accept_unverified=True)["number"] == 2
 
 
 def test_after_the_users_answer_the_same_draft_is_saved_and_the_version_names_the_answer(trip):
@@ -99,7 +102,7 @@ def test_after_the_users_answer_the_same_draft_is_saved_and_the_version_names_th
     # the answer is no new requirement: planning alone names nobody
     assert answer["flow"]["dispatch"] == []
     # the agent still has to state that the user agreed
-    with pytest.raises(ValueError, match="The user has answered since they were returned: if the answer agrees"):
+    with pytest.raises(ValueError, match="A message has arrived since they were returned: if it agrees to save the change as it is"):
         host_commit(trip, draft)
     version = host_commit(trip, draft, accept_unverified=True)
     assert version["number"] == 2 and version["accept_unverified"] is True
@@ -107,6 +110,38 @@ def test_after_the_users_answer_the_same_draft_is_saved_and_the_version_names_th
     assert dinner_line(trip).startswith("19:00")
     # the fact stays unverified in the saved version
     assert DINNER in [check["id"] for check in version["checks"]["unverified"]]
+
+
+def test_a_message_after_the_answer_is_not_covered_by_it(trip):
+    """2026-11-13, the judge's probe: "yes, save it", then "and cancel the coffee", saved the old draft with the coffee
+    still in it. The answer settles the messages up to it; the one after it has to be recorded or acknowledged."""
+    _, draft = moved(trip)
+    trip.turn("alice", YES, "yes", scenario="plan")
+    more = trip.turn("alice", "第一天的咖啡取消吧。", "more", scenario="replan")
+    assert "waiting_draft" not in more  # only the first message after the draft is taken as its answer
+    with pytest.raises(ValueError, match="Unsettled messages after the draft: " + more["receipt"]["event_id"]):
+        host_commit(trip, draft, accept_unverified=True)
+    assert trip.versions.current("alice")["number"] == 1
+    # proposed again for the new message, the same fact is not asked a second time
+    day = day_with(trip, d1_dinner=("19:00", "20:00"))
+    day["plans"][0]["tracks"][0]["blocks"] = [block for block in day["plans"][0]["tracks"][0]["blocks"] if block["id"] != "d1-coffee"]
+    again = trip.propose("alice", ctx_id=more["ctx_id"], base_version=more["base_version"], days=[day], idempotency_key="more")
+    assert again["status"] == "proposed" and "ask_user" not in again
+    version = host_commit(trip, again, key="more", accept_unverified=True)
+    assert version["number"] == 2 and "Agreed café" not in trip.state("alice", "day", "2030-06-10")["text"]
+
+
+def test_an_unrelated_message_first_leaves_the_real_answer_to_be_settled(trip):
+    """The service cannot tell which message agrees: the first one after the draft is taken as the answer, so a
+    question in between makes the "yes" a later message, settled like any other (here: declared with ack_events)."""
+    _, draft = moved(trip)
+    trip.turn("alice", "那家店在哪？", "where", scenario="status")
+    yes = trip.turn("alice", YES, "yes", scenario="plan")
+    with pytest.raises(ValueError, match="Unsettled messages after the draft: " + yes["receipt"]["event_id"]):
+        host_commit(trip, draft, accept_unverified=True)
+    trip.jobs.run_once("alice")
+    trip.result("alice", trip.store.get("drafts", "alice", draft["draft_id"])["job_id"], ack_events=[yes["receipt"]["event_id"]])
+    assert host_commit(trip, draft, accept_unverified=True)["number"] == 2
 
 
 def test_a_draft_proposed_again_after_the_answer_does_not_ask_a_second_time(trip):
@@ -217,15 +252,29 @@ def test_the_commit_tool_asks_first_for_every_host(trip):
 
 
 def test_the_operator_can_let_the_agent_accept_by_itself(trip, monkeypatch):
+    """TRIPWRIGHT_SAVE_UNVERIFIED=agent: nothing waits for the user, and no result says that it does. It is not the
+    behaviour before 2026-11-12 in one respect, which holds in both modes: unverified facts the saved plan already
+    carries need no flag."""
     monkeypatch.setenv("TRIPWRIGHT_SAVE_UNVERIFIED", "agent")
     server = create_server(trip, local_user="alice", manage_jobs=False)
     turn = call(server, "turn", text=MOVE, scenario="replan")
     draft = call(server, "propose", ctx_id=turn["ctx_id"], base_version=turn["base_version"], idempotency_key="tool",
                  days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
-    with pytest.raises(ToolError, match="Not saved yet"):  # the facts are still named when the flag is missing
-        call(server, "commit", draft_id=draft["draft_id"], idempotency_key="tool")
+    assert "ask_user" not in draft and [check["id"] for check in draft["tell_user"]["unverified"]] == [DINNER]
+    assert "等用户回话" not in draft["tell_user"]["how"] and "accept_unverified=true" in draft["tell_user"]["how"]
+    with pytest.raises(ToolError, match="Commit with accept_unverified=true to save it with them") as refusal:
+        call(server, "commit", draft_id=draft["draft_id"], idempotency_key="tool")  # the facts are still named
+    assert DINNER in str(refusal.value) and "ask whether" not in str(refusal.value)
     version = call(server, "commit", draft_id=draft["draft_id"], idempotency_key="tool", accept_unverified=True)
     assert version["number"] == 2 and "answered" not in version
+    # the next message is no answer to anything
+    later = call(server, "turn", text="把第一天的标题改成 Oslo day。", scenario="replan")
+    assert "waiting_draft" not in later
+    day = day_with(trip)
+    day["title"] = "Oslo day"
+    title = call(server, "propose", ctx_id=later["ctx_id"], base_version=later["base_version"], idempotency_key="title", days=[day])
+    assert "tell_user" not in title and "ask_user" not in title
+    assert call(server, "commit", draft_id=title["draft_id"], idempotency_key="title")["number"] == 3
 
 
 def test_tool_descriptions_describe_and_do_not_repeat_the_chat_rules(service):

@@ -77,14 +77,6 @@ request_user: ContextVar[str | None] = ContextVar("tripwright_user", default=Non
 log = logging.getLogger("tripwright.tools")
 
 
-def ask_first() -> bool:
-    """Whether a host agent's accept_unverified counts only after the user's answer (versions.commit). The default,
-    `ask`, follows what the user said on 2026-10-31 (results nobody verified are not acceptable), read as "ask before
-    saving"; TRIPWRIGHT_SAVE_UNVERIFIED=agent is the operator's choice to let the agent accept by itself, as before
-    2026-11-12."""
-    return os.environ.get("TRIPWRIGHT_SAVE_UNVERIFIED", "ask").lower() != "agent"
-
-
 def unexpected(name: str, error: BaseException) -> ToolError:
     """An error the tool did not expect: one log line for the operator (with the traceback at debug level), and a
     refusal that tells the host what kind of failure it was and what to do, instead of the SDK's bare "Error executing
@@ -265,15 +257,17 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
                 days: ObjectList | None = None, places: ObjectList | None = None,
                 bookings: ObjectList | None = None, changes: RecordArguments | None = None,
                 usages: UsageArguments | None = None) -> dict[str, Any]:
-        """Creates a draft from turn's ctx_id/base_version; nothing is saved until commit. plan is a complete trip (shape state(view='plan').plan). days (whole days by date, as state(view='day').json returns one), places and bookings (by id) patch the current plan; plan together with patches is refused. Without them the draft changes only the ledger. changes/usages are validated by the service; records keep their IDs and cite this turn's event in source.event. With usages or revisions omitted, the service records which applicable conditions/decisions were touched (filled_by=service) and sets no precedence between preferences; an explicit [] counts as given. Names in speaker/subject resolve to trip person IDs. A choice the user did not state is recorded in changes.items with source.basis='agent_inference'. Only a user decision with must=true locks. Refused: a changed user decision without changes.revisions; a changed must, bought/booked item or hard node that this message's words do not carry; competing preferences before the user chose. Returns draft_id, checks, refusals, and ask_user when the change brings in unverified facts that wait for the user's answer."""
+        """Creates a draft from turn's ctx_id/base_version; nothing is saved until commit. plan is a complete trip (shape state(view='plan').plan). days (whole days by date, as state(view='day').json returns one), places and bookings (by id) patch the current plan; plan together with patches is refused. Without them the draft changes only the ledger. changes/usages are validated by the service; records keep their IDs and cite this turn's event in source.event. With usages or revisions omitted, the service records which applicable conditions/decisions were touched (filled_by=service) and sets no precedence between preferences; an explicit [] counts as given. Names in speaker/subject resolve to trip person IDs. A choice the user did not state is recorded in changes.items with source.basis='agent_inference'. Only a user decision with must=true locks. Refused: a changed user decision without changes.revisions; a changed must, bought/booked item or hard node that this message's words do not carry; competing preferences before the user chose. Returns draft_id, checks, refusals, and the unverified facts the change brings in (ask_user when they wait for the user's answer, else tell_user)."""
         return ready().propose(identity(), ctx_id=ctx_id, base_version=base_version, idempotency_key=idempotency_key,
                                plan=plan, days=days, places=places, bookings=bookings, changes=changes, usages=usages)
 
     @server.tool(title="Commit a checked current draft", annotations=replace, structured_output=True)
     @expose_errors
     def commit(draft_id: str, idempotency_key: str, accept_unverified: bool = False) -> dict[str, Any]:
-        """Saves a proposed draft as the next plan version. Refused: a stale draft, a changed user-locked field, a hard conflict, or new unverified facts the user has not answered about (the refusal lists them). accept_unverified=true states that the user agreed after seeing them; it counts once a later user message has arrived through turn. Returns the version and write state."""
-        return ready().commit(identity(), draft_id, idempotency_key, accept_unverified=accept_unverified, ask_first=ask_first())
+        """Saves a proposed draft as the next plan version. Refused: a stale draft, a changed user-locked field, a hard conflict, or new unverified facts before a further user message has arrived through turn (the refusal lists them). accept_unverified=true states that the user agreed after seeing them. Returns the version and write state."""
+        service = ready()
+        return service.commit(identity(), draft_id, idempotency_key, accept_unverified=accept_unverified,
+                              ask_first=service.asks_first())
 
     @server.tool(title="Retrieve or cancel the persistent second-response result", annotations=replace, structured_output=True)
     @expose_errors

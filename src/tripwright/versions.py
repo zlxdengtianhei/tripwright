@@ -50,9 +50,11 @@ def brought_in(known: set[str], checks: dict) -> list[dict]:
     return [check for check in checks["unverified"] if check["critical"] and unknown_key(check) not in known]
 
 
-def not_saved(facts: list[dict], *, answered: bool = False) -> str:
-    """The refusal for a change that brings in unverified facts: what they are and what to do. `answered`: the user
-    has spoken since they were returned, and only the agent's statement that the user agreed is missing."""
+def not_saved(facts: list[dict], *, asks: bool = True, answered: bool = False) -> str:
+    """The refusal for a change that brings in unverified facts: what they are and what to do. `asks`: the user's
+    answer is required (versions.commit's ask_first); otherwise only the caller's accept_unverified is missing.
+    `answered`: a message has arrived since the facts were returned, and only the agent's statement that the user
+    agreed is missing."""
     def line(check):
         details = check["details"]
         hours = "–".join(str(details[key]) for key in ("start", "end") if details.get(key)) or details.get("time")
@@ -62,14 +64,18 @@ def not_saved(facts: list[dict], *, answered: bool = False) -> str:
     more = len(facts) - SHOWN_IN_REFUSAL
     listed = " | ".join(line(check) for check in facts[:SHOWN_IN_REFUSAL]) + (
         f" | and {more} more in the draft's checks.unverified." if more > 0 else "")
+    if not asks:
+        return (f"Not saved yet: this change brings in {len(facts)} fact(s) that remain unverified. {listed} Commit with "
+                "accept_unverified=true to save it with them, and tell the user which facts are unknown and what follows "
+                "from each.")
     if answered:
-        return (f"Not saved yet: this change brings in {len(facts)} fact(s) that remain unverified. {listed} The user has "
-                "answered since they were returned: if the answer agrees to save the change as it is, commit this draft with "
+        return (f"Not saved yet: this change brings in {len(facts)} fact(s) that remain unverified. {listed} A message has "
+                "arrived since they were returned: if it agrees to save the change as it is, commit this draft with "
                 "accept_unverified=true; otherwise propose what the user asked for.")
-    return (f"Not saved yet: this change brings in {len(facts)} fact(s) that remain unverified, and the user has not answered "
-            f"about them since they were returned. {listed} Tell the user that the change is not saved yet, which facts are "
-            "unknown and what follows from each, and ask whether to save it as it is. After the user's answer call turn "
-            "with it; if the user agrees, commit this draft with accept_unverified=true.")
+    return (f"Not saved yet: this change brings in {len(facts)} fact(s) that remain unverified, and no message of the user "
+            f"has arrived since they were returned. {listed} Tell the user that the change is not saved yet, which facts "
+            "are unknown and what follows from each, and ask whether to save it as it is. After the user's answer call "
+            "turn with it; if the user agrees, commit this draft with accept_unverified=true.")
 
 
 class Versions:
@@ -162,16 +168,20 @@ class Versions:
         inference are not the user speaking."""
         return [event for event in snapshots.received_events(self.store, owner) if event["received"]["nature"] in REPLY_NATURES]
 
-    def unanswered(self, owner: str, brought: list[dict]) -> tuple[list[dict], str | None]:
-        """Of the unverified facts a change brings in: those the user has not answered yet, and the latest message
-        that answered the others.
+    def unanswered(self, owner: str, brought: list[dict]) -> tuple[list[dict], dict | None]:
+        """Of the unverified facts a change brings in: those not answered yet, and the message that answered the
+        others (the latest one, when different messages answered different facts).
 
         2026-11-12, Claude and ChatGPT on the web: both committed such a change with accept_unverified in the turn
-        that proposed it and told the user afterwards. The service cannot read what an agent tells the user, nor
-        whether a reply agrees. It can tell that the user spoke again after a draft returned the fact, which an agent
-        that commits in the same turn cannot show. A fact is answered once: a draft proposed again after the reply
-        (the old one went stale, or the user changed something else) does not ask about it a second time. The same
-        words sent again (a turn repeated to record the message) are not a reply."""
+        that proposed it and told the user afterwards. What the service checks is narrow: after a draft returned the
+        fact, turn received another message with different words. It cannot read what the agent told the user, whether
+        that message agrees, or whether the user wrote it (the agent passes the text). An agent that commits in the
+        turn of its proposal cannot show such a message without calling turn with words of its own.
+
+        The answer to a fact is the first such message: what comes after it is a new message like any other and is
+        not covered by it (commit). A fact is answered once: a draft proposed again after the answer (the old one
+        went stale, or the user changed something else) does not ask about it a second time. The same words sent
+        again (a turn repeated to record the message) are not an answer."""
         if not brought:
             return [], None
         events = self.messages(owner)
@@ -181,14 +191,15 @@ class Versions:
             if not shown:
                 continue
             said = next((event["received"]["text"] for event in events if event["id"] == draft["source_event"]), None)
-            replies = [event for event in events if aware(event["receipt"]["received_at"]) > aware(draft["created_at"])
-                       and event["received"]["text"] != said]
-            if replies:
-                answered.update({key: replies[-1] for key in shown})
+            first = next((event for event in events if aware(event["receipt"]["received_at"]) > aware(draft["created_at"])
+                          and event["received"]["text"] != said), None)
+            for key in shown if first else ():
+                earlier = answered.get(key)
+                if earlier is None or aware(first["receipt"]["received_at"]) < aware(earlier["receipt"]["received_at"]):
+                    answered[key] = first
         waiting = [check for check in brought if unknown_key(check) not in answered]
         used = [answered[unknown_key(check)] for check in brought if unknown_key(check) in answered]
-        latest = max(used, key=lambda event: aware(event["receipt"]["received_at"]), default=None)
-        return waiting, latest["id"] if latest else None
+        return waiting, max(used, key=lambda event: aware(event["receipt"]["received_at"]), default=None)
 
     def _check(self, owner: str, plan: Trip, *, usages: list[dict], require_usage: bool, sourced: set[tuple[str, str]] = frozenset()) -> dict:
         """All checks of a candidate. Facts stay as committed (D-53): a bought or booked booking and a hard node change
@@ -593,9 +604,11 @@ class Versions:
                answered: dict | None = None) -> dict:
         """A change that brings in critical unverified facts (`brought_in`) is saved only with `accept_unverified`.
         `ask_first` is how a host agent's call is treated (the MCP adapter sets it): the acceptance then counts only
-        when the user has answered since those facts were returned (`unanswered`), and the version records the
-        answering message in `answered`. Without it the caller vouches for the user itself (seeds, tests, replay).
-        Unverified facts the saved plan already carries never hold a change back.
+        when turn has received another message since those facts were returned (`unanswered`), and the version
+        records that message in `answered`. Messages that came after it still have to be settled. Without
+        `ask_first` the caller vouches for the user itself (seeds, tests, replay, an operator's
+        TRIPWRIGHT_SAVE_UNVERIFIED=agent). Unverified facts the saved plan already carries never hold a change back,
+        in either mode.
 
         `version_id`, `replaying` and `answered` are for replay on a new head (repo.replay): the version keeps its ID
         and its acceptance record, and the checks on later messages, which held when the user saw the draft, are not
@@ -646,12 +659,17 @@ class Versions:
             asking = bool(brought) and ask_first and not replaying
             waiting, reply = self.unanswered(owner, brought) if asking else ([], None)
             if waiting or (brought and not accept_unverified):
-                raise ValueError(not_saved(waiting or brought, answered=asking and not waiting))
+                raise ValueError(not_saved(waiting or brought, asks=ask_first, answered=asking and not waiting))
             if asking:
-                answered = dict(event=reply, unverified=[check["id"] for check in brought])
-            if not unchanged_plan and not replaying and answered is None:
-                # with `answered`, the messages after the draft are the user's answer to it
+                answered = dict(event=reply["id"], unverified=[check["id"] for check in brought])
+            if not unchanged_plan and not replaying:
                 later = self.unsettled(owner, draft)
+                if asking:
+                    # the answer settles the messages up to it; one that came after it is a new message (2026-11-13:
+                    # "yes, save it", then "and drop the coffee", must not save the draft without the second)
+                    until = aware(reply["receipt"]["received_at"])
+                    later = [event for event in later
+                             if aware(self.store.get("events", owner, event)["receipt"]["received_at"]) > until]
                 if later:
                     raise ValueError("Unsettled messages after the draft: " + ", ".join(later) + "; record what they change and "
                                      "propose again, or declare they change nothing with result(job_id, ack_events=[...])")
