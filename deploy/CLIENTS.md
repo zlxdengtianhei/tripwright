@@ -171,6 +171,20 @@ Any client that can add a remote MCP server works with the settings in [What eve
 - **Kimi Work, QwenWork desktop (千问办公), ZCode:** their documentation describes adding a remote MCP server: Kimi Work's Plugin Builder asks for the MCP address; QwenWork uses **扩展 → 连接器 → + 添加** with type `streamable-http`; ZCode uses its MCP settings with type HTTP. We have not checked these step by step.
 - **A client that runs only local (stdio) servers:** set its command to `npx` with the arguments `-y mcp-remote <address>`, a bridge that Linear's MCP documentation uses. Paste the address into that client's settings from the clipboard; it then sits in the client's configuration.
 
+## Helper roles in each app
+
+Tripwright has four roles: the main agent, which answers; `tripwright-requirements`, which records new requirements and screenshots and links them to earlier decisions; `tripwright-researcher`, which checks facts (and ticket prices and discounts on request); `tripwright-verifier`, which checks a changed plan before it is saved. Every tool result carries `flow`: `flow.dispatch` names the role a step needs, and one short line reminds the agent of the steps. Where an app cannot run a role as a sub-agent, the main agent does that role's steps itself.
+
+| App | What it can hold | How the roles get there | How they run |
+|---|---|---|---|
+| Claude Code (CLI, desktop) | Sub-agents in `.claude/agents/`, skills in `.claude/skills/` | `tripwright init` writes them into the trip repository; `tripwright init --upgrade` refreshes them | As sub-agents |
+| Claude Code on the web | The repository's `.claude/agents/`, `.claude/skills/` and `.mcp.json` (single-repository sessions) | Open a session on the trip repository | As sub-agents |
+| Codex (CLI, IDE) | Custom agents in `.codex/agents/`, skills in `.agents/skills/` | Written by `tripwright init` | As sub-agents, but only when a skill or `AGENTS.md` says to delegate; the generated `AGENTS.md` says to dispatch whom `flow.dispatch` names |
+| Claude (web, desktop, mobile) | Uploaded skills (code execution must be on); project instructions | Upload the main skill; in the project instructions write “use the tripwright skill and tools for the trip” | One agent follows each role's steps |
+| ChatGPT | Project instructions; skills only on Business, Enterprise, Healthcare and Edu | The same sentence in the project instructions | One agent follows each role's steps |
+
+Not checked: whether Codex cloud tasks can use a custom MCP server (openai/codex#4226 is open), and whether Claude's mobile app and Cowork run the roles; we have not tested either with tripwright.
+
 ## Sources
 
 Read on 2026-11-03 unless a date is given. "Not tried" means we have not connected Tripwright to that client.

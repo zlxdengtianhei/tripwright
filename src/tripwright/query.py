@@ -2261,12 +2261,12 @@ class QueryRouter:
                     # 2026-11-12 (the user: what was looked up once is recorded and reused): transit, last-departure and
                     # weather lookups too, by what was asked and what was told, with when they were fetched and whether
                     # they have expired since; the answer still re-checks before relying on one
-                    moment = clock()
+                    looked_at = clock()
                     values += [dict(found="lookup", id=record["id"], kind=record["kind"], date=record.get("date"),
                                     question=record.get("question"), told=(record.get("sentences") or [])[:4] or None,
                                     value=record.get("value") if record["kind"] == "weather" else None,
                                     fetched_at=record["fetched_at"], valid_until=record.get("valid_until"),
-                                    expired=bool(record.get("stale")) or bool(record.get("valid_until")) and aware(record["valid_until"]) <= moment,
+                                    expired=bool(record.get("stale")) or bool(record.get("valid_until")) and aware(record["valid_until"]) <= looked_at,
                                     synthetic=bool(record.get("synthetic")) or str(record.get("source", "")).startswith("demo:"))
                                for record in self.store.all("evidence", owner)
                                if record.get("kind") in LOOKUPS

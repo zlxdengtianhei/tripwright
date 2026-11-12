@@ -57,7 +57,9 @@ This is a default you can change. Set `TRIPWRIGHT_REPLY_FLOW=one` when you deplo
 
 ## Getting the best results
 
-**Use an app that can run sub-agents.** Claude Code and Codex start a separate researcher for each fact to check, while the main agent keeps answering. Their cloud sessions that work on your GitHub repository, and similar modes in other apps, may give the same; we have not tested them with tripwright.
+**Two ways to use it.** On the road, ask short questions (“I'm at the station, when is the next train?”): a first answer from your stored plan comes within seconds, then the checked one. When planning, send requirements and screenshots: they are recorded and linked to what you already decided first, then the plan changes and is checked before it is saved.
+
+**Use an app that can run sub-agents.** In Claude Code and Codex the service names the helper each step needs, while the main agent keeps answering: a requirements agent records new requirements and screenshots and links them to your earlier decisions; a researcher checks each fact, and ticket prices and discounts when tickets are still to buy; a verifier checks a changed plan before it is saved. The service updates the website itself. Their cloud sessions that work on your GitHub repository, and similar modes in other apps, may give the same; we have not tested them with tripwright.
 
 **A plain chat works, with limits we do not fix.** In ChatGPT or Claude chat one agent does everything. Checked answers come after you reply “continue”, and in a long chat the model can lose constraints you set early (the service sends back the ones that apply with every message, but the model may still drop them). We do not guarantee results there.
 

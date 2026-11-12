@@ -10,6 +10,7 @@ def test_cli_export_and_import_round_trip(seeded, tmp_path, capsys):
     assert main(["--db", str(restored_db), "--local-user", "alice", "import", str(destination)]) == 0
     restored = Store(restored_db)
     try:
-        assert Tripwright(restored).state("alice") == seeded.state("alice")
+        # flow is each service instance's reminder state, not trip data
+        assert {**Tripwright(restored).state("alice"), "flow": None} == {**seeded.state("alice"), "flow": None}
     finally:
         restored.close()
