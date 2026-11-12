@@ -68,7 +68,7 @@ uv run python -m tripwright.site.example examples/trip-2026-10-central-europe.ya
 ## 现在的状态与没做到的
 
 - **真实 App 没验过。** ChatGPT 和 Claude 的 App 一次都没连过。我们用的是模拟聊天宿主的脚本，以及 Claude Code。
-- **回答质量还在评测中。** 服务给出事实和指示，但助手仍可能把对的事实组合错，例如说错场馆，或没算走到站台的时间。服务拦不住这一点。
+- **回答质量还在评测中。** 服务给出事实和指示，但助手仍可能把对的事实组合错，例如说错场馆，或没算走到站台的时间。服务拦不住这一点。已知的一种：助手把一句带着存过的地名的问话（“机场能不能进去”）当成你在哪里传过来时，快答的第一段会说你在那个地方（“你在维也纳机场”），而不是计划里你这时在的地方。
 - **部署。** 一次测试里，由低成本模型只照 SETUP.md 操作，从第一条 Docker 命令到服务就绪用了约 13 秒。在 Railway 上，用真账号跑过，上传后 59 秒就绪。连私有 GitHub 仓只对本机的裸仓验过；真实的 GitHub 部署钥匙还没验。
 - **行程页。** 扫描会把人名换成代号，住处只写到城区；扫到订单号之类的内容，这一版就整版不发。连上公开仓后，默认每趟行程都发；要停发某一趟，在这趟行程的 `share.yaml` 里写 `off: true`。只对本机的裸仓验过，没在真实的 GitHub Pages 上验过。
 - **交通数据** 来自 [Transitous](https://transitous.org/sources/)、[Open-Meteo](https://open-meteo.com/) 和 [Nominatim / OpenStreetMap](https://www.openstreetmap.org/copyright)，主要是时刻表，不是实时数据。覆盖范围不是全球；时刻表数据何时到期，只有奥地利能识别。服务默认每滚动 24 小时最多向 Transitous 发 720 次路线请求。详见 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md)。
