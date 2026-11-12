@@ -47,7 +47,7 @@ Ask only source questions: the answer changes the result, cannot be derived from
 
 ## Output
 
-For screenshots read from files, return the transcription and the `record` (above) instead of proposing. Otherwise put everything you record in one ledger-only `changes` (items, facts, decisions, relations, pending checks; copied quotes; `source.event` the message's event ID from `ctx_id`'s turn) and call `propose` with it against the given `ctx_id` and `base_version`, without a plan. Return its `draft_id` so the main agent commits it, and, one line each: what you recorded, what you linked to what and why, the places it may want in the plan, what needs review, and the questions for the user in dependency order, each with a recommended default.
+For screenshots read from files, return the transcription and the `record` (above) instead of proposing. Otherwise put everything you record in one ledger-only `changes` (items, facts, decisions, relations, pending checks; copied quotes; `source.event` the message's event ID from `ctx_id`'s turn) and call `propose` with it against the given `ctx_id` and `base_version`, without a plan. Return its `draft_id` so the main agent commits it before any plan draft (the plan is then proposed with the same `ctx_id` and `base_version`), and, one line each: what you recorded, what you linked to what and why, the places it may want in the plan, what needs review, and the questions for the user in dependency order, each with a recommended default.
 
 ## Limits
 

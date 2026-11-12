@@ -39,24 +39,52 @@ def test_screenshots_name_the_requirements_role_and_its_own_record_turn_names_no
 def test_the_whole_flow_comes_once_then_one_short_line_and_again_when_the_mode_changes(service, plan, monkeypatch):
     seeded(service, plan, monkeypatch)
     lines = []
-    for number in range(3):
-        item = dict(kind="preference", key=f"pace:{number}", quote="慢一点", text="慢一点", subject=["p1"], strength="prefer",
-                    source=dict(event="this"))
-        flow = service.turn("alice", f"第 {number} 件：慢一点。", f"q{number}", scenario="plan", record=dict(items=[item]))["flow"]
+    for number in range(2):
+        flow = service.turn("alice", f"第 {number} 个小问题：明天几点出门？", f"q{number}", scenario="plan")["flow"]
         lines.append("full" if "full" in flow else flow.get("reminder"))
+        draft = service.propose("alice", ctx_id=service.store.latest("contexts", "alice")["id"],
+                                base_version=service.versions.current("alice")["number"], idempotency_key=f"led{number}",
+                                changes=dict(items=[dict(kind="preference", key=f"pace:{number}", quote="明天几点出门",
+                                                         text="问出门时间", subject=["p1"], strength="prefer",
+                                                         source=dict(event=service.store.latest("contexts", "alice")["source_event"]))]))
+        service.commit("alice", draft["draft_id"], f"led{number}")
     assert "full" not in lines and all(lines)  # after the seed's whole flow, one short line per turn
-    assert service.state("alice")["flow"]["reminder"] is None  # just said by the turn: other tools leave it out
     quick = service.turn("alice", "我在车站，下一班车几点？", "q-road", scenario="quick")["flow"]
     assert "full" in quick and "first_part" in quick["full"]
 
 
-def test_other_tools_carry_a_line_and_ask_for_turn_first_when_the_message_was_not_recorded(service, plan, monkeypatch):
+def test_a_missed_step_brings_the_whole_flow_back_but_not_on_every_turn(service, plan, monkeypatch):
+    """Named the requirements role and nothing was recorded since: the whole flow again, at most once in 3 turns."""
+    seeded(service, plan, monkeypatch)
+    kinds = ["full" if "full" in service.turn("alice", f"第 {n} 件：慢一点。", f"m{n}", scenario="plan")["flow"] else "short"
+             for n in range(5)]
+    assert kinds[:2] == ["short", "short"] and kinds[2] == "full" and kinds[3:] == ["short", "short"]
+
+
+def test_the_short_line_on_other_tools_comes_back_every_third_result(service, plan, monkeypatch):
+    seeded(service, plan, monkeypatch)
+    service.turn("alice", "看看现在的计划。", "look", scenario="status")
+    service.turn("alice", "再看看。", "look2", scenario="status")
+    lines = [asyncio.run(service.query("alice", "saved", dict(text="oslo")))["flow"]["reminder"] for _ in range(6)]
+    assert lines.count(None) == 4 and lines[2] and lines[5]
+
+
+def test_other_tools_carry_a_line_and_ask_for_turn_first_only_after_a_long_gap(service, plan, monkeypatch):
     seeded(service, plan, monkeypatch)
     service.turn("alice", "看看现在的计划。", "look", scenario="status")
     assert service.state("alice")["flow"]["reminder"]
     at(monkeypatch, "2030-06-10T10:00:00+02:00")
     late = asyncio.run(service.query("alice", "saved", dict(text="oslo")))
     assert "turn" in late["flow"]["reminder"]
+
+
+def test_a_process_that_never_saw_a_turn_does_not_ask_for_one(service, plan, monkeypatch):
+    """The command-line query a researcher uses runs in a new process: it must not be told to call turn."""
+    from tripwright.flow import Flow
+    from datetime import datetime, timezone
+
+    line = Flow().tool("alice", datetime.now(timezone.utc), "query", language="zh")["reminder"]
+    assert line and "turn" not in line
 
 
 def test_a_plan_draft_while_planning_names_the_verifier(service, plan, monkeypatch):
@@ -121,3 +149,33 @@ def test_while_planning_the_first_instruction_names_whom_to_dispatch(service, pl
     assert turn["next"].startswith("先派 tripwright-requirements") and len(turn["next"]) <= 600
     road = service.turn("alice", "我在车站，下一班车几点？", "road", scenario="quick")
     assert "先派" not in road["next"][:10]
+
+
+def test_while_planning_the_requirements_role_is_named_with_or_without_record(service, plan, monkeypatch):
+    """One recorder while planning: the main agent's own record does not stop the requirements role from being
+    named to record and link the message (review of 2026-11-12, block 1)."""
+    seeded(service, plan, monkeypatch)
+    item = dict(kind="preference", key="dinner:old_town", quote="晚饭想在老城吃", text="晚饭想在老城吃", subject=["p1"],
+                strength="prefer", source=dict(event="this"))
+    with_record = service.turn("alice", "晚饭想在老城吃。", "a", scenario="plan", record=dict(items=[item]))
+    without = service.turn("alice", "晚饭想在老城吃，别太晚。", "b", scenario="plan")
+    assert "tripwright-requirements" in roles(with_record["flow"]) and "tripwright-requirements" in roles(without["flow"])
+
+
+def test_a_ticket_still_to_buy_names_the_researcher_for_fares(service, plan, monkeypatch):
+    seeded(service, plan, monkeypatch)
+    turn = service.turn("alice", "11 号的火车票还没买，帮我排一下。", "fare", scenario="plan")
+    museum = dict(id="bk-museum", date="2030-06-10", kind="ticket", what="Fictional museum entry", subject=["p1"], status="to_buy",
+                  why_now="Fictional: tickets sell out")
+    changed = dict(plan, bookings=[*plan["bookings"], museum])
+    draft = service.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], plan=changed, idempotency_key="fare")
+    named = [(entry["role"], entry.get("focus")) for entry in draft["flow"].get("dispatch", [])]
+    assert ("tripwright-researcher", "fares") in named and ("tripwright-verifier", None) in named
+
+
+def test_the_dispatch_lead_keeps_next_to_whole_sentences():
+    from tripwright.service import whole_sentences
+
+    text = "先派 tripwright-requirements（理由）。" + "第一句很长。" * 120
+    cut = whole_sentences(text, 600)
+    assert len(cut) <= 600 and cut.endswith("。") and whole_sentences("短。", 600) == "短。"

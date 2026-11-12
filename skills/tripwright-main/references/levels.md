@@ -8,7 +8,7 @@ Evidence for host support is graded: "connected" means a real connection was mad
 
 - For: the user; people who use Claude Code, Codex, Gemini CLI or Kimi Code.
 - Set up: the trip repository that `tripwright init` creates, with its agent files (`AGENTS.md`, `CLAUDE.md`, `.mcp.json`, `.claude/agents/`, `.claude/skills/`, `.agents/skills/`, `.codex/agents/`); `.mcp.json` registers the local server under the name `tripwright`. No server to run, no key.
-- Multi-agent: the host's subagents. The main agent answers; `tripwright-verifier` checks in the background; `tripwright-researcher` and `tripwright-requirements` when needed.
+- Multi-agent: the host's subagents. The main agent answers and dispatches whom `flow.dispatch` names: `tripwright-requirements` for new requirements while planning, `tripwright-researcher` for facts, `tripwright-verifier` for a changed plan before commit.
 - Lacks, compared with L2: it is not inside the chat app; only hosts that dispatch subagents get multi-agent; a background researcher can stop if a cloud session is reclaimed.
 
 Claude Code on your computer (connected once, one message):

@@ -192,6 +192,14 @@ def encode_copy(value):
     return json.loads(encode(value))
 
 
+def whole_sentences(text: str, limit: int) -> str:
+    """At most `limit` characters, cut after the last whole sentence that fits, never inside one."""
+    if len(text) <= limit:
+        return text
+    cut = max(text.rfind(end, 0, limit) for end in ("。", ". ", "；"))
+    return text[:cut + 1].rstrip() if cut > 0 else text[:limit]
+
+
 class Tripwright:
     def __init__(self, store: Store, *, query_router: QueryRouter | None = None, query_timeout: float = 30,
                  deep_timeout: float = 120, repository=None, commit_wait: float = 5.0, language: str = "zh"):
@@ -417,7 +425,7 @@ class Tripwright:
                     f"{entry['role']} ({entry['why']})" if language == "en" else f"{entry['role']}（{entry['why']}）" for entry in named)
                 lead += ". " if language == "en" else "。"
                 head = REPLY_IN_ENGLISH + " " if response["next"].startswith(REPLY_IN_ENGLISH + " ") else ""  # it opens the reply
-                response["next"] = (head + lead + response["next"][len(head):])[:600]
+                response["next"] = whole_sentences(head + lead + response["next"][len(head):], 600)
             if told is not None:
                 response["points"] = told
         if self.committer is not None:
@@ -828,10 +836,36 @@ class Tripwright:
             return await solve_day(payload["day"], provider=self.query_router.transit, timeout=payload["timeout"])
 
     def propose(self, owner: str, **arguments) -> dict:
+        arguments, first = self._requirements_first(owner, arguments)
         response = self._propose_tool(owner, **arguments)
+        if first:
+            response = dict(response, recorded_first=first)
         draft = self.store.get("drafts", owner, response["draft_id"])
         scenario = self.store.get("contexts", owner, draft["ctx_id"])["bundle"]["scenario"]
         return self._flowed(owner, "propose", response, self.flow.after_propose(draft, scenario, self._reply_language(owner)))
+
+    def _requirements_first(self, owner: str, arguments: dict) -> tuple[dict, dict | None]:
+        """A draft that both records what the message states and changes the plan: the records are committed first,
+        as their own ledger-only version, and the plan is proposed on top of it (2026-11-12, the user: "these
+        requirements must never be lost"). Before, the verifier finding the plan incomplete left the whole draft
+        uncommitted, and the requirements with it (6 of 10 live runs). The records are what the user said; they need
+        no plan check, as a turn's record needs none. When they cannot be committed alone, they stay in the draft."""
+        changes = arguments.get("changes") or {}
+        records = {part: changes[part] for part in TURN_RECORDS if changes.get(part)}
+        if not records or all(arguments.get(part) is None for part in ("plan", "days", "places", "bookings")):
+            return arguments, None
+        key = f"{arguments.get('idempotency_key')}:requirements"
+        try:
+            ledger = self._propose_tool(owner, ctx_id=arguments.get("ctx_id"), base_version=arguments.get("base_version"),
+                                        changes=records, idempotency_key=key)
+            if ledger["status"] != "proposed" or ledger.get("not_recorded"):
+                return arguments, dict(committed=False, draft_id=ledger["draft_id"], reason=ledger.get("notice") or ledger["status"])
+            version = self._commit_tool(owner, ledger["draft_id"], key)
+        except ValueError as error:
+            return arguments, dict(committed=False, reason=str(error))
+        rest = {part: value for part, value in changes.items() if part not in records}
+        return dict(arguments, changes=rest or None), dict(committed=True, draft_id=ledger["draft_id"], version=version["number"],
+                                                            parts=sorted(records))
 
     def _propose_tool(self, owner: str, **arguments) -> dict:
         self.bound(owner)

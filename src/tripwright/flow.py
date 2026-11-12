@@ -22,7 +22,7 @@ WHY = {
     "zh": dict(requirements_shots="消息附了截图：交需求整理员逐张转写、入库（截图资料进账本，不进计划）",
                requirements_many="这条有几件事：交需求整理员拆成要点、连上旧条目、写进账本",
                requirements_changed="改了已有的决定：交需求整理员连上依赖并标出要重看的",
-               requirements_plan="做计划：先交需求整理员把这条入库",
+               requirements_plan="做计划：需求整理员把这条记进账本、连上依赖（turn 不带 record）",
                review="上游改了，有决定要重看：交需求整理员核依赖",
                researcher_second="第二段要核的事实交查询员（后台）",
                researcher_latest="今晚最晚的车交查询员查",
@@ -32,7 +32,7 @@ WHY = {
     "en": dict(requirements_shots="The message has screenshots: hand them to the requirements role to transcribe and record (saved material goes to the ledger, not the plan)",
                requirements_many="This message holds several things: the requirements role splits, links and records them",
                requirements_changed="It changes a decision: the requirements role links the dependency and marks what to review",
-               requirements_plan="Planning: the requirements role records this message first",
+               requirements_plan="Planning: the requirements role records this message and links it (turn without record)",
                review="Something upstream changed and decisions need review: the requirements role checks the links",
                researcher_second="The facts the second part checks go to the researcher (in the background)",
                researcher_latest="Tonight's latest connection goes to the researcher",
@@ -42,24 +42,25 @@ WHY = {
 }
 SHORT = {
     "zh": dict(quick="路上急问：先发 first_part，查询员在后台核，第二段先说不同。",
-               plan="新要求先交整理员；要查的交查询员；改计划后交核对员，再提交。",
+               plan="做计划：新要求交整理员记、连依赖，先提交它的草稿；要查的交查询员；改计划后交核对员，再提交。",
                turn_first="先用 turn 记下用户这条消息（原话），再接着做。"),
     "en": dict(quick="On the road: send first_part now; the researcher checks in the background; the second part leads with what differs.",
-               plan="New requirements to the requirements role; lookups to the researcher; after a plan edit, the verifier, then commit.",
+               plan="Planning: the requirements role records and links new requirements, commit its draft first; lookups to the researcher; after a plan edit, the verifier, then commit.",
                turn_first="Record the user's message with turn (their words) first, then go on."),
 }
 FULL = {
     "zh": dict(quick="路上即时问答：①turn 记下原话；②原样发 first_part；③派查询员在后台查（有截图或几件事时再派需求整理员）；"
                      "④第二段标题照给的写，先说和第一段的不同；⑤不派核对员。flow.dispatch 点了谁就派谁；不能派子代理时自己依次照它的步骤做。",
-               plan="做计划：①turn 记下原话；②派需求整理员入库、连依赖、列要问的；③先 query(kind='saved') 用存的资料，缺的派查询员查；"
-                    "④propose；⑤草稿改了计划就派核对员核，通过才 commit；⑥回答里说改了什么、为什么。flow.dispatch 点了谁就派谁；"
-                    "不能派子代理时自己依次照它的步骤做。"),
+               plan="做计划：①turn 只带原话（不带 record）；②派需求整理员记进账本、连依赖（depends_on 等）、列要问的，先提交它交回的只改账本的草稿；"
+                    "③先 query(kind='saved') 用存的资料，缺的派查询员查；④propose（同一个 ctx_id 与 base_version）；⑤草稿改了计划就派核对员核，"
+                    "通过才 commit；⑥回答里说改了什么、为什么。flow.dispatch 点了谁就派谁；不能派子代理时自己依次照它的步骤做。"),
     "en": dict(quick="On the road: (1) record the words with turn; (2) send first_part as given; (3) dispatch the researcher in the background "
                      "(the requirements role too when there are screenshots or several things); (4) write the given second heading and lead with "
                      "what differs; (5) no verifier. Dispatch whom flow.dispatch names; without subagents, follow that role's steps yourself.",
-               plan="Planning: (1) record the words with turn; (2) dispatch the requirements role to record, link and list questions; "
-                    "(3) use query(kind='saved') first and dispatch the researcher for what is missing; (4) propose; (5) when the draft changes "
-                    "the plan, dispatch the verifier and commit only after it passes; (6) say what changed and why. Dispatch whom flow.dispatch "
+               plan="Planning: (1) turn with the words only (no record); (2) dispatch the requirements role to record, link (depends_on and "
+                    "relations) and list questions, and commit the ledger-only draft it returns first; (3) use query(kind='saved') first and "
+                    "dispatch the researcher for what is missing; (4) propose (same ctx_id and base_version); (5) when the draft changes the "
+                    "plan, dispatch the verifier and commit only after it passes; (6) say what changed and why. Dispatch whom flow.dispatch "
                     "names; without subagents, follow that role's steps yourself."),
 }
 
@@ -87,9 +88,11 @@ class Flow:
         self.seen: dict[str, Seen] = {}
 
     def _line(self, seen: Seen, line: str) -> str | None:
-        recent = seen.lines[-(SAME_LINE_EVERY - 1):] if SAME_LINE_EVERY > 1 else []
-        seen.lines = [*seen.lines[-10:], line]
-        return None if line in recent else line
+        """The line, unless it was given in the last SAME_LINE_EVERY - 1 results. A line left out is recorded as None,
+        not as given, so it comes back on every SAME_LINE_EVERY-th result."""
+        given = line not in seen.lines[-(SAME_LINE_EVERY - 1):]
+        seen.lines = [*seen.lines[-10:], line if given else None]
+        return line if given else None
 
     def turn(self, owner: str, at: datetime, *, text: str, scenario: str, language: str, nature: str, recorded: bool,
              changed: bool, review: list, second: bool, latest: bool, unknown: bool) -> dict:
@@ -97,13 +100,14 @@ class Flow:
         not a new message: it names nobody again."""
         language = "en" if language == "en" else "zh"
         seen = self.seen.setdefault(owner, Seen())
-        if recorded and text == seen.text:
+        if recorded and (text == seen.text or nature == "screenshot_extraction"):
+            # the requirements step of the message just received (or its screenshots' transcription), not a new message
             seen.did.add("record")
             return dict(dispatch=[], reminder=SHORT[language][seen.mode or mode_of(scenario)])
         mode = mode_of(scenario)
         why = WHY[language]
         dispatch = []
-        if nature == "screenshot_extraction" and not recorded:  # recorded: the requirements role's transcription
+        if nature == "screenshot_extraction":
             dispatch.append(dict(role="tripwright-requirements", why=why["requirements_shots"]))
         elif changed:
             dispatch.append(dict(role="tripwright-requirements", why=why["requirements_changed"]))
@@ -112,7 +116,7 @@ class Flow:
             dispatch.append(dict(role="tripwright-requirements", why=why["review"]))
         elif len([line for line in text.splitlines() if line.strip()]) >= 3 and not recorded:
             dispatch.append(dict(role="tripwright-requirements", why=why["requirements_many"]))
-        elif mode == "plan" and not recorded:
+        elif mode == "plan":  # while planning, the requirements role records and links every new message (one recorder)
             dispatch.append(dict(role="tripwright-requirements", why=why["requirements_plan"]))
         for reason, needed in (("researcher_second", second), ("researcher_latest", latest), ("researcher_unknown", unknown)):
             if needed:
@@ -136,7 +140,7 @@ class Flow:
         return dict(dispatch=dispatch, reminder=line)
 
     def tool(self, owner: str, at: datetime, tool: str, *, language: str, extra: list[dict] | None = None) -> dict:
-        """flow for any other tool: one short line; "turn first" when the message was not recorded."""
+        """flow for any other tool: one short line, left out when just given; "turn first" when the last turn is old."""
         language = "en" if language == "en" else "zh"
         seen = self.seen.setdefault(owner, Seen())
         if tool == "query":
@@ -145,9 +149,9 @@ class Flow:
             seen.did.add("record")  # the requirements role records through a ledger-only draft
         if tool == "state_pack":
             seen.did.add("verify")
-        stale = seen.last_turn is None or at - seen.last_turn > TURN_FIRST_AFTER
-        if tool == "propose" and seen.committed_since_turn:
-            stale = True
+        # "turn first" only when a turn is known here and was long ago: a process that never saw a turn (the command
+        # line a researcher uses) and the requirements-first commit before a plan draft are not missed messages
+        stale = seen.last_turn is not None and at - seen.last_turn > TURN_FIRST_AFTER
         if tool == "commit":
             seen.committed_since_turn = True
         if stale:

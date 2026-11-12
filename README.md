@@ -57,7 +57,7 @@ This is a default you can change. Set `TRIPWRIGHT_REPLY_FLOW=one` when you deplo
 
 ## Getting the best results
 
-**Two ways to use it.** On the road, ask short questions (“I'm at the station, when is the next train?”): a first answer from your stored plan comes within seconds, then the checked one. When planning, send requirements and screenshots: they are recorded and linked to what you already decided first, then the plan changes and is checked before it is saved.
+**Two ways to use it.** On the road, ask short questions (“I'm at the station, when is the next train?”): a first answer from your stored plan comes within seconds, then the checked one. When planning, send requirements and screenshots: they are recorded before the plan changes, even when the change is held back, and the requirements agent links them to what you already decided; the changed plan is checked before it is saved.
 
 **Use an app that can run sub-agents.** In Claude Code and Codex the service names the helper each step needs, while the main agent keeps answering: a requirements agent records new requirements and screenshots and links them to your earlier decisions; a researcher checks each fact, and ticket prices and discounts when tickets are still to buy; a verifier checks a changed plan before it is saved. The service updates the website itself. Their cloud sessions that work on your GitHub repository, and similar modes in other apps, may give the same; we have not tested them with tripwright.
 

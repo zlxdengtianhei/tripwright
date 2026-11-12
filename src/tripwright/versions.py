@@ -91,6 +91,22 @@ class Versions:
             self.store.put("contexts", owner, context, insert=True)
             return context
 
+    def _only_own_ledger_commits(self, owner: str, context: dict, current: dict) -> bool:
+        """Every version since the context's is a ledger-only commit proposed against this same context."""
+        if current["number"] <= context["base_version"]:
+            return False
+        later = [version for version in self.store.all("versions", owner) if version["number"] > context["base_version"]]
+        for version in later:
+            if version.get("ctx_id") != context["id"] or not version.get("draft_id"):
+                return False
+            try:
+                draft = self.store.get("drafts", owner, version["draft_id"])
+            except ValueError:
+                return False
+            if not ledger_only(draft):
+                return False
+        return True
+
     def fresh(self, owner: str, bound: dict | None) -> list[str]:
         """What changed since a stored snapshot: plan and/or ledger by content key; [] when still current."""
         return snapshots.changed(bound, snapshots.take(self.store, owner)) if bound else []
@@ -348,6 +364,14 @@ class Versions:
                     return previous
             context = self.store.get("contexts", owner, ctx_id)
             current = self.current(owner)
+            if base_version == context["base_version"] and self._only_own_ledger_commits(owner, context, current):
+                # 2026-11-12: this message's requirements were committed first as their own ledger-only version, so
+                # that a plan draft held back by the verifier never takes them with it; the plan is then proposed
+                # against the same context, moved onto that version (nothing else changed since the turn).
+                context = dict(context, base_version=current["number"], base_version_id=current["id"],
+                               revision=self.ledger.revision(owner), snapshot=snapshots.take(self.store, owner))
+                self.store.put("contexts", owner, context)
+                base_version = current["number"]
             if current["number"] != base_version or context["base_version"] != base_version:
                 raise ValueError("Stale version; call turn again")
             if context["revision"] != self.ledger.revision(owner) or "ledger" in self.fresh(owner, context.get("snapshot")):
