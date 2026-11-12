@@ -141,6 +141,8 @@ class Flow:
         seen = self.seen.setdefault(owner, Seen())
         if tool == "query":
             seen.did.add("query")
+        if tool == "propose":
+            seen.did.add("record")  # the requirements role records through a ledger-only draft
         if tool == "state_pack":
             seen.did.add("verify")
         stale = seen.last_turn is None or at - seen.last_turn > TURN_FIRST_AFTER

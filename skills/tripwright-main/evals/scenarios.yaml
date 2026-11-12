@@ -7,7 +7,9 @@ triggers:
   - "从 7 月 14 日开始的三天，两个人，预算每人 €300，帮我排一下。"
 non_triggers:
   - {query: "Write a fictional travel poem.", route: normal writing}
+  - {query: "Check draft DR-300715-b8d against job J-300715-k2m before the second response.", route: tripwright-verifier}
   - {query: "Find whether the lakeside path at Seeufer Süd is open on 2030-07-15, with a source.", route: tripwright-researcher}
+  - {query: "Split these six voice messages into proposed records without planning.", route: tripwright-requirements}
 cold_read:
   - query: "The host paraphrases: the user prefers a relaxed morning."
     expected: "turn with host_restatement; preserve the soft wording without inventing a time or distance limit."
@@ -28,7 +30,7 @@ cold_read:
   - query: "Tell the user how to get from Altmoor Bahnhof to Seeufer Nord."
     expected: "One line for the leg with the app named and the exact search term in its original spelling (Seeufer Nord) in the text; the link is optional; no timetable unless a trigger applies."
   - query: "The host is Claude Code and is about to send the first part for a replan it proposed."
-    expected: "Dispatch one tripwright-researcher in the background for the live facts; only the main agent commits."
+    expected: "Dispatch tripwright-verifier in the background with draft_id, job_id and ctx_id (and one researcher for the live facts); do not hand it the first part's unchecked lines as its checklist; write nothing when the first of two reports arrives; only the main agent commits."
   - query: "The app has no Tripwright tools; the user reports 'luggage stored'."
     expected: "Steps 1 then 5 without tools: one line of confirmation, a 写回仓 block with the raw message and the fact, and 'not saved until committed'."
   - query: "The user says: 下个月去瑞士，帮我开一趟新的。Earlier trips stored preferences, a companion and a standing rule."

@@ -12,8 +12,8 @@ steps:
       After the user replies or the researcher returns, do not call `turn`; query every fact directly. Write the second part in that next message.
     done: "each actionable fact has a query result or an unchecked label, and no second turn was called."
   - do: >-
-      Record what this message states, then use `propose` and `commit` for plan changes. Put choices the agent made in `changes.items` with basis `agent_inference`.
-    done: "the commit was accepted, or there was nothing to write."
+      Dispatch whom `flow.dispatch` names: new requirements, screenshots or a changed decision to `tripwright-requirements`, facts to `tripwright-researcher`, a changed plan draft to `tripwright-verifier` before commit; without subagents, do that role's steps yourself. Record what this message states, use `query(kind="saved")` before searching, then use `propose` and `commit` for plan changes. Put choices the agent made in `changes.items` with basis `agent_inference`.
+    done: "each role `flow.dispatch` named was dispatched or its steps done, and the commit was accepted, or there was nothing to write."
   - do: >-
       Write `second_part_title` as the second heading. Its first sentence says what differs from the first part, or “Same as above, checked”; then give the rest.
     done: "the second heading and differences sentence are present."

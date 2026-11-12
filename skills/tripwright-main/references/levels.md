@@ -8,7 +8,7 @@ Evidence for host support is graded: "connected" means a real connection was mad
 
 - For: the user; people who use Claude Code, Codex, Gemini CLI or Kimi Code.
 - Set up: the trip repository that `tripwright init` creates, with its agent files (`AGENTS.md`, `CLAUDE.md`, `.mcp.json`, `.claude/agents/`, `.claude/skills/`, `.agents/skills/`, `.codex/agents/`); `.mcp.json` registers the local server under the name `tripwright`. No server to run, no key.
-- Multi-agent: the host's subagents. The main agent answers; `tripwright-researcher` checks facts in the background.
+- Multi-agent: the host's subagents. The main agent answers; `tripwright-verifier` checks in the background; `tripwright-researcher` and `tripwright-requirements` when needed.
 - Lacks, compared with L2: it is not inside the chat app; only hosts that dispatch subagents get multi-agent; a background researcher can stop if a cloud session is reclaimed.
 
 Claude Code on your computer (connected once, one message):
@@ -19,7 +19,7 @@ Claude Code on your computer (connected once, one message):
 Codex on your computer (documented):
 1. Install Tripwright and create or clone the trip repository, as above.
 2. Register the server in `.codex/config.toml` of the trip repository, or in `~/.codex/config.toml`: `[mcp_servers.tripwright]` with `command = "tripwright"` and `args = ["--repo", ".", "serve", "--stdio"]`. Codex does not read `.mcp.json`, and it reads a project's config only after you trust the project.
-3. Start Codex there. Skills load from `.agents/skills/`. The custom agent loads from `.codex/agents/tripwright_researcher.toml`. Codex starts a subagent after a direct request or an applicable project or skill instruction; `AGENTS.md` and the skill give that instruction.
+3. Start Codex there. Skills load from `.agents/skills/`. Custom agents load from `.codex/agents/` (named `tripwright_verifier` and so on). Codex starts a subagent after a direct request or an applicable project or skill instruction; `AGENTS.md` and the skill give that instruction.
 
 The Code page of the Claude phone app (文档说可用，未实测):
 1. Keep the trip repository on GitHub and connect GitHub to Claude.

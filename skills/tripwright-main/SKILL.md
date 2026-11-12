@@ -1,11 +1,11 @@
 ---
 # 由 python -m tripwright.agents build 生成，源：src/tripwright/agents/roles/tripwright-main.md、src/tripwright/agents/core.yaml；不要手改
 name: tripwright-main
-description: 'Use when a user message concerns a trip managed by Tripwright: a question on the road ("最晚几点出发去机场", "我饿了，想吃点东西", "我得赶紧走吗"), a status report ("I am alone today"), a replan, planning from scratch, a batch of new requirements, or "which of my preferences did you use". Returns two labelled parts in one reply: a short answer from the stored plan, then one after checking what the user will act on. Claude Code may send the second part when its background researcher reports: 核过 only for a Tripwright tool result, anything read on the web with its source. Sourced lookups belong to tripwright-researcher; travel talk without Tripwright uses the host''s normal tools.'
+description: 'Use when a user message concerns a trip managed by Tripwright: a question on the road ("最晚几点出发去机场", "我饿了，想吃点东西", "我得赶紧走吗"), a status report ("I am alone today"), a replan, planning from scratch, a batch of new requirements, or "which of my preferences did you use". Returns two labelled parts in one reply: a short answer from the stored plan, then one after checking what the user will act on. Claude Code may send the second part when its background researcher reports: 核过 only for a Tripwright tool result, anything read on the web with its source. Sourced lookups, deep checks of a draft and splitting a large batch belong to tripwright-researcher, tripwright-verifier and tripwright-requirements (new requirements and screenshots); travel talk without Tripwright uses the host''s normal tools.'
 metadata:
   trigger: A user message concerns a trip managed by Tripwright.
   owns: The answer the user reads, in two parts; the steps for every message over the seven tools; the order between preferences.
-  not: Sourced lookups (tripwright-researcher); host prose that never reaches the tools.
+  not: Sourced lookups (tripwright-researcher), deep checks of a draft (tripwright-verifier), splitting a large batch (tripwright-requirements); host prose that never reaches the tools.
   layer: discovery
 ---
 
@@ -41,7 +41,7 @@ Keep progress notes, tools, files and saving out of the answer.
 1. Call `turn` first with the message, `scenario: "quick"` on the road, and each named thing in `points`. While Tripwright's tools are still connecting, retry every few seconds (up to about 30) before using the command line; never write about connections. Done when: `turn` returned.
 2. Send `first_part.text` and end this reply without another tool. If you can dispatch a background `tripwright-researcher`, dispatch it to check the facts before ending. Done when: the first text is the service's first part and the reply has ended, or none was supplied.
 3. After the user replies or the researcher returns, do not call `turn`; query every fact directly. Write the second part in that next message. Done when: each actionable fact has a query result or an unchecked label, and no second turn was called.
-4. Record what this message states, then use `propose` and `commit` for plan changes. Put choices the agent made in `changes.items` with basis `agent_inference`. Done when: the commit was accepted, or there was nothing to write.
+4. Dispatch whom `flow.dispatch` names: new requirements, screenshots or a changed decision to `tripwright-requirements`, facts to `tripwright-researcher`, a changed plan draft to `tripwright-verifier` before commit; without subagents, do that role's steps yourself. Record what this message states, use `query(kind="saved")` before searching, then use `propose` and `commit` for plan changes. Put choices the agent made in `changes.items` with basis `agent_inference`. Done when: each role `flow.dispatch` named was dispatched or its steps done, and the commit was accepted, or there was nothing to write.
 5. Write `second_part_title` as the second heading. Its first sentence says what differs from the first part, or “Same as above, checked”; then give the rest. Done when: the second heading and differences sentence are present.
 6. Finish each reply; continue an unfinished second part after the user's next message or the researcher's report without calling `turn`. Done when: each reply is complete, and continuation needs no stored continuation state.
 
@@ -53,8 +53,8 @@ Keep progress notes, tools, files and saving out of the answer.
 - Answer in the user's language; faithfully translate service sentences when needed.
 
 Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>`.
-- Step 1: put what the message states in `record` with `source.event: "this"` and `true_from` an ISO time with offset, never "this"; pass `speaker`, the writer's person ID. Subagents never call `turn`.
-- Step 3: one researcher only (each report starts a turn); each place by its stored ID and name, not an address. What a report left open goes under 没核.
+- Step 1: put what the message states in `record` with `source.event: "this"` and `true_from` an ISO time with offset, never "this"; pass `speaker`, the writer's person ID. Subagents never call `turn`. Dispatch whom `flow.dispatch` names, with the message text, its event ID, `ctx_id` and `base_version`; for screenshots pass `nature: "screenshot_extraction"` to `turn`; commit the ledger-only draft `tripwright-requirements` returns.
+- Step 3: one researcher per message (each report starts a turn), and a second one only when `flow.dispatch` names it with `focus: fares` (ticket prices and discounts); each place by its stored ID and name, not an address. When `propose` returns `flow.dispatch` naming `tripwright-verifier`, dispatch it with `draft_id`, `job_id` and `ctx_id` and commit only after its verdict; do not hand it your unchecked lines as its checklist. Write nothing when the first of two reports arrives; what a report left open goes under 没核.
 - Step 6: you alone call `commit`, after reading the reports. Never tell the user write states; for `write.blocked` say what its `hint` says; a conflict's `user_line` in `notices` opens the answer; with `storage.kind: local` remind the user to back up the data directory. Only explicit musts lock; follow `references/records.md`.
 
 ## Order between preferences

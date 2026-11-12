@@ -6,12 +6,13 @@ description: >-
   "我饿了，想吃点东西", "我得赶紧走吗"), a status report ("I am alone today"), a replan, planning from scratch, a
   batch of new requirements, or "which of my preferences did you use". Returns two labelled parts in one reply:
   a short answer from the stored plan, then one after checking what the user will act on. Claude Code may send
-  the second part when its background researcher reports: 核过 only for a Tripwright tool result, anything read on the web with its source. Sourced lookups belong to tripwright-researcher;
-  travel talk without Tripwright uses the host's normal tools.
+  the second part when its background researcher reports: 核过 only for a Tripwright tool result, anything read on the web with its source. Sourced lookups, deep checks of a draft and splitting a large
+  batch belong to tripwright-researcher, tripwright-verifier and tripwright-requirements (new requirements and screenshots); travel talk without
+  Tripwright uses the host's normal tools.
 metadata:
   trigger: A user message concerns a trip managed by Tripwright.
   owns: The answer the user reads, in two parts; the steps for every message over the seven tools; the order between preferences.
-  not: Sourced lookups (tripwright-researcher); host prose that never reaches the tools.
+  not: Sourced lookups (tripwright-researcher), deep checks of a draft (tripwright-verifier), splitting a large batch (tripwright-requirements); host prose that never reaches the tools.
   layer: discovery
 targets: [skill]
 ---
@@ -121,8 +122,8 @@ Only use those website steps if the tool or a read page supplies them. No inquir
 <!-- include: core always -->
 
 Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>`.
-- Step 1: put what the message states in `record` with `source.event: "this"` and `true_from` an ISO time with offset, never "this"; pass `speaker`, the writer's person ID. Subagents never call `turn`.
-- Step 3: one researcher only (each report starts a turn); each place by its stored ID and name, not an address. What a report left open goes under 没核.
+- Step 1: put what the message states in `record` with `source.event: "this"` and `true_from` an ISO time with offset, never "this"; pass `speaker`, the writer's person ID. Subagents never call `turn`. Dispatch whom `flow.dispatch` names, with the message text, its event ID, `ctx_id` and `base_version`; for screenshots pass `nature: "screenshot_extraction"` to `turn`; commit the ledger-only draft `tripwright-requirements` returns.
+- Step 3: one researcher per message (each report starts a turn), and a second one only when `flow.dispatch` names it with `focus: fares` (ticket prices and discounts); each place by its stored ID and name, not an address. When `propose` returns `flow.dispatch` naming `tripwright-verifier`, dispatch it with `draft_id`, `job_id` and `ctx_id` and commit only after its verdict; do not hand it your unchecked lines as its checklist. Write nothing when the first of two reports arrives; what a report left open goes under 没核.
 - Step 6: you alone call `commit`, after reading the reports. Never tell the user write states; for `write.blocked` say what its `hint` says; a conflict's `user_line` in `notices` opens the answer; with `storage.kind: local` remind the user to back up the data directory. Only explicit musts lock; follow `references/records.md`.
 <!-- /only -->
 
@@ -212,7 +213,7 @@ Read this from `SKILL.md` when a call's arguments or a returned status is unclea
 3. `propose`: a complete candidate `plan`, or ledger-only `changes`, against `ctx_id` and `base_version`, with a usage for every applicable item. Non-must user choices may change with `changes.revisions [{decision, reason}]`; explicit `must: true` choices need the user's authorization. `changelog` previews changes; only the accepted commit proves them. `used` needs the matching `block_ids`; uses the service cannot check come back `host_reported` (宿主自报、未核) and are shown apart from `server_checked`; `traded_off` and `not_applicable` need a reason. Reported facts are recorded even when they make the plan `needs_replan`: say so and replan only that scope. `changes.relate` declares afterwards how two items of one message relate (answering `possible_contradictions`); a later message sets `same_object_as` or `exclusive_with` on its new item instead.
 4. `result`: retrieve the deep check by `job_id`. `completed` carries a verdict (`passed`, `conflict`, `incomplete`) and the dispositions. `stale` means the plan or the ledger changed: say only “已过期，需重算”, then call `turn` and propose again. `unsettled` lists newer messages: record what they carry (the result then goes stale), or call `result(job_id, ack_events=[...])` for messages that carry nothing. Retrieved does not mean the user read it.
 5. `commit`: the only writer of a plan version, with a stable idempotency key. Never commit a conflict. Read the accepted receipt's `changelog` to describe changes and reasons before sending the final second part. On refusal or authorization `used`, say this change did not go through. If a critical fact stays unchecked, state its consequence and fallback before `accept_unverified=true`; the fact stays unchecked.
-6. `state`: committed views, decisions and profile; `view="memory"` lists the long-term entries of this trip with source trip, group, status and last use; `view="pack"` with `draft_id` is the wide pack for reviewing a draft; `view="sync"` shows unsynced writes.
+6. `state`: committed views, decisions and profile; `view="memory"` lists the long-term entries of this trip with source trip, group, status and last use; `view="pack"` with `draft_id` is the wide pack for a verifier; `view="sync"` shows unsynced writes.
 7. `explain`: why a record exists and which conditions a version used.
 <!-- /reference -->
 <!-- /only -->
