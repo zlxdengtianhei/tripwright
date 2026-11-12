@@ -150,7 +150,8 @@ PROMISES = (
     # 2026-11-12: the service names whom to dispatch; the guides say to follow it, so a role written is a role used.
     Promise("follow-flow-dispatch", ALL_MAIN, must=(r"`flow\.dispatch`",)),
     Promise("requirements-links-and-keeps-saved-material-out-of-the-plan", ("skills/tripwright-requirements/SKILL.md",),
-            must=(r"never into the plan", r"`depends_on`", r"`screenshot_extraction`", r"one source question")),
+            must=(r"never into the plan", r"`depends_on`", r"screenshot_extraction", r"one source question",
+                  r"quote only from the message it was recorded with")),
     Promise("researcher-fares-on-request", RESEARCHER, must=(r"`focus: fares`", r"do not book or buy")),
     Promise("researcher-saved-first-with-provenance", RESEARCHER,
             must=(r"1\. The user's saved material, when it can hold the answer[\s\S]*2\. Live sources: (?:Tripwright's `query` for transport and weather, and )?the host's web search and fetch[\s\S]*3\. Only then the open web",

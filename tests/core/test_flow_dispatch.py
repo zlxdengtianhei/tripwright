@@ -99,3 +99,17 @@ def test_a_decision_whose_upstream_was_replaced_needs_review_and_shows_in_the_gr
     assert "! review D-dinner-near" in service.state("alice", view="graph")["text"]
     fourth = service.turn("alice", "后天呢？", "later", scenario="status")
     assert "tripwright-requirements" not in roles(fourth["flow"])  # named once, not on every turn
+
+
+def test_a_transcription_the_requirements_role_returns_is_recorded_as_screenshots_without_naming_it_again(service, plan, monkeypatch):
+    """Images read from files are recorded as their own message: the quote must be in it, and the records take its
+    nature. The turn that carries the transcription and its record names nobody again."""
+    seeded(service, plan, monkeypatch)
+    service.turn("alice", "文件夹里是 2 张攻略截图，帮我整理进行程。", "ask", scenario="requirements")
+    item = dict(kind="preference", key="saved:fish", quote="港口边的鱼汤店", text="截图里的鱼汤店", subject=["p1"],
+                strength="prefer", source=dict(event="this"))
+    recorded = service.turn("alice", SHOTS, "shots", nature="screenshot_extraction", scenario="requirements", record=dict(items=[item]))
+    assert recorded["flow"]["dispatch"] == []
+    [found] = [value for value in asyncio.run(service.query("alice", "saved", dict(text="鱼汤")))["evidence"]["value"]
+               if value.get("found") == "item"]
+    assert found["nature"] == "screenshot_extraction"

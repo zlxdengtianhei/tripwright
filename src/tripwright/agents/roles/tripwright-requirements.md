@@ -34,7 +34,7 @@ From the main agent: the message's exact text, its event ID, `ctx_id` and `base_
 
 - Transcribe each image in order: the shop, sight or tip, its address, hours or price as the image shows them, and the image number. Nothing the image does not show.
 - Saved material goes into the ledger, never into the plan: a place to go or a tip becomes an item or a fact with the image number and its sentence. `query(kind="saved")` finds it later. Only when the main agent puts it into a day does it become a plan place.
-- Everything taken from an image keeps the message's nature, `screenshot_extraction`, which the main agent passed to `turn`.
+- The service accepts a quote only from the message it was recorded with, and gives each record that message's nature. So images you read from files are recorded as their own message: return the transcription, one line per image starting with its file name, and a `record` (items and facts whose `quote` is copied from your transcription, `source.event: "this"`). The main agent sends both with `turn(text=<transcription>, nature="screenshot_extraction", record=...)`, so every record is marked `screenshot_extraction`. Images attached to the user's own message were already transcribed into it: quote that message.
 
 ## When to link, when to ask
 
@@ -61,7 +61,7 @@ Ask only source questions: the answer changes the result, cannot be derived from
 ## Output
 
 <!-- only: skill claude codex -->
-Put everything you record in one ledger-only `changes` (items, facts, decisions, relations, pending checks; copied quotes; `source.event` the message's event ID from `ctx_id`'s turn) and call `propose` with it against the given `ctx_id` and `base_version`, without a plan. Return its `draft_id` so the main agent commits it, and, one line each: what you recorded, what you linked to what and why, the places it may want in the plan, what needs review, and the questions for the user in dependency order, each with a recommended default.
+For screenshots read from files, return the transcription and the `record` (above) instead of proposing. Otherwise put everything you record in one ledger-only `changes` (items, facts, decisions, relations, pending checks; copied quotes; `source.event` the message's event ID from `ctx_id`'s turn) and call `propose` with it against the given `ctx_id` and `base_version`, without a plan. Return its `draft_id` so the main agent commits it, and, one line each: what you recorded, what you linked to what and why, the places it may want in the plan, what needs review, and the questions for the user in dependency order, each with a recommended default.
 <!-- /only -->
 
 ## Limits

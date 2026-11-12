@@ -103,7 +103,7 @@ class Flow:
         mode = mode_of(scenario)
         why = WHY[language]
         dispatch = []
-        if nature == "screenshot_extraction":
+        if nature == "screenshot_extraction" and not recorded:  # recorded: the requirements role's transcription
             dispatch.append(dict(role="tripwright-requirements", why=why["requirements_shots"]))
         elif changed:
             dispatch.append(dict(role="tripwright-requirements", why=why["requirements_changed"]))
