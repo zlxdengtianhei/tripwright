@@ -33,7 +33,7 @@ docker run -d --name tripwright --restart unless-stopped -p 127.0.0.1:8000:8000 
 docker exec tripwright tripwright address     # http://localhost:8000/mcp/<key>
 ```
 
-The first command uses the Dockerfile at the repository root. The named volume keeps `/data/remote`, including the generated URL key and local trips. Check `curl -s http://localhost:8000/readyz` for `"ready":true`. If you publish a different host port, print the address with `docker exec tripwright tripwright address --base http://localhost:<port>`.
+The first command uses the Dockerfile at the repository root. The named volume keeps `/data/remote`, including the generated URL key and local trips. Check `curl -s http://localhost:8000/readyz` for `"ready":true` (with a different published host port, use that port here). If you publish a different host port, print the address with `docker exec tripwright tripwright address --base http://localhost:<port>`.
 Confirm MCP itself (the variable hides the key from the command's output):
 ```bash
 address=$(docker exec tripwright tripwright address)
@@ -76,7 +76,7 @@ Look at where you are running before you recommend it:
 
 If the user skips this step, or set the service up another way, say it plainly: “Your trips, private details included, are kept only on the server: in the Docker volume `tripwright-data`, or in the Railway volume. Nothing is uploaded to GitHub. They are copied to your private repository only after you connect one; you can do that later, and the existing trips go with it.” Then show the backup command in section 5.
 
-Ask for the GitHub owner and use `tripwright-trips` as the repository name. If needed, ask the user to run `gh auth login`. Create an **empty** private repository:
+Ask for the GitHub owner (the user's GitHub username, or an organization they own) and use `tripwright-trips` as the repository name. If needed, ask the user to run `gh auth login`. Create an **empty** private repository:
 
 ```bash
 gh repo create <owner>/tripwright-trips --private
