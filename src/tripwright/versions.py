@@ -223,8 +223,15 @@ class Versions:
         reasons = {revision.decision: revision.reason for revision in changes.revisions}
         for decision_id in reasons:
             if not any(decision["id"] == decision_id for decision, _ in flexible):
+                # an item's ID or key (2026-11-12: a host named both): say how an item is replaced
+                item = next((entry["id"] for entry in self.store.all("items", owner)
+                             if entry["status"] == "active" and decision_id in (entry["id"], entry["key"])), None)
+                item = item or (decision_id if decision_id.startswith("I-") else None)
+                item = (f"; {decision_id} is a recorded condition, not a decision: to replace or narrow it, record the new "
+                        f"statement in items with exclusive_with naming {item}, and the user is asked which one stays"
+                        if item else "")
                 raise ValueError(f"changes.revisions: {decision_id} is not a current decision of the user without must; a must "
-                                 "changes only by the user's new decision, report or confirmed correction")
+                                 f"changes only by the user's new decision, report or confirmed correction{item}")
         refused, revised = [], []
         for decision, path in flexible if before is not None else []:
             try:

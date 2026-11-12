@@ -127,6 +127,21 @@ def test_a_revision_must_name_a_current_decision_that_is_not_a_must(chosen):
         by_agent(chosen, with_block(chosen, text=OTHER), revisions=[dict(decision=active_decisions(chosen)[0]["id"], reason="")])
 
 
+def test_a_revision_naming_a_recorded_condition_says_how_to_replace_it(chosen):
+    # DeepSeek Flash, 2026-11-12: to narrow “no peanuts” to “no peanut butter” it sent revisions naming the item I-…
+    # five times over and gave up; an item is replaced by a new statement with exclusive_with, and the user is asked
+    with pytest.raises(ValueError, match="I-peanuts is a recorded condition, not a decision: to replace or narrow it, record "
+                                         "the new statement in items with exclusive_with naming I-peanuts"):
+        by_agent(chosen, with_block(chosen, text=OTHER), revisions=[dict(decision="I-peanuts", reason="x")])
+    # by its key: the hint names the item's ID
+    quote = "我对花生过敏"
+    item = dict(kind="constraint", key="peanut_allergy", quote=quote, text="No peanuts", subject=["u1"], strength="forbid",
+                source=dict(event="this", basis="user_explicit"))
+    item_id = chosen.turn("alice", quote, "allergy", record=dict(items=[item]))["recorded"]["changed"][0]
+    with pytest.raises(ValueError, match=f"peanut_allergy is a recorded condition, not a decision: .* exclusive_with naming {item_id}"):
+        by_agent(chosen, with_block(chosen, text=OTHER), revisions=[dict(decision="peanut_allergy", reason="x")])
+
+
 # --- a must: a lock ---------------------------------------------------------------------------------------------------------
 
 def test_the_agent_cannot_move_or_change_a_must(required):
