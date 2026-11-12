@@ -433,13 +433,18 @@ class Tripwright:
         # later). The host's `at` is a mark too: such a draft says where the plan has the user. Another intent goes
         # here, measured the same way first.
         unread = bool(told["points"]) and all(point["kind"] == "other" for point in told["points"])
+        missed = None
         if not any(useful(point) for point in told["points"]):
-            if not (unread and first_part.LATEST.search(text)):
+            # the second intent: a missed connection, answered only with what the plan stores for that leg
+            missed = first_part.MISSED.search(text) and packs.missed_leg(plan, clock["date"], clock["time"], told.get("person"),
+                                                                         language or self.language)
+            if not missed and not (unread and first_part.LATEST.search(text)):
                 return None
             # drafted from the words, so where the plan has the user, said as assumed; the host's `at` only when the
             # plan has no place now
             told = dict(told, at=told.get("planned") or told["at"])
-        first = first_part.draft(text, clock, anchors, plan, language or self.language, told)
+        first = (first_part.missed_draft(missed, language or self.language) if missed
+                 else first_part.draft(text, clock, anchors, plan, language or self.language, told))
         kept = []
         for line in first["lines"]:
             if line.startswith(("没核：", "Not checked:")):

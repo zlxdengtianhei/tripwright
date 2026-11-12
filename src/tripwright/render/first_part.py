@@ -33,6 +33,14 @@ from pydantic import BaseModel, ConfigDict, Field
 LATEST = re.compile(r"最晚|最迟|末班|最后一班|几点(?:出发|走|出门|动身|去)|来得及|来不及|赶得上|赶不上|赶紧|还有(?:车|班)|"
                     r"\blast (?:train|bus|connection|one)\b|\blatest\b|\bin time\b|\bhurry\b", re.I)
 LINES = 8
+# a missed connection (2026-11-12, D-21 brought forward): the words that name one
+MISSED = re.compile(r"误了|错过|没赶上|没赶到|没坐上|没上车|赶不上了|\bmissed\b|\bmiss (?:the|our|my)\b|didn't make (?:it|the)", re.I)
+MISSED_WORDS = dict(zh=dict(leg="刚误掉的：{start} {line}{origin} → {destination}（计划里的这一段）",
+                            later="计划里存的晚一班：{start} {line}{origin} → {destination}（存档，没核）",
+                            written="计划里给这一段写的备选：{text}（存档，没核）"),
+                    en=dict(leg="Just missed: {start} {line}{origin} → {destination} (this leg of the plan)",
+                            later="The plan's stored later option: {start} {line}{origin} → {destination} (archived, not checked)",
+                            written="The plan's own fallback for this leg: {text} (archived, not checked)"))
 # S4a: the line that ends a reply with the first part in an app that cannot show text between tool calls (core step 4);
 # turn returns it as first_part.later.
 LATER = dict(zh="要核过的第二段，回我一句“继续”。", en="Reply “go on” for the checked second part.")
@@ -325,3 +333,19 @@ def draft(question: str, now: dict, anchors: list[dict], plan: dict | None, lang
     tail = said["check_latest"].format(nodes=said["nodes"] if upcoming else "") if latest else said["check_plain"] if upcoming else None
     lines = [head, *body[:LINES - 1 - bool(tail)], *([tail] if tail else [])]
     return dict(text="\n".join(lines), lines=lines, asks_latest=latest)
+
+
+def missed_draft(found: dict, language: str = "zh") -> dict:
+    """The first part for a missed connection (packs.missed_leg): the leg just missed and what the plan stores for it,
+    nothing else (D′ listed the afternoon's and tomorrow's nodes and answered none of 18 questions, 2026-11-12)."""
+    said = MISSED_WORDS.get(language, MISSED_WORDS["en"])
+
+    def fields(leg):
+        return dict(leg, line=f"{leg['line']} " if leg.get("line") else "")
+
+    lines = [said["leg"].format(**fields(found["leg"]))]
+    if found.get("later"):
+        lines.append(said["later"].format(**fields(found["later"])))
+    if found.get("written"):
+        lines.append(said["written"].format(text=found["written"]))
+    return dict(text="\n".join(lines), lines=lines, asks_latest=False)

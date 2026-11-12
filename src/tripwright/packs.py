@@ -693,6 +693,46 @@ def clock_minutes(text: str) -> int:
     return int(text[:2]) * 60 + int(text[3:5])
 
 
+def missed_leg(plan: dict | None, day: str, at_clock: str, person: str | None, language: str) -> dict | None:
+    """The leg the user has just missed and what the plan stores for it (2026-11-12): in the followed plan (the day's
+    first), the person's travel block with an origin and a destination that left in the last 30 minutes; then its stored
+    fallback, the alternative its author wrote on the hard node of that departure (the default sentence does not count:
+    keeping an earlier departure is no answer once it is missed), else the same leg leaving later in another of the
+    day's plans. None when either is missing: a first part that only names the missed train answers nothing."""
+    from tripwright.trip import Anchor
+
+    entry = next((entry for entry in (plan or {}).get("days", []) if str(entry["date"]) == day), None)
+    if not entry or not entry.get("plans"):
+        return None
+    now = clock_minutes(at_clock)
+
+    def legs(candidate):
+        return [block for track in candidate.get("tracks", []) if not person or person in track.get("subject", [])
+                for block in track.get("blocks", []) if block.get("kind") == "travel" and block.get("start")
+                and block.get("origin") and block.get("destination")]
+
+    gone = [block for block in legs(entry["plans"][0]) if 0 <= now - clock_minutes(block["start"]) <= 30]
+    if not gone:
+        return None
+    leg = max(gone, key=lambda block: clock_minutes(block["start"]))
+    default = Anchor.model_fields["alternative"].default
+    written = next((node["alternative"] for node in entry.get("anchors", []) if node.get("time") == leg["start"]
+                    and (not person or person in node.get("subject", [])) and node.get("alternative")
+                    and node["alternative"] != default), None)
+    later = sorted((block for candidate in entry["plans"][1:] for block in legs(candidate)
+                    if (block["origin"], block["destination"]) == (leg["origin"], leg["destination"])
+                    and clock_minutes(block["start"]) > clock_minutes(leg["start"])), key=lambda block: clock_minutes(block["start"]))
+    if written is None and not later:
+        return None
+    places = {place["id"]: place for place in (plan or {}).get("places", [])}
+
+    def named(block):
+        ends = [short_name(places[end], language, plan) if end in places else end for end in (block["origin"], block["destination"])]
+        return dict(start=block["start"], line=block.get("line"), origin=ends[0], destination=ends[1])
+
+    return dict(leg=named(leg), later=named(later[0]) if later else None, written=written)
+
+
 def plan_place(plan: dict | None, day: str, at_clock: str, person: str | None = None) -> str | None:
     """Where the followed plan (the day's first) has `person` at `at_clock`, from that person's own blocks (A14, quality
     judge 7: the group's lunch, 11:40—13:30, was taken at 21:01 while the user's own line had the gym, 17:30—21:45): the
@@ -957,7 +997,8 @@ def point_facts(store: Store, owner: str, plan: dict | None, points: list[dict],
         else:
             facts = {}
         told.append(dict(entry, facts=facts, keys=[key for key in dict.fromkeys(keys) if key]))
-    return dict(at=where, planned=assumed, points=told, next=next_place(plan, where, told, language), party=(tickets or {}).get("party"))
+    return dict(at=where, planned=assumed, person=person or asker(plan), points=told, next=next_place(plan, where, told, language),
+                party=(tickets or {}).get("party"))
 
 
 def next_place(plan: dict | None, where: dict | None, told: list[dict], language: str) -> dict | None:
