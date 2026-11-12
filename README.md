@@ -37,7 +37,7 @@ flowchart LR
 
 Your app runs the agents; the service keeps the trip, returns what applies to each message, and names who does the next step. The three helpers are sub-agents in Claude Code and Codex. In a plain chat, one agent does their steps itself and follows the same `flow`. One of the seven MCP tools receives each message; the others look up facts, propose and commit changes, and read the plan and its history. Without a private repository, the trips stay in a local Git repository on the service's volume.
 
-**From one sentence to a saved plan.** A change is saved only after it passes the service's checks; a refused change is never reported as done.
+**From one sentence to a saved plan.** A change is saved only after it passes the service's checks; a refused change is never reported as done. A change that brings in a fact nobody has checked waits for your answer.
 
 ```mermaid
 flowchart TD
@@ -48,7 +48,7 @@ flowchart TD
     D -.-> E
     E -->|"conflicts with a must, a booked ticket or a fixed time"| X["Not saved. The answer says the change<br/>did not go through, and asks you"]
     E -->|"no conflict"| F["Verifier checks the draft"]
-    F -->|"a key fact is still unchecked"| Y["The answer states the consequence and a fallback.<br/>The assistant asks you, or saves it marked unchecked"]
+    F -->|"the change brings in a fact that is not checked"| Y["Not saved yet. The answer says what is unchecked<br/>and what follows from it, and asks you"] -->|"you answer: save it"| H
     F -->|"passed"| H["commit: a new version that records<br/>what changed, who changed it and why"]
 ```
 
@@ -98,8 +98,8 @@ The agent asks you only for what only you can do: sign in to Railway, type a sys
 | Where you use it | How it connects | Replies | How we tested it |
 | --- | --- | --- | --- |
 | Claude Code | `claude mcp add --transport http tripwright <address>` | Two messages: the first part, then the checked part | Claude Code with Claude Sonnet 5.5 and the helper roles |
-| Claude (web, desktop, mobile) | Settings, add a custom connector, sign-in “none” | The first part, then the checked part after you reply | Claude Sonnet 5.5 and Opus 5.5 through the Claude API's MCP connector, which connects from Anthropic's cloud as a custom connector does |
-| ChatGPT | Web only. Business, Enterprise or Edu to use all tools; Pro is read-only | The same; or one message, see below | Set up as OpenAI documents; GPT models tested through Codex |
+| Claude (web, desktop, mobile) | Settings, add a custom connector, sign-in “none” | The checked part comes after you reply “continue”. In our one run on the web, the first reply already held the looked-up result | Claude on the web (Ultra plan, Fable 5.2, one conversation); Claude Sonnet 5.5 and Opus 5.5 through the Claude API's MCP connector, which connects from Anthropic's cloud as a custom connector does |
+| ChatGPT | Web only: add a custom MCP server under Plugins. It worked on the Free plan; ChatGPT asks before each tool that writes | The first part, then the checked part after you reply; or one message, see below | ChatGPT on the web (Free plan, one conversation); GPT models through Codex |
 | Codex | `codex mcp add tripwright --url <address>` | Not measured | Codex CLI with a GPT model: read the trip and changed the plan |
 | Cursor and other MCP clients | Streamable HTTP with the same address | Depends on the client | Set up as each client documents |
 
@@ -107,9 +107,9 @@ This is a default you can change. Set `TRIPWRIGHT_REPLY_FLOW=one` when you deplo
 
 ## Getting the best results
 
-**Two ways to use it.** On the road, ask short questions (“I'm at the station, when is the next train?”): a first answer from your stored plan comes within seconds, then the checked one. When planning, send requirements and screenshots: they are recorded before the plan changes, even when the change is held back, and the requirements agent links them to what you already decided; the changed plan is checked before it is saved.
+**Two ways to use it.** On the road, ask short questions (“I'm at the station, when is the next train?”): a first answer from your stored plan comes within seconds, then the checked one. When planning, send requirements and screenshots: they are recorded before the plan changes, even when the change is held back, and the requirements agent links them to what you already decided; the changed plan is checked before it is saved. When a change brings in a fact that is not checked (a dinner moved to an hour at which nobody has looked up whether the place is open), the assistant tells you and the change is saved only after you answer.
 
-**Use an app that can run sub-agents.** In Claude Code and Codex the service names the helper each step needs: a requirements agent records new requirements and screenshots and links them to your earlier decisions; a researcher checks each fact, and ticket prices and discounts when tickets are still to buy; a verifier checks a changed plan before it is saved. The service updates the website itself. On quick questions on the road the main agent usually looks the fact up itself: in Claude Code with Sonnet it answered in about 15–20 seconds, correctly, in 3 of 3 runs.
+**Use an app that can run sub-agents.** In Claude Code and Codex the service names the helper each step needs: a requirements agent transcribes screenshots and writes up new requirements, linked to your earlier decisions, for the main agent to save; a researcher checks each fact, and ticket prices and discounts when tickets are still to buy; a verifier checks a changed plan before it is saved. The service updates the website itself. On quick questions on the road the main agent usually looks the fact up itself: in Claude Code with Sonnet it answered in about 15–20 seconds, correctly, in 3 of 3 runs.
 
 **A plain chat works too.** In ChatGPT or Claude chat one agent does everything: the checked answer comes after you reply “continue”, and the service sends back the requirements that apply with every message.
 
@@ -129,7 +129,8 @@ Open `out/index.html`. The page has an EN / 中文 switch. `out/log.html` is the
 ## Testing and limits
 
 - **Claude through the API (2026-11-12).** Anthropic's cloud connected to a test deployment through the Claude API's MCP connector and ran ten conversations, in English and Chinese: first use; a question on the road; moving a dinner and noting an allergy; saving three screenshots, then finding them again in a new chat; a planning request with a new requirement. Claude Sonnet 5.5 passed 45 of 48 runs and Claude Opus 5.5 passed 6 of 6. Each run started from a fresh service with a fictional trip. In both Opus planning runs, Claude recorded the requirement and then asked before saving, because the plan left no time to get from dinner to the walk. In 2 of 12 Sonnet planning runs, Claude changed the plan without first recording the request as a requirement; the message itself is still stored.
-- **Claude Code with the helper roles (2026-11-12, Claude Sonnet 5.5).** Twelve screenshots sent at once: the requirements agent stored all 12, and all 12 were found again, in 3 of 3 runs. Plan changes: the new requirement was recorded before the plan in 6 of 6 runs, and a changed plan was saved only after the verifier had checked it. On a one-line change the main agent sometimes records the requirement itself instead of sending it to the requirements agent (2 of 3 runs); it is recorded correctly either way.
+- **Claude Code with the helper roles (2026-11-12, Claude Sonnet 5.5).** Twelve screenshots sent at once: the requirements agent read and transcribed them, the main agent stored all 12 from that transcription, and all 12 were found again, in 3 of 3 runs. Plan changes: the new requirement was recorded before the plan in 6 of 6 runs, and a changed plan was saved only after the verifier had checked it. On a one-line change the main agent sometimes records the requirement itself instead of sending it to the requirements agent (2 of 3 runs); it is recorded correctly either way.
+- **Claude and ChatGPT on the web (2026-11-12, one conversation each, in Chinese, a fictional trip).** Both read the stored trip, answered a question on the road from the service without a web search, moved a dinner and recorded an allergy. Claude (Ultra plan, Fable 5.2): the first reply to the question on the road already held the looked-up result and did not ask for a reply; the part headed “after checking” came after “continue”. ChatGPT (Free plan): the reply came in two parts, and ChatGPT asked before each tool that writes. Both saved the moved dinner first and told the user afterwards that nobody had checked whether the place is open at the new hour. The service now refuses such a save until the user has answered. That was run in test hosts, not yet again in the two apps: in 9 of 9 conversations (GPT, GLM and Claude Fable 5.2, three each) nothing was saved before the answer, and all 9 were saved after the reply “可以，照这样存” (yes, save it like that).
 - **A known case.** When the assistant passes on a question that names a stored place as your location (“can I get into the airport?”), the quick first reply says you are at that place instead of where the plan has you at that time.
 - **Also tested:** the Codex CLI with a GPT model; GPT, GLM and Kimi models in a test chat host; the MCP conformance checks; about 1,600 automated tests.
 - **Deployment.** From the first Docker command to a ready service took about 13 seconds when a low-cost model followed SETUP.md alone. On Railway, a real account was ready 59 seconds after upload. Connecting a private GitHub repository with a deploy key, and upgrading an older installation, were done on a real server.
