@@ -69,6 +69,31 @@ SEND_AND_END = dict(
 # (2026-11-11), so the host translates that one; every other first part is still sent as it is.
 SEND_IN_ENGLISH = SEND_AND_END["en"].replace("as it is all the same", "that way all the same").replace(
     "as it is", "in English (translate its stored text; keep names, times and numbers as written)")
+# A plan draft that brings in unverified facts waits for the user's answer (versions.unanswered). propose says so
+# before any commit is tried, and the turn that carries the answer says what to do with the draft.
+ASK_USER = dict(zh="这次改动新带来 {n} 条没核的事实，commit 要等用户回话。先告诉用户：改动还没存、哪几条没核、各自的后果与备选，问要不要照这样存。"
+                   "用户回话后先调 turn；同意就 commit(draft_id, accept_unverified=true)。",
+                en="This change brings in {n} unverified fact(s); commit waits for the user's answer. Tell the user that the change "
+                   "is not saved yet, which facts are unknown, what follows from each and the alternative, and ask whether to "
+                   "save it as it is. After the answer call turn; if the user agrees, commit(draft_id, accept_unverified=true).")
+# A refused draft goes back to the user anyway: the unverified facts its change brings in are said in the same reply,
+# so the corrected draft does not need one more round for them (2026-11-12, Fable: a draft refused for a conflict, the
+# user chose an option, and the facts had never been pointed out).
+ASK_WITH_REFUSAL = dict(zh="草稿没被接受（见 notice、checks.conflicts）。这次改动还新带来 {n} 条没核的事实：回头问用户怎样改时，一并说明哪几条没核、"
+                           "各自的后果与备选。用户回话后先调 turn；改好的草稿在用户同意后 commit(draft_id, accept_unverified=true)。",
+                        en="The draft was not accepted (see notice and checks.conflicts). Its change also brings in {n} unverified "
+                           "fact(s): when you ask the user how to change it, say which facts are unknown, what follows from each and "
+                           "the alternative. After the answer call turn; commit the corrected draft with accept_unverified=true if "
+                           "the user agrees.")
+WAITING = dict(zh="草稿 {draft} 在等用户这句回话（{n} 条没核的事实）。用户同意照这样存：commit(draft_id='{draft}', accept_unverified=true)，"
+                  "不用重新 propose；用户要改：按新说的重新 propose。",
+               en="Draft {draft} was waiting for this reply ({n} unverified fact(s)). If the user agrees to save it as it is: "
+                  "commit(draft_id='{draft}', accept_unverified=true), no new propose; if the user changes something: propose again.")
+WAITING_STALE = dict(zh="草稿 {draft} 在等用户这句回话（{n} 条没核的事实），但账本或计划在那之后变了。用户同意照这样存：照同样的改动重新 propose，"
+                        "再 commit(accept_unverified=true)；用户答过的事实不再问。",
+                     en="Draft {draft} was waiting for this reply ({n} unverified fact(s)), but the ledger or plan changed since. If the "
+                        "user agrees to save it as it is: propose the same change again, then commit(accept_unverified=true); "
+                        "facts the user has answered are not asked again.")
 AFTER_FIRST = dict(zh="用户回了话、或 researcher 的报告回来之后照这里做，不再调 turn：",
                    en="After the user replies or the researcher's report returns, do this without calling turn again: ")
 # explain(record_id) (S5): the ledger tables a record ID is looked up in, and the fields each adds to the record
@@ -413,10 +438,12 @@ class Tripwright:
             review = self.ledger.needs_review(owner)
             if review:
                 response["review"] = review
+            waiting = self._waiting_draft(owner, event_id, language)
             response["flow"] = self.flow.turn(owner, clock(), text=text, scenario=scenario, language=language, nature=nature_key,
                                               recorded=bool(record_input), changed=bool(recorded.get("replaced")),
                                               review=[entry["decision"] for entry in review], second=bool(first), latest=first_part.asks_latest(text),
-                                              unknown=bool(self._unknown_places(plan, told, language=language)))
+                                              unknown=bool(self._unknown_places(plan, told, language=language)),
+                                              answers_draft=bool(waiting))
             # The agent acts on the instruction it reads first: whom to dispatch leads it (2026-11-12 live runs: as a
             # separate field only, a short planning edit went to the requirements role 2 times in 10).
             named = response["flow"]["dispatch"]
@@ -426,12 +453,40 @@ class Tripwright:
                 lead += ". " if language == "en" else "。"
                 head = REPLY_IN_ENGLISH + " " if response["next"].startswith(REPLY_IN_ENGLISH + " ") else ""  # it opens the reply
                 response["next"] = whole_sentences(head + lead + response["next"][len(head):], 600)
+            if waiting:
+                response["waiting_draft"] = waiting
+                if not first:  # a first part keeps its own first instruction; the pointer is in waiting_draft all the same
+                    response["next"] = whole_sentences(waiting["say"] + (" " if language == "en" else "") + response["next"], 600)
             if told is not None:
                 response["points"] = told
         if self.committer is not None:
             response["sync"] = self.committer.status()
             self.committer.poke()
         return response
+
+    def _waiting_draft(self, owner: str, event_id: str, language: str) -> dict | None:
+        """The plan draft this message answers: proposed for the message before this one, still on the current
+        version, with unverified facts the user had not answered until now. Only the next message gets the pointer,
+        so a draft the user never answered does not follow every later turn."""
+        messages = self.versions.messages(owner)
+        this = next((event for event in messages if event["id"] == event_id), None)
+        before = [event for event in messages if this and event["id"] != event_id and event["received"]["text"] != this["received"]["text"]]
+        if not before:
+            return None
+        number = self.versions.current(owner)["number"]
+        said = {event["id"]: event["received"]["text"] for event in messages}
+        drafts = [draft for draft in self.store.all("drafts", owner)
+                  if draft["status"] == "proposed" and draft.get("ask") and draft["base_version"] == number
+                  and said.get(draft["source_event"]) == before[-1]["received"]["text"]]
+        if not drafts:
+            return None
+        draft = max(drafts, key=lambda entry: aware(entry["created_at"]))
+        if self.versions.unanswered(owner, draft["ask"])[0]:
+            return None
+        stale = bool(self.versions.fresh(owner, draft.get("snapshot")))
+        words = (WAITING_STALE if stale else WAITING)["en" if language == "en" else "zh"]
+        return dict(draft_id=draft["id"], unverified=[check["id"] for check in draft["ask"]], stale=stale,
+                    say=words.format(draft=draft["id"], n=len(draft["ask"])))
 
     def _quick_first(self, text: str, scenario: str, clock: dict, anchors: list[dict], plan: dict | None,
                      told: dict | None, *, language: str | None = None) -> dict | None:
@@ -970,7 +1025,12 @@ class Tripwright:
         # What the proposal does to user locks, said in the answer (D-36, D-49): made from the operations the ledger
         # admitted in the preview (ledger.lock_receipt); a correction waits for the user.
         locks = draft.get("lock_changes")
-        return dict(draft_id=draft["id"], base_version=draft["base_version"], status=draft["status"],
+        ask = self.versions.unanswered(owner, draft.get("ask") or [])[0]
+        words = ASK_USER if draft["status"] == "proposed" else ASK_WITH_REFUSAL
+        asking = dict(ask_user=dict(
+            unverified=[{key: check[key] for key in ("id", "text", "details", "consequence", "alternative")} for check in ask],
+            how=words["en" if self._reply_language(owner) == "en" else "zh"].format(n=len(ask)))) if ask else {}
+        return dict(draft_id=draft["id"], base_version=draft["base_version"], status=draft["status"], **asking,
                     checks=draft["checks"], job_id=draft["job_id"], usages=draft["usages"], snapshot=draft["snapshot"],
                     **(dict(lock_changes=locks) if locks else {}), changelog=draft.get("changelog", []),
                     warnings=draft["checks"]["conflicts"] if unchanged_plan else [],
@@ -980,16 +1040,19 @@ class Tripwright:
                                 how=f"state(view='pack', draft_id='{draft['id']}') returns the wide pack and the complete candidate for the verifier"))
 
     def commit(self, owner: str, draft_id: str, idempotency_key: str, *, accept_unverified: bool = False,
-               wait: float | None = None) -> dict:
-        return self._flowed(owner, "commit", self._commit_tool(owner, draft_id, idempotency_key,
+               ask_first: bool = False, wait: float | None = None) -> dict:
+        """`ask_first`: the call comes from a host agent, so accept_unverified counts only after the user's answer
+        (versions.commit). The MCP adapter sets it; code that seeds or tests a trip vouches for the user itself."""
+        return self._flowed(owner, "commit", self._commit_tool(owner, draft_id, idempotency_key, ask_first=ask_first,
                                                                accept_unverified=accept_unverified, wait=wait))
 
     def _commit_tool(self, owner: str, draft_id: str, idempotency_key: str, *, accept_unverified: bool = False,
-                     wait: float | None = None) -> dict:
+                     ask_first: bool = False, wait: float | None = None) -> dict:
         self.bound(owner)
         with self.store.transaction():
             prior = self.outbox.find(owner, "commit", idempotency_key)
-            version = self.versions.commit(owner, draft_id, idempotency_key, accept_unverified=accept_unverified)
+            version = self.versions.commit(owner, draft_id, idempotency_key, accept_unverified=accept_unverified,
+                                           ask_first=ask_first)
             if prior is None:
                 draft = self.store.get("drafts", owner, draft_id)
                 context = self.store.get("contexts", owner, draft["ctx_id"])
@@ -997,7 +1060,8 @@ class Tripwright:
                                         version_id=version["id"], records=list(draft["changes"].get("items", []) and
                                                                                [item["id"] for item in draft["changes"]["items"]]),
                                         replay=dict(draft=draft, context=context, accept_unverified=accept_unverified,
-                                                    version_id=version["id"]),
+                                                    version_id=version["id"],
+                                                    **(dict(answered=version["answered"]) if version.get("answered") else {})),
                                         state="received" if self.committer else "effective")
                 notices.settle(self.store, owner, prior) if self.committer is None else None
         timeout = self.commit_wait if wait is None else wait

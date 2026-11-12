@@ -104,6 +104,11 @@ async def stdio_round(folder) -> dict:
 
             turn = await call("turn", dict(text="创建行程。", request_id="seed"))
             draft = await call("propose", dict(ctx_id=turn["ctx_id"], base_version=0, plan=plan(), idempotency_key="seed"))
+            # a new plan's facts are all unverified: the commit waits for the user's answer (2026-11-12)
+            refused = await session.call_tool("commit", dict(draft_id=draft["draft_id"], idempotency_key="seed", accept_unverified=True))
+            assert refused.is_error and "Not saved yet" in refused.content[0].text and draft["ask_user"]["unverified"]
+            answer = await call("turn", dict(text="可以，照这样存。", request_id="seed-yes"))
+            assert answer["waiting_draft"]["draft_id"] == draft["draft_id"] and answer["waiting_draft"]["stale"] is False
             committed = await call("commit", dict(draft_id=draft["draft_id"], idempotency_key="seed", accept_unverified=True))
             verify = await call("state", dict(view="pack", draft_id=draft["draft_id"]))
             memory = await call("state", dict(view="memory"))

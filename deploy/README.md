@@ -38,6 +38,7 @@ No variable is required by the three Docker commands in SETUP. Set a variable on
 | `TRIPWRIGHT_ACTIVE_WINDOW` | `600` seconds of repository polling after the last request. |
 | `TRIPWRIGHT_PROVIDERS` | `live`; `synthetic` is only for demonstrations. |
 | `TRIPWRIGHT_REPLY_FLOW` | How a quick question on the road is answered. `two` (default): the assistant sends the first part from the stored plan and ends the reply; the checked part comes after the user's next message, or by itself where the host runs a background agent (Claude Code). `one`: both parts in one reply. In our runs GPT, GLM and Kimi models wrote the first part before the lookups with `one`; Claude often left the first part out, so keep `two` for Claude. |
+| `TRIPWRIGHT_SAVE_UNVERIFIED` | What happens when a plan change brings in facts that are not verified. `ask` (default): the change is saved only after you have answered; the assistant's own acceptance in the turn that proposed the change is refused. `agent`: the assistant may accept them itself and tell you afterwards, as before 2026-11-12. |
 | `TRIPWRIGHT_VOLUME` | `/data`; the volume whose ownership the container entrypoint fixes before dropping to UID 10001. |
 | `RAILWAY_RUN_UID` | Set `0` only when a platform prevents that ownership fix and root execution is intentional. |
 

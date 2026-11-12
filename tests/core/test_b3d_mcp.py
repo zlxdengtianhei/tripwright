@@ -95,9 +95,13 @@ async def probe(session) -> dict:
 
 
 def environment() -> dict:
-    """The server subprocess imports the same tripwright as this test, so a mutated copy reaches the server too."""
+    """The server subprocess imports the same tripwright as this test, so a mutated copy reaches the server too.
+    These transport tests commit a plan in the turn that proposed it to reach what they test (locks, authority, input
+    shapes), so their server lets the agent accept unverified facts itself; test_ask_before_saving and test_wiring run
+    the default, where the user's answer comes first."""
     source = str(Path(tripwright.__file__).resolve().parents[1])
     variables = {key: value for key, value in os.environ.items() if not key.startswith("TRIPWRIGHT_")}
+    variables["TRIPWRIGHT_SAVE_UNVERIFIED"] = "agent"
     variables["PYTHONPATH"] = os.pathsep.join([source, *filter(None, [os.environ.get("PYTHONPATH")])])
     return variables
 

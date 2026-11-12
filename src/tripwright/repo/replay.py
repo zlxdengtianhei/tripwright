@@ -141,7 +141,7 @@ def _commit(scratch, owner: str, op: dict, data: dict) -> dict | None:
     try:
         with scratch.transaction():
             version = versions.commit(owner, draft["id"], op["request"]["key"], accept_unverified=data.get("accept_unverified", False),
-                                      version_id=data.get("version_id"), replaying=True)
+                                      version_id=data.get("version_id"), replaying=True, answered=data.get("answered"))
             if redone:
                 # The receipt and the changelog say the change was redone on top of the changes made elsewhere.
                 version = dict(version, redone=redone, changelog=[dict(entry, redone=rebase.REDONE) for entry in version.get("changelog", [])])

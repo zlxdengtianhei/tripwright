@@ -60,8 +60,29 @@ UsageArguments = Annotated[Any, WithJsonSchema({
 })]
 
 
+TURN_DESCRIPTION = (
+    "Receives one user message about a trip and returns what the service holds for it. The service sees only what "
+    "arrives here: a trip message that does not pass through turn leaves no record, and none of the stored "
+    "requirements, decisions or plan details come back for it; propose takes the ctx_id and base_version it returns. "
+    "Returns the stored requirements and decisions that apply (pack, consider), the current time, and next and flow: "
+    "the steps for this message. For a quick question on the road (scenario='quick', with the message's points) it "
+    "also returns first_part, an answer drafted from the stored plan with unchecked times marked, and "
+    "second_part_title, the heading for the answer after lookups. record stores what the message states "
+    "(preferences, facts, decisions) with the user's exact words. A message that only continues an unfinished second "
+    "part needs no new turn.\n"
+    "Args: points={kind:at|go|eat|do|ticket|other,said,place?}[]; record={items,facts,relate,carry,pending_checks}, "
+    "source.event='this'; request_id optional.")
+
 request_user: ContextVar[str | None] = ContextVar("tripwright_user", default=None)
 log = logging.getLogger("tripwright.tools")
+
+
+def ask_first() -> bool:
+    """Whether a host agent's accept_unverified counts only after the user's answer (versions.commit). The default,
+    `ask`, follows what the user said on 2026-10-31 (results nobody verified are not acceptable), read as "ask before
+    saving"; TRIPWRIGHT_SAVE_UNVERIFIED=agent is the operator's choice to let the agent accept by itself, as before
+    2026-11-12."""
+    return os.environ.get("TRIPWRIGHT_SAVE_UNVERIFIED", "ask").lower() != "agent"
 
 
 def unexpected(name: str, error: BaseException) -> ToolError:
@@ -196,7 +217,11 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
         finally:
             opening.stop()
 
-    # Chat instructions and turn's description share the same six rules.
+    # Tool descriptions say what a tool does and returns; they give the model no orders. ChatGPT's web app marked
+    # the earlier ones "suspicious instructions: the tool description tries to set risk labels, approval and output
+    # format and asks to run its flow first" (2026-11-12): turn's description then repeated the six chat rules, and
+    # commit's told the model when it may set accept_unverified. What a host does for a message is said in each
+    # result (next, flow), and what must hold is checked by the service (commit's refusals).
     server = MCPServer("tripwright", title="Tripwright", version=version("tripwright"), instructions=server_instructions(), lifespan=lifespan)
 
     def identity() -> str:
@@ -215,7 +240,7 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
     replace = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False)
 
     @server.tool(title="Receive each user message and compile relevant constraints", annotations=write, structured_output=True,
-                 description=server_instructions() + "\nArgs: points={kind:at|go|eat|do|ticket|other,said,place?}[]; record={items,facts,relate,carry,pending_checks}, source.event='this'; request_id optional.")
+                 description=TURN_DESCRIPTION)
     @expose_errors
     def turn(text: str, request_id: str | None = None, nature: SourceNature = "host_restatement", native_ref: str | None = None,
              channel: str = "conversation", subject: list[str] | None = None, scope: dict[str, Any] | None = None,
@@ -231,7 +256,7 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
     async def query(kind: Literal["transit", "latest_departure", "web_evidence", "open_places", "nearby", "weather", "opening",
                                   "saved", "geocode"],
                     arguments: dict[str, Any]) -> dict[str, Any]:
-        """Look up travel facts without changing the plan; use its returned sentences and search windows. arguments is an object. transit: {origin,destination,when,offset,arrive_by?,until?}; latest_departure: {origin,destination} for tonight's latest, optional anchor_id/by/board_at for a deadline; open_places: {near,at?,km?,text?}; web_evidence: {url,quote,claim,type,read_from}; weather (only when weather is asked): {place: stored ID|stored name|{name,lat,lon},date}; origin/destination/near also accept {name,lat,lon}; nearby: {lat,lon,km?}; saved/geocode: {text}; opening: {place,date?}. Places accept IDs or stored names. Full nested shapes are validated by the service, which names any bad field. Every fact retains fetch time, validity and attribution. Unchecked or unavailable facts stay unverified."""
+        """Looks up travel facts; the plan is not changed. Returns sentences ready to quote, the time window searched and where the data stops. arguments is an object. transit: {origin,destination,when,offset,arrive_by?,until?}; latest_departure: {origin,destination} for tonight's latest, optional anchor_id/by/board_at for a deadline; open_places: {near,at?,km?,text?}; web_evidence: {url,quote,claim,type,read_from}; weather (only when weather is asked): {place: stored ID|stored name|{name,lat,lon},date}; origin/destination/near also accept {name,lat,lon}; nearby: {lat,lon,km?}; saved/geocode: {text}; opening: {place,date?}. Places accept IDs or stored names. Full nested shapes are validated by the service, which names any bad field. Every fact keeps its fetch time, validity and source. A fact that could not be checked comes back marked unverified."""
         return await (await opening.get_async()).query(identity(), kind, arguments)
 
     @server.tool(title="Propose plan or ledger changes against a context", annotations=write, structured_output=True)
@@ -240,33 +265,33 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
                 days: ObjectList | None = None, places: ObjectList | None = None,
                 bookings: ObjectList | None = None, changes: RecordArguments | None = None,
                 usages: UsageArguments | None = None) -> dict[str, Any]:
-        """Create a draft from turn's ctx_id/base_version. Use plan for a complete trip (shape state(view='plan').plan), or patch whole days by date and places/bookings by id; for a day edit send days=[state(view='day').json], not the whole state result. Do not combine plan with patches. Omit plan for ledger-only changes. changes/usages are validated by the service; reuse IDs and this turn's source.event. If usages or revisions are omitted, the service records which applicable conditions/decisions were touched (filled_by=service), without choosing preference precedence; an explicit [] is your own input. Names in speaker/subject are resolved to trip person IDs. Anything you chose or inferred that the user did not say belongs in changes.items with source.basis='agent_inference'. Only a user decision with must=true locks. Changing a user decision requires changes.revisions; changing a must, bought/booked item or hard node needs this user message's authority. Give reasons for trade-offs and resolve preference conflicts with the user. Returns draft_id, checks and refusals."""
+        """Creates a draft from turn's ctx_id/base_version; nothing is saved until commit. plan is a complete trip (shape state(view='plan').plan). days (whole days by date, as state(view='day').json returns one), places and bookings (by id) patch the current plan; plan together with patches is refused. Without them the draft changes only the ledger. changes/usages are validated by the service; records keep their IDs and cite this turn's event in source.event. With usages or revisions omitted, the service records which applicable conditions/decisions were touched (filled_by=service) and sets no precedence between preferences; an explicit [] counts as given. Names in speaker/subject resolve to trip person IDs. A choice the user did not state is recorded in changes.items with source.basis='agent_inference'. Only a user decision with must=true locks. Refused: a changed user decision without changes.revisions; a changed must, bought/booked item or hard node that this message's words do not carry; competing preferences before the user chose. Returns draft_id, checks, refusals, and ask_user when the change brings in unverified facts that wait for the user's answer."""
         return ready().propose(identity(), ctx_id=ctx_id, base_version=base_version, idempotency_key=idempotency_key,
                                plan=plan, days=days, places=places, bookings=bookings, changes=changes, usages=usages)
 
     @server.tool(title="Commit a checked current draft", annotations=replace, structured_output=True)
     @expose_errors
     def commit(draft_id: str, idempotency_key: str, accept_unverified: bool = False) -> dict[str, Any]:
-        """Commit a current proposed draft once. A stale draft, changed user-locked field or hard conflict is refused. Set accept_unverified=true only after telling the user the unknown facts and consequences. Returns the committed version and write state."""
-        return ready().commit(identity(), draft_id, idempotency_key, accept_unverified=accept_unverified)
+        """Saves a proposed draft as the next plan version. Refused: a stale draft, a changed user-locked field, a hard conflict, or new unverified facts the user has not answered about (the refusal lists them). accept_unverified=true states that the user agreed after seeing them; it counts once a later user message has arrived through turn. Returns the version and write state."""
+        return ready().commit(identity(), draft_id, idempotency_key, accept_unverified=accept_unverified, ask_first=ask_first())
 
     @server.tool(title="Retrieve or cancel the persistent second-response result", annotations=replace, structured_output=True)
     @expose_errors
     def result(job_id: str, cancel: bool = False, ack_events: list[str] | None = None) -> dict[str, Any]:
-        """Retrieve a persistent job, or cancel=true to stop it. ack_events acknowledges later messages that change nothing. A completed deep check returns its draft and verdict; stale results cannot be committed."""
+        """Returns a persistent job's result; cancel=true stops the job. ack_events names later messages that change nothing for it. A completed deep check returns its draft and verdict; commit does not accept a stale result."""
         return ready().result(identity(), job_id, cancel=cancel, ack_events=ack_events)
 
     @server.tool(title="Read committed trip, day, decisions or profile", annotations=read, structured_output=True)
     @expose_errors
     def state(view: Literal["current", "plan", "day", "blank", "ledger", "decisions", "graph", "history", "profile", "memory", "pack", "sync", "export"] = "current",
               date: str | None = None, draft_id: str | None = None) -> dict[str, Any]:
-        """Read committed state. current/plan return the trip; day needs date=YYYY-MM-DD and returns text plus editable json (send days=[json], not the whole result); blank returns a minimal new-trip plan. Other views: ledger, decisions, graph, history, profile, memory, pack (draft_id required), sync (Git copy; public page address, none until a public GitHub repository is connected), export. No view writes."""
+        """Reads committed state. current/plan return the trip; day needs date=YYYY-MM-DD and returns text plus json, the day object that propose(days=[json]) takes; blank returns a minimal new-trip plan. Other views: ledger, decisions, graph, history, profile, memory, pack (draft_id required), sync (Git copy; public page address, none until a public GitHub repository is connected), export. No view writes."""
         return ready().state(identity(), view, date, draft_id)
 
     @server.tool(title="Explain decisions, sources and preference use", annotations=read, structured_output=True)
     @expose_errors
     def explain(record_id: str | None = None, version: int | None = None) -> dict[str, Any]:
-        """Explain a ledger record by record_id, or a plan version by version. Returns its source, current status, relations, usages and changelog. Read only."""
+        """Explains a ledger record by record_id, or a plan version by version. Returns its source, current status, relations, usages and changelog. Read only."""
         return ready().explain(identity(), record_id, version)
 
     return server

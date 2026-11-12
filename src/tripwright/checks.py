@@ -196,8 +196,11 @@ def check_plan(store: Store, owner: str, plan: Trip | dict, *, at: str | None = 
                     for fact in sorted(obligations):
                         passed = evidence_status(store, owner, block.evidence_ids, day=day_id, place=block.place, fact=fact, at=at,
                                                  binding=snapshot(serialized, dict(block_id=block.id, date=day_id)))
+                        # where and when the fact is about: a block moved to another time or place is another unknown
+                        about = {key: value for key in ("place", "start", "end", "origin", "destination")
+                                 if (value := getattr(block, key)) is not None}
                         checks.append(conclusion(f"evidence:{day_id}:{block.id}:{fact}", "passed" if passed else "unverified",
-                                                 f"{fact} at the planned branch and date needs current first-hand evidence."))
+                                                 f"{fact} at the planned branch and date needs current first-hand evidence.", **about))
                     for fact in bundle["facts"]:
                         if not people_overlap(fact["subject"], track.subject) or not overlaps(Scope.model_validate(fact["scope"]), Scope(start=day.date, end=day.date, time_from=block.start, time_to=block.end)):
                             continue
@@ -258,7 +261,8 @@ def check_plan(store: Store, owner: str, plan: Trip | dict, *, at: str | None = 
                                          binding=snapshot(serialized, dict(anchor_id=anchor.id, date=day_id)))
                 checks.append(conclusion(f"anchor-evidence:{day_id}:{anchor.id}", "passed" if passed else "unverified",
                                          "Hard-node timetable, branch and date need current evidence.",
-                                         consequence=anchor.consequence, alternative=anchor.alternative))
+                                         consequence=anchor.consequence, alternative=anchor.alternative,
+                                         time=anchor.time, **(dict(place=anchor.place) if anchor.place else {})))
             for item in bundle["items"]:
                 specification = item.get("check")
                 relevant_people = set(per_person) if "*" in item["subject"] else set(item["subject"])
