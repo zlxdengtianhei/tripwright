@@ -29,6 +29,12 @@ from tripwright.versions import Versions, ledger_only
 TURN_RECORDS = ("items", "facts", "relate", "carry", "pending_checks")
 SKELETON = {"quick": "quick", "status": "quick"}
 FRAME_MINUTES = packs.STEP_MINUTES  # S4h-a: a quick latest question's frame holds for lookups this long after its turn
+# D-20: a second prohibition under the key of one in force; both hold, and the host sees the old one to replace it if meant
+ALONGSIDE = dict(zh="同一个 key 下已有一条禁止在生效：“{old}”（{alongside}）。这一条也记下了，两条都生效。如果这一条是要替换或放宽旧的那条，"
+                    "重记这一条并在 exclusive_with 里写 {alongside}，服务会问用户留哪一条。",
+                 en="A prohibition under the same key is already in force: “{old}” ({alongside}). This one is recorded too; both "
+                    "hold. If this one is meant to replace or narrow the old one, record it again with exclusive_with naming "
+                    "{alongside}, and the service asks the user which one stays.")
 FIRST_TITLES = dict(zh="按存的计划先说（时刻还没核）", en="From the stored plan first (times not checked yet)")
 SECOND_TITLES = dict(zh="核过之后", en="After checking")
 MEMORY_ASK = dict(zh="长期条目待确认：在对话里问用户这趟还用不用；按回答调 turn(record={carry:[{id,status}]})。",
@@ -640,8 +646,11 @@ class Tripwright:
                 old = self.store.get("items", owner, old_id)
                 kind = consider.kind_of(old)
                 replaced.append(dict(id=item.id, replaces=old_id, kind=kind, stability=consider.stability(kind), old=old["text"], new=item.text))
+        alongside = [dict(id=entry["id"], alongside=entry["alongside"], note=ALONGSIDE[language].format(**entry))
+                     for entry in applied.get("alongside", []) if entry["id"] in applied["changed"]]
         return dumped, dict(changed=applied["changed"], not_recorded=not_recorded, warnings=warnings, needs_replan=bool(warnings),
-                            crowding=applied["crowding"], **(dict(replaced=replaced) if replaced else {}))
+                            crowding=applied["crowding"], **(dict(replaced=replaced) if replaced else {}),
+                            **(dict(alongside=alongside) if alongside else {}))
 
     def present_pack(self, owner: str, **arguments) -> dict:
         pack = packs.build(self.store, owner, trip_folder=self.trip_folder(owner), language=self._reply_language(owner), **arguments)

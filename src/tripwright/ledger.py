@@ -339,6 +339,8 @@ def compatible(first, second) -> bool:
 
 
 POSSIBLE = "possible_contradiction_with"
+# the kinds that state a limit: a host labels one prohibition either way (2026-11-12: “constraint”, said again as “rule”)
+LIMITS = {"constraint", "rule"}
 
 
 def user_layer(basis: str | None) -> bool:
@@ -982,6 +984,7 @@ class Ledger:
             contradictory = set()
             pairs = []
             crowding = []
+            alongside = []
             batch = {item.id for item in changes.items}
             for index, first in enumerate(changes.items):
                 for second in changes.items[index + 1:]:
@@ -1069,6 +1072,13 @@ class Ledger:
                         old["status"] = "pending"
                         self.store.put("items", owner, old)
                         self._question(owner, item, "Contradictory statements in one message require clarification", [old["id"]])
+                    elif (different and old["strength"] == item.strength == "forbid" and {old["kind"], item.kind} <= LIMITS
+                          and old["key"] == item.key and old.get("value") == item.value
+                          and not ({old["id"], old["key"]} & set(item.exclusive_with))):
+                        # Two prohibitions always hold together (avoid both), so neither gives way and no question is
+                        # asked; both stay active (deny-overrides). The receipt quotes the one in force, so a host that
+                        # meant to replace or narrow it can record again with exclusive_with and ask (D-20, 2026-11-12).
+                        alongside.append(dict(id=item.id, alongside=old["id"], old=old["text"]))
                     elif different and old["strength"] in ("must", "forbid"):
                         item.status = "pending"
                         self._question(owner, item, "New statement conflicts with an existing hard condition", [old["id"]])
@@ -1196,7 +1206,7 @@ class Ledger:
                     item["status"] = "superseded"
                     self.store.put("items", owner, item)
                     self._audit(owner, audit_event(root), "retract_interpretation", item_id)
-        return {"changed": changed, "revision": self.revision(owner), "crowding": crowding,
+        return {"changed": changed, "revision": self.revision(owner), "crowding": crowding, "alongside": alongside,
                 "possible_contradictions": self.possible_contradictions(owner),
                 "locks": {part: entries for part, entries in operations.items() if entries}}
 
