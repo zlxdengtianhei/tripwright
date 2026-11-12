@@ -130,3 +130,19 @@ def test_saved_json_redacts_url_key(tmp_path):
     saved = path.read_text(encoding="utf-8")
     assert "private-key" not in saved
     assert saved.count("/mcp/***") == 2
+
+
+def test_codex_runs_without_the_logged_in_accounts_app_connectors(monkeypatch, tmp_path):
+    # 2026-11-12: a Codex account with Google Calendar and Gmail connected read them for “move the dinner”; the check
+    # must see only the tripwright server, never the account's own apps.
+    seen = []
+
+    def fake_external(command, cwd=None):
+        seen.append(command)
+        return type("Done", (), dict(stdout="", stderr="", returncode=0))(), 0.0
+
+    monkeypatch.setattr(release, "external", fake_external)
+    release.codex_message("http://127.0.0.1:1/mcp/key", "model", tmp_path, "hello")
+    release.codex_message("http://127.0.0.1:1/mcp/key", "model", tmp_path, "again", thread="thread-1")
+    for command in seen:
+        assert command[command.index("--disable") + 1] == "apps"

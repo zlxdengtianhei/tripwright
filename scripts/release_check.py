@@ -158,12 +158,14 @@ async def state_number_async(url: str) -> int:
 
 
 def codex_message(url: str, model: str, cwd: Path, text: str, thread: str | None = None) -> tuple[dict, str]:
+    # `--disable apps`: the logged-in account's own connectors (calendar, mail) stay out of the check (2026-11-12)
     config = f'mcp_servers.tripwright.url="{url}"'
     if thread:
-        command = ["codex", "exec", "resume", thread, "-m", model, "--skip-git-repo-check", "--json", "-c", config, text]
+        command = ["codex", "exec", "resume", thread, "-m", model, "--skip-git-repo-check", "--json", "--disable", "apps",
+                   "-c", config, text]
     else:
         command = ["codex", "exec", "-m", model, "--skip-git-repo-check", "-C", str(cwd), "-s", "read-only",
-                   "--json", "-c", config, text]
+                   "--json", "--disable", "apps", "-c", config, text]
     done, seconds = external(command, cwd)
     observed = parse_events(done.stdout)
     observed.update(seconds=seconds, exit_code=done.returncode)
