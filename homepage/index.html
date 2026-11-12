@@ -79,12 +79,49 @@
   <div class="wrap">
     <div class="kicker"><span class="zh">每次对话的路径</span><span class="en">From message to plan</span></div>
     <h2><span class="zh">记下之后，还要取出来用。</span><span class="en">A memory needs to be used.</span></h2>
+    <p class="lede"><span class="zh">几个 agent 跑在你的 App 里。服务保管行程，每条消息返回眼下适用的内容，并点名下一步交给谁。</span><span class="en">Your app runs the agents. The service keeps the trip, returns what applies to each message, and names who does the next step.</span></p>
+
+    <h3><span class="zh">四个角色，服务点名派谁</span><span class="en">Four roles; the service names who goes next</span></h3>
+    <div class="trip-strip">
+      <div class="on"><b class="zh">主 agent</b><b class="en">Main agent</b><span><span class="zh">每条消息先调 <code>turn</code>，写回答，提出并提交计划的改动。</span><span class="en">Calls <code>turn</code> first for every message, writes the answer, proposes and commits plan changes.</span></span></div>
+      <div><b class="zh">需求整理员</b><b class="en">Requirements agent</b><span><span class="zh">有截图，或做计划时来了新要求，就点它：照原句记下，连上以前的决定。</span><span class="en">Named for screenshots, or a new requirement while planning: records exact quotes and links them to earlier decisions.</span></span></div>
+      <div><b class="zh">查证员</b><b class="en">Researcher</b><span><span class="zh">有事实要核，就点它：交通、天气、营业时间，每条带出处。</span><span class="en">Named when a fact needs checking: transport, weather, opening hours, each with its source.</span></span></div>
+      <div><b class="zh">核对员</b><b class="en">Verifier</b><span><span class="zh">草稿改了计划，就点它：拿你提过的全部要求，在存之前核一遍。</span><span class="en">Named when a draft changes the plan: checks it against everything you asked for, before it is saved.</span></span></div>
+    </div>
+    <p class="note"><span class="zh">点名写在每次 <code>turn</code> 返回的 <code>flow.dispatch</code> 里，不靠 App 的钩子。三个帮手在 Claude Code 和 Codex 里是子代理；在普通聊天里，一个 agent 自己做这几步。</span><span class="en">The name comes in <code>flow.dispatch</code>, returned by every <code>turn</code>; no app hook is needed. The three helpers are sub-agents in Claude Code and Codex; in a plain chat, one agent does their steps itself.</span></p>
+
+    <h3 style="margin-top:28px"><span class="zh">从一句话到存下的计划</span><span class="en">From one sentence to a saved plan</span></h3>
     <ol class="flow" aria-label="Workflow" data-label-en="Workflow" data-label-zh="工作流程">
-      <li><span class="num">01</span><h3><span class="zh">收到这一问</span><span class="en">Receive this turn</span></h3><p><span class="zh">保存消息，分清偏好、实况和决定。</span><span class="en">Store the message and distinguish preferences, facts and decisions.</span></p></li>
-      <li><span class="num">02</span><h3><span class="zh">取适用记忆</span><span class="en">Bring in memories</span></h3><p><span class="zh">按人、时段与地点，列出该考虑的条件和问题。</span><span class="en">Select conditions and questions for these people, times and places.</span></p></li>
-      <li><span class="num">03</span><h3><span class="zh">核事实范围</span><span class="en">Check the facts</span></h3><p><span class="zh">交通、天气和已记录来源，查不到就保留未知。</span><span class="en">Use transport, weather and recorded sources. Keep missing facts unknown.</span></p></li>
-      <li><span class="num">04</span><h3><span class="zh">说明每次改动</span><span class="en">Explain changes</span></h3><p><span class="zh">接受的改动留记录，旧结果不能覆盖新计划。</span><span class="en">Record accepted edits. Stale results cannot overwrite a newer plan.</span></p></li>
+      <li><span class="num">01</span><h3><span class="zh">存下原话</span><span class="en">Store your words</span></h3><p><span class="zh">“咖啡不去了，改去公园散步。”<code>turn</code> 一字不改地存下。</span><span class="en">“Skip the café, a walk in the park instead.” <code>turn</code> stores it word for word.</span></p></li>
+      <li><span class="num">02</span><h3><span class="zh">先记成记录</span><span class="en">Record it first</span></h3><p><span class="zh">记成要求、偏好或事实，每条带着它出自哪句话。计划后来没改成，这些也不丢。</span><span class="en">As a requirement, preference or fact, each with the sentence it came from. They stay even if the plan change is held back.</span></p></li>
+      <li><span class="num">03</span><h3><span class="zh">连到以前的决定</span><span class="en">Link to earlier decisions</span></h3><p><span class="zh">新决定靠哪条旧决定成立，就连上它。</span><span class="en">A new decision is linked to the earlier one it rests on.</span> <span class="chip plan"><span class="zh">自动测试覆盖</span><span class="en">Automated tests</span></span></p></li>
+      <li><span class="num">04</span><h3><span class="zh">列出要复查的</span><span class="en">List what needs review</span></h3><p><span class="zh">旧记录被取代或过期时，靠它成立的决定列出来复查。</span><span class="en">When a record is replaced or expires, the decisions that rested on it are listed for review.</span> <span class="chip plan"><span class="zh">自动测试覆盖</span><span class="en">Automated tests</span></span></p></li>
+      <li><span class="num">05</span><h3><span class="zh">提出草稿</span><span class="en">Propose a draft</span></h3><p><span class="zh"><code>propose</code>：只交改过的那一天，不重发整趟行程。</span><span class="en"><code>propose</code>: only the changed day, never the whole trip again.</span></p></li>
+      <li><span class="num">06</span><h3><span class="zh">有冲突就停下</span><span class="en">Stop on a conflict</span></h3><p><span class="zh">撞上必须项、已订的票或固定的时刻：不存。回答里说这次没改成，并问你怎么办。</span><span class="en">A conflict with a must, a booked ticket or a fixed time: nothing is saved. The answer says the change did not go through, and asks you.</span></p></li>
+      <li><span class="num">07</span><h3><span class="zh">核对员核一遍</span><span class="en">The verifier checks</span></h3><p><span class="zh">有关键事实还没核到：回答里说明后果和备选；助手问你，或者存下并标明没核。</span><span class="en">If a key fact is still unchecked, the answer states the consequence and a fallback; the assistant asks you, or saves it marked unchecked.</span></p></li>
+      <li><span class="num">08</span><h3><span class="zh">提交并说明</span><span class="en">Commit and explain</span></h3><p><span class="zh"><code>commit</code>：新版本记下改了什么、谁改的、为什么。旧版本上算出的结果不能覆盖它。</span><span class="en"><code>commit</code>: a new version records what changed, who changed it and why. A result computed on an older version cannot overwrite it.</span></p></li>
     </ol>
+    <p class="note" style="margin-top:12px"><span class="zh">01、02、05—08 在 2026-11-12 用真实模型跑过；03、04 由自动测试覆盖。</span><span class="en">Steps 01, 02 and 05–08 were run with real models on 2026-11-12; steps 03 and 04 are covered by automated tests.</span></p>
+
+    <h3 style="margin-top:28px"><span class="zh">两个场景</span><span class="en">Two situations</span></h3>
+    <div class="grid2">
+      <div class="phone" aria-label="On the road" data-label-en="On the road" data-label-zh="在路上">
+        <div class="bar"><span class="zh">在路上：一句快问，两段回答</span><span class="en">On the road: one question, two answers</span><span>quick</span></div>
+        <div class="msg user"><div class="bubble"><span class="zh">我在车站，16:30 那班还赶得上吗？</span><span class="en">I'm at the station. Can I still make the 16:30?</span></div></div>
+        <div class="msg bot"><div class="who"><span class="zh">第一段 · 服务按存的计划起草，主 agent 马上发出</span><span class="en">First part · drafted by the service from the stored plan, sent right away</span></div><div class="bubble"><span class="zh">计划里存的那班车和站名，时刻标明“存档，没核”。</span><span class="en">The train and station the plan stores, with times marked as archived and unchecked.</span></div></div>
+        <div class="msg bot"><div class="who"><span class="zh">第二段 · 主 agent 用 <code>query</code> 查过之后</span><span class="en">Second part · after the main agent's <code>query</code></span></div><div class="bubble"><span class="zh">先说和第一段的不同。逐程写车次与换乘，带查过的时间窗和数据到哪为止。</span><span class="en">What differs comes first. Each leg and transfer, with the window searched and where the data stops.</span></div></div>
+        <p class="note"><span class="zh">回答结构示意。在聊天 App 里，第二段在你回一句“继续”之后来。</span><span class="en">A structure illustration. In a chat app, the second part comes after you reply “continue”.</span></p>
+      </div>
+      <div class="phone" aria-label="Planning with screenshots" data-label-en="Planning with screenshots" data-label-zh="带截图做计划">
+        <div class="bar"><span class="zh">做计划：截图变成问得到的记录</span><span class="en">Planning: screenshots become records</span><span>plan</span></div>
+        <div class="msg user"><div class="bubble"><span class="zh">（12 张攻略截图）</span><span class="en">(12 guide screenshots)</span></div></div>
+        <div class="msg bot"><div class="who"><span class="zh">需求整理员 · 服务点名，主 agent 派出</span><span class="en">Requirements agent · named by the service, sent by the main agent</span></div><div class="bubble"><span class="zh">每张图转写成一行。12 条记进记录，标明“截图转写”；计划这时不动。</span><span class="en">One transcribed line per image. 12 records go into the ledger, marked as transcribed from screenshots; the plan is not touched yet.</span></div></div>
+        <div class="msg user"><div class="bubble"><span class="zh">（新开一个对话）那家鱼汤店周几不开？</span><span class="en">(In a new chat) Which day is the fish soup place closed?</span></div></div>
+        <div class="msg bot"><div class="who"><span class="zh">主 agent · 用 <code>query</code> 查存下的资料</span><span class="en">Main agent · <code>query</code> over the saved material</span></div><div class="bubble"><span class="zh">答出存下的那句话，并说明它来自截图转写。</span><span class="en">Answers with the stored sentence and says it was transcribed from a screenshot.</span></div></div>
+        <p class="note"><span class="zh">回答结构示意。真要把它排进某一天，走上面的 05—08。</span><span class="en">A structure illustration. Putting the place into a day follows steps 05–08 above.</span></p>
+      </div>
+    </div>
+
     <div class="grid3" style="margin-top:24px">
       <article class="card"><h3><span class="zh">先问必须项</span><span class="en">Ask what is a must</span></h3><p><span class="zh">排计划前问有没有必须去的地方或必须守的时间。没提就当没有；普通选择可以带理由调整。</span><span class="en">Before planning, ask about must-go places or fixed times. If none are named, assume none. Other choices may change with a reason.</span></p></article>
       <article class="card"><h3><span class="zh">改动看得见</span><span class="en">Make edits visible</span></h3><p><span class="zh">改了你先前的选择，就说原来是什么、现在改成什么、为什么。被拒绝的改动不会说成已完成。</span><span class="en">When revising your choice, say what it was, what it becomes and why. A rejected edit is not reported as done.</span></p></article>

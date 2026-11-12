@@ -26,12 +26,60 @@ Your assistant's model still writes the answers. tripwright supplies the memory,
 
 ```mermaid
 flowchart LR
-    A["Chat app or<br/>command-line agent"] -->|MCP| B["tripwright service<br/>Docker or Railway"]
-    B <-->|"master copy (optional)"| C[("Your private<br/>Git repository")]
-    B -->|"scanned pages (optional)"| D["Public trip page<br/>your public repository"]
+    U(["You"]) -->|"each message"| M["Main agent<br/>calls turn first, writes the answer,<br/>proposes and commits plan changes"]
+    M <-->|"7 MCP tools"| S["tripwright service<br/>each turn returns what applies now<br/>and flow.dispatch: whom to send next"]
+    M -->|"screenshots, or a new<br/>requirement while planning"| R["Requirements agent<br/>records exact quotes,<br/>links them to earlier decisions"]
+    M -->|"a fact to check"| Q["Researcher<br/>transport, weather, opening hours,<br/>each with its source"]
+    M -->|"a draft that changes the plan"| V["Verifier<br/>checks the draft against<br/>everything you asked for"]
+    S <-->|"master copy (optional)"| G[("Your private<br/>Git repository")]
+    S -->|"scanned pages (optional)"| P["Public trip page"]
 ```
 
-The service has seven MCP tools. One of them receives each message and returns what applies now; the others look up facts, propose and commit changes, and read the plan and its history. Without a private repository, the trips stay in a local Git repository on the service's volume.
+Your app runs the agents; the service keeps the trip, returns what applies to each message, and names who does the next step. The three helpers are sub-agents in Claude Code and Codex. In a plain chat, one agent does their steps itself and follows the same `flow`. One of the seven MCP tools receives each message; the others look up facts, propose and commit changes, and read the plan and its history. Without a private repository, the trips stay in a local Git repository on the service's volume.
+
+**From one sentence to a saved plan.** A change is saved only after it passes the service's checks; a refused change is never reported as done.
+
+```mermaid
+flowchart TD
+    A["You: 'skip the café, a walk in the park instead'"] --> B["turn stores your exact words"]
+    B --> C["Recorded first as a requirement, preference or fact,<br/>each with the sentence it came from"]
+    C -.-> D["Linked to earlier decisions. A decision that rested on<br/>a replaced or expired record is listed for review"]
+    C --> E["propose: a draft of the changed day"]
+    D -.-> E
+    E -->|"conflicts with a must, a booked ticket or a fixed time"| X["Not saved. The answer says the change<br/>did not go through, and asks you"]
+    E -->|"no conflict"| F["Verifier checks the draft"]
+    F -->|"a key fact is still unchecked"| Y["The answer states the consequence and a fallback.<br/>The assistant asks you, or saves it marked unchecked"]
+    F -->|"passed"| H["commit: a new version that records<br/>what changed, who changed it and why"]
+```
+
+**Two situations.** On the road, a short question gets two answers; in a chat app, the second comes after you reply “continue”. When planning, screenshots become records you can ask about later. In both diagrams, solid arrows were run with real models on 2026-11-12 ([Testing and limits](#testing-and-limits)); dashed arrows are covered by automated tests.
+
+```mermaid
+sequenceDiagram
+    participant U as You
+    participant M as Main agent
+    participant S as tripwright
+    participant R as Requirements agent
+    Note over U,S: On the road
+    U->>M: I'm at the station. Can I still make the 16:30?
+    M->>S: turn (scenario quick)
+    S-->>M: first part, drafted from the stored plan, times marked unchecked
+    M-->>U: First part, right away
+    M->>S: query, departures for this leg
+    S-->>M: sentences with the window searched and where the data stops
+    M-->>U: Second part, after checking. What differs comes first
+    Note over U,R: Planning with screenshots
+    U->>M: 12 guide screenshots
+    M->>S: turn (scenario plan)
+    S-->>M: flow.dispatch names the requirements agent
+    M->>R: the images
+    R-->>M: one transcribed line per image
+    M->>S: turn (nature screenshot_extraction, record)
+    S-->>M: 12 records in the ledger, none in the plan yet
+    U->>M: In a new chat. Which day is the fish soup place closed?
+    M->>S: query (kind saved)
+    S-->>M: the stored sentence, marked as transcribed from a screenshot
+```
 
 ## Get started
 
