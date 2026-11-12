@@ -41,3 +41,23 @@ def test_places_are_found_as_before(service, plan, monkeypatch):
     seeded(service, plan, monkeypatch)
     values = saved(service, "Example Oslo Gallery")
     assert values and all("found" not in value for value in values) and values[0]["id"] == "oslo-art"
+
+
+def test_an_earlier_transit_or_weather_lookup_is_found_again_and_says_when_it_expired(service, plan, monkeypatch):
+    """The user: what was looked up once is recorded and reused. Before, only web checks came back; a transit or
+    weather lookup was stored as evidence but `saved` could not find it."""
+    seeded(service, plan, monkeypatch)
+    asyncio.run(service.query("alice", "weather", dict(place=dict(name="Skerry Point", lat=60.39, lon=5.32), date="2030-06-10")))
+    asyncio.run(service.query("alice", "transit", dict(origin=dict(name="Harbour", lat=59.91, lon=10.75),
+                                                       destination="oslo-art", when="2030-06-10T20:30:00+02:00")))
+    [weather] = saved(service, "skerry")
+    assert weather["found"] == "lookup" and weather["kind"] == "weather" and weather["date"] == "2030-06-10"
+    assert weather["synthetic"] is True and weather["value"] is not None and weather["fetched_at"]
+    [transit] = [value for value in saved(service, "oslo-art") if value.get("found") == "lookup"]
+    assert transit["found"] == "lookup" and transit["kind"] == "transit" and transit["told"] and transit["value"] is None
+    assert transit["expired"] is False
+    assert transit["valid_until"]
+    monkeypatch.setenv("TRIPWRIGHT_NOW", "2031-01-01T09:00:00+01:00")
+    monkeypatch.setenv("TRIPWRIGHT_NOW_SET_AT", str(time.time()))
+    [later] = [value for value in saved(service, "oslo-art") if value.get("found") == "lookup"]
+    assert later["expired"] is True

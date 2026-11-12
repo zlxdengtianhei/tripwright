@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model
 
 from tripwright import consider, packs
+from tripwright.flow import Flow
 from tripwright.checks import check_plan, departure_clock
 from tripwright.events import Events
 from tripwright.jobs import Jobs
@@ -19,7 +20,7 @@ from tripwright.query import QueryRouter, checked_arguments, lookup_failed
 from tripwright.render import first_part
 from tripwright.repo import files as repo_files, memory, notices, replay
 from tripwright.repo.outbox import Outbox
-from tripwright.storage import Store, encode, identifier, now
+from tripwright.storage import Store, clock, encode, identifier, now
 from tripwright.trip import Trip, aware, input_problems, json_type, local_instant
 from tripwright.usage import checked_usages
 from tripwright.versions import Versions, ledger_only
@@ -207,6 +208,7 @@ class Tripwright:
         self.deep_timeout = deep_timeout
         self.commit_wait = commit_wait
         self.language = language
+        self.flow = Flow()
         self.versions.requery = self._requery
         self.jobs.async_cleanup = lambda: self.query_router.aclose()
         self.repository = repository
@@ -400,6 +402,13 @@ class Tripwright:
                 response = dict(next=instructions, first_part=first, second_part_title=second_title, **response)
             response.update(consider={key: considered[key] for key in ("entries", "more", "more_how") if key in considered},
                             ask=asked, offer=consider.offer(known["languages"], language))
+            review = self.ledger.needs_review(owner)
+            if review:
+                response["review"] = review
+            response["flow"] = self.flow.turn(owner, clock(), text=text, scenario=scenario, language=language, nature=nature_key,
+                                              recorded=bool(record_input), changed=bool(recorded.get("replaced")),
+                                              review=[entry["decision"] for entry in review], second=bool(first), latest=first_part.asks_latest(text),
+                                              unknown=bool(self._unknown_places(plan, told, language=language)))
             if told is not None:
                 response["points"] = told
         if self.committer is not None:
@@ -674,6 +683,13 @@ class Tripwright:
         found = packs.clock(at or now(), zone)
         return dict(found, text=now_line(found, language))
 
+    def _flowed(self, owner: str, tool: str, response, extra: list[dict] | None = None):
+        """Every tool result but turn's carries one short reminder of the flow, and whom to dispatch when a step names
+        someone (2026-11-12; flow.py)."""
+        if not isinstance(response, dict):
+            return response
+        return dict(response, flow=self.flow.tool(owner, clock(), tool, language=self._reply_language(owner), extra=extra))
+
     def _reply_language(self, owner: str) -> str:
         return (self.store.latest("contexts", owner) or {}).get("language", self.language)
 
@@ -692,6 +708,9 @@ class Tripwright:
         return dict(text=latest["first_text"], instruction=instruction)
 
     async def query(self, owner: str, kind: str, arguments: dict) -> dict:
+        return self._flowed(owner, "query", await self._query_tool(owner, kind, arguments))
+
+    async def _query_tool(self, owner: str, kind: str, arguments: dict) -> dict:
         self.bound(owner)
         language = self._reply_language(owner)
         plan = self.versions.current(owner)["plan"]
@@ -800,6 +819,12 @@ class Tripwright:
             return await solve_day(payload["day"], provider=self.query_router.transit, timeout=payload["timeout"])
 
     def propose(self, owner: str, **arguments) -> dict:
+        response = self._propose_tool(owner, **arguments)
+        draft = self.store.get("drafts", owner, response["draft_id"])
+        scenario = self.store.get("contexts", owner, draft["ctx_id"])["bundle"]["scenario"]
+        return self._flowed(owner, "propose", response, self.flow.after_propose(draft, scenario, self._reply_language(owner)))
+
+    def _propose_tool(self, owner: str, **arguments) -> dict:
         self.bound(owner)
         partial = [name for name in ("days", "places", "bookings") if arguments.get(name) is not None]
         for name in ("days", "places", "bookings"):
@@ -887,6 +912,11 @@ class Tripwright:
 
     def commit(self, owner: str, draft_id: str, idempotency_key: str, *, accept_unverified: bool = False,
                wait: float | None = None) -> dict:
+        return self._flowed(owner, "commit", self._commit_tool(owner, draft_id, idempotency_key,
+                                                               accept_unverified=accept_unverified, wait=wait))
+
+    def _commit_tool(self, owner: str, draft_id: str, idempotency_key: str, *, accept_unverified: bool = False,
+                     wait: float | None = None) -> dict:
         self.bound(owner)
         with self.store.transaction():
             prior = self.outbox.find(owner, "commit", idempotency_key)
@@ -916,7 +946,10 @@ class Tripwright:
     def result(self, owner: str, job_id: str, *, cancel: bool = False, ack_events: list[str] | None = None) -> dict:
         self.bound(owner)
         if cancel:
-            return self.jobs.cancel(owner, job_id)
+            return self._flowed(owner, "result", self.jobs.cancel(owner, job_id))
+        return self._flowed(owner, "result", self._job_result(owner, job_id, ack_events))
+
+    def _job_result(self, owner: str, job_id: str, ack_events: list[str] | None) -> dict:
         return self.jobs.result(owner, job_id, ack_events=ack_events, body=lambda job, message: self._verdict(owner, job, message))
 
     def _verdict(self, owner: str, job: dict, message: dict) -> dict:
@@ -943,7 +976,8 @@ class Tripwright:
     def state(self, owner: str, view: str = "current", date: str | None = None, draft_id: str | None = None) -> dict:
         """Every view carries `now` (A2): what is current is read against the moment of the read."""
         self.bound(owner)
-        return dict(self._state(owner, view, date, draft_id), now=self.clock(owner))
+        return self._flowed(owner, "state_pack" if view == "pack" else "state",
+                            dict(self._state(owner, view, date, draft_id), now=self.clock(owner)))
 
     def _state(self, owner: str, view: str, date: str | None, draft_id: str | None) -> dict:
         current = self.versions.current(owner)
@@ -984,6 +1018,8 @@ class Tripwright:
             return dict(sync, public_pages=pages) if pages else sync
         if view == "decisions":
             return self.ledger.explain(owner)
+        if view == "graph":
+            return self.ledger.graph(owner)
         if view == "history":
             # D-53: what each version changed, field by field, who changed it, on what basis and why.
             return dict(versions=[dict(version=version["number"], committed_at=version["committed_at"], source_event=version.get("source_event"),
@@ -1004,6 +1040,9 @@ class Tripwright:
         return dict(consider=listed["entries"], sources=consider.sources(self.store, owner, plan, at=at, language=language))
 
     def explain(self, owner: str, record_id: str | None = None, version: int | None = None) -> dict:
+        return self._flowed(owner, "explain", self._explain_tool(owner, record_id, version))
+
+    def _explain_tool(self, owner: str, record_id: str | None = None, version: int | None = None) -> dict:
         self.bound(owner)
         explanation = self.ledger.explain(owner, record_id)
         versions = self.store.all("versions", owner)

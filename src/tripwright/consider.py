@@ -253,6 +253,42 @@ def status_of(item: dict, store, owner: str) -> dict:
 # --- the list for one question -------------------------------------------------------------------------------------
 
 
+LINKS = ("same_object_as", "exclusive_with", "supersedes", "exception_of", "competes_with")
+
+
+def one_hop(store, owner: str, item_ids: list[str], decision_ids: list[str]) -> tuple[list[str], list[str], dict]:
+    """The records in force one link away from what this question selected (2026-11-12): what a selected decision
+    depends on and what depends on it, and the items a selected item is declared the same as, exclusive with or
+    replaces. Each added record says which link brought it, so the agent sees the user's chain before proposing."""
+    items = {item["id"]: item for item in store.all("items", owner) if item["status"] in ("active", "pending")}
+    decisions = {decision["id"]: decision for decision in store.all("decisions", owner) if decision["status"] in ("active", "review")}
+    keys = {item["key"]: item_id for item_id, item in items.items()}
+    linked: dict[str, dict] = {}
+
+    def add(record_id: str, relation: str, of: str):
+        record_id = keys.get(record_id, record_id)
+        if record_id in item_ids or record_id in decision_ids or record_id in linked:
+            return
+        if record_id in items or record_id in decisions:
+            linked[record_id] = dict(relation=relation, of=of)
+
+    for decision_id in decision_ids:
+        for upstream in (decisions.get(decision_id) or {}).get("depends_on", []):
+            add(upstream, "depends_on", decision_id)
+    selected = set(item_ids) | set(decision_ids)
+    for decision_id, decision in decisions.items():
+        for upstream in decision.get("depends_on", []):
+            if keys.get(upstream, upstream) in selected:
+                add(decision_id, "depended_on_by", keys.get(upstream, upstream))
+    for item_id in item_ids:
+        item = items.get(item_id) or {}
+        for name in LINKS:
+            for target in [*(item.get(name) or []), *((item.get("relations") or {}).get(name) or [])]:
+                add(target, name, item_id)
+    return ([*item_ids, *[record_id for record_id in linked if record_id in items]],
+            [*decision_ids, *[record_id for record_id in linked if record_id in decisions]], linked)
+
+
 def build(store, owner: str, *, pack: dict | None, plan: dict | None, scenario: str, at: str, language: str = "zh",
           limit: int | None | str = "scenario") -> dict:
     """`{entries, more, next}` for a turn: the pack's preferences, rules and decisions, the plan's people, destination
@@ -274,6 +310,7 @@ def build(store, owner: str, *, pack: dict | None, plan: dict | None, scenario: 
     else:
         item_ids, decision_ids = pack["required"]["items"]["ids"], pack["required"]["decisions"]["ids"]
         people = pack["header"]["people"]
+    item_ids, decision_ids, linked = one_hop(store, owner, list(item_ids), list(decision_ids))
     found = []
     for item_id in item_ids:
         item = store.get("items", owner, item_id)
@@ -285,12 +322,15 @@ def build(store, owner: str, *, pack: dict | None, plan: dict | None, scenario: 
             extra["status"] = "inferred"
         if item.get("relations", {}).get(CONFLICTS_USER):
             extra[CONFLICTS_USER] = item["relations"][CONFLICTS_USER]
+        if item_id in linked:
+            extra["linked"] = linked[item_id]
         found.append(dict(id=item_id, kind=kind, text=item["text"], stability=stability(kind, overridden), **{"from": origin(item)}, **extra))
     for decision_id in decision_ids:
         decision = store.get("decisions", owner, decision_id)
         found.append(dict(id=decision_id, kind="decision", text=f"{decision['question']} → {decision['choice']}",
                           stability=stability("decision", overridden), must=bool(decision.get("must")),
-                          decided_by=decision["decided_by"], **{"from": origin(decision)}))
+                          decided_by=decision["decided_by"], **{"from": origin(decision)},
+                          **(dict(linked=linked[decision_id]) if decision_id in linked else {})))
     if plan:
         found.append(dict(id=f"trip:{plan['id']}/areas", kind="destination", stability=stability("destination", overridden),
                           text=w["destination"].format(areas=w["join"].join(plan.get("areas") or []), start=plan["start"], end=plan["end"]),

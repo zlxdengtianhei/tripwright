@@ -1311,6 +1311,57 @@ class Ledger:
         return dict(expired=expired, overdue=[pending for pending in self.store.all("pending_checks", owner)
                                            if pending["status"] == "open" and aware(pending["due_at"]) <= aware(at)])
 
+    def _record(self, owner: str, record_id: str) -> dict | None:
+        for table in ("decisions", "items", "facts"):
+            try:
+                return self.store.get(table, owner, record_id)
+            except ValueError:
+                continue
+        return None
+
+    def needs_review(self, owner: str) -> list[dict]:
+        """Live decisions that depend on a record no longer in force (2026-11-12): the user's dependency chain says
+        they may not hold any more. Computed when asked, so every way a record is replaced or expires counts; a
+        decision leaves this list once it is decided again. Commit still rechecks every hard constraint."""
+        found = []
+        for decision in self.store.all("decisions", owner):
+            if decision["status"] not in ("active", "review"):
+                continue
+            for upstream_id in decision.get("depends_on", []):
+                upstream = self._record(owner, upstream_id)
+                if upstream is not None and upstream.get("status") in ("superseded", "expired"):
+                    found.append(dict(decision=decision["id"], question=decision["question"], choice=decision["choice"],
+                                      upstream=upstream_id, upstream_status=upstream["status"],
+                                      replaced_by=upstream.get("superseded_by")))
+        return found
+
+    def graph(self, owner: str) -> dict:
+        """The dependency view (2026-11-12): items and decisions in force as nodes; depends_on, the declared item
+        relations and replacements as edges; plus an indented text a person or an agent can read."""
+        items = [item for item in self.store.all("items", owner) if item["status"] in ("active", "pending")]
+        decisions = [decision for decision in self.store.all("decisions", owner) if decision["status"] in ("active", "review")]
+        nodes = ([dict(id=item["id"], kind=item["kind"], key=item["key"], text=item["text"], status=item["status"]) for item in items]
+                 + [dict(id=decision["id"], kind="decision", text=f"{decision['question']} → {decision['choice']}",
+                         decided_by=decision["decided_by"]) for decision in decisions])
+        edges = [dict(source=decision["id"], target=target, relation="depends_on")
+                 for decision in decisions for target in decision.get("depends_on", [])]
+        for item in items:
+            declared = {name: item.get(name) or [] for name in ("same_object_as", "exclusive_with")}
+            for name, targets in {**declared, **(item.get("relations") or {})}.items():
+                edges += [dict(source=item["id"], target=target, relation=name) for target in targets if isinstance(target, str)]
+        review = self.needs_review(owner)
+        names = {node["id"]: node["text"] for node in nodes}
+        lines = []
+        for node in nodes:
+            outgoing = [edge for edge in edges if edge["source"] == node["id"]]
+            if not outgoing and not any(edge["target"] == node["id"] for edge in edges):
+                continue
+            lines.append(f"{node['id']} {node['text']}")
+            lines += [f"  {edge['relation']} → {edge['target']} {names.get(edge['target'], '(not in force)')}" for edge in outgoing]
+        lines += [f"! review {entry['decision']}: depends on {entry['upstream']} ({entry['upstream_status']})" for entry in review]
+        return dict(nodes=nodes, edges=edges, review=review, text="\n".join(lines),
+                    note="Links help find what a change touches; every commit still rechecks all hard constraints.")
+
     def explain(self, owner: str, record_id: str | None = None) -> dict:
         journal = self.store.all("journal", owner)
         if record_id:

@@ -205,6 +205,7 @@ REQUIRED = {("transit", None): ("origin", "destination", "when"), ("transit", "s
             ("latest_departure", None): ("origin", "destination"), ("web_evidence", None): ("url", "quote", "claim", "type"),
             ("open_places", None): ("near",)}
 # A web check's time is the service's clock: a time the host writes is refused, not stored.
+LOOKUPS = ("transit", "latest_departure", "weather")  # stored lookups that query(kind="saved") finds again
 HOST_TIMES = ("fetched_at", "checked_at", "recorded_at", "at", "time", "valid_until")
 SHAPES = {"arguments.target": "{block_id or anchor_id, date, fact, optional place_id and draft_id}",
           "arguments.place": "{name, lat, lon}", "arguments.day": "{day, timezone, start, end, candidates}",
@@ -2257,6 +2258,20 @@ class QueryRouter:
                                     fetched_at=record["fetched_at"], counts_as_checked=record.get("counts_as_checked", False))
                                for record in self.store.all("evidence", owner)
                                if record.get("kind") == "web" and hit([record.get(key) for key in ("claim", "quote", "url")])]
+                    # 2026-11-12 (the user: what was looked up once is recorded and reused): transit, last-departure and
+                    # weather lookups too, by what was asked and what was told, with when they were fetched and whether
+                    # they have expired since; the answer still re-checks before relying on one
+                    moment = clock()
+                    values += [dict(found="lookup", id=record["id"], kind=record["kind"], date=record.get("date"),
+                                    question=record.get("question"), told=(record.get("sentences") or [])[:4] or None,
+                                    value=record.get("value") if record["kind"] == "weather" else None,
+                                    fetched_at=record["fetched_at"], valid_until=record.get("valid_until"),
+                                    expired=bool(record.get("stale")) or bool(record.get("valid_until")) and aware(record["valid_until"]) <= moment,
+                                    synthetic=bool(record.get("synthetic")) or str(record.get("source", "")).startswith("demo:"))
+                               for record in self.store.all("evidence", owner)
+                               if record.get("kind") in LOOKUPS
+                               and hit([record.get(key) for key in ("kind", "date", "question", "sentences", "source")]
+                                       + ([record.get("value")] if record["kind"] == "weather" else []))]
                 else:
                     latitude, longitude = arguments["lat"], arguments["lon"]
                     values = []
@@ -2272,7 +2287,7 @@ class QueryRouter:
                             values.append(dict(place=place, distance_km=round(distance, 3)))
                     values.sort(key=lambda place: place["distance_km"])
                 fetched = clock()
-                sourced = Sourced(values, "user-saved places" + ("" if kind == "nearby" else ", facts, items and web checks") + "; not live opening or ticket data", fetched, None)
+                sourced = Sourced(values, "user-saved places" + ("" if kind == "nearby" else ", facts, items, web checks and earlier lookups") + "; not live opening or ticket data", fetched, None)
             elif kind == "opening":
                 return dict(status="unverified", reason="No opening-hours provider is configured; consult the exact branch's first-hand source.",
                             consequence="The branch may be closed.", alternative="Choose a confirmed alternative or check at the branch.")
@@ -2290,7 +2305,9 @@ class QueryRouter:
         evidence = dict(id=identifier("EV"), value=json_value(sourced.value), source=sourced.source,
                         fetched_at=fetched, valid_until=valid_until, stale=sourced.stale, notes=sourced.notes,
                         kind=kind, date=arguments.get("date") or (arguments.get("when", "")[:10] or None),
-                        place_id=arguments.get("place_id"), facts=[])
+                        place_id=arguments.get("place_id"), facts=[],
+                        **({"question": {key: arguments[key] for key in ("origin", "destination", "place", "when", "date") if key in arguments}}
+                           if kind in LOOKUPS else {}))
         if target:
             day, subject, node, origin, destination = locate(plan, target)
             evidence.update(date=day["date"], place_id=node.get("place"), binding=snapshot(plan, target),
