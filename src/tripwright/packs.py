@@ -959,7 +959,11 @@ def point_facts(store: Store, owner: str, plan: dict | None, points: list[dict],
     # (rule C) does not take the host's `at` (2026-11-12: “机场能不能进去” sent as `at` became “你在维也纳机场”)
     assumed = dict(said=None, place=planned["id"], name=short_name(planned, language, plan), assumed=True,
                    coords=tuple(planned["coords"]) if planned.get("coords") else None) if planned else None
-    if said_at is None:
+    # an `at` whose words name no stored place and that came without a place of its own is no place the user named
+    # (2026-11-12 replay: “说一个最最迟的时间，让我有个底” sent as `at` became “你在‘说一个最最迟的时间……’”): where the plan
+    # has the user, as when there is no `at`
+    unnamed = said_at is not None and not said_at.get("place") and where["place"] is None and where["coords"] is None
+    if said_at is None or (unnamed and assumed is not None):
         where = assumed
     tickets = stored_tickets(plan, now["date"], language)
     upcoming = [anchor for anchor in anchors if not anchor.get("passed")]

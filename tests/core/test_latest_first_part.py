@@ -64,3 +64,26 @@ def test_the_hosts_at_does_not_say_where_the_user_is_on_this_path(service, plan,
     lines = service.turn("alice", ASKED, None, scenario="quick", points=points)["first_part"]["lines"]
     assert lines[1].startswith("按现在 17:30 算，假设你在") and "计划里这时在这" in lines[1]
     assert "机场能不能进去" not in "".join(lines)
+
+
+def test_an_at_that_names_no_place_says_where_the_plan_has_the_user(service, plan, monkeypatch):
+    # DeepSeek, 2026-11-12 live replay: “说一个最最迟的时间，让我有个底” came as an `at` without a place, beside a point the
+    # service could answer, and the first part said “按现在 13:48 算，你在‘说一个最最迟的时间，让我有个底’”. Words that name
+    # no stored place, sent without a place, are no place the user named: the line says where the plan has the user.
+    next(place for place in plan["places"] if place["id"] == "oslo-cafe")["coords"] = [59.9100, 10.7300]  # fictional
+    trip_with_a_node(service, plan, monkeypatch, now="2030-06-10T17:30:00+02:00")  # the plan: dinner at the café, 17:00-18:00
+    points = [dict(kind="at", said="说一个最最迟的时间，让我有个底"), dict(kind="do", said="画廊", place="oslo-art")]
+    lines = service.turn("alice", ASKED, None, scenario="quick", points=points)["first_part"]["lines"]
+    assert any(line.startswith("按现在 17:30 算，假设你在") and "计划里这时在这" in line for line in lines)
+    assert "最最迟的时间" not in "".join(lines)
+
+
+def test_an_at_the_user_named_still_says_it(service, plan, monkeypatch):
+    # unchanged: words that name a stored place, and a place the host named that is not stored (S4h-a)
+    trip_with_a_node(service, plan, monkeypatch, now="2030-06-10T17:30:00+02:00")
+    stored = [dict(kind="at", said="刚到奥斯陆虚构画廊"), dict(kind="do", said="画廊", place="oslo-art")]
+    lines = service.turn("alice", ASKED, None, scenario="quick", points=stored)["first_part"]["lines"]
+    assert not any("假设你在" in line for line in lines) and any("奥斯陆虚构画廊" in line for line in lines)
+    unknown = [dict(kind="at", said="在一家没存的咖啡馆", place="Café Nirgendwo"), dict(kind="do", said="画廊", place="oslo-art")]
+    first = service.turn("alice", ASKED, None, scenario="quick", points=unknown)["first_part"]
+    assert first is None or not any("假设你在" in line for line in first["lines"])
