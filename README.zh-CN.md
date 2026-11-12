@@ -89,7 +89,7 @@ sequenceDiagram
 2. **推荐：连 GitHub。** 这是两个分开的仓。私有仓存你行程的全部记录；不连的话，行程只存在服务器上。公开仓只放扫描过、给别人看的行程页，别的不放；要公开页就得连它。连上公开仓后，每趟行程默认都有一页，哪一趟不想公开可以单独关掉。每个仓 agent 跑三条命令，不用重启，命令在 SETUP.md 里。
 3. **把地址加进你的 App。** 编码 agent 会替你加。在 Claude 和 ChatGPT 里，由账号主人在 App 设置里点 **添加**。然后问一句：“用 tripwright：存了哪些行程？”
 
-**也可以在 Railway 上一键部署：** [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template/TEMPLATE_CODE?utm_medium=integration&utm_source=button&utm_campaign=tripwright)模板会构建这个仓，配好挂在 `/data` 的数据卷、公网域名和健康检查。部署就绪后，打开服务的 **Variables** 页，复制 `TRIPWRIGHT_ADDRESS`，它就是你的连接地址。然后接着做第 2、3 步。详见 [deploy/RAILWAY.md](deploy/RAILWAY.md)。
+**也可以在 Railway 上一键部署：** [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template/tripwright)模板会构建这个仓，配好挂在 `/data` 的数据卷、公网域名和健康检查。部署就绪后，打开服务的 **Variables** 页，复制 `TRIPWRIGHT_ADDRESS`，它就是你的连接地址。然后接着做第 2、3 步。详见 [deploy/RAILWAY.md](deploy/RAILWAY.md)。
 
 agent 只会请你做只有你能做的事：登录 Railway、输入系统密码、付款、点 **添加**。
 
