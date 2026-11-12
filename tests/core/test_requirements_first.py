@@ -73,3 +73,12 @@ def test_a_context_moves_only_over_its_own_ledger_commits(service, plan, monkeyp
 
     with pytest.raises(ValueError, match="Stale|changed"):
         service.propose("alice", ctx_id=old["ctx_id"], base_version=old["base_version"], plan=edited(plan), idempotency_key="old")
+
+
+def test_a_plan_draft_with_nothing_of_the_message_recorded_names_the_requirements_role_first(service, plan, monkeypatch):
+    seeded(service, plan, monkeypatch)
+    turn = service.turn("alice", "10 号晚饭后那段咖啡不要了。", "bare", scenario="replan")
+    draft = service.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], plan=edited(plan), idempotency_key="bare")
+    assert [entry["role"] for entry in draft["flow"]["dispatch"]][:2] == ["tripwright-requirements", "tripwright-verifier"]
+    turn2, recorded = ask(service, plan, "with")
+    assert [entry["role"] for entry in recorded["flow"]["dispatch"]][0] == "tripwright-verifier"

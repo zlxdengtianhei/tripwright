@@ -28,7 +28,8 @@ WHY = {
                researcher_latest="今晚最晚的车交查询员查",
                researcher_unknown="有没存的地方：交查询员查",
                verifier="草稿改了计划：提交前交核对员从完整资料包核一遍",
-               fares="有要买的票：另派一次查询员只查票价与优惠"),
+               fares="有要买的票：另派一次查询员只查票价与优惠",
+               unrecorded="这条消息还没进账本：先派需求整理员记下、提交它的草稿（计划没提交也不能丢），再给核对员"),
     "en": dict(requirements_shots="The message has screenshots: hand them to the requirements role to transcribe and record (saved material goes to the ledger, not the plan)",
                requirements_many="This message holds several things: the requirements role splits, links and records them",
                requirements_changed="It changes a decision: the requirements role links the dependency and marks what to review",
@@ -38,7 +39,8 @@ WHY = {
                researcher_latest="Tonight's latest connection goes to the researcher",
                researcher_unknown="A place is not stored: the researcher looks it up",
                verifier="The draft changes the plan: before commit, the verifier checks it from the wide pack",
-               fares="Tickets still to buy: dispatch the researcher once more for fares and discounts only"),
+               fares="Tickets still to buy: dispatch the researcher once more for fares and discounts only",
+               unrecorded="Nothing of this message is in the ledger: dispatch the requirements role and commit its draft first (the request must not be lost if the plan is held back), then the verifier"),
 }
 SHORT = {
     "zh": dict(quick="路上急问：先发 first_part，查询员在后台核，第二段先说不同。",
@@ -164,6 +166,9 @@ class Flow:
         if extra:
             out["dispatch"] = extra
         return out
+
+    def unrecorded(self, language: str) -> dict:
+        return dict(role="tripwright-requirements", why=WHY["en" if language == "en" else "zh"]["unrecorded"])
 
     def after_propose(self, draft: dict, scenario: str, language: str) -> list[dict]:
         """Whom to dispatch once a draft exists: the verifier when it changes the plan while planning; the researcher

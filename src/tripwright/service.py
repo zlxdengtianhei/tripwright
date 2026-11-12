@@ -842,7 +842,16 @@ class Tripwright:
             response = dict(response, recorded_first=first)
         draft = self.store.get("drafts", owner, response["draft_id"])
         scenario = self.store.get("contexts", owner, draft["ctx_id"])["bundle"]["scenario"]
-        return self._flowed(owner, "propose", response, self.flow.after_propose(draft, scenario, self._reply_language(owner)))
+        named = self.flow.after_propose(draft, scenario, self._reply_language(owner))
+        if named and not self._message_recorded(owner, draft["source_event"]):
+            # 2026-11-12 live runs: a plan draft with nothing of the message in the ledger; when the plan is held
+            # back, the request lives only in the raw message. Name the requirements role before anything else.
+            named = [self.flow.unrecorded(self._reply_language(owner)), *named]
+        return self._flowed(owner, "propose", response, named)
+
+    def _message_recorded(self, owner: str, event_id: str) -> bool:
+        return any((record.get("source") or {}).get("event") == event_id
+                   for table in ("items", "facts", "decisions") for record in self.store.all(table, owner))
 
     def _requirements_first(self, owner: str, arguments: dict) -> tuple[dict, dict | None]:
         """A draft that both records what the message states and changes the plan: the records are committed first,
