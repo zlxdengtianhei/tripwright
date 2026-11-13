@@ -363,7 +363,8 @@ def test_the_operator_can_let_the_agent_accept_by_itself(trip, monkeypatch):
     day["title"] = "Oslo day"
     title = call(server, "propose", ctx_id=later["ctx_id"], base_version=later["base_version"], idempotency_key="title", days=[day])
     assert "tell_user" not in title and "ask_user" not in title
-    assert call(server, "commit", draft_id=title["draft_id"], idempotency_key="title")["number"] == 3
+    saved = call(server, "commit", draft_id=title["draft_id"], idempotency_key="title")
+    assert saved["number"] == 3 and "tell_user" not in saved  # nothing unverified came in: no undo sentence
 
 
 def test_tool_descriptions_describe_and_do_not_repeat_the_chat_rules(service):
@@ -415,6 +416,7 @@ def test_in_the_proactive_mode_the_change_is_saved_in_the_same_turn_and_the_answ
     version = trip.commit("alice", draft["draft_id"], "commit", ask_first=trip.asks_first("alice"), accept_unverified=True)
     assert version["number"] == 2 and "answered" not in version and dinner_line(trip).startswith("19:00")
     assert DINNER in [check["id"] for check in version["checks"]["unverified"]]  # saved, still marked unverified
+    assert version["tell_user"]["say"] == "不想要这次改动，回“撤回”，我恢复到第 1 版。"  # the receipt ends the answer with it
 
 
 def test_the_user_switches_back_to_cautious_in_one_sentence(trip):
@@ -489,3 +491,13 @@ def test_a_save_mode_setting_with_the_mode_only_in_its_text_counts(trip):
         text="主动模式：计划后续变更可直接修改，无需先征求确认。", source={"event": "this", "basis": "user_explicit"})]))
     _, draft = moved(trip)
     assert "tell_user" in draft and trip.asks_first("alice") is False
+
+
+def test_long_term_written_into_source_counts_for_the_item(trip):
+    """GPT-6 Luna, 2026-11-13: `source.long_term` refused the whole record 3 times in 6 runs; it belongs to the item."""
+    said = trip.turn("alice", "以后改计划直接改就行，不用先问我。", "mode", scenario="replan", speaker="p1", record=dict(items=[dict(
+        kind="setting", key="save_mode", value="proactive", subject=["p1"], strength="must", quote="以后改计划直接改就行，不用先问我",
+        text="proactive", source={"event": "this", "basis": "user_explicit", "long_term": True})]))
+    assert said["recorded"]["not_recorded"] == []
+    entry = next(entry for entry in trip.ledger.current("alice")["items"] if entry["key"] == "save_mode")
+    assert entry["long_term"] is True and trip.asks_first("alice") is False

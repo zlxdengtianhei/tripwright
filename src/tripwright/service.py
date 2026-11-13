@@ -222,6 +222,11 @@ def normalize_record_people(record, plan: dict | None, root: str):
         for index, entry in enumerate(entries):
             if isinstance(entry, dict) and "subject" in entry:
                 entry["subject"] = person_list(entry["subject"], plan, f"{root}.{part}.{index}.subject")
+            # long_term belongs to the item; GPT-6 Luna put it into source 3 times in 6 runs (2026-11-13), and the whole
+            # record was refused for it.
+            source = entry.get("source") if isinstance(entry, dict) else None
+            if part == "items" and isinstance(source, dict) and "long_term" in source and "long_term" not in entry:
+                entry["long_term"] = source.pop("long_term")
     return result
 
 
@@ -1142,8 +1147,15 @@ class Tripwright:
             except ValueError:
                 pass
         # The user locks this commit changed, from the operations the ledger admitted and applied in it (D-49).
-        locks = self.store.get("drafts", owner, draft_id).get("committed_lock_changes")
-        return dict(version, accepted=True, write=self.write_ref(owner, prior), **(dict(lock_changes=locks) if locks else {}))
+        draft = self.store.get("drafts", owner, draft_id)
+        locks = draft.get("committed_lock_changes")
+        # Saved with unverified facts the user did not answer about (the proactive mode): the answer the agent writes
+        # next ends with how to undo it. The receipt is the last thing it reads before writing (2026-11-13: the same
+        # sentence in propose's tell_user was not said in 2 runs of 2).
+        undo = dict(say=UNDO_SAY["en" if self._reply_language(owner) == "en" else "zh"].format(base=version["base_version"])) \
+            if draft.get("ask") and version.get("accept_unverified") and not version.get("answered") and not ask_first else None
+        return dict(version, accepted=True, write=self.write_ref(owner, prior), **(dict(lock_changes=locks) if locks else {}),
+                    **(dict(tell_user=undo) if undo else {}))
 
     def result(self, owner: str, job_id: str, *, cancel: bool = False, ack_events: list[str] | None = None) -> dict:
         self.bound(owner)
