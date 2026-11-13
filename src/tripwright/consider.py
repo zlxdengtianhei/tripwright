@@ -487,6 +487,74 @@ def mode_of(item: dict) -> str | None:
     return said.pop() if len(said) == 1 else None
 
 
+# The setting keys the service reads (ledger.Item.kind's description), exact or by prefix. A setting under any other key
+# is stored and never read: the agent is told so (2026-11-13: GPT-6 Luna wrote key=setting:save_mode; the mode stayed
+# cautious and the model did not know).
+SETTING_KEYS = ("must_go", "save_mode", "ask_languages", "app:timetable")
+SETTING_PREFIXES = ("source:", "note:", "stability:")
+NOT_IN_EFFECT = dict(
+    zh=dict(key="key「{key}」不是服务会读的设置", key_like="key「{key}」不是服务会读的设置，像是「{like}」",
+            value="value 缺或不对：{need}", agent="来源是 agent 的推断（basis=agent_inference），这条设置只认用户自己的话",
+            speaker="它引的那条消息没有行程里的说话人（turn 的 speaker 要填行程里的人的编号），这条设置只认用户本人说的",
+            other="另有一条同 key 的设置在生效（{other}）",
+            how="用户确实这样说了，就在下一次 turn 的 record 里重记：kind=setting，key={key}，{value}subject=[\"*\"]，source.event=\"this\"，turn 带 speaker；"
+                "用户没这样说就不用重记，回答里也别说已经改了。"),
+    en=dict(key="key {key!r} is no setting the service reads", key_like="key {key!r} is no setting the service reads; it looks like {like!r}",
+            value="the value is missing or wrong: {need}", agent="its basis is the agent's inference (agent_inference); this setting counts only from the user's own words",
+            speaker="the message it cites has no speaker who is a person of the trip (pass speaker, a person ID, to turn); this setting counts only from the user",
+            other="another setting with this key is in force ({other})",
+            how="If the user did say so, record it again in the next turn's record: kind=setting, key={key}, {value}subject=[\"*\"], "
+                "source.event=\"this\", with the turn's speaker; if not, do not record it again, and do not say it was changed."))
+VALUE_NEEDS = {"save_mode": ("proactive or cautious", "value=proactive 或 cautious，"),
+               "stability:": ("stable or changing", "value=stable 或 changing，"),
+               "ask_languages": ("a list of language codes", "value=语言代码列表，"),
+               "app:timetable": ("a timetable tool from regions.yaml", "value=regions.yaml 里的时刻表工具，")}
+
+
+def setting_not_in_effect(store, owner: str, item: dict, *, at: str, language: str = "zh") -> dict | None:
+    """Why a recorded setting does not take effect, and how to record it again; None when it does. One check for every
+    setting: a key the service reads, a value it can use, for `save_mode` the user's own words with a speaker of the
+    trip, and no other entry of the same key in force. Returned in turn's `recorded` and in commit's receipt
+    (2026-11-13: two of six proactive runs never switched and the model did not know)."""
+    from difflib import get_close_matches
+    from tripwright.render.regions import table as regions
+
+    w = NOT_IN_EFFECT["en" if language == "en" else "zh"]
+    en = language == "en"
+    key = str(item.get("key") or "")
+    known = key in SETTING_KEYS or any(key.startswith(prefix) and len(key) > len(prefix) for prefix in SETTING_PREFIXES)
+    why, fixed = None, key
+    if not known:
+        tail = key.rsplit(":", 1)[-1].rsplit(".", 1)[-1]
+        like = tail if tail in SETTING_KEYS else next(iter(get_close_matches(key, SETTING_KEYS, n=1, cutoff=0.6)), None)
+        why = w["key_like"].format(key=key, like=like) if like else w["key"].format(key=key)
+        fixed = like or "save_mode | must_go | ask_languages | app:timetable | source:<id> | note:<slug> | stability:<kind>"
+    else:
+        rule = VALUE_NEEDS.get(key) or (VALUE_NEEDS["stability:"] if key.startswith("stability:") else None)
+        value = item.get("value")
+        bad = (key == "save_mode" and mode_of(item) is None
+               or key.startswith("stability:") and value not in ("stable", "changing")
+               or key == "ask_languages" and not (isinstance(value, list) and value)
+               or key == "app:timetable" and value not in regions()["tools"])
+        if bad:
+            why = w["value"].format(need=rule[0])
+        elif key == "save_mode" and (item.get("source") or {}).get("basis") == "agent_inference":
+            why = w["agent"]
+        elif key == "save_mode" and not said_by_user(store, owner, item):
+            why = w["speaker"]
+        elif key not in ("app:timetable",):  # app:timetable is chosen per region
+            entries = settings(store, owner, at=at)
+            chosen = (save_mode(store, owner, at=at).get("record") if key == "save_mode"
+                      else (best(entries, key) or {}).get("id"))
+            if chosen is not None and chosen != item["id"]:
+                why = w["other"].format(other=chosen)
+    if why is None:
+        return None
+    rule = VALUE_NEEDS.get(fixed) or (VALUE_NEEDS["stability:"] if fixed.startswith("stability:") else None)
+    value = (f"value {rule[0]}, " if en else rule[1]) if rule else ""
+    return dict(id=item["id"], key=key, why=why, how=w["how"].format(key=fixed, value=value))
+
+
 def save_mode_answered(store, owner: str, *, at: str) -> bool:
     """Asked once: a `save_mode` setting, or silence after the question (`settled`)."""
     return save_mode(store, owner, at=at)["by"] == "user" or any(entry["id"] == "save_mode" for entry in settled(store, owner))

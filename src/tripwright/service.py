@@ -495,6 +495,10 @@ class Tripwright:
                 if refused_record:
                     recorded = dict(recorded, not_recorded=[*recorded["not_recorded"],
                                                             self._refused_record(record, refused_record, event_id, language=language)])
+                ineffective = self._settings_not_in_effect(owner, [item for item in self.store.all("items", owner)
+                                                                    if (item.get("source") or {}).get("event") == event_id], language)
+                if ineffective:
+                    recorded = dict(recorded, not_in_effect=ineffective)
                 # What the last turn asked and this message leaves unanswered takes its default (M1, R-58, R-67).
                 silent = consider.defaults(self.store, owner, self._asked(owner, event_id), record_input, at=now(), language=language)
                 if silent:
@@ -590,6 +594,13 @@ class Tripwright:
                 lead += ". " if language == "en" else "。"
                 head = REPLY_IN_ENGLISH + " " if response["next"].startswith(REPLY_IN_ENGLISH + " ") else ""  # it opens the reply
                 response["next"] = whole_sentences(head + lead + response["next"][len(head):], 600)
+            if recorded.get("not_in_effect"):
+                # read first: a setting the user asked for that did not take effect changes what this answer may claim
+                said = "；".join(f"{entry['key']}：{entry['why']}" for entry in recorded["not_in_effect"]) if language != "en" else \
+                    "; ".join(f"{entry['key']}: {entry['why']}" for entry in recorded["not_in_effect"])
+                lead = (f"The setting just recorded does not take effect ({said}); see recorded.not_in_effect for how to record it again. "
+                        if language == "en" else f"刚记的设置没生效（{said}），怎样重记见 recorded.not_in_effect。")
+                response["next"] = whole_sentences(lead + response["next"], 900)
             if waiting:
                 response["waiting_draft"] = waiting
                 if not first:  # a first part keeps its own first instruction; the pointer is in waiting_draft all the same
@@ -1085,6 +1096,13 @@ class Tripwright:
         changes.setdefault("why", (f"restores version {number}" if self._reply_language(owner) == "en" else f"恢复到第 {number} 版"))
         return dict(arguments, plan=encode_copy(old["plan"]), changes=changes)
 
+    def _settings_not_in_effect(self, owner: str, items: list[dict], language: str) -> list[dict]:
+        """The settings among `items` that do not take effect, each with why and how to record it again
+        (consider.setting_not_in_effect)."""
+        at = now()
+        return [found for item in items if item.get("kind") == consider.SETTING
+                for found in [consider.setting_not_in_effect(self.store, owner, item, at=at, language=language)] if found]
+
     def _this_message(self, owner: str, arguments: dict) -> dict:
         """`source.event: "this"` in propose's changes is the message of its `ctx_id`, as it is in turn's record
         (2026-11-12 runs: 7 of 12 first proposals sent "this" and were refused). Any other value is left to the checks."""
@@ -1140,7 +1158,8 @@ class Tripwright:
         except ValueError as error:
             return arguments, dict(committed=False, reason=str(error))
         return dict(arguments, changes=rest or None), dict(committed=True, draft_id=ledger["draft_id"], version=version["number"],
-                                                            parts=sorted(records))
+                                                            parts=sorted(records),
+                                                            **({k: version[k] for k in ("settings_not_in_effect",) if k in version}))
 
     def _propose_tool(self, owner: str, **arguments) -> dict:
         self.bound(owner)
@@ -1288,8 +1307,11 @@ class Tripwright:
         # sentence in propose's tell_user was not said in 2 runs of 2).
         undo = dict(say=UNDO_SAY["en" if self._reply_language(owner) == "en" else "zh"].format(base=version["base_version"])) \
             if draft.get("ask") and version.get("accept_unverified") and not version.get("answered") and not ask_first else None
+        ids = {item.get("id") for item in (draft.get("changes") or {}).get("items", [])}
+        ineffective = self._settings_not_in_effect(owner, [item for item in self.store.all("items", owner) if item["id"] in ids],
+                                                   self._reply_language(owner)) if ids else []
         return dict(version, accepted=True, write=self.write_ref(owner, prior), **(dict(lock_changes=locks) if locks else {}),
-                    **(dict(tell_user=undo) if undo else {}))
+                    **(dict(tell_user=undo) if undo else {}), **(dict(settings_not_in_effect=ineffective) if ineffective else {}))
 
     def result(self, owner: str, job_id: str, *, cancel: bool = False, ack_events: list[str] | None = None,
                report: dict | None = None) -> dict:
