@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from copy import deepcopy
 
 from tripwright.checks import check_plan, conclusion
@@ -85,6 +87,22 @@ def not_saved(facts: list[dict], *, asks: bool = True, answered: bool = False) -
             "are unknown and what follows from each, and ask whether to save it as it is. After the user's answer call "
             "turn with it; if the user agrees, commit this draft with accept_unverified=true.")
 
+
+
+def proposal_key(arguments: dict) -> str:
+    """The idempotency key of a proposal sent without one (2026-11-13, G16: a weak client failed on the required
+    bookkeeping fields): this context and a digest of the whole input, so the same call sent again finds its draft
+    and any other input is a new one."""
+    content = {name: arguments.get(name) for name in ("ctx_id", "base_version", "plan", "days", "places", "bookings", "changes", "usages")}
+    digest = hashlib.sha256(json.dumps(content, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:20]
+    return f"auto:{arguments.get('ctx_id')}:{digest}"
+
+
+def commit_key(draft_id: str, accept_unverified: bool) -> str:
+    """The idempotency key of a commit sent without one: the draft and whether it accepts unverified facts. A refused
+    commit stores nothing, so the same keyless call after the user's answer is not taken for the refused one; a
+    retry of a saved commit returns its version."""
+    return f"auto:{draft_id}:{'accept_unverified' if accept_unverified else 'plain'}"
 
 class Versions:
     def __init__(self, store: Store, jobs: Jobs):
@@ -447,11 +465,12 @@ class Versions:
         record = dict(event=event, locks=sorted(changed | created)) if event is not None and (changed or created) else None
         return refused, record
 
-    def propose(self, owner: str, *, ctx_id: str, base_version: int, plan: dict | None = None,
-                changes: dict | None = None, usages: list[dict] | None = None, idempotency_key: str) -> dict:
-        if not idempotency_key:
-            raise ValueError("Proposal idempotency_key is required")
+    def propose(self, owner: str, *, ctx_id: str, base_version: int | None = None, plan: dict | None = None,
+                changes: dict | None = None, usages: list[dict] | None = None, idempotency_key: str | None = None) -> dict:
+        """`base_version` and `idempotency_key` may be left out (G16): the version is then the one the context was
+        issued on, the key `proposal_key` of the input."""
         request = dict(ctx_id=ctx_id, base_version=base_version, plan=plan, changes=changes or {}, usages=usages)
+        idempotency_key = idempotency_key or proposal_key(request)
         # When the proposal was made: a correction it opens is asked at this time, also when committed or replayed (D-50).
         made = now()
         with self.store.transaction():
@@ -462,6 +481,8 @@ class Versions:
                     return previous
             context = self.store.get("contexts", owner, ctx_id)
             current = self.current(owner)
+            if base_version is None:
+                base_version = context.get("moved_from", context["base_version"])  # the version turn gave with this ctx_id
             if base_version == context.get("moved_from", context["base_version"]) and context["base_version"] != current["number"] \
                     and self._only_own_ledger_commits(owner, context, current):
                 # 2026-11-12: this message's requirements were committed first as their own ledger-only version, so
@@ -607,7 +628,7 @@ class Versions:
             self.jobs.invalidate(owner)
             return dict(adopted=True, version=version)
 
-    def commit(self, owner: str, draft_id: str, idempotency_key: str, *, accept_unverified: bool = False,
+    def commit(self, owner: str, draft_id: str, idempotency_key: str | None = None, *, accept_unverified: bool = False,
                ask_first: bool = False, version_id: str | None = None, replaying: bool = False,
                answered: dict | None = None) -> dict:
         """A change that brings in unverified outside facts (`brought_in`) is saved only with `accept_unverified`.
@@ -621,8 +642,7 @@ class Versions:
         `version_id`, `replaying` and `answered` are for replay on a new head (repo.replay): the version keeps its ID
         and its acceptance record, and the checks on later messages, which held when the user saw the draft, are not
         repeated."""
-        if not idempotency_key:
-            raise ValueError("Commit idempotency_key is required")
+        idempotency_key = idempotency_key or commit_key(draft_id, accept_unverified)
         with self.store.transaction():
             for version in self.store.all("versions", owner):
                 if version["idempotency_key"] == idempotency_key:

@@ -23,7 +23,7 @@ from tripwright.repo.outbox import Outbox
 from tripwright.storage import Store, clock, encode, identifier, now
 from tripwright.trip import Trip, aware, input_problems, json_type, local_instant
 from tripwright.usage import checked_usages
-from tripwright.versions import Versions, ledger_only
+from tripwright.versions import Versions, commit_key, ledger_only, proposal_key
 
 # What a turn may record from the message it receives (CONTRACTS 1.3): first-hand facts, items, their relations and the
 # answer about imported long-term entries. Decisions lock plan parts and go through propose and commit.
@@ -944,6 +944,9 @@ class Tripwright:
             return await solve_day(payload["day"], provider=self.query_router.transit, timeout=payload["timeout"])
 
     def propose(self, owner: str, **arguments) -> dict:
+        # G16: a client may leave the bookkeeping out. The key is made from the whole call here, before the
+        # requirements are split off, so the same call sent again finds both of its drafts.
+        arguments = dict(arguments, idempotency_key=arguments.get("idempotency_key") or proposal_key(arguments))
         arguments, first = self._requirements_first(owner, arguments)
         response = self._propose_tool(owner, **arguments)
         if first:
@@ -1095,7 +1098,7 @@ class Tripwright:
                     verify=dict(pack_id=draft["verify"]["pack"]["pack_id"], tokens=draft["verify"]["tokens"],
                                 how=f"state(view='pack', draft_id='{draft['id']}') returns the wide pack and the complete candidate for the verifier"))
 
-    def commit(self, owner: str, draft_id: str, idempotency_key: str, *, accept_unverified: bool = False,
+    def commit(self, owner: str, draft_id: str, idempotency_key: str | None = None, *, accept_unverified: bool = False,
                ask_first: bool = False, wait: float | None = None) -> dict:
         """`ask_first`: the call comes from a host agent, so accept_unverified counts only after another message has
         arrived through turn (versions.commit). The MCP adapter sets it from asks_first(); code that seeds or tests a
@@ -1103,9 +1106,10 @@ class Tripwright:
         return self._flowed(owner, "commit", self._commit_tool(owner, draft_id, idempotency_key, ask_first=ask_first,
                                                                accept_unverified=accept_unverified, wait=wait))
 
-    def _commit_tool(self, owner: str, draft_id: str, idempotency_key: str, *, accept_unverified: bool = False,
+    def _commit_tool(self, owner: str, draft_id: str, idempotency_key: str | None = None, *, accept_unverified: bool = False,
                      ask_first: bool = False, wait: float | None = None) -> dict:
         self.bound(owner)
+        idempotency_key = idempotency_key or commit_key(draft_id, accept_unverified)
         with self.store.transaction():
             prior = self.outbox.find(owner, "commit", idempotency_key)
             version = self.versions.commit(owner, draft_id, idempotency_key, accept_unverified=accept_unverified,
