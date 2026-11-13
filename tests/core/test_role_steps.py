@@ -82,6 +82,14 @@ async def role_over_stdio(directory):
             return response.structured_content or json.loads(text)
 
 
+def test_the_state_tool_says_what_role_takes(service):
+    from test_iface_tools import listing
+
+    state = next(tool for tool in listing(service) if tool["name"] == "state")
+    assert "role" in state["inputSchema"]["properties"]["view"]["enum"]
+    assert "tripwright-verifier" in state["inputSchema"]["properties"]["role"]["description"]
+
+
 def test_a_chat_host_reads_a_role_through_the_state_tool(tmp_path):
     steps = asyncio.run(role_over_stdio(tmp_path))
     assert steps["role"] == "tripwright-verifier" and steps["text"] == skill_body("tripwright-verifier")
