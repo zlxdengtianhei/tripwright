@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model
 
-from tripwright import consider, packs
+from tripwright import agents, consider, packs
 from tripwright.flow import PLANNING, Flow
 from tripwright.checks import check_plan, departure_clock
 from tripwright.events import Events
@@ -461,7 +461,7 @@ class Tripwright:
                 asked.append(dict(id="memory", say=response["memory"]["ask"], default=packs.WORDS[language]["memory_default"],
                                   record=dict(carry=[dict(id=entry["id"], status="confirmed or not_used") for entry in pending])))
             told = packs.point_facts(self.store, owner, plan or None, points, anchors, at, language,
-                                     person=packs.asker(plan, speaker, subject)) if points is not None and plan else None
+                                     person=packs.asker(plan, speaker, subject), words=text) if points is not None and plan else None
             first = self._quick_first(text, scenario, response["now"], anchors, plan or None, told, language=language)
             second_title = SECOND_TITLES[language] if first else None
             context.update(points=packs.point_record(told),
@@ -493,7 +493,8 @@ class Tripwright:
                                               recorded=bool(record_input), changed=bool(recorded.get("replaced")),
                                               review=[entry["decision"] for entry in review], second=bool(first), latest=first_part.asks_latest(text),
                                               unknown=bool(self._unknown_places(plan, told, language=language)),
-                                              answers_draft=bool(waiting))
+                                              answers_draft=bool(waiting),
+                                              ids=dict(event_id=event_id, ctx_id=context_id, base_version=current["number"]))
             # The agent acts on the instruction it reads first: whom to dispatch leads it (2026-11-12 live runs: as a
             # separate field only, a short planning edit went to the requirements role 2 times in 10).
             named = response["flow"]["dispatch"]
@@ -647,7 +648,7 @@ class Tripwright:
         at = now()
         anchors = self._hard_nodes(owner, plan, subject, None, at, language=language) if plan else []
         told = packs.point_facts(self.store, owner, plan, points, anchors, at, language,
-                                 person=packs.asker(plan, speaker, subject)) if points is not None and plan else None
+                                 person=packs.asker(plan, speaker, subject), words=text) if points is not None and plan else None
         clock = self._clock(owner, at, language)
         first = self._quick_first(text, "quick", clock, anchors, plan or None, told, language=language)
         en = language == "en"
@@ -956,6 +957,7 @@ class Tripwright:
             return await solve_day(payload["day"], provider=self.query_router.transit, timeout=payload["timeout"])
 
     def propose(self, owner: str, **arguments) -> dict:
+        arguments = self._this_message(owner, arguments)
         # G16: a client may leave the bookkeeping out. The key is made from the whole call here, before the
         # requirements are split off, so the same call sent again finds both of its drafts.
         arguments = dict(arguments, idempotency_key=arguments.get("idempotency_key") or proposal_key(arguments))
@@ -973,12 +975,35 @@ class Tripwright:
                                       "was refused" + (": " + "; ".join(reasons) if reasons else "") + ".")
         draft = self.store.get("drafts", owner, response["draft_id"])
         scenario = self.store.get("contexts", owner, draft["ctx_id"])["bundle"]["scenario"]
-        named = self.flow.after_propose(draft, scenario, self._reply_language(owner))
+        ids = dict(draft_id=response["draft_id"], job_id=draft.get("job_id"), ctx_id=draft["ctx_id"], event_id=draft["source_event"],
+                   base_version=self.versions.current(owner)["number"])
+        named = self.flow.after_propose(draft, scenario, self._reply_language(owner), ids)
         if named and not self._message_recorded(owner, draft["source_event"]):
             # 2026-11-12 live runs: a plan draft with nothing of the message in the ledger; when the plan is held
             # back, the request lives only in the raw message. Name the requirements role before anything else.
-            named = [self.flow.unrecorded(self._reply_language(owner)), *named]
+            named = [self.flow.unrecorded(self._reply_language(owner), ids), *named]
         return self._flowed(owner, "propose", response, named)
+
+    def _this_message(self, owner: str, arguments: dict) -> dict:
+        """`source.event: "this"` in propose's changes is the message of its `ctx_id`, as it is in turn's record
+        (2026-11-12 runs: 7 of 12 first proposals sent "this" and were refused). Any other value is left to the checks."""
+        changes, ctx_id = arguments.get("changes"), arguments.get("ctx_id")
+        if not isinstance(changes, dict) or not ctx_id:
+            return arguments
+        named = [entry for part in changes.values() if isinstance(part, list) for entry in part
+                 if isinstance(entry, dict) and isinstance(entry.get("source"), dict) and entry["source"].get("event") == "this"]
+        if not named:
+            return arguments
+        try:
+            event_id = self.store.get("contexts", owner, ctx_id)["source_event"]
+        except ValueError:
+            return arguments  # an unknown ctx_id is refused by propose itself
+        changes = encode_copy(changes)
+        for part in changes.values():
+            for entry in part if isinstance(part, list) else []:
+                if isinstance(entry, dict) and isinstance(entry.get("source"), dict) and entry["source"].get("event") == "this":
+                    entry["source"]["event"] = event_id
+        return dict(arguments, changes=changes)
 
     def _message_recorded(self, owner: str, event_id: str) -> bool:
         return any((record.get("source") or {}).get("event") == event_id
@@ -1188,9 +1213,15 @@ class Tripwright:
                     conflicts=[check["id"] for check in checks.get("conflicts", [])],
                     unverified=[check["id"] for check in checks.get("unverified", [])])
 
-    def state(self, owner: str, view: str = "current", date: str | None = None, draft_id: str | None = None) -> dict:
+    def state(self, owner: str, view: str = "current", date: str | None = None, draft_id: str | None = None,
+              role: str | None = None) -> dict:
         """Every view carries `now` (A2): what is current is read against the moment of the read."""
         self.bound(owner)
+        if view == "role":
+            # A role's steps for a host without the skill files (G1, 2026-11-13): the same text the skill ships.
+            if not role:
+                raise ValueError("view='role' needs role, one of: " + ", ".join(agents.ROLES))
+            return self._flowed(owner, "state_role", dict(agents.role_steps(role), now=self.clock(owner)))
         return self._flowed(owner, "state_pack" if view == "pack" else "state",
                             dict(self._state(owner, view, date, draft_id), now=self.clock(owner)))
 

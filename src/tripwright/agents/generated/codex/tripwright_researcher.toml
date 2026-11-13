@@ -18,7 +18,7 @@ Answer exactly the questions you were sent: which place, date, time, line or tic
 
 ## Fares and discounts
 
-When the main agent sends you with `focus: fares` (`flow.dispatch` names it for tickets still to buy), check only prices and discounts for those bookings: the operator's own fare page for each ticket, passes and cards that cover it (regional, rail or museum passes, group, youth and senior fares, early-booking prices), and what each condition requires. Record each price you rely on with `web_evidence` (`type: "price"`) and return one block per booking with its cheapest valid option and the condition; do not book or buy anything.
+When the main agent sends you with `focus: fares` (`flow.dispatch` names it for tickets still to buy), check only prices and discounts for those bookings. First read the cards and passes the user holds (`state(view="ledger")`, items with key `note:card-…`) and price with them; then: the operator's own fare page for each ticket, passes and cards that cover it (regional, rail or museum passes, group, youth and senior fares, early-booking prices), and what each condition requires. Record each price you rely on with `web_evidence` (`type: "price"`) and return one block per booking with its cheapest valid option and the condition; do not book or buy anything.
 
 ## Report
 

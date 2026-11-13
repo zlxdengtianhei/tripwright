@@ -43,24 +43,24 @@ WHY = {
                unrecorded="Nothing of this message is in the ledger: dispatch the requirements role and commit its draft first (the request must not be lost if the plan is held back), then the verifier"),
 }
 SHORT = {
-    "zh": dict(quick="路上急问：先发 first_part，查询员在后台核，第二段先说不同。",
+    "zh": dict(quick="路上急问：先发 first_part，要核的自己查（宿主能开后台 worker 时才派查询员），第二段先说不同。",
                plan="做计划：新要求交整理员记、连依赖，先提交它的草稿；要查的交查询员；改计划后交核对员，再提交。",
                turn_first="先用 turn 记下用户这条消息（原话），再接着做。",
                unturned="这条用户消息还没经 turn：先调 turn(text=用户原话, scenario='quick')，再接着查。"),
-    "en": dict(quick="On the road: send first_part now; the researcher checks in the background; the second part leads with what differs.",
+    "en": dict(quick="On the road: send first_part now; check the facts yourself (the researcher only when the host runs background workers); the second part leads with what differs.",
                plan="Planning: the requirements role records and links new requirements, commit its draft first; lookups to the researcher; after a plan edit, the verifier, then commit.",
                turn_first="Record the user's message with turn (their words) first, then go on.",
                unturned="This user message has not gone through turn: call turn(text=the user's words, scenario='quick') first, then go on with the lookup."),
 }
 FULL = {
-    "zh": dict(quick="路上即时问答：①turn 记下原话；②原样发 first_part；③派查询员在后台查（有截图或几件事时再派需求整理员）；"
-                     "④第二段标题照给的写，先说和第一段的不同；⑤不派核对员。flow.dispatch 点了谁就派谁；不能派子代理时自己依次照它的步骤做。",
+    "zh": dict(quick="路上即时问答：①turn 记下原话；②原样发 first_part；③要核的事实自己查，宿主能开后台 worker 时才派查询员（有截图或几件事时派需求整理员）；"
+                     "④第二段标题照给的写，先说和第一段的不同；⑤不派核对员。flow.dispatch 点了谁就派谁；不能派时先照该条的 steps 取这个角色的步骤，再自己依次做。",
                plan="做计划：①turn 只带原话（不带 record）；②派需求整理员记进账本、连依赖（depends_on 等）、列要问的，先提交它交回的只改账本的草稿；"
                     "③先 query(kind='saved') 用存的资料，缺的派查询员查；④propose（同一个 ctx_id 与 base_version）；⑤草稿改了计划就派核对员核，"
-                    "通过才 commit；propose 返回 ask_user（谨慎模式，新带来的没核事实）时照它的 options 问用户（每个一句后果、标推荐、说不回按哪个），等回话再 commit；返回 tell_user（主动模式）就存，回答里说哪条没核、怎样撤回；⑥回答里说改了什么、为什么。flow.dispatch 点了谁就派谁；不能派子代理时自己依次照它的步骤做。"),
-    "en": dict(quick="On the road: (1) record the words with turn; (2) send first_part as given; (3) dispatch the researcher in the background "
-                     "(the requirements role too when there are screenshots or several things); (4) write the given second heading and lead with "
-                     "what differs; (5) no verifier. Dispatch whom flow.dispatch names; without subagents, follow that role's steps yourself.",
+                    "通过才 commit；propose 返回 ask_user（谨慎模式，新带来的没核事实）时照它的 options 问用户（每个一句后果、标推荐、说不回按哪个），等回话再 commit；返回 tell_user（主动模式）就存，回答里说哪条没核、怎样撤回；⑥回答里说改了什么、为什么。flow.dispatch 点了谁就派谁；不能派时先照该条的 steps 取这个角色的步骤，再自己依次做。"),
+    "en": dict(quick="On the road: (1) record the words with turn; (2) send first_part as given; (3) check the facts yourself, and dispatch the researcher only "
+                     "when the host runs background workers (the requirements role when there are screenshots or several things); (4) write the given second heading and lead with "
+                     "what differs; (5) no verifier. Dispatch whom flow.dispatch names; without subagents, first read that role's steps with the entry's `steps` call, then do them yourself.",
                plan="Planning: (1) turn with the words only (no record); (2) dispatch the requirements role to record, link (depends_on and "
                     "relations) and list questions, and commit the ledger-only draft it returns first; (3) use query(kind='saved') first and "
                     "dispatch the researcher for what is missing; (4) propose (same ctx_id and base_version); (5) when the draft changes the "
@@ -68,8 +68,30 @@ FULL = {
                     "the change brings in), ask with its options (one consequence each, the recommended one marked, what happens "
                     "without an answer) and commit after the answer; on tell_user (proactive mode) commit and say what is "
                     "unverified and how to undo; (6) say what changed and why. Dispatch whom flow.dispatch "
-                    "names; without subagents, follow that role's steps yourself."),
+                    "names; without subagents, first read that role's steps with the entry's `steps` call, then do them yourself."),
 }
+
+# A minimal task packet on every named role (2026-11-13, analysis 5.3): the IDs to hand over, the one thing it returns
+# and where its steps are, so a host without the skill files can still do the role, and a subagent needs no long brief.
+READS = {"tripwright-requirements": ("event_id", "ctx_id", "base_version"),
+         "tripwright-researcher": ("ctx_id", "draft_id"),
+         "tripwright-verifier": ("draft_id", "job_id", "ctx_id")}
+RETURNS = {
+    "zh": {"tripwright-requirements": "只改账本的草稿（draft_id）与要问用户的问题",
+           "tripwright-researcher": "每件事实一行：结论、出处、核没核",
+           "tripwright-verifier": "判词（passed、conflict、incomplete），每项检查一行"},
+    "en": {"tripwright-requirements": "a ledger-only draft (draft_id) and the questions for the user",
+           "tripwright-researcher": "one line per fact: the finding, its source, checked or not",
+           "tripwright-verifier": "a verdict (passed, conflict or incomplete) and one line per check"},
+}
+
+
+def packet(entry: dict, ids: dict | None, language: str) -> dict:
+    """The named role with what to hand it (`read`), what it returns and the call that gives its steps."""
+    role = entry["role"]
+    read = {key: (ids or {})[key] for key in READS.get(role, ()) if (ids or {}).get(key) is not None}
+    return dict(entry, read=read, returns=RETURNS["en" if language == "en" else "zh"][role],
+                steps=f'state(view="role", role="{role}")')
 
 
 @dataclass
@@ -102,7 +124,8 @@ class Flow:
         return line if given else None
 
     def turn(self, owner: str, at: datetime, *, text: str, scenario: str, language: str, nature: str, recorded: bool,
-             changed: bool, review: list, second: bool, latest: bool, unknown: bool, answers_draft: bool = False) -> dict:
+             changed: bool, review: list, second: bool, latest: bool, unknown: bool, answers_draft: bool = False,
+             ids: dict | None = None) -> dict:
         """flow for a turn. A turn that records for the message just received is that message's requirements step,
         not a new message: it names nobody again. `answers_draft`: the message is the user's answer to a draft that
         waited for it ("yes, save it"), so planning alone is no reason to name the requirements role."""
@@ -131,7 +154,9 @@ class Flow:
             dispatch.append(dict(role="tripwright-requirements", why=why["requirements_plan"]))
         for reason, needed in (("researcher_second", second), ("researcher_latest", latest), ("researcher_unknown", unknown)):
             if needed:
-                dispatch.append(dict(role="tripwright-researcher", why=why[reason]))
+                # On the road the main agent looks things up itself (2026-11-12 live runs: 3 of 3 right in 15-20 s; the
+                # user: "直接询问、直接回答"); the researcher is an option for hosts with background workers, not a step.
+                dispatch.append(dict(role="tripwright-researcher", why=why[reason], **({"optional": True} if mode == "quick" else {})))
                 break
         missed = (("tripwright-requirements" in seen.named and "record" not in seen.did)
                   or ("tripwright-researcher" in seen.named and "query" not in seen.did)
@@ -140,7 +165,8 @@ class Flow:
         full = (seen.last_turn is None or at - seen.last_turn > FULL_AFTER_IDLE or seen.mode != mode
                 or seen.turns_since_full >= FULL_AFTER_TURNS or missed and seen.turns_since_full >= MISSED_FULL_EVERY - 1)
         seen.last_turn, seen.mode, seen.text = at, mode, text
-        seen.named = {entry["role"] for entry in dispatch}
+        seen.named = {entry["role"] for entry in dispatch if not entry.get("optional")}  # an optional role is never missed
+        dispatch = [packet(entry, ids, language) for entry in dispatch]
         seen.did, seen.committed_since_turn = {"record"} if recorded else set(), False
         if full:
             seen.last_full, seen.turns_since_full = at, 0
@@ -188,10 +214,10 @@ class Flow:
             return None
         return SHORT["en" if language == "en" else "zh"]["unturned"]
 
-    def unrecorded(self, language: str) -> dict:
-        return dict(role="tripwright-requirements", why=WHY["en" if language == "en" else "zh"]["unrecorded"])
+    def unrecorded(self, language: str, ids: dict | None = None) -> dict:
+        return packet(dict(role="tripwright-requirements", why=WHY["en" if language == "en" else "zh"]["unrecorded"]), ids, language)
 
-    def after_propose(self, draft: dict, scenario: str, language: str) -> list[dict]:
+    def after_propose(self, draft: dict, scenario: str, language: str, ids: dict | None = None) -> list[dict]:
         """Whom to dispatch once a draft exists: the verifier when it changes the plan while planning; the researcher
         once more for fares when it holds tickets still to buy."""
         why = WHY["en" if language == "en" else "zh"]
@@ -203,4 +229,4 @@ class Flow:
                     and not any(fare.get("amount_per_person") is not None and not fare.get("estimated") for fare in booking.get("fares", []))]
         if unpriced:
             dispatch.append(dict(role="tripwright-researcher", focus="fares", why=why["fares"]))
-        return dispatch
+        return [packet(entry, ids, language) for entry in dispatch]

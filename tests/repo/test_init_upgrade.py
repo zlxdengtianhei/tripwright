@@ -57,3 +57,28 @@ def test_upgrade_without_retired_files_keeps_the_existing_output_and_files(tmp_p
     assert all((root / path).read_bytes() == data for path, data in user_repo_files().items())
     assert git(root, "log", "-1", "--format=%s") == "tripwright: refresh the tool's files\n"
     assert git(root, "status", "--porcelain") == ""
+
+
+def test_check_on_a_fresh_repository_finds_nothing_wrong(tmp_path, capsys):
+    # G13 (2026-11-12 pool): right after init, check said "README.md: differs from what the tool generates", which read as
+    # a broken install; init writes no front screen and the first write generates it
+    for name, trip in (("empty", None), ("with-trip", "2030-06-oslo")):
+        root = workspace.init(tmp_path / name, trip=trip).root
+        assert main(["--repo", str(root), "check"]) == 0, capsys.readouterr().out
+        assert '"problems": []' in capsys.readouterr().out
+
+
+def test_once_the_tool_has_written_a_missing_front_screen_is_still_a_difference(tmp_path, capsys):
+    # control for the test above: the exemption covers only a repository the tool has not written to
+    from repo_fixtures import Writer, new_repository, seeded
+
+    writer = Writer(new_repository(tmp_path / "trip"))
+    seeded(writer)
+    writer.close()
+    root = tmp_path / "trip"
+    assert main(["--repo", str(root), "check"]) == 0
+    capsys.readouterr()
+    git(root, "rm", "-q", "README.md")
+    git(root, *BY_HAND, "commit", "-qm", "front screen removed by hand")
+    assert main(["--repo", str(root), "check"]) == 1
+    assert "README.md: differs from what the tool generates" in capsys.readouterr().out

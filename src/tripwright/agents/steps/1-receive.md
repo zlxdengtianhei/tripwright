@@ -10,6 +10,7 @@ summary: As it arrived, with its source nature and a stable request ID.
 - Do: call `turn` with the text as received, its source nature (user's own words, host restatement, screenshot extraction), a stable `request_id` and the scenario. Put the facts and items the message states in `record` (`source.event: "this"`), so the pack that comes back already has them.
 - Show the user: nothing. When asked what was received, give the receipt.
 - If the scenario is unclear, take the more careful one ("I am leaving now, what next" is a replan). Do not stop to ask.
+- A voice-typed message can mishear a word: when one makes no sense in context, do not act on it as written; guess the word meant and ask one short question (“你说的‘X’是指‘Y’吗？”).
 
 ## Without tools
 

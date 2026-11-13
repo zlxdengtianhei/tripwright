@@ -87,3 +87,23 @@ def test_an_at_the_user_named_still_says_it(service, plan, monkeypatch):
     unknown = [dict(kind="at", said="在一家没存的咖啡馆", place="Café Nirgendwo"), dict(kind="do", said="画廊", place="oslo-art")]
     first = service.turn("alice", ASKED, None, scenario="quick", points=unknown)["first_part"]
     assert first is None or not any("假设你在" in line for line in first["lines"])
+
+
+def test_a_stored_place_the_question_is_about_is_not_where_the_user_is(service, plan, monkeypatch):
+    # G7 (analysis 2026-11-13; README's known case): “机场我进得去吗？” with the airport marked `at` said “你在机场”. A stored
+    # place marked `at` that is not where the plan has the user, with no words that put the user there, counts from the
+    # plan's place, as assumed (which asks the user to say so if not); the marked place stays in `mentioned`.
+    next(place for place in plan["places"] if place["id"] == "oslo-cafe")["coords"] = [59.9100, 10.7300]  # fictional
+    trip_with_a_node(service, plan, monkeypatch, now="2030-06-10T17:30:00+02:00")  # the plan: dinner at the café, 17:00-18:00
+    for question, said, head in (("画廊我进得去吗？", "画廊", "按现在 17:30 算，假设你在"),
+                                 ("Can I get into the gallery?", "the gallery", "As of 17:30, assuming you are at")):
+        points = [dict(kind="at", said=said, place="oslo-art"), dict(kind="do", said=said, place="oslo-art")]
+        result = service.turn("alice", question, None, scenario="quick", points=points)
+        lines = result["first_part"]["lines"]
+        assert any(line.startswith(head) for line in lines), lines
+        assert result["points"]["at"]["place"] == "oslo-cafe" and result["points"]["at"]["mentioned"]["place"] == "oslo-art"
+    # words that put the user there keep the place they said
+    for question in ("我到画廊了，进得去吗？", "I'm at the gallery, can I get in?"):
+        points = [dict(kind="at", said="画廊", place="oslo-art"), dict(kind="do", said="画廊", place="oslo-art")]
+        lines = service.turn("alice", question, None, scenario="quick", points=points)["first_part"]["lines"]
+        assert not any("假设你在" in line or "assuming you are" in line for line in lines), lines

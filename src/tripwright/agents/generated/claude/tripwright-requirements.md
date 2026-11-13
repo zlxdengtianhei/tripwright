@@ -36,6 +36,9 @@ From the main agent: the message's exact text, its event ID, `ctx_id` and `base_
 - Readings: when the words allow two readings, keep both and mark which one, if any, the user confirmed.
 - Relation to earlier records about the same object, subject, scope and time: replaces it, is a narrower exception, coexists and competes, or meets a hard condition (then pending, with a question).
 - Declarations: the same key for the same object; `same_object_as` for the same object under another key; `exclusive_with` only for two readings of which one can be meant; `compatible_with` for two points of one message that hold together. A declaration holds only where people, dates and time windows overlap. Two undeclared overlapping points from one message both stay; list them as a possible contradiction with both readings and the default (the service reports them in `possible_contradictions`). Nothing for wishes that only compete for time. A per-person task names its `baggage_holder`.
+- A voice-typed message can mishear a word: when one makes no sense in context, record nothing on it and return one question with your guess (“你说的‘X’是指‘Y’吗？”).
+- Only what the user rules out is ruled out: a place they want, one they will not go to, and one they did not mention are three different things; an unmentioned place is no “no”.
+- Cards, passes and discounts the user holds (a rail card, a city pass, a student card) are a `setting` item with key `note:card-<name>` and the card's terms; `long_term: true` when it outlasts the trip. The researcher prices tickets with them.
 - A deadline done online or on a phone (an online check-in closing) says so, so the plan's anchor gets `where: online`: it is no time to be at the airport and has no latest departure.
 
 ## Questions

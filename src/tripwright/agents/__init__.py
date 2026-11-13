@@ -58,6 +58,37 @@ def user_repo_files() -> dict[str, bytes]:
     return output
 
 
+def role_steps(role: str) -> dict:
+    """A role's steps as its skill holds them, for a host without the skill files (a chat app): `state(view="role")`.
+    `role` is a role name, or `<role>/<file>` for one of its `references/` files. The same bytes the skill ships,
+    without the generator's front matter, so a chat app and a repository host follow one text (2026-11-13, G1)."""
+    name, _, file = role.partition("/")
+    if name not in ROLES:
+        raise ValueError(f"Unknown role {role!r}; one of: {', '.join(ROLES)}")
+    folder = _skill_dir(name)
+    references = sorted(entry.name for entry in folder.joinpath("references").iterdir()
+                        if entry.name.endswith(".md")) if folder.joinpath("references").is_dir() else []
+    if file:
+        if file not in references:
+            raise ValueError(f"Unknown file {file!r} for {name}; one of: {', '.join(references) or 'none'}")
+        return dict(role=name, file=file, text=_without_notice(folder.joinpath("references", file).read_text(encoding="utf-8")).strip())
+    text = folder.joinpath("SKILL.md").read_text(encoding="utf-8")
+    front, body = _front_matter(text)
+    out = dict(role=name, description=" ".join(str(front.get("description", "")).split()), text=body.strip())
+    if references:
+        out["references"] = {file: f'state(view="role", role="{name}/{file}")' for file in references}
+    return out
+
+
+def _front_matter(text: str) -> tuple[dict, str]:
+    import yaml
+
+    if not text.startswith("---\n"):
+        return {}, text
+    head, _, body = text[4:].partition("\n---\n")
+    return yaml.safe_load(head) or {}, body
+
+
 def _skill_dir(role: str):
     """The role's skill folder: bundled in the wheel, else the checkout's `skills/`."""
     bundled = files("tripwright").joinpath("skills", role)

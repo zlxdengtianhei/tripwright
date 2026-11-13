@@ -15,6 +15,12 @@ The order between preferences comes only from the user's words. The pack's `orde
 
 Split each message into one-off questions, facts, preferences, rules and decisions; answer the urgent question now, record the rest. Label each record with people, dates, time window, place, channel, original strength, conditions, reason and source message; unknown stays unknown. Never invent a number from a soft wish.
 
+## Planning days
+
+- One core area per day. Give one recommended plan and at most one or two alternatives, each with its consequence; more candidates belong on the share page.
+- Outdoor items (a hike, a boat, a viewpoint) go on the day with the better forecast: query `weather` for the candidate days, swap days when another is clearly drier, and say the swap and the forecast.
+- Something to do before a day (gear, cash, a printed ticket): record a pending check with `due_at` before that day and say it in the answer.
+
 The service does not guess which records are related. Declare it on the items, in `record` or `propose`:
 - The same object keeps the same `key`; `same_object_as` names another key for the same object.
 - `exclusive_with` only when one statement has two readings and only one can be meant (two destinations for the same evening); `compatible_with` when two items of one message hold together.

@@ -266,9 +266,18 @@ def test_the_record_item_schema_says_subject_is_people_and_the_quote_is_exact():
     assert "character for character" in ITEM_SCHEMA["properties"]["quote"]["description"]
 
 
-def test_a_proposal_that_names_this_as_its_source_event_says_to_use_the_turns_event_id(seeded):
-    """Real-model runs (2026-11-12) sent source.event "this", which works only in turn's record, to propose."""
+def test_a_proposal_that_names_this_as_its_source_event_records_it_for_its_turns_message(seeded):
+    """Real-model runs (2026-11-12) sent source.event "this" to propose in 7 of 12 first tries and were refused; "this"
+    now means the message of the proposal's ctx_id, as it does in turn's record (analysis G13, 2026-11-13)."""
     preference = dict(kind="preference", key="soup", quote="Fish soup", text="Fish soup", subject=["p1"],
                       strength="prefer", source={"event": "this"})
-    with pytest.raises(ValueError, match="^Unknown message 'this'.*event_id.*only in turn's record"):
-        propose(seeded, changes={"items": [preference]}, key="this")
+    draft = propose(seeded, changes={"items": [preference]}, key="this", text="Fish soup tonight")
+    assert draft["status"] != "rejected", draft
+    seeded.commit("alice", draft["draft_id"], "this")
+    message = seeded.store.latest("contexts", "alice")["source_event"]  # the message of the turn this draft was proposed on
+    soup = next(item for item in seeded.ledger.current("alice")["items"] if item["key"] == "soup")
+    assert soup["source"]["event"] == message
+    # an ID that names no message still says which one to send
+    wrong = dict(preference, key="soup2", source={"event": "EVT-nowhere"})
+    with pytest.raises(ValueError, match="^Unknown message 'EVT-nowhere'.*event_id"):
+        propose(seeded, changes={"items": [wrong]}, key="wrong", text="Fish soup again")
