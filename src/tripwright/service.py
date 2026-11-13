@@ -417,7 +417,7 @@ class Tripwright:
                 asked.append(dict(id="memory", say=response["memory"]["ask"], default=packs.WORDS[language]["memory_default"],
                                   record=dict(carry=[dict(id=entry["id"], status="confirmed or not_used") for entry in pending])))
             told = packs.point_facts(self.store, owner, plan or None, points, anchors, at, language,
-                                     person=packs.asker(plan, speaker, subject)) if points is not None and plan else None
+                                     person=packs.asker(plan, speaker, subject), words=text) if points is not None and plan else None
             first = self._quick_first(text, scenario, response["now"], anchors, plan or None, told, language=language)
             second_title = SECOND_TITLES[language] if first else None
             context.update(points=packs.point_record(told),
@@ -599,7 +599,7 @@ class Tripwright:
         at = now()
         anchors = self._hard_nodes(owner, plan, subject, None, at, language=language) if plan else []
         told = packs.point_facts(self.store, owner, plan, points, anchors, at, language,
-                                 person=packs.asker(plan, speaker, subject)) if points is not None and plan else None
+                                 person=packs.asker(plan, speaker, subject), words=text) if points is not None and plan else None
         clock = self._clock(owner, at, language)
         first = self._quick_first(text, "quick", clock, anchors, plan or None, told, language=language)
         en = language == "en"

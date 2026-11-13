@@ -935,8 +935,17 @@ def stored_frame(store: Store, owner: str, destination: str, at: str, zone: str)
                           leave=ride.get("leave"), lines=ride.get("lines"), last_from=ride.get("last_from")))
 
 
+# Words that put the user at a place now (analysis G7, 2026-11-13). Without them, a stored place the host marked `at` is
+# a place the question is about: “机场我进得去吗？” is asked from where the plan has the user, not from the airport.
+PRESENT = re.compile(r"(?:我|我们|咱们|咱)(?:现在|已经|刚刚?|正|人)?(?:就)?(?:在|到了|已到)|(?:我|我们|咱们|咱)(?:已经|刚刚?)?到[^，。,.!?！？\s]{1,12}了"
+                     r"|刚到|已经到|人在|就在这|刚从|刚出|出来了|从[^，。,.!?！？]{1,15}出来"
+                     r"|\b(?:i'?m|i am|we'?re|we are)\s+(?:now\s+|already\s+|still\s+|just\s+)?(?:at|in|inside|outside|here)\b"
+                     r"|\bjust (?:arrived|got (?:to|here)|landed|left|came out|walked out)\b"
+                     r"|\b(?:i|we) (?:arrived|got here|landed|made it|left|came out)\b", re.IGNORECASE)
+
+
 def point_facts(store: Store, owner: str, plan: dict | None, points: list[dict], anchors: list[dict], at: str,
-                language: str = "zh", person: str | None = None) -> dict:
+                language: str = "zh", person: str | None = None, words: str | None = None) -> dict:
     """What the trip stores for each point of this question (A12): `at` (where the user said they are, else where the
     plan has them now, marked assumed) and one entry per other point with `facts` and the `keys` a first part answering
     it names (its words, the places it names). The service does not read the question; the host's points say what was
@@ -965,6 +974,12 @@ def point_facts(store: Store, owner: str, plan: dict | None, points: list[dict],
     unnamed = said_at is not None and not said_at.get("place") and where["place"] is None and where["coords"] is None
     if said_at is None or (unnamed and assumed is not None):
         where = assumed
+    elif (assumed is not None and where["place"] is not None and where["place"] != assumed["place"]
+          and not PRESENT.search(said_at["said"]) and not PRESENT.search(words or "")):
+        # a stored place the host marked `at`, other than where the plan has the user, with no words that put the
+        # user there (G7: “机场我进得去吗？” became “你在机场”): count from the plan's place, as assumed, which asks the
+        # user to say so if not; the place the host marked stays in `mentioned`
+        where = dict(assumed, mentioned=dict(said=said_at["said"], place=where["place"], name=where["name"]))
     tickets = stored_tickets(plan, now["date"], language)
     upcoming = [anchor for anchor in anchors if not anchor.get("passed")]
     def named(row):  # an English line names a place as its go and at lines do, by the local name
