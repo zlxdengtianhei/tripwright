@@ -107,7 +107,7 @@ docker exec tripwright tripwright share connect git@github.com:<owner>/tripwrigh
 gh api -X POST repos/<owner>/tripwright-pages/pages -f 'source[branch]=main' -f 'source[path]=/'
 ```
 On Railway, replace `docker exec tripwright` with `railway ssh --`. `share connect` verifies a push, publishes every existing trip once (one line per trip) and prints the URL shape; no restart or token is needed. In our test with a real public repository, a page showed a committed change within a minute.
-Every committed trip publishes after about 20 quiet seconds. Its first publish creates `trips/<trip>/share.yaml`; edit its random `path`, or set `off: true` to remove its page. Optional `english`, `intro` and `route` match the example file. `tripwright share status` shows the outcome; a failed publish is tried again by running `share connect` once more, or after the next plan commit. A per-trip `repository` needs another deployment or manual publication.
+Every committed trip publishes after about 20 quiet seconds. Its first publish creates `trips/<trip>/share.yaml`; edit its random `path`, or set `off: true` to remove its page. Optional `english`, `intro`, `route` and `changes` match the example file; optional `theme` picks the page scheme (a folder under `src/tripwright/site/themes/`, default `atlas`). `tripwright share status` shows the outcome; a failed publish is tried again by running `share connect` once more, or after the next plan commit. A per-trip `repository` needs another deployment or manual publication.
 
 ## 4. Add the address to each AI app
 

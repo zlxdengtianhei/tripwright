@@ -711,6 +711,9 @@ share:
   - name: 回家
     note: 11 月 1 日
     day: '2026-11-01'
+  # what really changed on the way, as the plan's own words say it: struck out and marked as new on the day page
+  changes:
+  - {date: '2026-10-27', was: 16:57 IC 742, now: IC 744}
 log:
   intro:
     zh: '这一页沿着一趟真实的旅行，看路上最难的几个时刻。每一段先写我当时打的字，再写当时是怎样处理的，最后写 tripwright 现在怎样对待这类话。'

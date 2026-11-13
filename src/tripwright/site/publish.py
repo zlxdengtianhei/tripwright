@@ -305,7 +305,8 @@ def publish(repo_root, *, trip: str | None = None, rev: str = "HEAD", data_dir=N
             if not settings.get("off"):
                 _, build = _roots(data_dir)
                 built = share_site(plan, build / trip, people=people, english=settings.get("english"),
-                                   extras=dict(intro=settings.get("intro"), route=settings.get("route")), now=clock)
+                                   extras=dict(intro=settings.get("intro"), route=settings.get("route"), changes=settings.get("changes")),
+                                   theme=settings.get("theme"), now=clock)
                 for name in {old, path} - {None}:
                     shutil.rmtree(clone / name, ignore_errors=True)
                 shutil.copytree(built["out"], clone / path)
