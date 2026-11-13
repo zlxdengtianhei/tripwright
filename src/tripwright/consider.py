@@ -450,11 +450,31 @@ def save_mode(store, owner: str, *, at: str) -> dict:
     """Whether a change that brings in unverified outside facts is saved in the turn that proposed it (proactive) or
     after the user's answer (cautious): the user's `save_mode` setting, this trip's before a long-term one, else the
     deployment's. `{mode, by, record?}`, by `user` or `deployment`."""
-    chosen = best(settings(store, owner, at=at), "save_mode")
+    chosen = best([item for item in settings(store, owner, at=at) if item["key"] == "save_mode" and said_by_user(store, owner, item)],
+                  "save_mode")
     mode = mode_of(chosen) if chosen else None
     if mode:
         return dict(mode=mode, by="user", record=chosen["id"])
     return dict(mode=deployment_mode(), by="deployment")
+
+
+def said_by_user(store, owner: str, item: dict) -> bool:
+    """Whether the user's own message set this entry: its basis is not the agent's (agent_inference), and the message
+    it names was received as the user's words (user_verbatim or host_restatement) from a person of the trip. Only such a
+    `save_mode` counts: the mode is the user's choice (2026-11-13), and fix3-judge's 4th probe showed an agent's own
+    `save_mode=proactive`, quoting the user's request to move a dinner, turning the proactive mode on."""
+    from tripwright.ledger import USER_NATURES, Ledger
+
+    source = item.get("source") or {}
+    if source.get("basis") == "agent_inference":
+        return False
+    ledger = Ledger(store)
+    try:
+        received = ledger._message(owner, source.get("event") or "").get("received") or {}
+    except ValueError:
+        return False
+    people = {person["id"] for person in ledger._plan(owner).get("people", [])}
+    return received.get("nature") in USER_NATURES and received.get("speaker") in people
 
 
 def mode_of(item: dict) -> str | None:

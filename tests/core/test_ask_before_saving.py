@@ -501,3 +501,40 @@ def test_long_term_written_into_source_counts_for_the_item(trip):
     assert said["recorded"]["not_recorded"] == []
     entry = next(entry for entry in trip.ledger.current("alice")["items"] if entry["key"] == "save_mode")
     assert entry["long_term"] is True and trip.asks_first("alice") is False
+
+
+# --- only the user's own words choose the mode (fix3-judge, 4th verdict, 2026-11-13) --------------------------------
+
+def mode_record(service, key, text, value, basis, quote):
+    return service.turn("alice", text, key, scenario="replan", speaker="p1", record=dict(items=[dict(
+        kind="setting", key="save_mode", value=value, subject=["*"], strength="prefer", long_term=True, quote=quote,
+        text=quote, source={"event": "this", "basis": basis})]))
+
+
+def test_agent_inference_with_real_quote(trip):
+    """The judge's probe: the user never chose a mode; the agent records save_mode=proactive on its own inference,
+    quoting the user's request to move the dinner. The entry is recorded, but it chooses nothing: still cautious."""
+    mode_record(trip, "m3", MOVE, "proactive", "agent_inference", "把 6 月 10 日的晚饭从 17:00 挪到 19:00")
+    assert trip.asks_first("alice") is True
+    _, draft = moved(trip, key="after")
+    assert "ask_user" in draft and "tell_user" not in draft
+
+
+def test_a_mode_from_a_message_without_a_speaker_of_the_trip_chooses_nothing(trip):
+    trip.turn("alice", "以后直接改，不用问我。", "anon", scenario="replan", record=dict(items=[dict(
+        kind="setting", key="save_mode", value="proactive", subject=["*"], strength="prefer", long_term=True,
+        quote="以后直接改，不用问我", text="proactive", source={"event": "this", "basis": "user_explicit"})]))
+    assert trip.asks_first("alice") is True
+
+
+def test_the_agent_cannot_change_the_mode_the_user_chose(trip, monkeypatch):
+    """The user chose cautious on a deployment whose default is proactive; the agent then records save_mode=proactive
+    on its own inference. save_mode is stable (consider.yaml), so the ledger refuses to replace the user's entry and
+    the user's choice holds. With save_mode changing, the agent's entry replaces it, the default comes back and this
+    test turns red (fix3-judge's mutation MA)."""
+    monkeypatch.setenv("TRIPWRIGHT_SAVE_UNVERIFIED", "agent")
+    mode_said(trip, "cautious", "还是先问我再存吧。", "chose")
+    assert trip.asks_first("alice") is True
+    mode_record(trip, "later", MOVE, "proactive", "agent_inference", "把 6 月 10 日的晚饭从 17:00 挪到 19:00")
+    assert trip.asks_first("alice") is True
+    assert [entry["value"] for entry in trip.ledger.current("alice")["items"] if entry["key"] == "save_mode" and entry["status"] == "active"] == ["cautious"]
