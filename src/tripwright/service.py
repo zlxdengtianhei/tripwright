@@ -105,11 +105,11 @@ def save_options(asks: bool, n: int, base: int, language: str) -> list[dict]:
 # In the proactive save mode (the user's save_mode setting, or TRIPWRIGHT_SAVE_UNVERIFIED=agent) nothing waits for the
 # user: propose names the same facts as tell_user, and the answer says how to get the previous version back.
 TELL_USER = dict(zh="这次改动新带来 {n} 条没核的事实；用户选的是主动模式，不等回话：commit(draft_id, accept_unverified=true) 存下，"
-                    "回答里说改了什么、哪几条没核、各自的后果与备选，末尾原样带上 tell_user.say（用户回“撤回”时，用改之前那天的 json 重新 propose 再 commit）。",
+                    "回答里说改了什么、哪几条没核、各自的后果与备选，末尾原样带上 tell_user.say（用户回“撤回”时，propose(restore_version=改之前的版本号) 再 commit）。",
                  en="This change brings in {n} unverified fact(s); the save mode is proactive, so nothing waits for the user: "
                     "commit(draft_id, accept_unverified=true), then tell the user what changed, which facts are unknown, what "
-                    "follows from each and the alternative, and end with tell_user.say as it is (on “undo”, propose the day's "
-                    "json from before the change again, then commit).")
+                    "follows from each and the alternative, and end with tell_user.say as it is (on “undo”, propose with "
+                    "restore_version set to the version before the change, then commit).")
 # The sentence a proactive answer ends with (2026-11-13: GPT-6 Luna saved in the same turn 2 times in 2 and named the
 # unverified fact, but said nothing about undoing it).
 UNDO_SAY = dict(zh="不想要这次改动，回“撤回”，我恢复到第 {base} 版。", en="If you don't want this change, reply “undo” and I'll restore version {base}.")
@@ -984,6 +984,21 @@ class Tripwright:
             named = [self.flow.unrecorded(self._reply_language(owner), ids), *named]
         return self._flowed(owner, "propose", response, named)
 
+    def _restored(self, owner: str, number: int, arguments: dict) -> dict:
+        """`propose(restore_version=N)`: the user said “undo” or “change it back” (analysis 5.13, 2026-11-13). The draft is
+        version N's whole plan, through the same checks as any other; the ledger is not touched, and the change log says
+        it restores version N. The proactive save mode rests on this: a change saved without asking can be taken back."""
+        if any(arguments.get(name) is not None for name in ("plan", "days", "places", "bookings")):
+            raise ValueError("restore_version takes that version's whole plan; send no plan, days, places or bookings with it")
+        if isinstance(number, bool) or not isinstance(number, int):
+            raise ValueError(f"restore_version is a version number, got {number!r}")
+        old = next((version for version in self.store.all("versions", owner) if version["number"] == number), None)
+        if old is None or not old.get("plan"):
+            raise ValueError(f"No saved plan in version {number}; state(view='history') lists the versions")
+        changes = dict(arguments.get("changes") or {})
+        changes.setdefault("why", (f"restores version {number}" if self._reply_language(owner) == "en" else f"恢复到第 {number} 版"))
+        return dict(arguments, plan=encode_copy(old["plan"]), changes=changes)
+
     def _this_message(self, owner: str, arguments: dict) -> dict:
         """`source.event: "this"` in propose's changes is the message of its `ctx_id`, as it is in turn's record
         (2026-11-12 runs: 7 of 12 first proposals sent "this" and were refused). Any other value is left to the checks."""
@@ -1043,6 +1058,9 @@ class Tripwright:
 
     def _propose_tool(self, owner: str, **arguments) -> dict:
         self.bound(owner)
+        restored = arguments.pop("restore_version", None)
+        if restored is not None:
+            arguments = self._restored(owner, restored, arguments)
         partial = [name for name in ("days", "places", "bookings") if arguments.get(name) is not None]
         for name in ("days", "places", "bookings"):
             if name not in partial:
@@ -1086,6 +1104,9 @@ class Tripwright:
             raise ValueError(f"plan.id must be the current trip {trip!r}; open another trip with turn(new_trip=...)")
         self.take_in()
         draft = self.versions.propose(owner, **arguments)
+        if restored is not None and draft.get("restored_from") != restored:
+            draft = dict(draft, restored_from=restored)
+            self.store.put("drafts", owner, draft)
         context = self.store.get("contexts", owner, draft["ctx_id"])
         scenario = context["bundle"]["scenario"]
         if not ledger_only(draft) and scenario in ("plan", "compare") and (context.get("options_pending") or draft["checks"].get("crowding")):
@@ -1269,7 +1290,8 @@ class Tripwright:
         if view == "history":
             # D-53: what each version changed, field by field, who changed it, on what basis and why.
             return dict(versions=[dict(version=version["number"], committed_at=version["committed_at"], source_event=version.get("source_event"),
-                                       origin=version.get("origin"), changelog=version.get("changelog"))
+                                       origin=version.get("origin"), changelog=version.get("changelog"),
+                                       **({"restored_from": version["restored_from"]} if version.get("restored_from") is not None else {}))
                                   for version in sorted(self.store.all("versions", owner), key=lambda version: version["number"])])
         if view == "export":
             return {"format": "tripwright-state-v1", "version": current, "ledger": self.ledger.current(owner),

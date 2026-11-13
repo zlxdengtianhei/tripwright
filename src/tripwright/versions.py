@@ -710,7 +710,8 @@ class Versions:
                            ledger_revision=self.ledger.revision(owner), idempotency_key=idempotency_key,
                            accept_unverified=accept_unverified, committed_at=now(), submitted_by=owner, changelog=changelog,
                            **(dict(authorized=authorized) if authorized else {}),
-                           **(dict(answered=answered) if answered else {}))
+                           **(dict(answered=answered) if answered else {}),
+                           **(dict(restored_from=draft["restored_from"]) if draft.get("restored_from") is not None else {}))
             self.store.put("versions", owner, version, insert=True)
             for decision_id in sorted({entry["revises"] for entry in changelog if entry.get("revises")}):
                 lines = [entry for entry in changelog if entry.get("revises") == decision_id]
