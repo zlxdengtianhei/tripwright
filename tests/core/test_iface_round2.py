@@ -36,7 +36,7 @@ def test_turn_resolves_people_names_in_speaker_subject_and_record(seeded):
 
 
 
-def test_omitted_usages_are_service_filled_but_an_explicit_empty_list_is_not(seeded):
+def test_omitted_usages_and_an_explicit_empty_list_are_both_service_filled(seeded):
     turn = seeded.turn("alice", "Mira wants a relaxed day", speaker="Mira",
                        record=dict(items=[dict(kind="preference", key="pace", quote="relaxed day", text="Relaxed day",
                                                subject=["Mira"], strength="prefer", source=dict(event="this", basis="user_explicit"))]))
@@ -48,9 +48,11 @@ def test_omitted_usages_are_service_filled_but_an_explicit_empty_list_is_not(see
     assert draft["status"] == "proposed"
     assert draft["usages"] and all(usage["filled_by"] == "service" for usage in draft["usages"])
     turn = seeded.turn("alice", "Explicit empty usages")
-    refused = seeded.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], idempotency_key="empty-usage",
-                             days=[day], usages=[])
-    assert refused["status"] == "rejected" and any(check["id"].startswith("usage:") for check in refused["checks"]["conflicts"])
+    empty = seeded.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], idempotency_key="empty-usage",
+                           days=[day], usages=[])
+    # until 2026-11-13 an explicit [] refused the plan; a condition left out is now filled like an omitted list
+    assert empty["status"] == "proposed" and not any(check["id"].startswith("usage:") for check in empty["checks"]["conflicts"])
+    assert empty["usages"] and all(usage["filled_by"] == "service" for usage in empty["usages"])
 
 
 def test_omitted_revisions_are_filled_from_actual_decision_changes(seeded):

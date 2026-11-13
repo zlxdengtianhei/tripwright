@@ -58,13 +58,15 @@ def test_stale_draft_and_commit_key_reuse_refused(seeded):
         seeded.commit("alice", first["draft_id"], "later")
 
 
-def test_missing_usage_is_a_commit_failure(seeded, item):
+def test_a_usage_left_out_is_filled_by_the_service(seeded, item):
+    # Was a commit failure until 2026-11-13; the service cannot judge a condition the host did not mention either way.
     recorded = propose(seeded, changes={"items": [item]}, key="pref")
     seeded.commit("alice", recorded["draft_id"], "pref")
     missing = propose(seeded, seeded.state("alice")["plan"], usages=[], key="missing")
-    assert any(check["id"].startswith("usage:") for check in missing["checks"]["conflicts"])
-    with pytest.raises(ValueError, match="usage:"):
-        seeded.commit("alice", missing["draft_id"], "missing")
+    assert not any(check["id"].startswith("usage:") for check in missing["checks"]["conflicts"])
+    assert [usage["filled_by"] for usage in missing["usages"]] == ["service"]
+    assert usage_of(missing, missing["usages"][0]["item_id"])["verification"] == "unverified"
+    seeded.commit("alice", missing["draft_id"], "missing")
 
 
 def test_unverified_critical_fact_never_becomes_passed(seeded):

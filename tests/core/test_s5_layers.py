@@ -255,13 +255,14 @@ def test_inferences_sent_with_the_plan_need_no_usage_while_the_users_words_still
     assert "I-guess" in pack["required"]["items"]["ids"] and pack["records"]["I-guess"]["non_required"]
     assert "I-guess" not in [entry["item_id"] for entry in pack["dispositions"]]
     assert "usage:I-guess" not in [check["id"] for check in draft["checks"]["conflicts"]]
-    # control: the user's own words in the same proposal still need a usage
+    # control: the user's own words in the same proposal are still accounted for (filled by the service when left out)
     turn = said(trip, "晚饭吃好一点。", scenario="plan")
     mine = dict(recorded("preference", "food", "晚饭吃好一点", basis="user_explicit", quote="晚饭吃好一点。"), id="I-food",
                 source=dict(event=turn["receipt"]["event_id"], basis="user_explicit"))
     draft = trip.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], plan=plan, idempotency_key="s5-food",
                          changes=dict(items=[mine]), usages=[])
-    assert "usage:I-food" in [check["id"] for check in draft["checks"]["conflicts"]]
+    assert [usage["filled_by"] for usage in draft["usages"] if usage["item_id"] == "I-food"] == ["service"]
+    assert "I-guess" not in [usage["item_id"] for usage in draft["usages"]]
 
 
 def test_a_wrong_record_in_turn_still_receives_the_message_and_drafts_the_first_part(trip):

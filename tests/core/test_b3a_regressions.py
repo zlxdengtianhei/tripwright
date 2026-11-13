@@ -32,7 +32,9 @@ def test_s1_false_used_without_matching_activity_is_host_reported(seeded, item):
 
 
 @pytest.mark.parametrize("mutation", ["kind", "missing", "person", "date", "time"])
-def test_s1_used_block_references_validate_activity_people_and_scope(seeded, item, mutation):
+def test_s1_used_block_references_that_do_not_fit_are_unverified_not_refused(seeded, item, mutation):
+    # The cited blocks are checked for activity, people and scope; one that does not fit leaves the claim the host's
+    # own, unverified, and no longer refuses the plan (2026-11-13, tests/core/test_usage_slips.py).
     source = seeded.events.receive("alice", "Prefer art.", "art")
     preference = record_preference(seeded, item, key="art", quote="Prefer art.", text="Prefer art.", source={"event": source["event_id"]},
                                    scope={"start": "2030-06-10", "end": "2030-06-10", "time_from": "09:00", "time_to": "12:00"})
@@ -55,9 +57,11 @@ def test_s1_used_block_references_validate_activity_people_and_scope(seeded, ite
     else:
         block.update(start="08:00", end="08:30")
     draft = propose(seeded, plan=plan, usages=[dict(item_id=preference["id"], status="used", block_ids=[reference])])
-    assert draft["status"] == "rejected"
-    assert any(check["id"].startswith("usage:") for check in draft["checks"]["conflicts"])
-    assert usage_of(draft, preference["id"])["status"] == "invalid"
+    assert not any(check["id"].startswith("usage:") for check in draft["checks"]["conflicts"])
+    usage = usage_of(draft, preference["id"])
+    assert usage["status"] == "host_reported" and usage["verification"] == "unverified" and reference in usage["reason"]
+    proof = next(check for check in draft["checks"]["unverified"] if check["id"] == f"usage-proof:{preference['id']}")
+    assert proof["details"]["unfit"]
 
 
 def test_s1_matching_activity_is_server_checked(seeded, item):
