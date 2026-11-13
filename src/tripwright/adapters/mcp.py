@@ -277,10 +277,10 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
 
     @server.tool(title="Read committed trip, day, decisions or profile", annotations=read, structured_output=True)
     @expose_errors
-    def state(view: Literal["current", "plan", "day", "blank", "ledger", "decisions", "graph", "history", "profile", "memory", "pack", "sync", "export"] = "current",
-              date: str | None = None, draft_id: str | None = None) -> dict[str, Any]:
-        """Reads committed state. current/plan return the trip; day needs date=YYYY-MM-DD and returns text plus json, the day object that propose(days=[json]) takes; blank returns a minimal new-trip plan. Other views: ledger, decisions, graph, history, profile, memory, pack (draft_id required), sync (Git copy; public page address, none until a public GitHub repository is connected), export. No view writes."""
-        return ready().state(identity(), view, date, draft_id)
+    def state(view: Literal["current", "plan", "day", "blank", "ledger", "decisions", "graph", "history", "profile", "memory", "pack", "sync", "export", "role"] = "current",
+              date: str | None = None, draft_id: str | None = None, role: str | None = None) -> dict[str, Any]:
+        """Reads committed state. current/plan return the trip; day needs date=YYYY-MM-DD and returns text plus json, the day object that propose(days=[json]) takes; blank returns a minimal new-trip plan. Other views: ledger, decisions, graph, history, profile, memory, pack (draft_id required), sync (Git copy; public page address, none until a public GitHub repository is connected), export. role (role=tripwright-main|tripwright-requirements|tripwright-researcher|tripwright-verifier, or role/file for a listed reference) returns that role's steps, for doing a role flow.dispatch names without subagents. No view writes."""
+        return ready().state(identity(), view, date, draft_id, role)
 
     @server.tool(title="Explain decisions, sources and preference use", annotations=read, structured_output=True)
     @expose_errors

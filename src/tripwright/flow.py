@@ -52,20 +52,42 @@ SHORT = {
 }
 FULL = {
     "zh": dict(quick="路上即时问答：①turn 记下原话；②原样发 first_part；③派查询员在后台查（有截图或几件事时再派需求整理员）；"
-                     "④第二段标题照给的写，先说和第一段的不同；⑤不派核对员。flow.dispatch 点了谁就派谁；不能派子代理时自己依次照它的步骤做。",
+                     "④第二段标题照给的写，先说和第一段的不同；⑤不派核对员。flow.dispatch 点了谁就派谁；不能派时先照该条的 steps 取这个角色的步骤，再自己依次做。",
                plan="做计划：①turn 只带原话（不带 record）；②派需求整理员记进账本、连依赖（depends_on 等）、列要问的，先提交它交回的只改账本的草稿；"
                     "③先 query(kind='saved') 用存的资料，缺的派查询员查；④propose（同一个 ctx_id 与 base_version）；⑤草稿改了计划就派核对员核，"
-                    "通过才 commit；propose 返回 ask_user（新带来的没核事实）时先问用户，等回话再 commit；⑥回答里说改了什么、为什么。flow.dispatch 点了谁就派谁；不能派子代理时自己依次照它的步骤做。"),
+                    "通过才 commit；propose 返回 ask_user（新带来的没核事实）时先问用户，等回话再 commit；⑥回答里说改了什么、为什么。flow.dispatch 点了谁就派谁；不能派时先照该条的 steps 取这个角色的步骤，再自己依次做。"),
     "en": dict(quick="On the road: (1) record the words with turn; (2) send first_part as given; (3) dispatch the researcher in the background "
                      "(the requirements role too when there are screenshots or several things); (4) write the given second heading and lead with "
-                     "what differs; (5) no verifier. Dispatch whom flow.dispatch names; without subagents, follow that role's steps yourself.",
+                     "what differs; (5) no verifier. Dispatch whom flow.dispatch names; without subagents, first read that role's steps with the entry's `steps` call, then do them yourself.",
                plan="Planning: (1) turn with the words only (no record); (2) dispatch the requirements role to record, link (depends_on and "
                     "relations) and list questions, and commit the ledger-only draft it returns first; (3) use query(kind='saved') first and "
                     "dispatch the researcher for what is missing; (4) propose (same ctx_id and base_version); (5) when the draft changes the "
                     "plan, dispatch the verifier and commit only after it passes; when propose returns ask_user (unverified facts the "
                     "change brings in), ask the user and commit after the answer; (6) say what changed and why. Dispatch whom flow.dispatch "
-                    "names; without subagents, follow that role's steps yourself."),
+                    "names; without subagents, first read that role's steps with the entry's `steps` call, then do them yourself."),
 }
+
+# A minimal task packet on every named role (2026-11-13, analysis 5.3): the IDs to hand over, the one thing it returns
+# and where its steps are, so a host without the skill files can still do the role, and a subagent needs no long brief.
+READS = {"tripwright-requirements": ("event_id", "ctx_id", "base_version"),
+         "tripwright-researcher": ("ctx_id", "draft_id"),
+         "tripwright-verifier": ("draft_id", "job_id", "ctx_id")}
+RETURNS = {
+    "zh": {"tripwright-requirements": "只改账本的草稿（draft_id）与要问用户的问题",
+           "tripwright-researcher": "每件事实一行：结论、出处、核没核",
+           "tripwright-verifier": "判词（passed、conflict、incomplete），每项检查一行"},
+    "en": {"tripwright-requirements": "a ledger-only draft (draft_id) and the questions for the user",
+           "tripwright-researcher": "one line per fact: the finding, its source, checked or not",
+           "tripwright-verifier": "a verdict (passed, conflict or incomplete) and one line per check"},
+}
+
+
+def packet(entry: dict, ids: dict | None, language: str) -> dict:
+    """The named role with what to hand it (`read`), what it returns and the call that gives its steps."""
+    role = entry["role"]
+    read = {key: (ids or {})[key] for key in READS.get(role, ()) if (ids or {}).get(key) is not None}
+    return dict(entry, read=read, returns=RETURNS["en" if language == "en" else "zh"][role],
+                steps=f'state(view="role", role="{role}")')
 
 
 @dataclass
@@ -98,7 +120,8 @@ class Flow:
         return line if given else None
 
     def turn(self, owner: str, at: datetime, *, text: str, scenario: str, language: str, nature: str, recorded: bool,
-             changed: bool, review: list, second: bool, latest: bool, unknown: bool, answers_draft: bool = False) -> dict:
+             changed: bool, review: list, second: bool, latest: bool, unknown: bool, answers_draft: bool = False,
+             ids: dict | None = None) -> dict:
         """flow for a turn. A turn that records for the message just received is that message's requirements step,
         not a new message: it names nobody again. `answers_draft`: the message is the user's answer to a draft that
         waited for it ("yes, save it"), so planning alone is no reason to name the requirements role."""
@@ -137,6 +160,7 @@ class Flow:
                 or seen.turns_since_full >= FULL_AFTER_TURNS or missed and seen.turns_since_full >= MISSED_FULL_EVERY - 1)
         seen.last_turn, seen.mode, seen.text = at, mode, text
         seen.named = {entry["role"] for entry in dispatch}
+        dispatch = [packet(entry, ids, language) for entry in dispatch]
         seen.did, seen.committed_since_turn = {"record"} if recorded else set(), False
         if full:
             seen.last_full, seen.turns_since_full = at, 0
@@ -172,10 +196,10 @@ class Flow:
             out["dispatch"] = extra
         return out
 
-    def unrecorded(self, language: str) -> dict:
-        return dict(role="tripwright-requirements", why=WHY["en" if language == "en" else "zh"]["unrecorded"])
+    def unrecorded(self, language: str, ids: dict | None = None) -> dict:
+        return packet(dict(role="tripwright-requirements", why=WHY["en" if language == "en" else "zh"]["unrecorded"]), ids, language)
 
-    def after_propose(self, draft: dict, scenario: str, language: str) -> list[dict]:
+    def after_propose(self, draft: dict, scenario: str, language: str, ids: dict | None = None) -> list[dict]:
         """Whom to dispatch once a draft exists: the verifier when it changes the plan while planning; the researcher
         once more for fares when it holds tickets still to buy."""
         why = WHY["en" if language == "en" else "zh"]
@@ -187,4 +211,4 @@ class Flow:
                     and not any(fare.get("amount_per_person") is not None and not fare.get("estimated") for fare in booking.get("fares", []))]
         if unpriced:
             dispatch.append(dict(role="tripwright-researcher", focus="fares", why=why["fares"]))
-        return dispatch
+        return [packet(entry, ids, language) for entry in dispatch]
