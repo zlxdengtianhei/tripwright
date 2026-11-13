@@ -1327,7 +1327,8 @@ class Tripwright:
         it reached only the main agent: reading the wide pack counted as checked, and a draft the verifier found
         incomplete was saved 2 times in 3 with nothing of its verdict on the version. Recorded on the draft only for a
         completed, fresh result; commit then follows it (versions.commit): a conflict is refused, an incomplete check
-        waits for the user in the cautious mode and is saved with its unchecked lines in the proactive one."""
+        waits for the user in the cautious mode and is saved with its unchecked lines in the proactive one. A conflict
+        stays on its draft: a later report on the same draft does not replace it."""
         checked = verifier_report(report)
         if response.get("status") != "completed" or not response.get("result"):
             return dict(response, notice=response.get("notice") or f"Report not recorded: the result is {response.get('status')}")
@@ -1335,6 +1336,14 @@ class Tripwright:
         language = self._reply_language(owner)
         with self.store.transaction():
             draft = self.store.get("drafts", owner, draft_id)
+            earlier = draft.get("verifier_report") or {}
+            if earlier.get("verdict") == "conflict" and checked["verdict"] != "conflict":
+                # a conflict stays on this draft (fix3-judge V1b, 2026-11-13: a second report saying passed let the same
+                # draft be saved): to save, change the draft and propose again, which gets its own check
+                kept = {key: earlier[key] for key in ("verdict", "unchecked", "conflicts")}
+                return dict(response, result=dict(response["result"], report=dict(
+                    kept, recorded=False, next=REPORT_NEXT["en" if language == "en" else "zh"]["conflict"])),
+                    notice="Report not recorded: this draft already has the verifier's conflict, which stays; change the draft and propose again")
             self.store.put("drafts", owner, dict(draft, verifier_report=dict(checked, at=now(), job_id=response["job_id"])))
         self.flow.verified(owner)
         cautious = self.asks_first(owner)

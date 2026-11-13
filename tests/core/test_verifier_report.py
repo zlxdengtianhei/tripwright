@@ -83,3 +83,18 @@ def test_reading_the_pack_is_no_longer_counted_as_checked_and_the_report_is():
     assert "verify" not in flow.seen["alice"].did
     flow.verified("alice")
     assert "verify" in flow.seen["alice"].did
+
+
+def test_a_conflict_stays_on_its_draft_and_a_later_passed_report_does_not_replace_it(trip):
+    """fix3-judge V1b (2026-11-13): conflict, then passed on the same job, and the same draft was saved."""
+    draft = titled(trip)
+    report(trip, draft, verdict="conflict", conflicts=["票只在 Vy 的车上有效"])
+    later = report(trip, draft, verdict="passed")
+    assert later["result"]["report"]["recorded"] is False and later["result"]["report"]["verdict"] == "conflict"
+    assert "conflict, which stays" in later["notice"]
+    with pytest.raises(ValueError, match="verifier found a conflict: 票只在 Vy"):
+        host_commit(trip, draft, accept_unverified=True)
+    # the way out is a new draft, which gets its own check
+    other = titled(trip, "title-again")
+    report(trip, other, verdict="passed")
+    assert host_commit(trip, other, "c-again")["verifier"]["verdict"] == "passed"
