@@ -10,6 +10,7 @@ kinds:
   app: {stability: stable, zh: App 与查法, en: App}
   ask_languages: {stability: stable, zh: 询问语言, en: Languages for asking}
   stability: {stability: stable, zh: 改动频率, en: Change rate}
+  save_mode: {stability: stable, zh: 存前问不问, en: Save mode}
   long_term: {stability: stable, zh: 长期偏好, en: Long-term preference}
   note: {stability: changing, zh: 地区须知, en: Local note}
   must_go: {stability: changing, zh: 必须去的, en: Must-go answer}
@@ -18,7 +19,7 @@ kinds:
   rule: {stability: changing, zh: 硬条件与规矩, en: Rule}
   decision: {stability: changing, zh: 决定, en: Decision}
 
-# setting 条目的 key 前缀 → 种类（`source:realtime`、`app:timetable`、`note:sunday`、`ask_languages`、`must_go`、`stability:want_to_go`）。
+# setting 条目的 key 前缀 → 种类（`source:realtime`、`app:timetable`、`note:sunday`、`ask_languages`、`must_go`、`stability:want_to_go`、`save_mode`）。
 settings:
   source: source
   app: app
@@ -26,20 +27,21 @@ settings:
   ask_languages: ask_languages
   must_go: must_go
   stability: stability
+  save_mode: save_mode
 
 # 每个场景列哪些种类、最多几条（超出的数出来，`state(view='memory')` 列全）。快问只列直接相关的；没有计划时（从零计划）列全。
 scenarios:
   quick: {limit: 6, kinds: [rule, decision, preference, want_to_go, long_term, app, ask_languages, note]}
   status: {limit: 4, kinds: [rule, decision, preference, long_term]}
-  replan: {limit: 12, kinds: [rule, decision, preference, want_to_go, long_term, must_go, person, destination, source, app, ask_languages, note]}
-  plan: {limit: 16, kinds: [rule, decision, preference, want_to_go, long_term, must_go, person, destination, source, app, ask_languages, note]}
+  replan: {limit: 12, kinds: [rule, decision, preference, want_to_go, long_term, must_go, person, destination, source, app, ask_languages, note, save_mode]}
+  plan: {limit: 16, kinds: [rule, decision, preference, want_to_go, long_term, must_go, person, destination, source, app, ask_languages, note, save_mode]}
   compare: {limit: 12, kinds: [rule, decision, preference, want_to_go, long_term, person, destination, source, app, note]}
-  requirements: {limit: 20, kinds: [rule, decision, preference, want_to_go, long_term, must_go, person, destination, source, app, ask_languages, note, stability]}
-  system: {limit: 8, kinds: [rule, decision, preference, long_term, source, stability]}
-  scratch: {limit: null, kinds: [rule, decision, preference, want_to_go, long_term, must_go, person, destination, source, app, ask_languages, note, stability]}
+  requirements: {limit: 20, kinds: [rule, decision, preference, want_to_go, long_term, must_go, person, destination, source, app, ask_languages, note, stability, save_mode]}
+  system: {limit: 8, kinds: [rule, decision, preference, long_term, source, stability, save_mode]}
+  scratch: {limit: null, kinds: [rule, decision, preference, want_to_go, long_term, must_go, person, destination, source, app, ask_languages, note, stability, save_mode]}
 
 # 列的次序：必须项在前，接着是定了基本不变的，再是常变的。
-order: [rule, decision, must_go, destination, person, long_term, preference, want_to_go, source, app, ask_languages, note, stability]
+order: [rule, decision, must_go, destination, person, long_term, preference, want_to_go, source, app, ask_languages, note, stability, save_mode]
 
 # 起草询问时语言代号的叫法（regions.yaml 的 languages 与 ask_languages 条目用代号）。
 languages:

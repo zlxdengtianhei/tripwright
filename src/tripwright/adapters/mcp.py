@@ -267,7 +267,7 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
         """Saves a proposed draft as the next plan version. Refused: a stale draft, a changed user-locked field, a hard conflict, or new unverified outside facts (opening hours, timetable, weather, ticket, hard node) before a further user message has arrived through turn (the refusal lists them). accept_unverified=true states that the user agreed after seeing them. Returns the version and write state."""
         service = ready()
         return service.commit(identity(), draft_id, idempotency_key, accept_unverified=accept_unverified,
-                              ask_first=service.asks_first())
+                              ask_first=service.asks_first(identity()))
 
     @server.tool(title="Retrieve or cancel the persistent second-response result", annotations=replace, structured_output=True)
     @expose_errors

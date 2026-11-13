@@ -68,7 +68,8 @@ class Item(Model):
         "setting: this trip's sources and notes (M1), not a constraint on the plan: key source:<id> (value {on, which}), "
         "app:timetable (value a regions.yaml tool, scope.place the region), ask_languages (value language codes), "
         "note:<slug>, must_go (value none or named: the answer to 'is any place a must?'), stability:<kind> (value stable "
-        "or changing). long_term keeps it for later trips."))
+        "or changing), save_mode (value proactive or cautious: whether a change with unverified facts is saved before the "
+        "user answers). long_term keeps it for later trips."))
     key: str
     quote: str
     text: str

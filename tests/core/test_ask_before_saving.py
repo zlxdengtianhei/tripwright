@@ -377,3 +377,62 @@ def test_tool_descriptions_describe_and_do_not_repeat_the_chat_rules(service):
     assert {name: text.split(" ")[0] for name, text in tools.items()} == {name: verb.split(" ")[0] for name, verb in opening.items()}
     for text in tools.values():
         assert not any(order in text for order in ("Call `turn`", "only after telling", "Set accept_unverified", "Do not ", "Never "))
+
+
+# --- save mode: the user chooses proactive or cautious (2026-11-13) -------------------------------------------------
+
+def mode_said(service, value, words, key):
+    """The user's own sentence that sets the save mode, recorded as the setting the turn's question names. The mode is
+    stable: changing it takes the speaker's own words, so an agent cannot switch it on its own."""
+    return service.turn("alice", words, key, scenario="replan", speaker="p1", record=dict(items=[dict(
+        kind="setting", key="save_mode", value=value, subject=["*"], strength="prefer", long_term=True, quote=words,
+        text=words, source={"event": "this", "basis": "user_explicit"})]))
+
+
+def test_a_trip_without_a_choice_is_cautious_and_asks_once_which_mode(trip):
+    turn, draft = moved(trip)
+    assert turn["save_mode"]["mode"] == "cautious" and turn["save_mode"]["by"] == "deployment"
+    assert "key=save_mode" in turn["save_mode"]["how"]
+    question = next(question for question in turn["ask"] if question["id"] == "save_mode")
+    assert "主动" in question["say"] and "谨慎" in question["say"] and "不回就按谨慎" in question["say"]
+    assert question["record"]["items"][0]["key"] == "save_mode"
+    assert "ask_user" in draft
+    # silence settles it: the deployment's mode, and the question is not asked again
+    later = trip.turn("alice", "第一天下午还有什么安排？", "later", scenario="replan")
+    assert {"id": "save_mode", "scope": {}, "text": "用户没选存前问不问，按谨慎"} in later["recorded"]["defaulted"]
+    assert "save_mode" not in [question["id"] for question in later["ask"]]
+    assert not [entry for entry in trip.ledger.current("alice")["items"] if entry["key"] == "save_mode"]
+
+
+def test_in_the_proactive_mode_the_change_is_saved_in_the_same_turn_and_the_answer_names_the_unverified(trip):
+    chosen = mode_said(trip, "proactive", "以后直接改，不用问我。", "mode")
+    assert "save_mode" not in [question["id"] for question in chosen["ask"]]
+    turn, draft = moved(trip)
+    assert turn["save_mode"]["mode"] == "proactive" and turn["save_mode"]["by"] == "user"
+    assert "ask_user" not in draft and [check["id"] for check in draft["tell_user"]["unverified"]] == [DINNER]
+    assert "撤回" in draft["tell_user"]["how"] and "等用户回话" not in draft["tell_user"]["how"]
+    assert trip.asks_first("alice") is False  # what the MCP adapter passes to commit as ask_first
+    version = trip.commit("alice", draft["draft_id"], "commit", ask_first=trip.asks_first("alice"), accept_unverified=True)
+    assert version["number"] == 2 and "answered" not in version and dinner_line(trip).startswith("19:00")
+    assert DINNER in [check["id"] for check in version["checks"]["unverified"]]  # saved, still marked unverified
+
+
+def test_the_user_switches_back_to_cautious_in_one_sentence(trip):
+    mode_said(trip, "proactive", "以后直接改，不用问我。", "mode")
+    mode_said(trip, "cautious", "还是先问我再存吧。", "mode-back")
+    _, draft = moved(trip)
+    assert "ask_user" in draft
+    with pytest.raises(ValueError, match="Not saved yet: this change brings in 1 fact"):
+        host_commit(trip, draft, accept_unverified=True)
+
+
+def test_the_commit_tool_follows_the_users_mode(trip):
+    mode_said(trip, "proactive", "以后直接改，不用问我。", "mode")
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    turn = call(server, "turn", text=MOVE, scenario="replan")
+    assert turn["save_mode"]["mode"] == "proactive"
+    draft = call(server, "propose", ctx_id=turn["ctx_id"], base_version=turn["base_version"], idempotency_key="tool",
+                 days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
+    assert "tell_user" in draft
+    version = call(server, "commit", draft_id=draft["draft_id"], idempotency_key="tool", accept_unverified=True)
+    assert version["number"] == 2

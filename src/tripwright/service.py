@@ -76,10 +76,20 @@ ASK_USER = dict(zh="这次改动新带来 {n} 条没核的事实，commit 要等
                 en="This change brings in {n} unverified fact(s); commit waits for the user's answer. Tell the user that the change "
                    "is not saved yet, which facts are unknown, what follows from each and the alternative, and ask whether to "
                    "save it as it is. After the answer call turn; if the user agrees, commit(draft_id, accept_unverified=true).")
-# With TRIPWRIGHT_SAVE_UNVERIFIED=agent nothing waits for the user: propose names the same facts as tell_user.
-TELL_USER = dict(zh="这次改动新带来 {n} 条没核的事实。存下要 commit(draft_id, accept_unverified=true)；回答里告诉用户哪几条没核、各自的后果与备选。",
-                 en="This change brings in {n} unverified fact(s). Saving it takes commit(draft_id, accept_unverified=true); tell "
-                    "the user which facts are unknown, what follows from each and the alternative.")
+# In the proactive save mode (the user's save_mode setting, or TRIPWRIGHT_SAVE_UNVERIFIED=agent) nothing waits for the
+# user: propose names the same facts as tell_user, and the answer says how to get the previous version back.
+TELL_USER = dict(zh="这次改动新带来 {n} 条没核的事实；用户选的是主动模式，不等回话：commit(draft_id, accept_unverified=true) 存下，"
+                    "回答里说改了什么、哪几条没核、各自的后果与备选，并告诉用户回“撤回”就恢复上一版（用改之前那天的 json 重新 propose 再 commit）。",
+                 en="This change brings in {n} unverified fact(s); the save mode is proactive, so nothing waits for the user: "
+                    "commit(draft_id, accept_unverified=true), then tell the user what changed, which facts are unknown, what "
+                    "follows from each and the alternative, and that replying “undo” brings the previous version back (propose "
+                    "the day's json from before the change again, then commit).")
+# How the user switches the save mode (consider.save_mode), returned with every turn.
+SAVE_MODE_HOW = dict(zh="用户说“以后直接改，不用问我”或“以后先问我”这类话时，在这条 turn 的 record 里记一条 setting：key=save_mode，"
+                        "value=proactive（主动）或 cautious（谨慎），long_term=true，turn 带 speaker。只记用户自己说的，不替用户选。",
+                     en="When the user says “from now on just change it” or “ask me first from now on”, record a setting in this "
+                        "turn's record: key=save_mode, value=proactive or cautious, long_term=true, with the turn's speaker. Record only "
+                        "what the user said; never choose for the user.")
 # A refused draft goes back to the user anyway: the unverified facts its change brings in are said in the same reply,
 # so the corrected draft does not need one more round for them (2026-11-12, Fable: a draft refused for a conflict, the
 # user chose an option, and the facts had never been pointed out).
@@ -437,12 +447,14 @@ class Tripwright:
                                 after_first_part=AFTER_FIRST[language] + instructions, **response)
             else:
                 response = dict(next=instructions, first_part=first, second_part_title=second_title, **response)
+            mode = consider.save_mode(self.store, owner, at=at)
             response.update(consider={key: considered[key] for key in ("entries", "more", "more_how") if key in considered},
-                            ask=asked, offer=consider.offer(known["languages"], language))
+                            ask=asked, offer=consider.offer(known["languages"], language),
+                            save_mode=dict(mode=mode["mode"], by=mode["by"], how=SAVE_MODE_HOW[language]))
             review = self.ledger.needs_review(owner)
             if review:
                 response["review"] = review
-            waiting = self._waiting_draft(owner, event_id, language) if self.asks_first() else None
+            waiting = self._waiting_draft(owner, event_id, language) if self.asks_first(owner) else None
             response["flow"] = self.flow.turn(owner, clock(), text=text, scenario=scenario, language=language, nature=nature_key,
                                               recorded=bool(record_input), changed=bool(recorded.get("replaced")),
                                               review=[entry["decision"] for entry in review], second=bool(first), latest=first_part.asks_latest(text),
@@ -468,12 +480,15 @@ class Tripwright:
             self.committer.poke()
         return response
 
-    def asks_first(self) -> bool:
+    def asks_first(self, owner: str | None = None) -> bool:
         """Whether a host agent's accept_unverified counts only after another message has arrived through turn
-        (versions.commit). The default, `ask`, follows what the user said on 2026-10-31 (results nobody verified are
-        not acceptable), read as "ask before saving". TRIPWRIGHT_SAVE_UNVERIFIED=agent is the operator's choice to
-        let the agent accept the new unverified facts itself, in the turn that proposed the change."""
-        return os.environ.get("TRIPWRIGHT_SAVE_UNVERIFIED", "ask").lower() != "agent"
+        (versions.commit): the cautious save mode. The user chooses it per trip or for good (a `save_mode` setting,
+        consider.save_mode, 2026-11-13: two modes, the user picks); without one the deployment's default holds:
+        `ask` (cautious) follows what the user said on 2026-10-31 (results nobody verified are not acceptable), read as
+        "ask before saving"; TRIPWRIGHT_SAVE_UNVERIFIED=agent is proactive. Either way a changed must, a bought or
+        booked item, a hard node and competing preferences are refused as before."""
+        mode = consider.save_mode(self.store, owner, at=now()) if owner is not None else dict(mode=consider.deployment_mode())
+        return mode["mode"] == "cautious"
 
     def _waiting_draft(self, owner: str, event_id: str, language: str) -> dict | None:
         """The plan draft this message answers: proposed for the message before this one, still on the current
@@ -1037,7 +1052,7 @@ class Tripwright:
         # What the proposal does to user locks, said in the answer (D-36, D-49): made from the operations the ledger
         # admitted in the preview (ledger.lock_receipt); a correction waits for the user.
         locks = draft.get("lock_changes")
-        asks = self.asks_first()
+        asks = self.asks_first(owner)
         ask = self.versions.unanswered(owner, draft.get("ask") or [])[0] if asks else draft.get("ask") or []
         words = ASK_WITH_REFUSAL if draft["status"] != "proposed" else ASK_USER if asks else TELL_USER
         asking = {"ask_user" if asks else "tell_user": dict(

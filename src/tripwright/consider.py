@@ -11,9 +11,9 @@ imported from the profile and not refused), then the product's region table (ren
 default stability, how many entries each scenario lists and the language names are data (consider.yaml); a user's
 `stability:<kind>` setting overrides a kind's default.
 
-`asks` gives what the answer must ask (R-58 must-go places; R-67 real-time data), `defaults` what the next message
-settles when the user did not answer (no must-go places; no real-time source), and `offer` the one line that offers to
-draft a question for someone on site (D-61 four) with the drafting spec.
+`asks` gives what the answer must ask (R-58 must-go places; R-67 real-time data; once, the save mode), `defaults` what
+the next message settles when the user did not answer (no must-go places; no real-time source; the deployment's save
+mode), and `offer` the one line that offers to draft a question for someone on site (D-61 four) with the drafting spec.
 """
 from __future__ import annotations
 
@@ -37,6 +37,9 @@ WORDS = {
                must_go="有没有必须要去的地方或必须守的时间？没提就当没有。",
                realtime="这趟要不要配实时数据（例：{options}）？不配就用免费的 Transitous，按时刻表。",
                must_go_default="用户没提必须去的地方，按没有算", realtime_default="这趟不配实时数据，用 Transitous（按时刻表）",
+               save_mode="改计划时碰到没核过的事实（例：营业时间），你要哪种？① 主动：我直接存，回答里说清哪条没核，回“撤回”就恢复上一版；"
+                         "② 谨慎：先问你，你回话后再存。不回就按{default}；以后随时一句话能改。",
+               save_mode_default="用户没选存前问不问，按{default}", modes=dict(proactive="主动", cautious="谨慎"),
                offer="我可以帮你起草询问内容（{languages}）。", join="、", source_on="开", source_off="不配",
                layer=dict(user="用户说的", inference="我的推断", default="我的默认", agent="我定的", plan="计划里的", table="我的默认"),
                mine="标“我的推断”“我的默认”“我定的”的是你自己的，不说成用户要的。", yields="带 conflicts_with_user 的和用户说的冲突，照用户说的。"),
@@ -49,6 +52,10 @@ WORDS = {
                must_go="Is there any place you must go to, or a time you must keep? If you don't say, I take it there is none.",
                realtime="Do you want real-time data on this trip (e.g. {options})? Without it I use the free Transitous timetable.",
                must_go_default="The user named no must-go place; taken as none", realtime_default="No real-time data on this trip; Transitous timetable",
+               save_mode="When a change brings in facts nobody has checked (e.g. opening hours), which do you want? 1 Proactive: I save it "
+                         "and say which facts are unchecked; reply “undo” to get the previous version back. 2 Cautious: I ask first and "
+                         "save after your answer. Without an answer I keep {default}; you can switch any time in one sentence.",
+               save_mode_default="The user chose no save mode; {default} kept", modes=dict(proactive="proactive", cautious="cautious"),
                offer="I can draft what to ask, in {languages}.", join=", ", source_on="on", source_off="not set up",
                layer=dict(user="user said", inference="my inference", default="my default", agent="my decision", plan="in the plan",
                           table="my default"),
@@ -397,7 +404,9 @@ def must_go_answered(store, owner: str, scope: dict | None, *, at: str) -> bool:
 def asks(store, owner: str, plan: dict | None, *, scenario: str, scope: dict | None, at: str, language: str = "zh",
          known: dict | None = None) -> list[dict]:
     """The questions this answer must ask: must-go places when it plans a range not asked about yet (R-58); real-time
-    data when the destination is set and this trip has no source setting (R-67). Each says how to record the answer."""
+    data when the destination is set and this trip has no source setting (R-67); once, when a plan is changed, whether
+    to save changes with unverified facts before the user answers (save mode, 2026-11-13). Each says how to record
+    the answer."""
     w = words(language)
     found = []
     planning = scenario in SCENARIOS or not plan
@@ -414,7 +423,43 @@ def asks(store, owner: str, plan: dict | None, *, scenario: str, scope: dict | N
                           record=dict(items=[dict(kind=SETTING, key="source:realtime", value={"on": "true or false", "which": "<id>"},
                                                   subject=["*"], strength="prefer", quote="<the user's words>", text="<one sentence>",
                                                   source={"event": "this", "basis": "user_explicit"})])))
+    if plan and planning and not save_mode_answered(store, owner, at=at):
+        default = w["modes"][deployment_mode()]
+        found.append(dict(id="save_mode", say=w["save_mode"].format(default=default), default=w["save_mode_default"].format(default=default),
+                          record=dict(items=[dict(kind=SETTING, key="save_mode", value="proactive or cautious", subject=["*"],
+                                                  strength="prefer", long_term=True, quote="<the user's words>", text="<one sentence>",
+                                                  source={"event": "this", "basis": "user_explicit"})])))
     return found
+
+
+# --- save mode (2026-11-13: two modes the user chooses; ask less, and ask with options) -----------------------------
+
+MODES = ("proactive", "cautious")
+MODE_WORDS = {"proactive": "proactive", "主动": "proactive", "agent": "proactive", "cautious": "cautious", "谨慎": "cautious",
+              "ask": "cautious"}
+
+
+def deployment_mode() -> str:
+    """The operator's default: TRIPWRIGHT_SAVE_UNVERIFIED=agent is proactive, anything else (the default `ask`) cautious."""
+    import os
+
+    return "proactive" if os.environ.get("TRIPWRIGHT_SAVE_UNVERIFIED", "ask").lower() == "agent" else "cautious"
+
+
+def save_mode(store, owner: str, *, at: str) -> dict:
+    """Whether a change that brings in unverified outside facts is saved in the turn that proposed it (proactive) or
+    after the user's answer (cautious): the user's `save_mode` setting, this trip's before a long-term one, else the
+    deployment's. `{mode, by, record?}`, by `user` or `deployment`."""
+    chosen = best(settings(store, owner, at=at), "save_mode")
+    mode = MODE_WORDS.get(str((chosen or {}).get("value") or "").strip().lower())
+    if mode:
+        return dict(mode=mode, by="user", record=chosen["id"])
+    return dict(mode=deployment_mode(), by="deployment")
+
+
+def save_mode_answered(store, owner: str, *, at: str) -> bool:
+    """Asked once: a `save_mode` setting, or silence after the question (`settled`)."""
+    return save_mode(store, owner, at=at)["by"] == "user" or any(entry["id"] == "save_mode" for entry in settled(store, owner))
 
 
 def defaults(store, owner: str, asked: list[dict], record: dict | None, *, at: str, language: str = "zh") -> list[dict]:
@@ -430,6 +475,8 @@ def defaults(store, owner: str, asked: list[dict], record: dict | None, *, at: s
         if question["id"] == "realtime" and not any(str(key).startswith("source:") for key in said) \
                 and not any(item["key"].startswith("source:") for item in settings(store, owner, at=at)):
             found.append(dict(id="realtime", scope={}, text=w["realtime_default"]))
+        if question["id"] == "save_mode" and "save_mode" not in said and not save_mode_answered(store, owner, at=at):
+            found.append(dict(id="save_mode", scope={}, text=w["save_mode_default"].format(default=w["modes"][deployment_mode()])))
     return found
 
 
