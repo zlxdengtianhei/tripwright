@@ -576,17 +576,21 @@ REVISION = {"del": "tw-rev-old", "ins": "tw-rev-new"}  # class names of the web_
 
 
 def _mark(text: str, marks) -> Markup:
-    """The text, escaped, with the replaced words struck through and the new words marked as inserted."""
-    escaped = str(escape(text))
-    kinds = {str(escape(was)): "del" for was, _ in marks if was} | {str(escape(now)): "ins" for _, now in marks if now}
+    """The text, escaped, with the replaced words struck through and the new words marked as inserted. The words are
+    found in the raw text and each piece is escaped on its own, so a word never matches inside an entity (2026-11-13,
+    fix3-judge: "39" struck through the apostrophe's &#39;)."""
+    kinds = {was: "del" for was, _ in marks if was} | {now: "ins" for _, now in marks if now}
     if not kinds:
-        return Markup(escaped)
+        return Markup(escape(text))
     pattern = re.compile("|".join(re.escape(word) for word in sorted(kinds, key=len, reverse=True)))
-
-    def wrap(found):
+    parts, last = [], 0
+    for found in pattern.finditer(text):
         tag = kinds[found.group(0)]
-        return f'<{tag} class="{REVISION[tag]}">{found.group(0)}</{tag}>'
-    return Markup(pattern.sub(wrap, escaped))
+        parts.append(str(escape(text[last:found.start()])))
+        parts.append(f'<{tag} class="{REVISION[tag]}">{escape(found.group(0))}</{tag}>')
+        last = found.end()
+    parts.append(str(escape(text[last:])))
+    return Markup("".join(parts))
 
 
 def _hit(marks, *texts) -> bool:

@@ -150,3 +150,14 @@ def test_leg_ends_allow_a_wait_between_but_not_another_leg():
     tram = dict(start="11:32", end="11:38")  # a second leg after the walk: the walk no longer reaches stop 2 itself
     assert leg_ends(walk, stops, labels, [walk, tram]) == (dict(label="1", shape="fixed"), None)
     assert leg_ends(tram, stops, labels, [walk, tram]) == (None, dict(label="2", shape="opt"))
+
+
+def test_a_mark_never_matches_inside_an_html_entity():
+    """fix3-judge, 2026-11-13: the words were found in the escaped text, so "39" struck through the &#39; of an
+    apostrophe and "amp" the &amp; of an ampersand."""
+    from tripwright.site.share import _mark
+
+    assert str(_mark("Mira's train at 16:39", [("39", "41")])) == 'Mira&#39;s train at 16:<del class="tw-rev-old">39</del>'
+    assert str(_mark("Tom & Jerry", [("amp", "")])) == "Tom &amp; Jerry"
+    assert str(_mark("A <b> & B", [("&", "and")])) == 'A &lt;b&gt; <del class="tw-rev-old">&amp;</del> B'
+    assert str(_mark("Café 19:00", [("17:00", "19:00")])) == 'Café <ins class="tw-rev-new">19:00</ins>'
