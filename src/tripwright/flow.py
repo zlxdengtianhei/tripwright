@@ -184,8 +184,6 @@ class Flow:
             seen.did.add("query")
         if tool == "propose":
             seen.did.add("record")  # the requirements role records through a ledger-only draft
-        if tool == "state_pack":
-            seen.did.add("verify")
         # "turn first" only when a turn is known here and was long ago: a process that never saw a turn (the command
         # line a researcher uses) and the requirements-first commit before a plan draft are not missed messages
         stale = seen.last_turn is not None and at - seen.last_turn > TURN_FIRST_AFTER
@@ -213,6 +211,11 @@ class Flow:
         if last is not None and at - last <= TURN_FIRST_AFTER:
             return None
         return SHORT["en" if language == "en" else "zh"]["unturned"]
+
+    def verified(self, owner: str):
+        """The verifier handed its verdict back (result with report). Reading the wide pack no longer counts as checked
+        (analysis G4, 2026-11-13: the verifier found 3 drafts of 3 incomplete and 2 were saved all the same)."""
+        self.seen.setdefault(owner, Seen()).did.add("verify")
 
     def unrecorded(self, language: str, ids: dict | None = None) -> dict:
         return packet(dict(role="tripwright-requirements", why=WHY["en" if language == "en" else "zh"]["unrecorded"]), ids, language)

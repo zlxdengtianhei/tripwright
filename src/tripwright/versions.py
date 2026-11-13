@@ -194,6 +194,30 @@ class Versions:
         inference are not the user speaking."""
         return [event for event in snapshots.received_events(self.store, owner) if event["received"]["nature"] in REPLY_NATURES]
 
+    def _verifier_gate(self, owner: str, draft: dict, report: dict, *, accept_unverified: bool, ask_first: bool) -> dict | None:
+        """What the verifier's recorded verdict (service.result with report) allows (analysis 5.14, 2026-11-13). A conflict
+        is refused, like a changed must. Lines it could not check are like unverified outside facts: they need
+        accept_unverified, and in the cautious mode a message after the report, with words other than the draft's own
+        message (the user's answer; the service cannot tell who wrote it, as for `unanswered`)."""
+        if report["verdict"] == "conflict":
+            raise ValueError("Commit refused: the verifier found a conflict: " + "; ".join(report["conflicts"])
+                             + "; change the draft, propose again and have it checked again")
+        if report["verdict"] != "incomplete" or not report["unchecked"]:
+            return None
+        listed = " | ".join(report["unchecked"])
+        if not accept_unverified:
+            raise ValueError(f"Not saved yet: the verifier could not check: {listed}. With the user's agreement, commit with "
+                             "accept_unverified=true")
+        if not ask_first:
+            return None
+        said = next((event["received"]["text"] for event in self.messages(owner) if event["id"] == draft["source_event"]), None)
+        answer = next((event for event in self.messages(owner)
+                       if aware(event["receipt"]["received_at"]) > aware(report["at"]) and event["received"]["text"] != said), None)
+        if answer is None:
+            raise ValueError(f"Not saved yet: the verifier could not check: {listed}. Ask the user first (save as it is, "
+                             "check first, or no change), send the answer through turn, then commit with accept_unverified=true")
+        return answer  # it settles the messages up to it, as the answer to unverified facts does
+
     def unanswered(self, owner: str, brought: list[dict]) -> tuple[list[dict], dict | None]:
         """Of the unverified facts a change brings in: those not answered yet, and the message that answered the
         others (the latest one, when different messages answered different facts).
@@ -690,12 +714,16 @@ class Versions:
                 raise ValueError(not_saved(waiting or brought, asks=ask_first, answered=asking and not waiting))
             if asking:
                 answered = dict(event=reply["id"], unverified=[check["id"] for check in brought])
+            verifier = draft.get("verifier_report") if not unchanged_plan else None
+            verifier_reply = self._verifier_gate(owner, draft, verifier, accept_unverified=accept_unverified,
+                                                 ask_first=ask_first) if verifier and not replaying else None
             if not unchanged_plan and not replaying:
                 later = self.unsettled(owner, draft)
-                if asking:
+                replies = [event for event in (reply if asking else None, verifier_reply) if event is not None]
+                if replies:
                     # the answer settles the messages up to it; one that came after it is a new message (2026-11-13:
                     # "yes, save it", then "and drop the coffee", must not save the draft without the second)
-                    until = aware(reply["receipt"]["received_at"])
+                    until = max(aware(event["receipt"]["received_at"]) for event in replies)
                     later = [event for event in later
                              if aware(self.store.get("events", owner, event)["receipt"]["received_at"]) > until]
                 if later:
@@ -711,7 +739,8 @@ class Versions:
                            accept_unverified=accept_unverified, committed_at=now(), submitted_by=owner, changelog=changelog,
                            **(dict(authorized=authorized) if authorized else {}),
                            **(dict(answered=answered) if answered else {}),
-                           **(dict(restored_from=draft["restored_from"]) if draft.get("restored_from") is not None else {}))
+                           **(dict(restored_from=draft["restored_from"]) if draft.get("restored_from") is not None else {}),
+                           **(dict(verifier={key: verifier[key] for key in ("verdict", "unchecked", "conflicts")}) if verifier else {}))
             self.store.put("versions", owner, version, insert=True)
             for decision_id in sorted({entry["revises"] for entry in changelog if entry.get("revises")}):
                 lines = [entry for entry in changelog if entry.get("revises") == decision_id]

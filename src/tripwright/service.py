@@ -113,6 +113,48 @@ TELL_USER = dict(zh="这次改动新带来 {n} 条没核的事实；用户选的
 # The sentence a proactive answer ends with (2026-11-13: GPT-6 Luna saved in the same turn 2 times in 2 and named the
 # unverified fact, but said nothing about undoing it).
 UNDO_SAY = dict(zh="不想要这次改动，回“撤回”，我恢复到第 {base} 版。", en="If you don't want this change, reply “undo” and I'll restore version {base}.")
+# What the main agent does once the verifier's report is recorded (analysis 5.14): by verdict, and for an incomplete
+# check by save mode. The cautious question comes with options, as ask_user's do.
+REPORT_NEXT = dict(
+    zh=dict(passed="核对员判通过：可以 commit。",
+            conflict="核对员判冲突：这份草稿存不下。照它说的冲突改草稿、重新 propose，再派核对员。",
+            ask="核对员有没核到的：先问用户，至多三个选项，每个一句后果：① 照这样存，没核到的到时自己看一眼（推荐）；② 我先补核再存；③ 不改（不回话就按这个）。"
+                "用户回话后 commit(accept_unverified=true)。",
+            tell="核对员有没核到的：用户选的是主动模式，commit(accept_unverified=true) 存下，回答里逐条说没核到的和后果，末尾说回“撤回”能恢复上一版。",
+            incomplete="核对员判不完整，但没列出没核到的：可以 commit。"),
+    en=dict(passed="The verifier passed the draft: commit.",
+            conflict="The verifier found a conflict: this draft cannot be saved. Change the draft as it says, propose again and dispatch the verifier again.",
+            ask="The verifier could not check everything: ask the user first, with at most three options, each with its consequence: "
+                "1 save as it is and look at the unchecked items on the spot (recommended); 2 check them first, then save; "
+                "3 no change (taken without an answer). After the answer, commit(accept_unverified=true).",
+            tell="The verifier could not check everything; the save mode is proactive: commit(accept_unverified=true), say each unchecked "
+                 "item and what follows from it, and end with how to undo the change.",
+            incomplete="The verifier found the draft incomplete but listed nothing unchecked: commit."))
+
+
+def verifier_report(report) -> dict:
+    """The shape result(report=...) accepts: a verdict, one sentence per item it could not check, one per conflict."""
+    if not isinstance(report, dict):
+        raise ValueError("report is an object {verdict, unchecked, conflicts}")
+    verdict = report.get("verdict")
+    if verdict not in ("passed", "conflict", "incomplete"):
+        raise ValueError(f"report.verdict is passed, conflict or incomplete, got {verdict!r}")
+    lines = {}
+    for key in ("unchecked", "conflicts"):
+        value = report.get(key) or []
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, list) or not all(isinstance(line, str) and line.strip() for line in value):
+            raise ValueError(f"report.{key} is a list of sentences, one per item")
+        lines[key] = [line.strip() for line in value]
+    if verdict == "conflict" and not lines["conflicts"]:
+        raise ValueError("report.conflicts names each conflict in one sentence when the verdict is conflict")
+    unknown = set(report) - {"verdict", "unchecked", "conflicts"}
+    if unknown:
+        raise ValueError(f"report takes verdict, unchecked and conflicts; unknown: {', '.join(sorted(unknown))}")
+    return dict(verdict=verdict, **lines)
+
+
 # How the user switches the save mode (consider.save_mode), returned with every turn.
 SAVE_MODE_HOW = dict(zh="用户说“以后直接改，不用问我”或“以后先问我”这类话时，在这条 turn 的 record 里记一条 setting：key=save_mode，"
                         "value 写 proactive（主动）或 cautious（谨慎），long_term=true（写在条目上），turn 带 speaker。只记用户自己说的，不替用户选。",
@@ -1203,12 +1245,34 @@ class Tripwright:
         return dict(version, accepted=True, write=self.write_ref(owner, prior), **(dict(lock_changes=locks) if locks else {}),
                     **(dict(tell_user=undo) if undo else {}))
 
-    def result(self, owner: str, job_id: str, *, cancel: bool = False, ack_events: list[str] | None = None) -> dict:
+    def result(self, owner: str, job_id: str, *, cancel: bool = False, ack_events: list[str] | None = None,
+               report: dict | None = None) -> dict:
         self.bound(owner)
         # result keeps its contract's exact shape (CONTRACTS 1.4): no flow line here
         if cancel:
             return self.jobs.cancel(owner, job_id)
-        return self._job_result(owner, job_id, ack_events)
+        response = self._job_result(owner, job_id, ack_events)
+        return self._verifier_report(owner, response, report) if report is not None else response
+
+    def _verifier_report(self, owner: str, response: dict, report: dict) -> dict:
+        """The verifier's own verdict, handed back with `result(job_id, report=...)` (analysis 5.14, 2026-11-13). Before,
+        it reached only the main agent: reading the wide pack counted as checked, and a draft the verifier found
+        incomplete was saved 2 times in 3 with nothing of its verdict on the version. Recorded on the draft only for a
+        completed, fresh result; commit then follows it (versions.commit): a conflict is refused, an incomplete check
+        waits for the user in the cautious mode and is saved with its unchecked lines in the proactive one."""
+        checked = verifier_report(report)
+        if response.get("status") != "completed" or not response.get("result"):
+            return dict(response, notice=response.get("notice") or f"Report not recorded: the result is {response.get('status')}")
+        draft_id = response["result"]["draft_id"]
+        language = self._reply_language(owner)
+        with self.store.transaction():
+            draft = self.store.get("drafts", owner, draft_id)
+            self.store.put("drafts", owner, dict(draft, verifier_report=dict(checked, at=now(), job_id=response["job_id"])))
+        self.flow.verified(owner)
+        cautious = self.asks_first(owner)
+        say = REPORT_NEXT["en" if language == "en" else "zh"][
+            checked["verdict"] if checked["verdict"] != "incomplete" or not checked["unchecked"] else ("ask" if cautious else "tell")]
+        return dict(response, result=dict(response["result"], report=dict(checked, recorded=True, next=say)))
 
     def _job_result(self, owner: str, job_id: str, ack_events: list[str] | None) -> dict:
         return self.jobs.result(owner, job_id, ack_events=ack_events, body=lambda job, message: self._verdict(owner, job, message))

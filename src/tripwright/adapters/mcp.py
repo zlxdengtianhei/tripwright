@@ -52,6 +52,14 @@ RoleArgument = Annotated[str | None, WithJsonSchema({"type": ["string", "null"],
     "view='role' only: tripwright-main, tripwright-requirements, tripwright-researcher or tripwright-verifier, or "
     "<role>/<file> for a reference it lists. Returns that role's steps, to do a role flow.dispatch names yourself "
     "when you cannot dispatch it.")})]
+# the verifier's verdict handed back to the service (analysis 5.14, 2026-11-13)
+ReportArgument = Annotated[dict | None, WithJsonSchema({"type": ["object", "null"], "description": (
+    "The verifier only, after checking the draft: {verdict: passed|conflict|incomplete, unchecked: [one sentence per item it "
+    "could not check], conflicts: [one sentence per conflict]}. Recorded on the draft; commit then refuses a conflict and "
+    "treats unchecked lines like unverified facts. Recorded only for a completed result."),
+    "properties": {"verdict": {"type": "string", "enum": ["passed", "conflict", "incomplete"]},
+                   "unchecked": {"type": "array", "items": {"type": "string"}},
+                   "conflicts": {"type": "array", "items": {"type": "string"}}}})]
 # "undo" (analysis 5.13, 2026-11-13); the propose description has no room left for it
 RestoreArgument = Annotated[int | None, WithJsonSchema({"type": ["integer", "null"], "description": (
     "When the user says undo or change it back: the version number whose whole plan becomes the draft (state(view='history') "
@@ -282,9 +290,9 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
 
     @server.tool(title="Retrieve or cancel the persistent second-response result", annotations=replace, structured_output=True)
     @expose_errors
-    def result(job_id: str, cancel: bool = False, ack_events: list[str] | None = None) -> dict[str, Any]:
-        """Returns a persistent job's result; cancel=true stops the job. ack_events names later messages that change nothing for it. A completed deep check returns its draft and verdict; commit does not accept a stale result."""
-        return ready().result(identity(), job_id, cancel=cancel, ack_events=ack_events)
+    def result(job_id: str, cancel: bool = False, ack_events: list[str] | None = None, report: ReportArgument = None) -> dict[str, Any]:
+        """Returns a persistent job's result; cancel=true stops the job. ack_events names later messages that change nothing for it. A completed deep check returns its draft and verdict; commit does not accept a stale result. The verifier hands its own verdict back with report."""
+        return ready().result(identity(), job_id, cancel=cancel, ack_events=ack_events, report=report)
 
     @server.tool(title="Read committed trip, day, decisions or profile", annotations=read, structured_output=True)
     @expose_errors

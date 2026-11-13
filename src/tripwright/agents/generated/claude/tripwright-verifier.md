@@ -57,7 +57,7 @@ A critical fact (a hard node, the timetable of a fixed leg, ticket validity, an 
 
 ## Report
 
-Return this to the main agent, in the user's language for the lines the user will see:
+First hand your verdict to the service, so that commit follows it: `result(job_id, report={"verdict": ..., "unchecked": [one sentence per item you could not check], "conflicts": [one sentence per conflict]})`. Then return this to the main agent, in the user's language for the lines the user will see:
 
 ```
 verdict: passed | conflict | incomplete
