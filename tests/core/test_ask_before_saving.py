@@ -230,6 +230,26 @@ def test_only_outside_facts_wait_for_the_user_gaps_in_the_plan_itself_do_not(tri
         host_commit(trip, park, key="park", accept_unverified=True)
 
 
+def test_a_new_hard_node_waits_for_the_user_like_the_other_outside_facts(trip):
+    """A hard node (an anchor: a ferry, a train, a show) brings in its timetable, branch and date as an outside fact
+    ("anchor-evidence"). Added in a change without evidence, it is asked and saved only after the user's answer."""
+    ferry = "anchor-evidence:2030-06-10:d1-ferry"
+    turn = trip.turn("alice", "晚上 21:00 加一班去卑尔根的渡轮，票还没买。", "ferry", scenario="replan")
+    day = day_with(trip)
+    day.setdefault("anchors", []).append(dict(id="d1-ferry", time="21:00", text="Fictional ferry", subject=["p1", "p2", "p3"],
+                                              place="oslo-station", buffer_minutes=15, travel_minutes=10))
+    draft = trip.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], days=[day], idempotency_key="ferry")
+    assert draft["status"] == "proposed", draft
+    assert [check["id"] for check in draft["ask_user"]["unverified"]] == [ferry]
+    with pytest.raises(ValueError, match="Not saved yet: this change brings in 1 fact") as refusal:
+        host_commit(trip, draft, key="ferry", accept_unverified=True)
+    assert ferry in str(refusal.value)
+    assert trip.versions.current("alice")["number"] == 1
+    trip.turn("alice", YES, "yes", scenario="plan")
+    version = host_commit(trip, draft, key="ferry", accept_unverified=True)
+    assert version["number"] == 2 and version["answered"]["unverified"] == [ferry]
+
+
 def test_the_price_of_that_choice_a_squeezed_gap_with_no_travel_time_is_saved_without_asking(trip):
     """Intended, and the cost of asking only about outside facts: the dinner block gives no transfer time any more and
     the gallery now ends five minutes before it, at another place. The service cannot tell whether five minutes are
