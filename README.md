@@ -37,7 +37,7 @@ flowchart LR
 
 Your app runs the agents; the service keeps the trip, returns what applies to each message, and names who does the next step. The three helpers are sub-agents in Claude Code and Codex. In a plain chat, one agent does their steps itself and follows the same `flow`. One of the seven MCP tools receives each message; the others look up facts, propose and commit changes, and read the plan and its history. Without a private repository, the trips stay in a local Git repository on the service's volume.
 
-**From one sentence to a saved plan.** A change is saved only after it passes the service's checks; a refused change is never reported as done. A change that brings in a fact about the outside world that nobody has checked (opening hours, a timetable, the weather, a ticket, a fixed time) is not saved until your next message has arrived.
+**From one sentence to a saved plan.** A change is saved only after it passes the service's checks; a refused change is never reported as done. A change that brings in a fact about the outside world that nobody has checked (opening hours, a timetable, the weather, a ticket, a fixed time) follows the mode you choose, asked once and switched in one sentence: cautious (the default) saves it only after your next message has arrived, and the question offers up to three options, each with what follows from it, the one recommended and what happens without an answer; proactive saves it at once and the answer says what is unchecked and how to undo it.
 
 ```mermaid
 flowchart TD
@@ -48,7 +48,7 @@ flowchart TD
     D -.-> E
     E -->|"conflicts with a must, a booked ticket or a fixed time"| X["Not saved. The answer says the change<br/>did not go through, and asks you"]
     E -->|"no conflict"| F["Verifier checks the draft"]
-    F -->|"the change brings in a fact that is not checked"| Y["Not saved yet. The answer says what is unchecked<br/>and what follows from it, and asks you"] -->|"you answer: save it"| H
+    F -->|"the change brings in a fact that is not checked"| Y["Cautious: not saved yet; the answer gives options<br/>and what follows from each. Proactive: saved,<br/>the answer says what is unchecked and how to undo"] -->|"you answer, or proactive"| H
     F -->|"passed"| H["commit: a new version that records<br/>what changed, who changed it and why"]
 ```
 
