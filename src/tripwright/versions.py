@@ -40,14 +40,15 @@ def lock_reason(check: dict) -> str:
 # How a hard node the user asked to change gets changed (2026-11-13, tw-multi s3: Codex moved the 16:30 train to 09:00
 # as the user asked, was refused, and told the user a correction was needed; 6 runs of 6 were never saved). The user's
 # words in this message are what change it (D-36, D-53); a "yes, save it" to the unverified facts does not (D-11).
-NODE_CHANGE_HOW = ("If the user's own message asks for this change and says the new value (\"不坐 16:30 那班了，改坐 9 点的\"), "
-                   "send changes.reports in the same proposal, one per field as listed here, with quote = the user's words "
-                   "copied from that message and source.event = that message (\"this\" for the turn's own message); the user "
-                   "need not say anything more. Only the proposal of the turn that received those words can report them: in "
-                   "a later turn (after the user answered a question), ask the user to say the change again in one sentence "
-                   "with the new value (\"11 号的火车改坐 9 点那班\") and report it from that turn. This is not a correction "
-                   "(corrections are the agent's own doubts and wait for a later answer). If the user did not ask for it, "
-                   "keep the node as it is, or ask the user.")
+NODE_CHANGE_HOW = ("When the user's own words ask for this change and give the new value (\"改坐 9 点那班\", \"take the 9:00 "
+                   "train\"), send changes.reports in the same proposal, one per field as listed here, with quote = the "
+                   "user's words copied and source.event = their message (\"this\" for the turn's own message); the user "
+                   "need not say more. The words may be in this turn's message, or in the user's message just before it "
+                   "when this one answers your question and no other user message came between (D-19). A value said "
+                   "roughly (\"9 点左右\", \"around 9\") or not at all (\"an earlier train\", \"yes, save it\") does not "
+                   "count: ask the user for the exact value first; once they answer, report it from the answer's turn. "
+                   "This is not a correction (corrections are the agent's own doubts). If the user did not ask for it, "
+                   "keep the node as it is.")
 REPLY_NATURES = ("user_verbatim", "host_restatement")
 # The unverified facts a change waits for the user about: facts of the outside world that a lookup could settle
 # (evidence: opening hours, a timetable, the weather, whether a ticket applies, a block's own critical facts;
@@ -279,8 +280,14 @@ class Versions:
             for booking in previous["bookings"]:
                 if booking["status"] in ("bought", "booked"):
                     matches = booking["id"] in bookings and kept(booking) == kept(bookings[booking["id"]])
+                    now_booked = bookings.get(booking["id"]) or {}
+                    changed = [key for key in kept(booking) if key != "fares" and now_booked and kept(now_booked).get(key) != booking.get(key)] \
+                        if not matches else []
+                    how = dict(reports=[dict(target=f"booking:{booking['id']}", field=key, old=booking.get(key), new=now_booked.get(key))
+                                        for key in changed], how=NODE_CHANGE_HOW) if changed else {}
                     report["checks"].append(conclusion(f"paid-booking:{booking['id']}", "passed" if matches else "conflict",
-                                                       "A bought or booked arrangement cannot be silently changed or removed; it requires user review.", date=booking["date"]))
+                                                       "A bought or booked arrangement cannot be silently changed or removed; it requires user review.",
+                                                       date=booking["date"], **({"report": how["reports"][0], **how} if how else {})))
             anchors = {anchor["id"]: (day["date"], anchor) for day in serialized["days"] for anchor in day["anchors"]}
             for day in previous["days"]:
                 for anchor in day["anchors"]:

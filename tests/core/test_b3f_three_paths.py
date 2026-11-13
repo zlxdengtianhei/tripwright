@@ -153,16 +153,26 @@ def test_path2_a_stale_or_malformed_report_is_refused(locked, change, reason):
 
 def test_path2_an_earlier_user_message_cannot_be_reused_as_a_report(locked):
     """The lock's own message says the tickets are bought on site; an agent's later proposal quoting it as the user's
-    report is refused, and so is a user's earlier message cited from a later turn."""
+    report is refused, and so is a user's earlier message cited from a later turn with another user message between.
+    (D-19, 2026-11-13, replaces D-49 here: the user's message just before the proposal's own counts.)"""
     lock_event = next(event for event in locked.store.all("events", "alice") if "received" in event and "整个块" in event["received"]["text"])
     later = message(locked, "agent marks the ticket bought", nature="agent_inference", speaker=None)
     with pytest.raises(ValueError, match="the message this proposal answers"):
         propose(locked, later, plan=with_entry(locked, status="bought"), reports=[dict(
             target=ENTRY, field="status", old="on_site", new="bought", quote="都定了", source=dict(event=lock_event["id"]))])
     said = message(locked, "我买了票。")
-    afterwards = message(locked, "那我们几点出发？")
+    message(locked, "那我们几点出发？")
+    afterwards = message(locked, "好的。")
     with pytest.raises(ValueError, match="the message this proposal answers"):
         propose(locked, afterwards, plan=with_entry(locked, status="bought"), reports=[report(said, quote="我买了票")])
+
+
+def test_path2_the_users_message_just_before_counts_from_the_next_turn(locked):
+    """D-19 (2026-11-13): the user said it; when their next message answers the agent, the words still count."""
+    said = message(locked, "我买了票。")
+    afterwards = message(locked, "对，存吧。")
+    draft = propose(locked, afterwards, plan=with_entry(locked, status="bought"), reports=[report(said, quote="我买了票")])
+    assert draft["status"] == "proposed", draft.get("refused")
 
 
 def test_path2_a_report_releases_only_its_own_field(locked):

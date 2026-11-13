@@ -19,7 +19,7 @@ from tripwright.events import Events
 from tripwright.locks import (EXTERNAL, MODELS, PARTIAL, amend, binding, decides, described, field_class, held, inner, lock_changes, model,
                              path_of, pointer, protects, reach, required, snapshot, user_part)
 from tripwright.storage import Store, identifier, now
-from tripwright.trip import Model, aware, field_type, input_problems, minutes, readable
+from tripwright.trip import Model, aware, field_type, input_problems, minutes, readable, zone
 
 
 def iso_time(value: str) -> str:
@@ -275,7 +275,9 @@ class Changes(Model):
     reports: list[Report] = Field(default_factory=list, description=(
         "A field changed because the user said so (\"I bought the tickets\" → booking status bought): {target, field, old, "
         "new, quote, source}. A must lock holding it takes the new value from this message on; a bought or booked booking "
-        "or a hard node changes only in the fields a report or a confirmed correction names (D-53)."))
+        "or a hard node changes only in the fields a report or a confirmed correction names (D-53). The quote must give the "
+        "new value (a time, date, number, code or place; D-19): from this turn's message, or from the user's message just "
+        "before it when no other user message came between; a value said roughly counts only from the answer's turn."))
     corrections: list[Correction] = Field(default_factory=list, description=(
         "The agent proposes to change a field of a must lock, a bought or booked booking or a hard node (coordinates, hours, "
         "a price, a deadline, a channel): {target, field, old, new, basis, ask, evidence_ids, source}. It becomes an open "
@@ -632,7 +634,19 @@ class Ledger:
             return {person["id"] for person in proposal.plan.get("people", [])}, "first plan"
         return {person["id"] for person in plan.get("people", [])}, None
 
-    def admit(self, owner: str, source: Source, proposal: Proposal, *, what: str, quote: str | None = None) -> Source:
+    def previous_message(self, owner: str, event_id: str) -> str | None:
+        """The user's message just before `event_id`, when no other user message came between (only the agent's
+        replies, which the service does not receive)."""
+        said = [event for event in self.store.all("events", owner)
+                if "received" in event and event["received"].get("nature") in USER_NATURES]
+        said.sort(key=lambda event: aware(event["receipt"]["received_at"]))
+        ids = [event["id"] for event in said]
+        if event_id not in ids or ids.index(event_id) == 0:
+            return None
+        return ids[ids.index(event_id) - 1]
+
+    def admit(self, owner: str, source: Source, proposal: Proposal, *, what: str, quote: str | None = None,
+              earlier: bool = False) -> Source:
         """The one gate a user lock is set, replaced or changed through (D-49): a user decision (or a user part of an
         agent's decision), a report and a confirmation pass it before the candidate's values become a lock or an old
         decision is superseded. In order, the message is received; it is the one this proposal answers (its turn's
@@ -650,10 +664,14 @@ class Ledger:
             refuse("received message", f"Source must reference a received message, got {source.event}")
         if answered is None:
             refuse("this turn", "a user lock changes only in a proposal that answers the user's message (propose with its turn's ctx_id)")
-        if source.event != answered:
-            refuse("this turn", f"source.event must be {answered}, the message this proposal answers: the user's own words in this "
-                                f"turn, not an earlier message (got {source.event}). When the words came in an earlier message, "
-                                "ask the user to say the change again in one sentence with the new value, then report it from that turn")
+        previous = self.previous_message(owner, answered) if earlier else None
+        if source.event != answered and not (earlier and source.event == previous):
+            # D-19 (2026-11-13): a report may also cite the user's message just before this one, when the user is
+            # answering the agent's question and no other user message came between
+            refuse("this turn", f"source.event must be {answered}, the message this proposal answers"
+                                + (f", or {previous}, the user's message just before it" if earlier and previous else "")
+                                + f" (got {source.event}); words from further back, with another user message between, "
+                                "do not count: ask the user to say the change again")
         received = event["received"]
         if source.nature is not None and source.nature != received["nature"]:
             refuse("nature", f"Source nature cannot be upgraded or rewritten: message {source.event} is {received['nature']}, "
@@ -896,15 +914,40 @@ class Ledger:
                 kept.append(where_to)
 
     def _report(self, owner: str, report: Report, proposal: Proposal) -> dict:
-        """Path 2; returns the admitted operation for lock_changes."""
+        """Path 2; returns the admitted operation for lock_changes. The quoted words must give the new value (D-19,
+        2026-11-13, definite.py): a definite value counts in the turn that received it, and also from the answer's turn
+        right after it; a value said with doubt (“9 点左右”) counts only from the answer's turn, after the agent asked;
+        words with no value of that kind, or another value, do not count."""
         what = f"report {report.id}"
-        source = self.admit(owner, report.source, proposal, what=what, quote=report.quote)
+        source = self.admit(owner, report.source, proposal, what=what, quote=report.quote, earlier=True)
         _, old, new = self._field(owner, report, what)
+        self._definite(owner, report, new, source, proposal, what)
         amended = self._amend(owner, report.target, report.field, old, new, via="user_report", event=source.event, change=report.id, what=what)
         self._audit(owner, source.event, "user_report", report.id, dict(target=report.target, field=report.field, old=old, new=new,
                                                                         quote=report.quote, decisions=[entry["decision"] for entry in amended]))
         return dict(id=report.id, target=report.target, field=report.field, old=old, new=new, **self._said(owner, source, proposal),
                     quote=report.quote, locks=amended_locks(amended), amended=amended)
+
+    def _definite(self, owner: str, report: Report, new, source: Source, proposal: Proposal, what: str):
+        from tripwright.definite import judge
+
+        event = self._message(owner, source.event)
+        said_on = aware(event["receipt"]["received_at"]).astimezone(zone(self._plan(owner).get("timezone") or "UTC")).date()
+        place = next((entry for entry in self._plan(owner).get("places", []) if entry.get("id") == new), None)
+        found = judge(report.field, new, report.quote, said_on=said_on, place=place)
+        name = {"time": "time", "date": "date", "number": "number", "code": "code", "place": "place"}.get(found["kind"], "value")
+        ask = (f"ask the user which {name} exactly, and report it from the turn of their answer, quoting the words that "
+               f"give it")
+        if found["status"] == "missing":
+            raise ValueError(f"{what} not admitted (definite value): the quoted words name no {name} ({report.quote!r}); "
+                             f"a yes or a vague wish (an earlier train) does not set {report.target}/{report.field}: {ask}")
+        if found["status"] == "other":
+            raise ValueError(f"{what} not admitted (definite value): the quoted words name another {name} than {shown(new)} "
+                             f"({report.quote!r}): {ask}")
+        if found["status"] == "approximate" and source.event == proposal.answered:
+            raise ValueError(f"{what} not admitted (definite value): the quoted words give the {name} only roughly "
+                             f"({report.quote!r}); ask the user to confirm {shown(new)} first, then, in the turn of their answer, "
+                             f"report it quoting these words with source.event = {source.event} (the message just before)")
 
     def _correction(self, owner: str, correction: Correction, proposal: Proposal) -> dict:
         """Path 3's question. It is asked by this proposal, whatever message its source cites: `asked` holds the message
