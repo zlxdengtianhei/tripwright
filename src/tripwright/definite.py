@@ -234,7 +234,7 @@ def judge_value(field: str, old, new, words: str, *, said_on: date | None = None
 
 
 # Words that ask for a change without saying to what (“门票换个窗口买吧”, “改坐早一点的车”, “another counter”).
-VAGUE_CHANGE = re.compile(r"随便|都行|无所谓|看着办|\bwhatever\b|\banything\b|换个|换一个|换一家|换别的|另一个|另外一个|别的|其他的|早一点|晚一点|早点|晚点|早些|晚些"
+VAGUE_CHANGE = re.compile(r"随便|无所谓|看着办|\bwhatever\b|\banything\b|换个|换一个|换一家|换别的|另一个|另外一个|别的|其他的|早一点|晚一点|早点|晚点|早些|晚些"
                           r"|\banother\b|\bdifferent\b|\bother one\b|\bearlier\b|\blater\b|\bsomewhere else\b", re.IGNORECASE)
 
 
