@@ -50,7 +50,8 @@ def test_with_the_users_words_reported_the_change_waits_only_for_the_unverified_
     assert day["anchors"][0]["time"] == "09:00"
 
 
-def test_words_that_do_not_say_the_new_time_cannot_be_reported(trip):
+def test_a_quote_that_is_not_in_this_message_cannot_be_reported(trip):
+    """The quote must come from this turn's message; whether it states the new value is not checked (deploy/README)."""
     turn = trip.turn("alice", "下午想在卑尔根逛逛。", "s3x", scenario="replan", speaker="p1")
     report = dict(target="anchor:example-rail-departure", field="time", old="16:30", new="09:00", quote=WORDS,
                   source=dict(event="this"))
