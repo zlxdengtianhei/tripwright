@@ -123,6 +123,7 @@ def spaced(*parts: str) -> str:
 POINT_WORDS = {
     "zh": dict(here="按现在 {clock} 算，你在{place}（你说的“{said}”）", here_said="按现在 {clock} 算，你在“{said}”",
                assumed="按现在 {clock} 算，假设你在{place}（计划里这时在这；不在的话说一声）",
+               mentioned="按现在 {clock} 算，你提到{said}；按计划你这时在{place}，下面按这里算（已经在{said}就回一句）",
                nowhere="按现在 {clock} 算，你没说在哪，先按计划说",
                go="去{place}：", night="今晚不用赶，夜里一直有车", train="；火车最后一班 {time} {line}，{stop} 开",
                gap="夜里有空档，{kind}最后一班 {time} {line}，{stop} 开{leave}；之后要等到 {after} 的 {after_line} 才再有车",
@@ -141,6 +142,7 @@ POINT_WORDS = {
                tail="没核：上面存的时刻和说法，第二段核完再发。", join="、"),
     "en": dict(here="As of {clock}, you are at{place} (you said “{said}”)", here_said="As of {clock}, you are at “{said}”",
                assumed="As of {clock}, assuming you are at{place} (where the plan has you now; say if not)",
+               mentioned="As of {clock}: you mentioned{said}; the plan has you at{place} now, so this counts from there (if you are already at{said}, say so)",
                nowhere="As of {clock}; you did not say where you are, so this follows the plan",
                go="To {place}: ", night="no need to hurry tonight, services run all night",
                gap="services stop for a while tonight: {kind} {time} {line} leaves {stop}{leave}; the next one is not until the "
@@ -227,6 +229,13 @@ def point_line(point: dict, where: dict | None, said: dict) -> str:
 def place_head(where: dict | None, clock: str, said: dict) -> str:
     if where is None:
         return said["nowhere"].format(clock=clock)
+    if where["assumed"] and (where.get("mentioned") or {}).get("name"):
+        # G7: the host marked a stored place as where the user is, but nothing in the words puts the user there (packs.
+        # point_facts): both places are said, the plan's is counted from, and the user is asked to say if not
+        named = where["mentioned"]["name"]
+        parts = re.split(r"(\{said\}|\{place\})", said["mentioned"].format(clock=clock, said="{said}", place="{place}"))
+        text = spaced(*[named if part == "{said}" else where["name"] if part == "{place}" else part for part in parts if part])
+        return text.replace(" ;", ";")  # spaced() keeps a space only out of a comma's way; a name before ";" needs none
     if where["assumed"]:
         head, tail = said["assumed"].split("{place}")
         return spaced(head.format(clock=clock), where["name"], tail)

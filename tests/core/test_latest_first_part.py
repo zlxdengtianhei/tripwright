@@ -95,12 +95,14 @@ def test_a_stored_place_the_question_is_about_is_not_where_the_user_is(service, 
     # plan's place, as assumed (which asks the user to say so if not); the marked place stays in `mentioned`.
     next(place for place in plan["places"] if place["id"] == "oslo-cafe")["coords"] = [59.9100, 10.7300]  # fictional
     trip_with_a_node(service, plan, monkeypatch, now="2030-06-10T17:30:00+02:00")  # the plan: dinner at the café, 17:00-18:00
-    for question, said, head in (("画廊我进得去吗？", "画廊", "按现在 17:30 算，假设你在"),
-                                 ("Can I get into the gallery?", "the gallery", "As of 17:30, assuming you are at")):
+    for question, said, head in (("画廊我进得去吗？", "画廊", "按现在 17:30 算，你提到奥斯陆虚构画廊；按计划你这时在"),
+                                 ("Can I get into the gallery?", "the gallery", "As of 17:30: you mentioned Example Oslo Gallery; the plan has you at")):
         points = [dict(kind="at", said=said, place="oslo-art"), dict(kind="do", said=said, place="oslo-art")]
         result = service.turn("alice", question, None, scenario="quick", points=points)
         lines = result["first_part"]["lines"]
-        assert any(line.startswith(head) for line in lines), lines
+        # both places are said, counted from the plan's (analysis 5.6): "你提到 X；按计划你这时在 Y……已经在 X 就回一句"
+        assert any(line.startswith(head) and ("已经在奥斯陆虚构画廊就回一句" in line or "already at Example Oslo Gallery" in line)
+                   for line in lines), lines
         assert result["points"]["at"]["place"] == "oslo-cafe" and result["points"]["at"]["mentioned"]["place"] == "oslo-art"
     # words that put the user there keep the place they said
     for question in ("我到画廊了，进得去吗？", "I'm at the gallery, can I get in?"):
