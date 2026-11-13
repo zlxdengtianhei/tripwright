@@ -190,3 +190,14 @@ def test_screenshots_the_main_agent_transcribed_and_recorded_still_name_the_rese
     turn = service.turn("alice", SHOTS + "\n今晚回酒店最晚一班车几点？", "own", nature="screenshot_extraction", scenario="quick",
                         record=dict(items=[item]))
     assert "tripwright-researcher" in roles(turn["flow"]) and "tripwright-requirements" not in roles(turn["flow"])
+
+
+def test_on_the_road_the_researcher_is_optional_and_not_dispatching_it_is_no_missed_step(service, plan, monkeypatch):
+    """Analysis 5.5 (2026-11-13): on the road the main agent looks things up itself (3 of 3 live runs, 15-20 s); the
+    researcher is named only as an option, so four quick questions in a row without it bring no whole flow back."""
+    seeded(service, plan, monkeypatch)
+    flows = [service.turn("alice", f"第 {n} 次问：今晚最晚几点出发回住处？", f"road{n}", scenario="quick")["flow"] for n in range(5)]
+    researcher = [entry for flow in flows for entry in flow["dispatch"] if entry["role"] == "tripwright-researcher"]
+    assert researcher and all(entry.get("optional") is True for entry in researcher)
+    assert "full" in flows[0] and all("full" not in flow for flow in flows[1:])  # the mode change gives it once
+    assert "自己查" in flows[0]["full"] and "查询员在后台核" not in flows[1]["reminder"]

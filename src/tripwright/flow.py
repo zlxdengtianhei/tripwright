@@ -43,21 +43,21 @@ WHY = {
                unrecorded="Nothing of this message is in the ledger: dispatch the requirements role and commit its draft first (the request must not be lost if the plan is held back), then the verifier"),
 }
 SHORT = {
-    "zh": dict(quick="路上急问：先发 first_part，查询员在后台核，第二段先说不同。",
+    "zh": dict(quick="路上急问：先发 first_part，要核的自己查（宿主能开后台 worker 时才派查询员），第二段先说不同。",
                plan="做计划：新要求交整理员记、连依赖，先提交它的草稿；要查的交查询员；改计划后交核对员，再提交。",
                turn_first="先用 turn 记下用户这条消息（原话），再接着做。"),
-    "en": dict(quick="On the road: send first_part now; the researcher checks in the background; the second part leads with what differs.",
+    "en": dict(quick="On the road: send first_part now; check the facts yourself (the researcher only when the host runs background workers); the second part leads with what differs.",
                plan="Planning: the requirements role records and links new requirements, commit its draft first; lookups to the researcher; after a plan edit, the verifier, then commit.",
                turn_first="Record the user's message with turn (their words) first, then go on."),
 }
 FULL = {
-    "zh": dict(quick="路上即时问答：①turn 记下原话；②原样发 first_part；③派查询员在后台查（有截图或几件事时再派需求整理员）；"
+    "zh": dict(quick="路上即时问答：①turn 记下原话；②原样发 first_part；③要核的事实自己查，宿主能开后台 worker 时才派查询员（有截图或几件事时派需求整理员）；"
                      "④第二段标题照给的写，先说和第一段的不同；⑤不派核对员。flow.dispatch 点了谁就派谁；不能派时先照该条的 steps 取这个角色的步骤，再自己依次做。",
                plan="做计划：①turn 只带原话（不带 record）；②派需求整理员记进账本、连依赖（depends_on 等）、列要问的，先提交它交回的只改账本的草稿；"
                     "③先 query(kind='saved') 用存的资料，缺的派查询员查；④propose（同一个 ctx_id 与 base_version）；⑤草稿改了计划就派核对员核，"
                     "通过才 commit；propose 返回 ask_user（新带来的没核事实）时先问用户，等回话再 commit；⑥回答里说改了什么、为什么。flow.dispatch 点了谁就派谁；不能派时先照该条的 steps 取这个角色的步骤，再自己依次做。"),
-    "en": dict(quick="On the road: (1) record the words with turn; (2) send first_part as given; (3) dispatch the researcher in the background "
-                     "(the requirements role too when there are screenshots or several things); (4) write the given second heading and lead with "
+    "en": dict(quick="On the road: (1) record the words with turn; (2) send first_part as given; (3) check the facts yourself, and dispatch the researcher only "
+                     "when the host runs background workers (the requirements role when there are screenshots or several things); (4) write the given second heading and lead with "
                      "what differs; (5) no verifier. Dispatch whom flow.dispatch names; without subagents, first read that role's steps with the entry's `steps` call, then do them yourself.",
                plan="Planning: (1) turn with the words only (no record); (2) dispatch the requirements role to record, link (depends_on and "
                     "relations) and list questions, and commit the ledger-only draft it returns first; (3) use query(kind='saved') first and "
@@ -150,7 +150,9 @@ class Flow:
             dispatch.append(dict(role="tripwright-requirements", why=why["requirements_plan"]))
         for reason, needed in (("researcher_second", second), ("researcher_latest", latest), ("researcher_unknown", unknown)):
             if needed:
-                dispatch.append(dict(role="tripwright-researcher", why=why[reason]))
+                # On the road the main agent looks things up itself (2026-11-12 live runs: 3 of 3 right in 15-20 s; the
+                # user: "直接询问、直接回答"); the researcher is an option for hosts with background workers, not a step.
+                dispatch.append(dict(role="tripwright-researcher", why=why[reason], **({"optional": True} if mode == "quick" else {})))
                 break
         missed = (("tripwright-requirements" in seen.named and "record" not in seen.did)
                   or ("tripwright-researcher" in seen.named and "query" not in seen.did)
@@ -159,7 +161,7 @@ class Flow:
         full = (seen.last_turn is None or at - seen.last_turn > FULL_AFTER_IDLE or seen.mode != mode
                 or seen.turns_since_full >= FULL_AFTER_TURNS or missed and seen.turns_since_full >= MISSED_FULL_EVERY - 1)
         seen.last_turn, seen.mode, seen.text = at, mode, text
-        seen.named = {entry["role"] for entry in dispatch}
+        seen.named = {entry["role"] for entry in dispatch if not entry.get("optional")}  # an optional role is never missed
         dispatch = [packet(entry, ids, language) for entry in dispatch]
         seen.did, seen.committed_since_turn = {"record"} if recorded else set(), False
         if full:
