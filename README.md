@@ -1,4 +1,4 @@
-<h1 align="center"><img src="docs/assets/logo.svg" alt="tripwright" width="317" height="64"></h1>
+<h1 align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg"><img src="docs/assets/logo.svg" alt="tripwright" width="251" height="64"></picture></h1>
 
 <p align="center">An open-source trip-planning server for AI assistants: it remembers plans across chats, checks transport facts with sources, and creates shareable pages.</p>
 
