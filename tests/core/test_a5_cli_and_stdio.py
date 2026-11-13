@@ -100,6 +100,8 @@ def test_the_command_line_prints_what_the_mcp_tool_returns(tmp_path, offline_liv
     assert main(["--db", str(database), "query", kind, *flags]) == 0
     printed = capsys.readouterr()
     on_line = json.loads(printed.out)
+    # A host's lookup that no turn led to opens with next (turn first; analysis item 19); the command line never does.
+    assert "turn(" in over_tool.pop("next") and "next" not in on_line
     assert steady(on_line) == steady(over_tool)
     assert printed.err.strip() == on_line["summary"]
     assert on_line["evidence"]["id"] != over_tool["evidence"]["id"]  # each call records its own evidence

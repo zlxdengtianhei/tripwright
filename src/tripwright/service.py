@@ -832,8 +832,12 @@ class Tripwright:
                        "second_part_title and the second part.")
         return dict(text=latest["first_text"], instruction=instruction)
 
-    async def query(self, owner: str, kind: str, arguments: dict) -> dict:
-        return self._flowed(owner, "query", await self._query_tool(owner, kind, arguments))
+    async def query(self, owner: str, kind: str, arguments: dict, *, from_host: bool = False) -> dict:
+        """`from_host`: the call came through the MCP tools, so a lookup no recent turn led to opens with `next`
+        (flow.unturned); the command line leaves it False."""
+        unturned = self.flow.unturned(owner, clock(), self._reply_language(owner)) if from_host else None
+        response = self._flowed(owner, "query", await self._query_tool(owner, kind, arguments))
+        return dict(next=unturned, **response) if unturned and isinstance(response, dict) and "next" not in response else response
 
     async def _query_tool(self, owner: str, kind: str, arguments: dict) -> dict:
         self.bound(owner)

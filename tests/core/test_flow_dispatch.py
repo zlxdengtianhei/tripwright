@@ -190,3 +190,30 @@ def test_screenshots_the_main_agent_transcribed_and_recorded_still_name_the_rese
     turn = service.turn("alice", SHOTS + "\n今晚回酒店最晚一班车几点？", "own", nature="screenshot_extraction", scenario="quick",
                         record=dict(items=[item]))
     assert "tripwright-researcher" in roles(turn["flow"]) and "tripwright-requirements" not in roles(turn["flow"])
+
+
+def test_a_host_lookup_no_turn_led_to_opens_with_turn_first(service, plan, monkeypatch):
+    """Analysis item 19 (2026-11-13): GLM on WorkBuddy asked the road question with query and never called turn, so
+    the words were not stored and no first part came. A lookup from a host (the MCP tools) that no turn led to, in a
+    new conversation or after a restart, or 30 minutes after the last turn, opens with next: turn first."""
+    seeded(service, plan, monkeypatch)
+    from tripwright.flow import Flow
+
+    service.flow = Flow()  # a restarted service: no turn seen for alice
+    cold = asyncio.run(service.query("alice", "saved", dict(text="oslo"), from_host=True))
+    assert list(cold)[0] == "next" and "turn(" in cold["next"] and "scenario='quick'" in cold["next"]
+    for view in ("current", "plan", "day"):
+        assert "next" not in service.state("alice", view=view, **(dict(date="2030-06-10") if view == "day" else {}))
+    service.turn("alice", "我在车站，最晚几点回？", "road", scenario="quick")
+    assert "next" not in asyncio.run(service.query("alice", "saved", dict(text="oslo"), from_host=True))
+    at(monkeypatch, "2030-06-10T09:45:00+02:00")
+    late = asyncio.run(service.query("alice", "saved", dict(text="oslo"), from_host=True))
+    assert list(late)[0] == "next"
+
+
+def test_the_command_line_lookup_is_not_told_to_call_turn(service, plan, monkeypatch):
+    seeded(service, plan, monkeypatch)
+    from tripwright.flow import Flow
+
+    service.flow = Flow()
+    assert "next" not in asyncio.run(service.query("alice", "saved", dict(text="oslo")))

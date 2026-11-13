@@ -45,10 +45,12 @@ WHY = {
 SHORT = {
     "zh": dict(quick="路上急问：先发 first_part，查询员在后台核，第二段先说不同。",
                plan="做计划：新要求交整理员记、连依赖，先提交它的草稿；要查的交查询员；改计划后交核对员，再提交。",
-               turn_first="先用 turn 记下用户这条消息（原话），再接着做。"),
+               turn_first="先用 turn 记下用户这条消息（原话），再接着做。",
+               unturned="这条用户消息还没经 turn：先调 turn(text=用户原话, scenario='quick')，再接着查。"),
     "en": dict(quick="On the road: send first_part now; the researcher checks in the background; the second part leads with what differs.",
                plan="Planning: the requirements role records and links new requirements, commit its draft first; lookups to the researcher; after a plan edit, the verifier, then commit.",
-               turn_first="Record the user's message with turn (their words) first, then go on."),
+               turn_first="Record the user's message with turn (their words) first, then go on.",
+               unturned="This user message has not gone through turn: call turn(text=the user's words, scenario='quick') first, then go on with the lookup."),
 }
 FULL = {
     "zh": dict(quick="路上即时问答：①turn 记下原话；②原样发 first_part；③派查询员在后台查（有截图或几件事时再派需求整理员）；"
@@ -173,6 +175,18 @@ class Flow:
         if extra:
             out["dispatch"] = extra
         return out
+
+    def unturned(self, owner: str, at: datetime, language: str) -> str | None:
+        """The `next` a host's lookup leads with when this service has seen no turn for the owner (a new conversation,
+        or the first call after a restart) or the last one is older than TURN_FIRST_AFTER (2026-11-13: a weak model on
+        WorkBuddy went straight to query on the road, so the words were not stored and no first part came). Only for
+        calls that reach the service from a host (the MCP tools): the command-line process a researcher runs has
+        never seen a turn and is not told to call one. Reading what is stored (state) needs no turn and gets none."""
+        seen = self.seen.get(owner)
+        last = seen.last_turn if seen else None
+        if last is not None and at - last <= TURN_FIRST_AFTER:
+            return None
+        return SHORT["en" if language == "en" else "zh"]["unturned"]
 
     def unrecorded(self, language: str) -> dict:
         return dict(role="tripwright-requirements", why=WHY["en" if language == "en" else "zh"]["unrecorded"])

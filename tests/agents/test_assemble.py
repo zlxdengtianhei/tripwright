@@ -179,8 +179,9 @@ def test_main_skill_stays_within_its_pre_latest_byte_budget(outputs):
     server's frame, part 2 sent once) replaced old lines without growing it past 12,171 bytes either. S4h-b raised the
     pin once: step 1's wait-for-the-tools sentence (never write about connections) is a deliberate 54-byte growth."""
     text = outputs[MAIN]
-    assert len(text.encode()) <= 12225
-    assert len((text + "y" * 12226).encode()) > 12225
+    # 2026-11-13 (analysis item 19): the turn-first rule names when state alone is enough, a deliberate 20-byte growth.
+    assert len(text.encode()) <= 12245
+    assert len((text + "y" * 12246).encode()) > 12245
 
 
 def test_a9_instructions_and_examples_are_generated_for_every_host(outputs):

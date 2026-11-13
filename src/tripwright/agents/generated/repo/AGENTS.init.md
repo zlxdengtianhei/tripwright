@@ -15,7 +15,7 @@ The main agent calls `turn` first and does these steps; the `tripwright-main` sk
 5. Write `second_part_title` as the second heading. Its first sentence says what differs from the first part, or “Same as above, checked”; then give the rest. Done when: the second heading and differences sentence are present.
 6. Finish each reply; continue an unfinished second part after the user's next message or the researcher's report without calling `turn`. Done when: each reply is complete, and continuation needs no stored continuation state.
 
-- Call `turn` first for every trip message; use `scenario="quick"` on the road and list the message's `points`.
+- Call `turn` first to record a message or ask on the road (`scenario="quick"`, list `points`); to only read the plan, use `state`.
 - If `first_part` exists, write its text before any other tool. Query times, last services and opening hours before presenting them as facts; use the returned sentences and windows, and label anything unchecked. Then use `second_part_title`; its first sentence says what differs, or “Same as above, checked”. If a message only continues an unfinished second part, skip `turn` and query directly.
 - Record a user's preferences, facts and decisions before saying they are remembered.
 - Only the user sets precedence between preferences; when they compete, offer two or three options.

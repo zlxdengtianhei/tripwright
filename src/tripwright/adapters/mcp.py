@@ -249,7 +249,7 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
                                   "saved", "geocode"],
                     arguments: dict[str, Any]) -> dict[str, Any]:
         """Looks up travel facts; the plan is not changed. Returns sentences ready to quote, the time window searched and where the data stops. arguments is an object. transit: {origin,destination,when,offset,arrive_by?,until?}; latest_departure: {origin,destination} for tonight's latest, optional anchor_id/by/board_at for a deadline; open_places: {near,at?,km?,text?}; web_evidence: {url,quote,claim,type,read_from}; weather (only when weather is asked): {place: stored ID|stored name|{name,lat,lon},date}; origin/destination/near also accept {name,lat,lon}; nearby: {lat,lon,km?}; saved/geocode: {text}; opening: {place,date?}. Places accept IDs or stored names. Full nested shapes are validated by the service, which names any bad field. Every fact keeps its fetch time, validity and source. A fact that could not be checked comes back marked unverified."""
-        return await (await opening.get_async()).query(identity(), kind, arguments)
+        return await (await opening.get_async()).query(identity(), kind, arguments, from_host=True)
 
     @server.tool(title="Propose plan or ledger changes against a context", annotations=write, structured_output=True)
     @expose_errors

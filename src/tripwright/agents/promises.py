@@ -40,7 +40,8 @@ class Promise:
 
 PROMISES = (
     Promise("turn-first", MAIN_TEXTS + (SERVER,),
-            must=(r"[Cc]all `?turn`? first for every (?:user|trip) message",)),
+            # 2026-11-13 (analysis item 19): reading what is stored needs no turn; recording and road questions do.
+            must=(r"[Cc]all `?turn`? first (?:for every (?:user|trip) message|to record a message or ask on the road)",)),
     Promise("order-only-from-user", ALL_MAIN + (SERVER,),
             must=(r"(?:order between preferences comes only from the user|Only the user sets precedence between preferences)",),
             must_not=(r"\bmore important than\b", r"\boutweighs?\b", r"by default,? prefer", r"优先于", r"更重要"),
