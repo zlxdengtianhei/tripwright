@@ -1,4 +1,4 @@
-<h1 align="center"><img src="docs/assets/logo.svg" alt="tripwright" width="317" height="64"></h1>
+<h1 align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg"><img src="docs/assets/logo.svg" alt="tripwright" width="251" height="64"></picture></h1>
 
 <p align="center">tripwright 是给 AI 助手用的开源旅行规划服务：跨对话记住行程，核查交通事实并附来源，生成可分享的网页。</p>
 
