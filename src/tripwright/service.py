@@ -292,6 +292,50 @@ def merged_plan(current: dict | None, days=None, places=None, bookings=None) -> 
     return result
 
 
+BLOCK_FIELDS = ("start", "end", "kind", "place", "options", "text", "certainty", "mode", "source", "app", "fare", "booking",
+                "note", "transfer_minutes", "walk_minutes", "baggage_holder", "equipment", "critical_facts", "origin",
+                "destination", "line")
+
+
+def merged_blocks(plan: dict, blocks) -> dict:
+    """`propose(blocks=[...])` (analysis 5.21, 2026-11-13): change or delete single blocks by ID instead of sending a
+    whole day back (WorkBuddy's client failed on propose's long arguments). Each entry is {id, the fields to set (null
+    removes one), delete?, date?, plan?}; date and plan (the option's name) only pick among blocks that share an ID.
+    The result goes through the same checks as a whole-day patch."""
+    if not isinstance(blocks, list):
+        raise ValueError("blocks must be an array")
+    result = encode_copy(plan)
+    for index, entry in enumerate(blocks):
+        where = f"blocks.{index}"
+        if not isinstance(entry, dict) or not isinstance(entry.get("id"), str) or not entry["id"]:
+            raise ValueError(f"{where}.id is required: a block ID from state(view='day')")
+        unknown = set(entry) - {"id", "delete", "date", "plan", *BLOCK_FIELDS}
+        if unknown:
+            raise ValueError(f"{where}: unknown fields {', '.join(sorted(unknown))}; a block takes {', '.join(BLOCK_FIELDS)}")
+        found = [(day, option, track, block) for day in result["days"] if entry.get("date") in (None, str(day["date"]))
+                 for option in day.get("plans", []) if entry.get("plan") in (None, option.get("name"))
+                 for track in option.get("tracks", []) for block in track.get("blocks", []) if block["id"] == entry["id"]]
+        if not found:
+            raise ValueError(f"{where}: no block {entry['id']!r}" + (f" on {entry['date']}" if entry.get("date") else "")
+                             + "; state(view='day') lists the block IDs")
+        if len(found) > 1:
+            places = ", ".join(f"{day['date']} {option.get('name')}" for day, option, _, _ in found)
+            raise ValueError(f"{where}: block {entry['id']!r} is in {len(found)} places ({places}); add date and plan to pick one")
+        _, _, track, block = found[0]
+        if entry.get("delete"):
+            if set(entry) & set(BLOCK_FIELDS):
+                raise ValueError(f"{where}: delete takes no fields to set")
+            track["blocks"].remove(block)
+            continue
+        for field in BLOCK_FIELDS:
+            if field in entry:
+                if entry[field] is None:
+                    block.pop(field, None)
+                else:
+                    block[field] = encode_copy(entry[field])
+    return result
+
+
 def checked_plan(plan) -> None:
     """A plan of the wrong shape is refused with one line per field path, what it needs and what was sent (B3f X1a),
     e.g. `plan.days.0.anchors.1.deadline must be 'external' or 'plan', got string`."""
@@ -1030,8 +1074,8 @@ class Tripwright:
         """`propose(restore_version=N)`: the user said “undo” or “change it back” (analysis 5.13, 2026-11-13). The draft is
         version N's whole plan, through the same checks as any other; the ledger is not touched, and the change log says
         it restores version N. The proactive save mode rests on this: a change saved without asking can be taken back."""
-        if any(arguments.get(name) is not None for name in ("plan", "days", "places", "bookings")):
-            raise ValueError("restore_version takes that version's whole plan; send no plan, days, places or bookings with it")
+        if any(arguments.get(name) is not None for name in ("plan", "days", "places", "bookings", "blocks")):
+            raise ValueError("restore_version takes that version's whole plan; send no plan, days, places, bookings or blocks with it")
         if isinstance(number, bool) or not isinstance(number, int):
             raise ValueError(f"restore_version is a version number, got {number!r}")
         old = next((version for version in self.store.all("versions", owner) if version["number"] == number), None)
@@ -1074,7 +1118,7 @@ class Tripwright:
         no plan check, as a turn's record needs none. When they cannot be committed alone, they stay in the draft."""
         changes = arguments.get("changes") or {}
         records = {part: changes[part] for part in TURN_RECORDS if changes.get(part)}
-        if not records or all(arguments.get(part) is None for part in ("plan", "days", "places", "bookings")):
+        if not records or all(arguments.get(part) is None for part in ("plan", "days", "places", "bookings", "blocks", "restore_version")):
             return arguments, None
         key = f"{arguments.get('idempotency_key')}:requirements"
         done = next((draft for draft in self.store.all("drafts", owner) if draft.get("idempotency_key") == key), None)
@@ -1103,17 +1147,19 @@ class Tripwright:
         restored = arguments.pop("restore_version", None)
         if restored is not None:
             arguments = self._restored(owner, restored, arguments)
-        partial = [name for name in ("days", "places", "bookings") if arguments.get(name) is not None]
-        for name in ("days", "places", "bookings"):
+        partial = [name for name in ("days", "places", "bookings", "blocks") if arguments.get(name) is not None]
+        for name in ("days", "places", "bookings", "blocks"):
             if name not in partial:
                 arguments.pop(name, None)
         if partial:
             if arguments.get("plan") is not None:
-                raise ValueError("Send either the complete plan or days/places/bookings patches, not both")
+                raise ValueError("Send either the complete plan or days/places/bookings/blocks patches, not both")
             patch = {name: arguments.pop(name) for name in partial}
             current = self.versions.current(owner)["plan"]
             arguments["plan"] = merged_plan(current, days=patch.get("days") or [], places=patch.get("places") or [],
                                             bookings=patch.get("bookings") or [])
+            if "blocks" in patch:  # after the whole days, so a block of a day sent whole can still be changed
+                arguments["plan"] = merged_blocks(arguments["plan"], patch["blocks"])
         problems = []
         if arguments.get("plan") is not None:
             try:

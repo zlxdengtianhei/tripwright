@@ -60,6 +60,12 @@ ReportArgument = Annotated[dict | None, WithJsonSchema({"type": ["object", "null
     "properties": {"verdict": {"type": "string", "enum": ["passed", "conflict", "incomplete"]},
                    "unchecked": {"type": "array", "items": {"type": "string"}},
                    "conflicts": {"type": "array", "items": {"type": "string"}}}})]
+# one block changed without the whole day (analysis 5.21, 2026-11-13)
+BlocksArgument = Annotated[Any, WithJsonSchema({"type": ["array", "null"], "description": (
+    "Change or delete single blocks of the current plan by ID, instead of sending the whole day: each item is {id, the "
+    "fields to set (start, end, place, text, kind, note, ...; null removes one)} or {id, delete: true}; add date and plan "
+    "(the option's name) only when an ID is in more than one place. Block IDs come from state(view='day'). Not with plan; "
+    "applied after days."), "items": {"type": "object", "properties": {"id": {"type": "string"}, "delete": {"type": "boolean"}}}})]
 # "undo" (analysis 5.13, 2026-11-13); the propose description has no room left for it
 RestoreArgument = Annotated[int | None, WithJsonSchema({"type": ["integer", "null"], "description": (
     "When the user says undo or change it back: the version number whose whole plan becomes the draft (state(view='history') "
@@ -274,11 +280,13 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
     def propose(ctx_id: str, base_version: int | None = None, idempotency_key: str | None = None, plan: PlanArguments | None = None,
                 days: ObjectList | None = None, places: ObjectList | None = None,
                 bookings: ObjectList | None = None, changes: RecordArguments | None = None,
-                usages: UsageArguments | None = None, restore_version: RestoreArgument = None) -> dict[str, Any]:
+                usages: UsageArguments | None = None, restore_version: RestoreArgument = None,
+                blocks: BlocksArgument = None) -> dict[str, Any]:
         """Creates a draft from turn's ctx_id; nothing is saved until commit. plan is a complete trip (shape state(view='plan').plan). days (whole days by date, as state(view='day').json returns one), places and bookings (by id) patch the current plan; plan together with patches is refused. Without them the draft changes only the ledger. changes/usages are validated by the service; records keep their IDs and cite this turn's event in source.event. With usages or revisions omitted, the service records which applicable conditions/decisions were touched (filled_by=service) and sets no precedence between preferences; so is a condition left out. Names in speaker/subject resolve to trip person IDs. A choice the user did not state is recorded in changes.items with source.basis='agent_inference'. Only a user decision with must=true locks. Refused: a changed user decision without changes.revisions; a changed must, bought/booked item or hard node that this message's words do not carry; competing preferences before the user chose. Returns draft_id, checks, refusals, and the unverified facts the change brings in (ask_user when they wait for the user's answer, else tell_user)."""
         return ready().propose(identity(), ctx_id=ctx_id, base_version=base_version, idempotency_key=idempotency_key,
                                plan=plan, days=days, places=places, bookings=bookings, changes=changes, usages=usages,
-                               **({"restore_version": restore_version} if restore_version is not None else {}))
+                               **({"restore_version": restore_version} if restore_version is not None else {}),
+                               **({"blocks": blocks} if blocks is not None else {}))
 
     @server.tool(title="Commit a checked current draft", annotations=replace, structured_output=True)
     @expose_errors
