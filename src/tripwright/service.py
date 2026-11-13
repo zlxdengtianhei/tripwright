@@ -71,11 +71,37 @@ SEND_IN_ENGLISH = SEND_AND_END["en"].replace("as it is all the same", "that way 
     "as it is", "in English (translate its stored text; keep names, times and numbers as written)")
 # A plan draft that brings in unverified facts waits for the user's answer (versions.unanswered). propose says so
 # before any commit is tried, and the turn that carries the answer says what to do with the draft.
-ASK_USER = dict(zh="这次改动新带来 {n} 条没核的事实，commit 要等用户回话。先告诉用户：改动还没存、哪几条没核、各自的后果与备选，问要不要照这样存。"
+ASK_USER = dict(zh="这次改动新带来 {n} 条没核的事实，commit 要等用户回话。先告诉用户：改动还没存、哪几条没核、各自的后果与备选；"
+                   "再照 options 一问：每个选项一句后果，标出推荐的，说不回按哪个。"
                    "用户回话后先调 turn；同意就 commit(draft_id, accept_unverified=true)。",
                 en="This change brings in {n} unverified fact(s); commit waits for the user's answer. Tell the user that the change "
-                   "is not saved yet, which facts are unknown, what follows from each and the alternative, and ask whether to "
-                   "save it as it is. After the answer call turn; if the user agrees, commit(draft_id, accept_unverified=true).")
+                   "is not saved yet, which facts are unknown, what follows from each and the alternative; then ask once with "
+                   "options: one consequence per option, the recommended one marked, and what happens without an answer. After "
+                   "the answer call turn; if the user agrees, commit(draft_id, accept_unverified=true).")
+# What the user can answer to a change with unverified facts (2026-11-13: "每次询问时尽量带着可选项的结果"): at most
+# three whole options, each with its consequence, one recommended, one taken without an answer. Cautious: nothing is
+# saved without an answer, so that one keeps the plan. Proactive: the change is saved; the options are to keep or undo.
+SAVE_OPTIONS = dict(
+    zh=dict(ask=[("save", "照这样存，到时自己看一眼没核的那 {n} 条", "计划现在就更新，没核的在计划和页面上标着"),
+                 ("check_first", "我先查这几条再存", "多等一轮；查不到的仍标没核"),
+                 ("keep", "不改，保持现在的计划", "这次改动不存，计划照旧")],
+            tell=[("keep", "保留这版", "已存；没核的在计划和页面上标着"),
+                  ("undo", "撤回", "计划回到第 {base} 版")]),
+    en=dict(ask=[("save", "Save it as it is and check the {n} unverified fact(s) yourself before going", "The plan changes now; "
+                  "the unverified facts are marked in the plan and on the page"),
+                 ("check_first", "Let me look them up first, then save", "One more round; what cannot be checked stays marked"),
+                 ("keep", "Leave the plan as it is", "This change is not saved")],
+            tell=[("keep", "Keep this version", "Saved; the unverified facts are marked in the plan and on the page"),
+                  ("undo", "Undo", "The plan goes back to version {base}")]))
+
+
+def save_options(asks: bool, n: int, base: int, language: str) -> list[dict]:
+    """The options for a change with unverified facts: recommended `save` (cautious) or `keep` (proactive); taken
+    without an answer: `keep` in both, which in the cautious mode means nothing is saved."""
+    rows = SAVE_OPTIONS["en" if language == "en" else "zh"]["ask" if asks else "tell"]
+    recommended = "save" if asks else "keep"
+    return [dict(id=key, say=say.format(n=n), then=then.format(base=base), **({"recommended": True} if key == recommended else {}),
+                 **({"if_no_answer": True} if key == "keep" else {})) for key, say, then in rows]
 # In the proactive save mode (the user's save_mode setting, or TRIPWRIGHT_SAVE_UNVERIFIED=agent) nothing waits for the
 # user: propose names the same facts as tell_user, and the answer says how to get the previous version back.
 TELL_USER = dict(zh="这次改动新带来 {n} 条没核的事实；用户选的是主动模式，不等回话：commit(draft_id, accept_unverified=true) 存下，"
@@ -1055,9 +1081,11 @@ class Tripwright:
         asks = self.asks_first(owner)
         ask = self.versions.unanswered(owner, draft.get("ask") or [])[0] if asks else draft.get("ask") or []
         words = ASK_WITH_REFUSAL if draft["status"] != "proposed" else ASK_USER if asks else TELL_USER
+        language = "en" if self._reply_language(owner) == "en" else "zh"
         asking = {"ask_user" if asks else "tell_user": dict(
             unverified=[{key: check[key] for key in ("id", "text", "details", "consequence", "alternative")} for check in ask],
-            how=words["en" if self._reply_language(owner) == "en" else "zh"].format(n=len(ask)))} if ask else {}
+            how=words[language].format(n=len(ask)),
+            **({} if words is ASK_WITH_REFUSAL else dict(options=save_options(asks, len(ask), draft["base_version"], language))))} if ask else {}
         return dict(draft_id=draft["id"], base_version=draft["base_version"], status=draft["status"], **asking,
                     checks=draft["checks"], job_id=draft["job_id"], usages=draft["usages"], snapshot=draft["snapshot"],
                     **(dict(lock_changes=locks) if locks else {}), changelog=draft.get("changelog", []),

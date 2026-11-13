@@ -55,15 +55,17 @@ FULL = {
                      "④第二段标题照给的写，先说和第一段的不同；⑤不派核对员。flow.dispatch 点了谁就派谁；不能派子代理时自己依次照它的步骤做。",
                plan="做计划：①turn 只带原话（不带 record）；②派需求整理员记进账本、连依赖（depends_on 等）、列要问的，先提交它交回的只改账本的草稿；"
                     "③先 query(kind='saved') 用存的资料，缺的派查询员查；④propose（同一个 ctx_id 与 base_version）；⑤草稿改了计划就派核对员核，"
-                    "通过才 commit；propose 返回 ask_user（新带来的没核事实）时先问用户，等回话再 commit；⑥回答里说改了什么、为什么。flow.dispatch 点了谁就派谁；不能派子代理时自己依次照它的步骤做。"),
+                    "通过才 commit；propose 返回 ask_user（谨慎模式，新带来的没核事实）时照它的 options 问用户（每个一句后果、标推荐、说不回按哪个），等回话再 commit；返回 tell_user（主动模式）就存，回答里说哪条没核、怎样撤回；⑥回答里说改了什么、为什么。flow.dispatch 点了谁就派谁；不能派子代理时自己依次照它的步骤做。"),
     "en": dict(quick="On the road: (1) record the words with turn; (2) send first_part as given; (3) dispatch the researcher in the background "
                      "(the requirements role too when there are screenshots or several things); (4) write the given second heading and lead with "
                      "what differs; (5) no verifier. Dispatch whom flow.dispatch names; without subagents, follow that role's steps yourself.",
                plan="Planning: (1) turn with the words only (no record); (2) dispatch the requirements role to record, link (depends_on and "
                     "relations) and list questions, and commit the ledger-only draft it returns first; (3) use query(kind='saved') first and "
                     "dispatch the researcher for what is missing; (4) propose (same ctx_id and base_version); (5) when the draft changes the "
-                    "plan, dispatch the verifier and commit only after it passes; when propose returns ask_user (unverified facts the "
-                    "change brings in), ask the user and commit after the answer; (6) say what changed and why. Dispatch whom flow.dispatch "
+                    "plan, dispatch the verifier and commit only after it passes; when propose returns ask_user (cautious mode, unverified facts "
+                    "the change brings in), ask with its options (one consequence each, the recommended one marked, what happens "
+                    "without an answer) and commit after the answer; on tell_user (proactive mode) commit and say what is "
+                    "unverified and how to undo; (6) say what changed and why. Dispatch whom flow.dispatch "
                     "names; without subagents, follow that role's steps yourself."),
 }
 

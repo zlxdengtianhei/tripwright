@@ -436,3 +436,40 @@ def test_the_commit_tool_follows_the_users_mode(trip):
     assert "tell_user" in draft
     version = call(server, "commit", draft_id=draft["draft_id"], idempotency_key="tool", accept_unverified=True)
     assert version["number"] == 2
+
+
+# --- asking with options (2026-11-13: "每次询问时尽量带着可选项的结果") ---------------------------------------------
+
+def test_ask_user_carries_whole_options_with_consequences_a_recommendation_and_a_no_answer_default(trip):
+    _, draft = moved(trip)
+    options = draft["ask_user"]["options"]
+    assert [option["id"] for option in options] == ["save", "check_first", "keep"] and len(options) <= 3
+    assert all(option["say"] and option["then"] for option in options)
+    assert [option["id"] for option in options if option.get("recommended")] == ["save"]
+    assert [option["id"] for option in options if option.get("if_no_answer")] == ["keep"]  # nothing saved without an answer
+    assert "1 条" in options[0]["say"] and "照 options 一问" in draft["ask_user"]["how"]
+    # the facts keep their own consequence and alternative
+    assert draft["ask_user"]["unverified"][0]["consequence"] and draft["ask_user"]["unverified"][0]["alternative"]
+
+
+def test_tell_user_offers_keep_or_undo_to_the_previous_version(trip):
+    mode_said(trip, "proactive", "以后直接改，不用问我。", "mode")
+    _, draft = moved(trip)
+    options = draft["tell_user"]["options"]
+    assert [option["id"] for option in options] == ["keep", "undo"]
+    assert options[0].get("recommended") and options[0].get("if_no_answer")
+    assert "第 1 版" in options[1]["then"]
+
+
+def test_options_follow_an_english_conversation(trip):
+    turn = trip.turn("alice", "Move dinner on June 10 from 17:00 to 19:00.", "move-en", scenario="replan")
+    draft = trip.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"],
+                         days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))], idempotency_key="move-en")
+    asked = draft["ask_user"]
+    assert asked["options"][2]["say"] == "Leave the plan as it is" and "options" in asked["how"]
+
+
+def test_a_refused_draft_asks_about_the_conflict_and_carries_no_save_options(trip):
+    """A refused draft cannot be saved as it is, so "save it as it is" is no option there."""
+    import tripwright.service as module
+    assert "options" not in module.ASK_WITH_REFUSAL["zh"]

@@ -7,7 +7,7 @@ Read this from `SKILL.md` when the user's own preferences compete, before `propo
 
 The order between preferences comes only from the user's words. The pack's `orders` is `user` (follow it and quote its source) or `none`. Without a user order, two of the user's own preferences that compete, openly or hidden (cheap against relaxed, time against money), are never traded off against each other:
 - Compare over the whole day: three 10-minute walks that save €4 each are 30 minutes for €12.
-- Give 2–3 complete, feasible options. The first is the baseline; the others state their difference in numbers.
+- Give 2–3 complete, feasible options. The first is the baseline; the others state their difference in numbers. Each option says in one line what follows from it; mark the one you recommend.
 - Recommend only for a factual reason (weather, last-bus risk, a closure, what the user said about their body). Mark an option “默认” only when a stored user decision already chose it, and name that decision; “默认”, not “推荐”.
 - The user's choice is a decision for that day and matter; record a general order only when the user states one.
 
