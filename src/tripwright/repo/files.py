@@ -212,8 +212,12 @@ def check(repository, *, rev: str = "HEAD", language: str = "zh") -> dict:
     zone = max(versions, key=lambda version: version["number"])["plan"]["timezone"] if versions and versions[-1].get("plan") else generation["config"].get("timezone")
     expected = generated(generation["tables"], repository.owner, trip=trip, snapshot=snapshot,
                          notices=notices_from(info["trailers"]), others=others, language=language, zone=zone)
+    # `tripwright init` writes no front screen: the first write generates it. Until the tool has written anything, a
+    # generated file that is missing is not a difference (2026-11-12: a fresh repository's check said "README.md
+    # differs", which read as a broken install).
+    untouched = not any(generation["tables"].values())
     for path, text in sorted(expected.items()):
-        if files.get(path) != text:
+        if files.get(path) != text and not (untouched and path not in files):
             problems.append(f"{path}: differs from what the tool generates for this commit")
     for path, data in sorted(user_repo_files().items()):
         if files.get(path, "").encode() != data:

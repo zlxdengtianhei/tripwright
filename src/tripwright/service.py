@@ -904,6 +904,7 @@ class Tripwright:
             return await solve_day(payload["day"], provider=self.query_router.transit, timeout=payload["timeout"])
 
     def propose(self, owner: str, **arguments) -> dict:
+        arguments = self._this_message(owner, arguments)
         arguments, first = self._requirements_first(owner, arguments)
         response = self._propose_tool(owner, **arguments)
         if first:
@@ -926,6 +927,27 @@ class Tripwright:
             # back, the request lives only in the raw message. Name the requirements role before anything else.
             named = [self.flow.unrecorded(self._reply_language(owner), ids), *named]
         return self._flowed(owner, "propose", response, named)
+
+    def _this_message(self, owner: str, arguments: dict) -> dict:
+        """`source.event: "this"` in propose's changes is the message of its `ctx_id`, as it is in turn's record
+        (2026-11-12 runs: 7 of 12 first proposals sent "this" and were refused). Any other value is left to the checks."""
+        changes, ctx_id = arguments.get("changes"), arguments.get("ctx_id")
+        if not isinstance(changes, dict) or not ctx_id:
+            return arguments
+        named = [entry for part in changes.values() if isinstance(part, list) for entry in part
+                 if isinstance(entry, dict) and isinstance(entry.get("source"), dict) and entry["source"].get("event") == "this"]
+        if not named:
+            return arguments
+        try:
+            event_id = self.store.get("contexts", owner, ctx_id)["source_event"]
+        except ValueError:
+            return arguments  # an unknown ctx_id is refused by propose itself
+        changes = encode_copy(changes)
+        for part in changes.values():
+            for entry in part if isinstance(part, list) else []:
+                if isinstance(entry, dict) and isinstance(entry.get("source"), dict) and entry["source"].get("event") == "this":
+                    entry["source"]["event"] = event_id
+        return dict(arguments, changes=changes)
 
     def _message_recorded(self, owner: str, event_id: str) -> bool:
         return any((record.get("source") or {}).get("event") == event_id

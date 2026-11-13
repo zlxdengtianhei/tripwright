@@ -518,8 +518,8 @@ class Ledger:
         try:
             return self.store.get("events", owner, event_id)
         except ValueError:
-            raise ValueError(f"Unknown message {event_id!r}: source.event is the event_id that turn returned for the message; "
-                             '"this" works only in turn\'s record') from None
+            raise ValueError(f"Unknown message {event_id!r}: source.event is the event_id that turn returned for the message, "
+                             'or "this" for the message of the ctx_id it is sent with') from None
 
     def _source(self, owner: str, source: Source, quote: str | None = None) -> Source:
         event = self._message(owner, source.event)
