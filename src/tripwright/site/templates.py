@@ -369,31 +369,36 @@ SHARE_BASE = """<!doctype html>
 <script>(function(){try{var q=new URLSearchParams(location.search).get("lang"),l=q||localStorage.getItem("tw-lang");if(l==="zh"||l==="en"){document.documentElement.dataset.language=l;document.documentElement.lang=l==="zh"?"zh-CN":"en"}}catch(e){}})()</script>
 <style>{{ style|safe }}</style>
 </head>
-<body data-zone="{{ zone }}">
+<body data-zone="{{ zone }}" data-theme="{{ theme }}">
 <header class="top">
-<div class="bar">
+<div class="bar wrap">
 <a class="brand" href="index.html" data-lang-link>{{ t(trip_title) }}</a>
 <div class="lang" role="group" aria-label="Language / 语言"><button type="button" data-lang-button="en">EN</button><button type="button" data-lang-button="zh">中文</button></div>
 </div>
 <nav class="days" aria-label="Days">
 <a href="index.html" data-lang-link{% if current == 'index' %} aria-current="page"{% endif %}>{{ label('首页','Home') }}</a>
 {% if log %}<a href="log.html" data-lang-link{% if current == 'log' %} aria-current="page"{% endif %}>{{ label('实录','Trip log') }}</a>{% endif %}
-{% for item in days %}<a href="{{ item.date }}.html" data-lang-link{% if current == item.date %} aria-current="page"{% endif %}>{{ item.chip }}</a>
+{% for item in days %}<a href="{{ item.date }}.html" data-lang-link{% if current == item.date %} aria-current="page"><svg class="here" width="12" height="17" viewBox="-12 -35 24 37" aria-hidden="true"><path d="M0,0 C-4,-8 -12,-12 -12,-22 A12,12 0 1 1 12,-22 C12,-12 4,-8 0,0Z"/></svg>{% else %}>{% endif %}{{ item.chip }}</a>
 {% endfor %}
 </nav>
 </header>
-<main>
+<main class="wrap">
 {% block main %}{% endblock %}
 </main>
-<footer>{{ label('分享给朋友看的行程概览：人名用代号，住处只写城区。时刻与安排以出行当天为准。','A shared overview of the plan: people appear as codes and places to stay only by district. Times and plans may still change.') }}{% if untranslated %}<br>{{ label('部分内容只有中文。','Some texts are in Chinese only.') }}{% endif %}<br>{{ label('更新于','Updated') }} {{ updated }}</footer>
+<footer class="wrap">{{ label('分享给朋友看的行程概览：人名用代号，住处只写城区。时刻与安排以出行当天为准。','A shared overview of the plan: people appear as codes and places to stay only by district. Times and plans may still change.') }}{% if untranslated %}<br>{{ label('部分内容只有中文。','Some texts are in Chinese only.') }}{% endif %}<br>{{ label('更新于','Updated') }} {{ updated }}</footer>
 <script>{{ script|safe }}</script>
 </body>
 </html>"""
 
-SHARE_MAP = """{% macro map(data, name) %}{% if data %}<div class="map" data-src="{{ name }}"><p class="note"><span class="en">Map loading… the Map links below work without it.</span><span class="zh">地图加载中……不加载也能用下面的“地图”链接。</span></p></div>
-<script type="application/json" id="{{ name }}">{{ data|safe }}</script>{% endif %}{% endmacro %}"""
+SHARE_FIGURE = """{% macro figure(fig, name) %}{% if fig %}<figure class="plate" data-map="{{ name }}">
+{{ fig.svg }}
+<div class="livemap" hidden></div>
+{% if fig.legend %}<ul class="key"><li><span class="pin mini fixed"></span>{{ label('要准时','Fixed time') }}</li><li><span class="pin mini visit"></span>{{ label('时间可挪','Time can shift') }}</li><li><span class="pin mini opt"></span>{{ label('几选一','One of several') }}</li></ul>{% endif %}
+<figcaption class="note">{% if fig.square %}<span class="sketch-note">{{ label('位置示意：按经纬度摆放，没有底图；网格每格 ' ~ fig.square ~ '。','Position sketch from coordinates, no base map; grid squares are ' ~ fig.square ~ '.') }}</span>{% else %}<span class="sketch-note">{{ label('没有坐标：钉只按先后排，不表示位置。','No coordinates: the pins stand in order only, not where they are.') }}</span>{% endif %}{% if fig.missing %} {{ label(fig.missing ~ ' 处没有坐标，没画在图上。', fig.missing ~ (' place has no coordinates and is not drawn.' if fig.missing == 1 else ' places have no coordinates and are not drawn.')) }}{% endif %} <span class="live-note" hidden>{{ label('地图底图：OpenStreetMap。钉的号同清单。','Base map: OpenStreetMap. Pin numbers as in the lists.') }}</span></figcaption>
+</figure>
+{% if fig.live %}<script type="application/json" id="{{ name }}">{{ fig.json|safe }}</script>{% endif %}{% endif %}{% endmacro %}"""
 
-SHARE_INDEX = """{% extends 'base' %}{% import 'map' as m %}{% block main %}
+SHARE_INDEX = """{% extends 'base' %}{% import 'figure' as f with context %}{% block main %}
 <section class="hero">
 <p class="kicker">{{ t(kicker) }}</p>
 <h1>{{ t(trip_title) }}</h1>
@@ -401,16 +406,25 @@ SHARE_INDEX = """{% extends 'base' %}{% import 'map' as m %}{% block main %}
 {% if travelers %}<p class="muted small">{{ label('同行','Travelling') }}: {{ t(travelers) }}</p>{% endif %}
 <p class="btnrow"><a class="btn primary" href="#days">{{ label('看每一天','See the days') }}</a><a class="btn" href="{{ days[0].date }}.html" data-lang-link>{{ label('从第 1 天开始 →','Start with day 1 →') }}</a>{% if log %}<a class="btn" href="log.html" data-lang-link>{{ label('路上的实录 →','Trip log →') }}</a>{% endif %}</p>
 </section>
+{% if route|length > 1 or figure %}
+<div class="spread{% if figure %} with-figure{% endif %}">
 {% if route|length > 1 %}
+<section class="blk">
 <h2 id="route">{{ label('路线','The route') }}</h2>
 <ol class="route">
-{% for stop in route %}<li class="stop">{% if stop.href %}<a href="{{ stop.href }}" data-lang-link>{% else %}<div>{% endif %}<b>{{ t(stop.name) }}</b>{% if stop.note %}<span>{{ t(stop.note) }}</span>{% endif %}{% if stop.href %}</a>{% else %}</div>{% endif %}</li>
+{% for stop in route %}<li class="stop"><span class="pin visit">{{ stop.pin }}</span>{% if stop.href %}<a href="{{ stop.href }}" data-lang-link>{% else %}<div>{% endif %}<b>{{ t(stop.name) }}</b>{% if stop.note %}<span class="note">{{ t(stop.note) }}</span>{% endif %}{% if stop.href %}</a>{% else %}</div>{% endif %}</li>
 {% if stop.leg %}<li class="leg">{{ t(stop.leg) }}</li>{% endif %}
 {% endfor %}
 </ol>
+</section>
 {% endif %}
-{{ m.map(map_json, 'map-all') }}
-{% if map_json %}<p class="muted small">{{ label('圆点是这趟去过的城市；虚线只表示先后，不是真实路线。点一下圆点打开那天。','Dots are the cities of the trip; the dashed line shows only the order, not the real route. Tap a dot to open its day.') }}</p>{% endif %}
+{% if figure %}<div class="figcol">
+{{ f.figure(figure, 'map-all') }}
+<p class="muted small">{{ label('钉上的号是路线的次序；虚线只表示先后，不是真实路线。点一下钉打开那天。','The numbers on the pins are the order of the route; the dashed line shows only the order, not the real route. Tap a pin to open its day.') }}</p>
+</div>{% endif %}
+</div>
+{% endif %}
+<section class="blk">
 <h2 id="days">{{ label('每天','Day by day') }}</h2>
 <p class="muted small">{{ label('点一行看那天的完整安排。','Each row opens the plan for that day.') }}</p>
 <ol class="rows">
@@ -418,6 +432,7 @@ SHARE_INDEX = """{% extends 'base' %}{% import 'map' as m %}{% block main %}
 <li><a href="{{ day.date }}.html" data-lang-link><span class="dd"><b>{{ t(day.label) }}</b>{{ t(day.short) }}</span><span class="dt">{% if day.head %}<b>{{ t(day.head) }}</b> · {{ t(day.rest) }}{% else %}{{ t(day.title) }}{% endif %}</span>{% if day.stay %}<span class="ds">{{ label('住处','Stay') }}: {{ t(day.stay) }}</span>{% endif %}</a></li>
 {% endfor %}
 </ol>
+</section>
 {% endblock %}"""
 
 SHARE_LOG = """{% extends 'base' %}{% block main %}
@@ -456,51 +471,51 @@ SHARE_LOG = """{% extends 'base' %}{% block main %}
 {% endfor %}
 {% endblock %}"""
 
-SHARE_DAY = """{% extends 'base' %}{% import 'map' as m %}
-{% macro place(item, named=true) %}{% if item.stay %}<span class="pl">{{ t(item.stay) }}</span>{% else %}<span class="pl">{% if named %}<b>{% if item.name %}{{ t(item.name) }}{% else %}{{ item.local }}{% endif %}</b>{% if item.name %}<small>{{ item.local }}</small>{% endif %}{% else %}<small>{{ item.local }}</small>{% endif %} <a class="gmap" href="{{ item.map_url }}" target="_blank" rel="noopener noreferrer">{{ label('地图','Map') }} ↗</a></span>{% endif %}{% endmacro %}
+SHARE_DAY = """{% extends 'base' %}{% import 'figure' as f with context %}
+{% macro pin(p, mini=false) %}{% if p %}<span class="pin {{ p.shape }}{% if mini %} mini{% endif %}">{{ p.label }}</span>{% endif %}{% endmacro %}
+{% macro place(item, named=true) %}{% if item.stay %}<span class="pl">{{ t(item.stay) }}</span>{% else %}<span class="pl">{% if named and item.pin %}{{ pin(item.pin) }}{% endif %}<span class="pb">{% if named %}<b>{% if item.name %}{{ t(item.name) }}{% else %}{{ item.local }}{% endif %}</b>{% if item.name %}<small>{{ item.local }}</small>{% endif %}{% else %}<small>{{ item.local }}</small>{% endif %} <a class="gmap" href="{{ item.map_url }}" target="_blank" rel="noopener noreferrer">{{ label('地图','Map') }} ↗</a></span></span>{% endif %}{% endmacro %}
 {% block main %}
 <p class="crumb"><a href="index.html" data-lang-link>← {{ label('总览','Overview') }}</a></p>
 <p class="kicker">{{ t(day.label) }} · {{ t(day.short) }}</p>
-<h1>{{ t(day.title) }}</h1>
+<h1 class="daytitle">{{ t(day.title, day.marks) }}</h1>
 <p class="meta">{% if day.sunset %}{{ label('日落','Sunset') }} {{ day.sunset }}{% endif %}{% if day.stay %}{% if day.sunset %} · {% endif %}{{ label('住处','Stay') }}: {{ t(day.stay) }}{% endif %}</p>
-{% if day.anchors or day.stops %}
-<section class="glance{% if day.anchors and day.stops %} two{% endif %}">
+<div class="day{% if day.figure %} with-figure{% endif %}">
 {% if day.anchors %}
-<div>
+<section class="blk keytimes">
 <h2>{{ label('关键时刻','Key times') }}</h2>
 <ul class="glist anchors">
-{% for anchor in day.anchors %}<li data-at="{{ anchor.at }}" data-date="{{ day.date }}"><span class="t">{{ anchor.time }}</span><span class="tx">{{ t(anchor.text) }}<span class="tag">{{ label('已过','Past') }}</span></span></li>
+{% for anchor in day.anchors %}<li data-at="{{ anchor.at }}" data-date="{{ day.date }}"><span class="t">{{ anchor.time }}</span><span class="tx">{{ t(anchor.text, day.marks) }}<span class="tag">{{ label('已过','Past') }}</span></span></li>
 {% endfor %}
 </ul>
-</div>
+{% if day.changed %}<p class="revkey"><del>{{ label('划掉的','Struck out') }}</del> {{ label('是原来的安排，','was the plan before; ') }}<ins>{{ label('加底色的','highlighted') }}</ins> {{ label('是改后的。','is what replaced it.') }}</p>{% endif %}
+</section>
 {% endif %}
+{% if day.figure %}<div class="figcol">{{ f.figure(day.figure, 'map-day') }}</div>{% endif %}
+<div class="listcol">
 {% if day.stops %}
-<div>
+<section class="blk">
 <h2>{{ label('要去的地方','Places to go') }}</h2>
 <ul class="glist stops">
-{% for stop in day.stops %}<li class="{{ stop.kind }}"><span class="t">{{ stop.start }}{% if stop.end %}<i>–{{ stop.end }}</i>{% endif %}</span><span class="tx">{% for item in stop.spots %}{% if not loop.first %}<span class="or">{{ label('或 ','or ') }}</span>{% endif %}{{ place(item) }}{% endfor %}{% if stop.who %}<span class="who">{{ t(stop.who) }}</span>{% endif %}</span></li>
+{% for stop in day.stops %}<li class="{{ stop.kind }} {{ stop.certainty }}"><span class="t">{{ stop.start }}{% if stop.end %}<i>–{{ stop.end }}</i>{% endif %}</span><span class="tx">{% for item in stop.spots %}{% if not loop.first %}<span class="or">{{ label('或 ','or ') }}</span>{% endif %}{{ place(item) }}{% endfor %}{% if stop.who %}<span class="who">{{ t(stop.who) }}</span>{% endif %}</span></li>
 {% endfor %}
 </ul>
-</div>
-{% endif %}
 </section>
 {% endif %}
 {% if day.legs %}
-<section class="card">
+<section class="blk">
 <h2>{{ label('怎么走','Getting around') }}</h2>
 <ul class="glist legs">
-{% for leg in day.legs %}<li class="{{ leg.certainty }}"><span class="t">{{ leg.start }}{% if leg.end %}<i>–{{ leg.end }}</i>{% endif %}</span><span class="tx"><b>{{ t(leg.title) }}</b>{% if leg.who %}<span class="who">{{ t(leg.who) }}</span>{% endif %}{% if leg.how %}<span class="how">{{ t(leg.how) }}</span>{% endif %}{% if leg.note %}<span class="how">{{ t(leg.note) }}</span>{% endif %}</span></li>
+{% for leg in day.legs %}<li class="{{ leg.certainty }}"><span class="t">{{ leg.start }}{% if leg.end %}<i>–{{ leg.end }}</i>{% endif %}</span><span class="tx">{% if leg.ends and (leg.ends[0] or leg.ends[1]) %}<span class="seg">{{ pin(leg.ends[0], true) }}<i></i>{{ pin(leg.ends[1], true) }}</span>{% endif %}<b>{{ t(leg.title, day.marks) }}</b>{% if leg.who %}<span class="who">{{ t(leg.who) }}</span>{% endif %}{% if leg.how %}<span class="how">{{ t(leg.how, day.marks) }}</span>{% endif %}{% if leg.note %}<span class="how">{{ t(leg.note, day.marks) }}</span>{% endif %}</span></li>
 {% endfor %}
 </ul>
 <p class="muted small"><span class="legs-key">●</span> {{ label('定时：时刻表上的车或已订好的。','fixed: on a timetable or booked.') }}</p>
 </section>
 {% endif %}
-{{ m.map(day.map_json, 'map-day') }}
 {% if day.notes or day.rain %}
 <details class="fold"><summary><h2>{{ label('说明与下雨怎么办','Notes and rain') }}</h2></summary>
 <div class="in">
-{% if day.notes %}<p>{{ t(day.notes) }}</p>{% endif %}
-{% if day.rain %}<p><b>{{ label('下雨的话：','If it rains: ') }}</b>{{ t(day.rain) }}</p>{% endif %}
+{% if day.notes %}<p>{{ t(day.notes, day.marks) }}</p>{% endif %}
+{% if day.rain %}<p><b>{{ label('下雨的话：','If it rains: ') }}</b>{{ t(day.rain, day.marks) }}</p>{% endif %}
 </div>
 </details>
 {% endif %}
@@ -508,8 +523,8 @@ SHARE_DAY = """{% extends 'base' %}{% import 'map' as m %}
 <details class="fold"><summary><h2>{{ label('这天的完整时间轴','The whole day, hour by hour') }}</h2></summary>
 <div class="in">
 {% for plan in day.plans %}
-<p class="plan">{% if day.plans|length > 1 %}{% if loop.first %}{{ label('主方案：','Main plan: ') }}{% else %}{{ label('另一套：','Alternative: ') }}{% endif %}{% endif %}{{ t(plan.name) }}</p>
-{% if plan.note %}<p class="muted">{{ t(plan.note) }}</p>{% endif %}
+<p class="plan">{% if day.plans|length > 1 %}{% if loop.first %}{{ label('主方案：','Main plan: ') }}{% else %}{{ label('另一套：','Alternative: ') }}{% endif %}{% endif %}{{ t(plan.name, day.marks) }}</p>
+{% if plan.note %}<p class="muted">{{ t(plan.note, day.marks) }}</p>{% endif %}
 {% for track in plan.tracks %}
 <div class="track">
 {% if plan.tracks|length > 1 %}<h3>{{ t(track.who) }}</h3>{% endif %}
@@ -517,10 +532,10 @@ SHARE_DAY = """{% extends 'base' %}{% import 'map' as m %}
 {% for block in track.blocks %}
 <li class="{{ block.key }} {{ block.certainty }}">
 <span class="time">{{ block.start }}{% if block.end and block.end != block.start %}–{{ block.end }}{% endif %}</span><span class="what">{{ t(block.kind) }}</span>
-<h4>{{ t(block.title) }}</h4>
-{% if block.text %}<p>{{ t(block.text) }}</p>{% endif %}
-{% if block.how %}<p class="how">{{ t(block.how) }}</p>{% endif %}
-{% if block.note %}<p>{{ t(block.note) }}</p>{% endif %}
+<h4>{{ t(block.title, day.marks) }}</h4>
+{% if block.text %}<p>{{ t(block.text, day.marks) }}</p>{% endif %}
+{% if block.how %}<p class="how">{{ t(block.how, day.marks) }}</p>{% endif %}
+{% if block.note %}<p>{{ t(block.note, day.marks) }}</p>{% endif %}
 {% if block.place and not block.place.stay %}<p>{{ place(block.place, false) }}</p>{% endif %}
 {% if block.options %}<p class="muted small">{{ label('可选：','Options: ') }}</p>{% for item in block.options %}<p>{{ place(item) }}</p>{% endfor %}{% endif %}
 </li>
@@ -537,6 +552,8 @@ SHARE_DAY = """{% extends 'base' %}{% import 'map' as m %}
 </div>
 </details>
 {% endif %}
+</div>
+</div>
 <nav class="daynavs">
 {% if previous %}<a href="{{ previous.date }}.html" data-lang-link>← {{ t(previous.short) }}</a>{% endif %}
 {% if following %}<a class="next" href="{{ following.date }}.html" data-lang-link>{{ t(following.short) }} →</a>{% endif %}
