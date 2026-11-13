@@ -1,7 +1,7 @@
 """The share page of an example file: `python -m tripwright.site.example examples/<file>.yaml <out-folder>`.
 
 An example file holds `trip` (the Trip shape, Chinese as the original text), `english` (each Chinese text → its English)
-and optionally `share` (the home page's `intro` and `route`; see `share.render_pages`). It is built the same way as a
+and optionally `share` (the home page's `intro` and `route`, and `changes`, what really changed; see `share.render_pages`). It is built the same way as a
 trip repository's page, privacy scan included, but nothing is read from or written to a repository."""
 from __future__ import annotations
 

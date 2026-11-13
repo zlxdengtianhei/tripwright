@@ -1,7 +1,8 @@
 """The page friends read: the committed plan as a static site with the private parts rewritten (D-83).
 
-A home page (intro, route, map, one row per day) and one page per day: key times, places to go with a map link each,
-how to get around, then the details folded. Decisions, memory, messages, evidence, fares and bookings are never read
+A home page (intro, route, map, one row per day) and one page per day: key times, a figure, places to go with a map
+link each, how to get around, then the details folded. The places to go carry numbered pins, the same on the figure
+(`figure`); the look is a scheme (`theme`). Decisions, memory, messages, evidence, fares and bookings are never read
 into it. Rewrites, from the trip's own records:
 - every person in `profile/people.yaml` and the plan's `people` becomes a code (Traveler A / 旅伴 A), the user too;
 - a place to stay loses its name, address and coordinates: "a hostel in 1100 Wien" / "1100 Wien 的青旅"; the way in
@@ -31,9 +32,10 @@ from urllib.parse import quote
 from jinja2 import DictLoader, Environment, select_autoescape
 from markupsafe import Markup, escape
 
-from .assets import SHARE_SCRIPT, SHARE_STYLE
+from . import figure as fig, theme as themes
+from .assets import SHARE_SCRIPT
 from .privacy import POLICY_WORD, Policy, PrivacyError, STAY_WORDS, flight_numbers, phone_digits, phone_numbers, redact, scan_text, stay_text, swap_words
-from .templates import SHARE_BASE, SHARE_DAY, SHARE_INDEX, SHARE_LOG, SHARE_MAP
+from .templates import SHARE_BASE, SHARE_DAY, SHARE_FIGURE, SHARE_INDEX, SHARE_LOG
 
 MARKER = ".tripwright-share"
 CJK = re.compile(r"[　-〿㐀-鿿＀-￯]")
@@ -263,6 +265,7 @@ def _view(plan: dict, words: Words, extras: dict | None = None) -> dict:
     places = {place["id"]: place for place in plan.get("places", [])}
     everyone = {person.get("id") or person.get("name") for person in plan.get("people", [])}
     zone = ZoneInfo(plan.get("timezone") or "UTC")
+    marks = _changes(extras.get("changes"))
 
     def who(subject) -> Text:
         if everyone and set(subject or []) >= everyone:
@@ -342,9 +345,9 @@ def _view(plan: dict, words: Words, extras: dict | None = None) -> dict:
             flags.append((touching, arriving))
         return flags
 
-    def glance(main: dict) -> tuple[list[dict], list[dict], list[dict]]:
-        """From the day's main plan: the places to go and the legs, in time order, and the public points for a map."""
-        stops, legs, seen, points = [], [], set(), {}
+    def glance(main: dict) -> tuple[list[dict], list[dict]]:
+        """From the day's main plan: the places to go and the legs, in time order."""
+        stops, legs, seen = [], [], set()
         many = len(main["tracks"]) > 1
         for track in main["tracks"]:
             label = track["who"] if many and not track["everyone"] else None
@@ -359,13 +362,31 @@ def _view(plan: dict, words: Words, extras: dict | None = None) -> dict:
                 signature = (block["start"], block["end"], tuple(item["id"] for item in items))
                 if items and signature not in seen:
                     seen.add(signature)
-                    stops.append(dict(start=block["start"], end=block["end"], kind=block["key"], spots=items, who=label))
-                for item in items:
-                    if item["coords"]:
-                        points.setdefault(item["id"], dict(lat=item["coords"][0], lon=item["coords"][1], href=item["map_url"], external=True,
-                                                           zh=(item["name"].zh if item["name"] else item["local"]),
-                                                           en=(item["name"].en if item["name"] else item["local"])))
-        return sorted(stops, key=lambda row: row["start"] or ""), sorted(legs, key=lambda row: row["start"] or ""), list(points.values())
+                    stops.append(dict(start=block["start"], end=block["end"], kind=block["key"], certainty=block["certainty"],
+                                      spots=items, who=label))
+        return sorted(stops, key=lambda row: row["start"] or ""), sorted(legs, key=lambda row: row["start"] or "")
+
+    def pinned(stops: list[dict], legs: list[dict]) -> dict | None:
+        """Number the places to go (the same numbers on the map and in the lists), mark the two ends of each leg, and
+        draw the day's figure."""
+        if not stops:
+            return None
+        labels = fig.number_stops(stops)
+        pins, path, branches, last = [], [], [], None
+        for stop, numbers in zip(stops, labels):
+            stop["spots"] = [dict(item, pin=dict(label=label, shape=form)) for item, (label, form) in zip(stop["spots"], numbers)]
+            for item, (label, form) in zip(stop["spots"], numbers):
+                coords = item["coords"] or [None, None]
+                pins.append(fig.Pin(label=label, shape=form, lat=coords[0], lon=coords[1], href=item["map_url"],
+                                    names=(item["name"].zh if item["name"] else item["local"], item["name"].en if item["name"] else item["local"])))
+            if len(numbers) == 1:
+                path.append(numbers[0][0])
+                last = numbers[0][0]
+            elif last:
+                branches += [(last, label) for label, _ in numbers]
+        for leg in legs:
+            leg["ends"] = fig.leg_ends(leg, stops, labels, legs)
+        return drawn(fig.Figure(pins=pins, path=path, branches=branches))
 
     def split_title(title: Text | None) -> tuple[Text | None, Text | None]:
         """"Place: what happens" into the place and the rest, when both languages have the colon."""
@@ -394,7 +415,8 @@ def _view(plan: dict, words: Words, extras: dict | None = None) -> dict:
                                            in zip(track.get("blocks", []), quiet_flags(track.get("blocks", []), is_stay(base)))])
                               for track in item.get("tracks", [])])
                  for item in raw.get("plans", [])]
-        stops, legs, points = glance(plans[0]) if plans else ([], [], [])
+        stops, legs = glance(plans[0]) if plans else ([], [])
+        figure = pinned(stops, legs)
         days.append(dict(
             date=raw["date"], short=short, long=long, label=label, chip=chip, title=words(raw.get("title")) or long,
             head=None, rest=None,
@@ -402,7 +424,7 @@ def _view(plan: dict, words: Words, extras: dict | None = None) -> dict:
             anchors=[dict(time=anchor.get("time"), text=words(anchor.get("text")),
                           at=datetime.fromisoformat(f"{raw['date']}T{anchor.get('time')}").replace(tzinfo=zone).isoformat())
                      for anchor in sorted(raw.get("anchors", []), key=lambda anchor: anchor.get("time") or "")],
-            stops=stops, legs=legs, map_json=_json(dict(points=points)) if points else None, plans=plans,
+            stops=stops, legs=legs, figure=figure, plans=plans, marks=marks.get(raw["date"], ()),
             candidates=[dict(name=words(slot), places=[view for view in map(place_view, identifiers) if view])
                         for slot, identifiers in (raw.get("candidates") or {}).items()]))
     codes = sorted(rules.codes[person.get("id") or person.get("name")] for person in plan.get("people", [])
@@ -410,13 +432,49 @@ def _view(plan: dict, words: Words, extras: dict | None = None) -> dict:
     travelers = Text(zh="、".join(code[0] for code in codes), en=", ".join(code[1] for code in codes))
     for day in days:
         day["head"], day["rest"] = split_title(day["title"])
+        day["changed"] = _marked(day)
     route = _route(days, extras, words, places, raw_days)
-    dots = [dict(lat=stop["lat"], lon=stop["lon"], zh=stop["name"].zh, en=stop["name"].en, href=stop["href"], color="#1d1d1f")
-            for stop in route if stop["lat"] is not None]
+    for index, stop in enumerate(route, 1):
+        stop["pin"] = str(index)
+    route_figure = drawn(fig.Figure(pins=[fig.Pin(label=stop["pin"], shape="visit", lat=stop["lat"], lon=stop["lon"],
+                                                  names=(stop["name"].zh, stop["name"].en), href=stop["href"], external=False)
+                                          for stop in route], path=[stop["pin"] for stop in route], dashed=True, legend=False)) \
+        if any(stop["lat"] is not None for stop in route) else None
     return dict(trip_title=words(plan.get("title")) or words.pair("行程", "Trip"), days=days, route=route,
                 kicker=_span(plan.get("start"), plan.get("end")), intro=words(extras.get("intro")), zone=plan.get("timezone") or "UTC",
-                map_json=_json(dict(points=dots, line=True, big=True)) if dots else None,
+                figure=route_figure,
                 travelers=travelers if len(everyone) > 1 and travelers.en else None)
+
+
+def drawn(figure: fig.Figure) -> dict:
+    """A figure as the template takes it: the sketch, the data for the real map, and what the caption must say."""
+    svg, square = fig.sketch(figure)
+    return dict(svg=svg, square=square, missing=figure.missing(), placed=len(figure.placed()), legend=figure.legend,
+                json=_json(fig.data(figure)), live=bool(figure.placed()))
+
+
+def _changes(changes) -> dict[str, tuple[tuple[str, str], ...]]:
+    """What really changed, per date: `changes` in the share extras, each {date, was, now}: the words of the plan that
+    were replaced (`was`) and the words that replaced them (`now`). They only mark words the page already prints (struck
+    through and inserted); words not on the page are not added."""
+    marks: dict[str, list[tuple[str, str]]] = {}
+    for change in changes or []:
+        when, was, now = str(change.get("date") or ""), str(change.get("was") or "").strip(), str(change.get("now") or "").strip()
+        if when and (was or now):
+            marks.setdefault(when, []).append((was, now))
+    return {when: tuple(pairs) for when, pairs in marks.items()}
+
+
+def _marked(day: dict) -> bool:
+    """Whether a mark of the day finds its words in a text the day page prints."""
+    if not day.get("marks"):
+        return False
+    texts = [anchor["text"] for anchor in day["anchors"]]
+    texts += [leg.get(key) for leg in day["legs"] for key in ("title", "how", "note")]
+    texts += [block.get(key) for plan in day["plans"] for track in plan["tracks"] for block in track["blocks"]
+              for key in ("title", "text", "how", "note")]
+    words = [word for pair in day["marks"] for word in pair if word]
+    return any(word in text.zh or word in text.en for text in texts if text for word in words)
 
 
 def _route(days: list[dict], extras: dict, words: Words, places: dict, raw_days: list[dict]) -> list[dict]:
@@ -510,16 +568,39 @@ def _log_view(data, words):
 
 
 def _environment() -> Environment:
-    return Environment(loader=DictLoader(dict(base=SHARE_BASE, map=SHARE_MAP, index=SHARE_INDEX, day=SHARE_DAY, log=SHARE_LOG)),
+    return Environment(loader=DictLoader(dict(base=SHARE_BASE, figure=SHARE_FIGURE, index=SHARE_INDEX, day=SHARE_DAY, log=SHARE_LOG)),
                        autoescape=select_autoescape(default=True))
 
 
-def _t(text: Text | None) -> Markup:
+REVISION = {"del": "tw-rev-old", "ins": "tw-rev-new"}  # class names of the web_ui_spec kit (sheet.css)
+
+
+def _mark(text: str, marks) -> Markup:
+    """The text, escaped, with the replaced words struck through and the new words marked as inserted."""
+    escaped = str(escape(text))
+    kinds = {str(escape(was)): "del" for was, _ in marks if was} | {str(escape(now)): "ins" for _, now in marks if now}
+    if not kinds:
+        return Markup(escaped)
+    pattern = re.compile("|".join(re.escape(word) for word in sorted(kinds, key=len, reverse=True)))
+
+    def wrap(found):
+        tag = kinds[found.group(0)]
+        return f'<{tag} class="{REVISION[tag]}">{found.group(0)}</{tag}>'
+    return Markup(pattern.sub(wrap, escaped))
+
+
+def _hit(marks, *texts) -> bool:
+    """Whether a mark finds its words in one of these texts (the row then carries `tw-revised`)."""
+    words = [word for pair in marks or () for word in pair if word]
+    return any(word in text.zh or word in text.en for text in texts if text for word in words)
+
+
+def _t(text: Text | None, marks=()) -> Markup:
     if text is None:
         return Markup("")
-    english = (Markup('<span class="en">{}</span>').format(text.en) if text.translated else
-               Markup('<span class="en" lang="zh-CN">{}</span>').format(text.en))
-    return Markup('<span class="zh" lang="zh-CN">{}</span>').format(text.zh) + english
+    english = (Markup('<span class="en">{}</span>').format(_mark(text.en, marks)) if text.translated else
+               Markup('<span class="en" lang="zh-CN">{}</span>').format(_mark(text.en, marks)))
+    return Markup('<span class="zh" lang="zh-CN">{}</span>').format(_mark(text.zh, marks)) + english
 
 
 def _label(chinese: str, english: str) -> Markup:
@@ -527,16 +608,18 @@ def _label(chinese: str, english: str) -> Markup:
 
 
 def render_pages(plan: dict, rules: Rules, *, english: dict[str, str] | None = None, now: datetime | None = None,
-                 extras: dict | None = None) -> tuple[dict[str, str], list[str]]:
+                 extras: dict | None = None, theme: str | None = None) -> tuple[dict[str, str], list[str]]:
     """Page name → HTML, and the rewritten Chinese texts that had no English. `extras`: `intro` and `route` of the home
-    page (texts as in the plan: Chinese, with their English in `english`)."""
+    page (texts as in the plan: Chinese, with their English in `english`) and `changes` (what really changed, see
+    `_changes`). `theme`: the look (`tripwright.site.theme`), "atlas" when not given."""
     words = Words(rules, english)
     view = _view(plan, words, extras)
     log = _log_view(extras["log"], words) if extras and "log" in extras else None
     clock = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     environment = _environment()
     untranslated = list(words.untranslated)
-    common = dict(view, t=_t, label=_label, style=SHARE_STYLE, script=SHARE_SCRIPT, untranslated=untranslated,
+    scheme = theme or themes.DEFAULT
+    common = dict(view, t=_t, label=_label, revised=_hit, style=themes.style(scheme), theme=scheme, script=SHARE_SCRIPT, untranslated=untranslated,
                   updated=clock.strftime("%Y-%m-%d %H:%M UTC"), log=log)
     pages = {"index.html": environment.get_template("index").render(**dict(common, title=view["trip_title"], current="index"))}
     days = view["days"]
@@ -585,7 +668,8 @@ SWAPPED = ("person name", "lodging", "flight number")
 
 
 def share_site(plan: dict, out_dir, *, people: list[dict] = (), english: dict[str, str] | None = None,
-               privacy_policy: Policy | None = None, now: datetime | None = None, extras: dict | None = None) -> dict:
+               privacy_policy: Policy | None = None, now: datetime | None = None, extras: dict | None = None,
+               theme: str | None = None) -> dict:
     """Build the share pages into `out_dir`: written and scanned in a new folder beside it, swapped in only when clean.
 
     A person's name, a stay's name or a flight number that the scan finds anyway is swapped for its generic word in the
@@ -595,7 +679,7 @@ def share_site(plan: dict, out_dir, *, people: list[dict] = (), english: dict[st
     if not plan or not plan.get("days"):
         raise ValueError("No committed plan with days to share")
     rules = Rules.of(plan, list(people), privacy_policy)
-    pages, untranslated = render_pages(plan, rules, english=english, now=now, extras=extras)
+    pages, untranslated = render_pages(plan, rules, english=english, now=now, extras=extras, theme=theme)
     output = Path(out_dir).expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     stage = Path(tempfile.mkdtemp(prefix=f".{output.name}.new-", dir=output.parent))
