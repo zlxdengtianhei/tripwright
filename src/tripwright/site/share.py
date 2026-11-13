@@ -572,6 +572,9 @@ def _environment() -> Environment:
                        autoescape=select_autoescape(default=True))
 
 
+REVISION = {"del": "tw-rev-old", "ins": "tw-rev-new"}  # class names of the web_ui_spec kit (sheet.css)
+
+
 def _mark(text: str, marks) -> Markup:
     """The text, escaped, with the replaced words struck through and the new words marked as inserted."""
     escaped = str(escape(text))
@@ -579,7 +582,17 @@ def _mark(text: str, marks) -> Markup:
     if not kinds:
         return Markup(escaped)
     pattern = re.compile("|".join(re.escape(word) for word in sorted(kinds, key=len, reverse=True)))
-    return Markup(pattern.sub(lambda found: f"<{kinds[found.group(0)]}>{found.group(0)}</{kinds[found.group(0)]}>", escaped))
+
+    def wrap(found):
+        tag = kinds[found.group(0)]
+        return f'<{tag} class="{REVISION[tag]}">{found.group(0)}</{tag}>'
+    return Markup(pattern.sub(wrap, escaped))
+
+
+def _hit(marks, *texts) -> bool:
+    """Whether a mark finds its words in one of these texts (the row then carries `tw-revised`)."""
+    words = [word for pair in marks or () for word in pair if word]
+    return any(word in text.zh or word in text.en for text in texts if text for word in words)
 
 
 def _t(text: Text | None, marks=()) -> Markup:
@@ -606,7 +619,7 @@ def render_pages(plan: dict, rules: Rules, *, english: dict[str, str] | None = N
     environment = _environment()
     untranslated = list(words.untranslated)
     scheme = theme or themes.DEFAULT
-    common = dict(view, t=_t, label=_label, style=themes.style(scheme), theme=scheme, script=SHARE_SCRIPT, untranslated=untranslated,
+    common = dict(view, t=_t, label=_label, revised=_hit, style=themes.style(scheme), theme=scheme, script=SHARE_SCRIPT, untranslated=untranslated,
                   updated=clock.strftime("%Y-%m-%d %H:%M UTC"), log=log)
     pages = {"index.html": environment.get_template("index").render(**dict(common, title=view["trip_title"], current="index"))}
     days = view["days"]

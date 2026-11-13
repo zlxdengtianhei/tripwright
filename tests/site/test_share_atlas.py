@@ -64,18 +64,23 @@ def test_a_leg_names_the_pins_at_its_two_ends(example):
 
 def test_what_really_changed_is_struck_out_and_marked_new_only_on_its_day(example):
     html = day_of(example, "2026-10-27")
-    assert "<del>16:57 IC 742</del>" in html and "<ins>IC 744</ins>" in html
+    assert '<del class="tw-rev-old">16:57 IC 742</del>' in html and '<ins class="tw-rev-new">IC 744</ins>' in html
     assert 'class="revkey"' in html
     keytimes = section(html, "Key times", 'class="figcol"')
-    assert keytimes.count("<del>") == 3 and keytimes.count("<ins>") == 3  # two languages each, and the legend has one of each
+    assert keytimes.count("<del ") == 3 and keytimes.count("<ins ") == 3  # two languages each, and the legend has one of each
+    row = re.search(r'<li [^>]*class="tw-revised"[^>]*>.*?</li>', keytimes, re.S).group(0)
+    assert "17:57" in row and keytimes.count("tw-revised") == 1  # only the row that really changed
+    chinese, english = re.findall(r'<span class="zh" lang="zh-CN">(.*?)</span><span class="en">(.*?)</span>', row)[0]
+    for language in (chinese, english):  # both languages marked
+        assert '<del class="tw-rev-old">16:57 IC 742</del>' in language and '<ins class="tw-rev-new">IC 744</ins>' in language
     for other in ("2026-10-26.html", "2026-10-28.html", "index.html"):
-        assert "<del>" not in (example / other).read_text(encoding="utf-8"), other
+        assert "<del" not in (example / other).read_text(encoding="utf-8"), other
 
 
 def test_a_change_whose_words_are_not_on_the_page_marks_nothing_and_adds_nothing(tmp_path):
     extras = dict(changes=[dict(date="2030-07-14", was="Westbahnhof 08:12", now="Erfundener Zug 99")])
     html = (share_site(sample_plan(), tmp_path / "site", people=PEOPLE, now=NOW, extras=extras)["out"] / "2030-07-14.html").read_text()
-    assert "<del>" not in html and "<ins>" not in html and 'class="revkey"' not in html
+    assert "<del" not in html and "<ins" not in html and 'class="revkey"' not in html and "tw-revised" not in html
     assert "Erfundener Zug 99" not in html and "Westbahnhof 08:12" not in html
 
 

@@ -484,10 +484,10 @@ SHARE_DAY = """{% extends 'base' %}{% import 'figure' as f with context %}
 <section class="blk keytimes">
 <h2>{{ label('关键时刻','Key times') }}</h2>
 <ul class="glist anchors">
-{% for anchor in day.anchors %}<li data-at="{{ anchor.at }}" data-date="{{ day.date }}"><span class="t">{{ anchor.time }}</span><span class="tx">{{ t(anchor.text, day.marks) }}<span class="tag">{{ label('已过','Past') }}</span></span></li>
+{% for anchor in day.anchors %}<li data-at="{{ anchor.at }}" data-date="{{ day.date }}"{% if revised(day.marks, anchor.text) %} class="tw-revised"{% endif %}><span class="t">{{ anchor.time }}</span><span class="tx">{{ t(anchor.text, day.marks) }}<span class="tag">{{ label('已过','Past') }}</span></span></li>
 {% endfor %}
 </ul>
-{% if day.changed %}<p class="revkey"><del>{{ label('划掉的','Struck out') }}</del> {{ label('是原来的安排，','was the plan before; ') }}<ins>{{ label('加底色的','highlighted') }}</ins> {{ label('是改后的。','is what replaced it.') }}</p>{% endif %}
+{% if day.changed %}<p class="revkey"><del class="tw-rev-old">{{ label('划掉的','Struck out') }}</del> {{ label('是原来的安排，','was the plan before; ') }}<ins class="tw-rev-new">{{ label('加底色的','highlighted') }}</ins> {{ label('是改后的。','is what replaced it.') }}</p>{% endif %}
 </section>
 {% endif %}
 {% if day.figure %}<div class="figcol">{{ f.figure(day.figure, 'map-day') }}</div>{% endif %}
@@ -505,7 +505,7 @@ SHARE_DAY = """{% extends 'base' %}{% import 'figure' as f with context %}
 <section class="blk">
 <h2>{{ label('怎么走','Getting around') }}</h2>
 <ul class="glist legs">
-{% for leg in day.legs %}<li class="{{ leg.certainty }}"><span class="t">{{ leg.start }}{% if leg.end %}<i>–{{ leg.end }}</i>{% endif %}</span><span class="tx">{% if leg.ends and (leg.ends[0] or leg.ends[1]) %}<span class="seg">{{ pin(leg.ends[0], true) }}<i></i>{{ pin(leg.ends[1], true) }}</span>{% endif %}<b>{{ t(leg.title, day.marks) }}</b>{% if leg.who %}<span class="who">{{ t(leg.who) }}</span>{% endif %}{% if leg.how %}<span class="how">{{ t(leg.how, day.marks) }}</span>{% endif %}{% if leg.note %}<span class="how">{{ t(leg.note, day.marks) }}</span>{% endif %}</span></li>
+{% for leg in day.legs %}<li class="{{ leg.certainty }}{% if revised(day.marks, leg.title, leg.how, leg.note) %} tw-revised{% endif %}"><span class="t">{{ leg.start }}{% if leg.end %}<i>–{{ leg.end }}</i>{% endif %}</span><span class="tx">{% if leg.ends and (leg.ends[0] or leg.ends[1]) %}<span class="seg">{{ pin(leg.ends[0], true) }}<i></i>{{ pin(leg.ends[1], true) }}</span>{% endif %}<b>{{ t(leg.title, day.marks) }}</b>{% if leg.who %}<span class="who">{{ t(leg.who) }}</span>{% endif %}{% if leg.how %}<span class="how">{{ t(leg.how, day.marks) }}</span>{% endif %}{% if leg.note %}<span class="how">{{ t(leg.note, day.marks) }}</span>{% endif %}</span></li>
 {% endfor %}
 </ul>
 <p class="muted small"><span class="legs-key">●</span> {{ label('定时：时刻表上的车或已订好的。','fixed: on a timetable or booked.') }}</p>
@@ -530,7 +530,7 @@ SHARE_DAY = """{% extends 'base' %}{% import 'figure' as f with context %}
 {% if plan.tracks|length > 1 %}<h3>{{ t(track.who) }}</h3>{% endif %}
 <ol class="timeline">
 {% for block in track.blocks %}
-<li class="{{ block.key }} {{ block.certainty }}">
+<li class="{{ block.key }} {{ block.certainty }}{% if revised(day.marks, block.title, block.text, block.how, block.note) %} tw-revised{% endif %}">
 <span class="time">{{ block.start }}{% if block.end and block.end != block.start %}–{{ block.end }}{% endif %}</span><span class="what">{{ t(block.kind) }}</span>
 <h4>{{ t(block.title, day.marks) }}</h4>
 {% if block.text %}<p>{{ t(block.text, day.marks) }}</p>{% endif %}
