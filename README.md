@@ -52,7 +52,7 @@ flowchart TD
     F -->|"passed"| H["commit: a new version that records<br/>what changed, who changed it and why"]
 ```
 
-**Two situations.** On the road, a short question gets two answers; in a chat app, the second comes after you reply “continue”, or in the same reply. When planning, screenshots become records you can ask about later. In both diagrams, solid arrows were run with real models on 2026-11-12 ([Testing and limits](#testing-and-limits)); dashed arrows are covered by automated tests.
+**Two situations.** On the road, a short question gets two answers; in a chat app, the second comes after you reply “continue”, or in the same reply. When planning, screenshots become records you can ask about later. In both diagrams, solid arrows were run with real models on 2026-11-12 and 2026-11-13 ([Testing and limits](#testing-and-limits)), except the proactive branch of the save step, run only in test hosts (GPT-6 Luna and GLM-5.3, 2026-11-13), not in an app; dashed arrows are covered by automated tests.
 
 ```mermaid
 sequenceDiagram
