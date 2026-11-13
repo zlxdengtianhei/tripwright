@@ -197,3 +197,46 @@ def judge(field: str, new, quote: str, *, said_on: date | None = None, place: di
     else:
         status = "free"
     return dict(kind=kind, status=status)
+
+
+# An explicit no in the user's answer (the main session's recommended default, 2026-11-13, from the user's “来自用户的说明
+# 肯定是最重要的”): the words just before it do not count when this answer declines them.
+NEGATION = re.compile(r"^\s*(?:不|no|nope)\s*(?:[，,。.!！]|$)|不行|不要|不改|别改|别动|算了|还是原来|还是按原来|还是用原来|保持原样|不对|不是这样|不用了"
+                      r"|\bdon'?t\b|\bdo not\b|\bkeep the old\b|\bkeep it as\b|\bnever ?mind\b|\bcancel\b|\bnot that\b",
+                      re.IGNORECASE)
+
+
+def declines(answer: str) -> bool:
+    return bool(NEGATION.search(answer or ""))
+
+
+def labels(value) -> set[str]:
+    words = value if isinstance(value, list) else [value]
+    return {token.casefold() for word in words if isinstance(word, str) for token in re.findall(r"[A-Za-z0-9]+", word)}
+
+
+def judge_value(field: str, old, new, words: str, *, said_on: date | None = None, place: dict | None = None) -> dict:
+    """`judge` for one changed value, given the old one too. Text and lists of text: a one-letter label or a number the
+    new value adds (“B” in “B counter” against “A counter”, “12” in “Gate 12”) must stand in the words; words and mixed
+    codes inside text are not read (a name may be said in another language). Lists of numbers (coordinates) are not read."""
+    if new is None:
+        return dict(kind="free", status="free")
+    if isinstance(new, list):
+        if not all(isinstance(entry, str) for entry in new):
+            return dict(kind="free", status="free")
+    elif not isinstance(new, str) or kind_of(field, new) != "free":
+        return judge(field, new, words, said_on=said_on, place=place)
+    added = [token for token in labels(new) - labels(old) if re.fullmatch(r"[a-z]|\d+", token)]
+    if not added:
+        return dict(kind="free", status="free")
+    said = all(re.search(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", words.casefold()) for token in added)
+    return dict(kind="label", status="definite" if said else "missing")
+
+
+# Words that ask for a change without saying to what (“门票换个窗口买吧”, “改坐早一点的车”, “another counter”).
+VAGUE_CHANGE = re.compile(r"随便|都行|无所谓|看着办|\bwhatever\b|\banything\b|换个|换一个|换一家|换别的|另一个|另外一个|别的|其他的|早一点|晚一点|早点|晚点|早些|晚些"
+                          r"|\banother\b|\bdifferent\b|\bother one\b|\bearlier\b|\blater\b|\bsomewhere else\b", re.IGNORECASE)
+
+
+def vague_change(words: str) -> bool:
+    return bool(VAGUE_CHANGE.search(words or ""))

@@ -426,6 +426,33 @@ def stable_value(name: str, value):
     return value
 
 
+def changed_values(plan: dict, decision, paths: list[str]) -> list[tuple[str, Any, Any]]:
+    """(field, old, new) for each value a decision's locked paths change against the committed plan, leaf by leaf: the
+    locked value and the records it reaches (a block's booking), as the lock comparator sees them. A new lock on what
+    the plan already has changes nothing and is not read."""
+    from tripwright.locks import pointer, snapshot
+
+    def leaves(field, old, new):
+        if isinstance(old, dict) and isinstance(new, dict):
+            for key in sorted(set(old) | set(new)):
+                if old.get(key) != new.get(key):
+                    yield from leaves(key, old.get(key), new.get(key))
+        elif old != new:
+            yield field, old, new
+
+    found = []
+    for path in paths:
+        try:
+            old = dict(value=pointer(plan, path), references=snapshot(plan, path).get("references") or {}) if plan else {}
+        except (ValueError, KeyError, IndexError, TypeError):
+            old = {}
+        new = dict(value=decision.locked_paths[path], references=((decision.placement or {}).get(path) or {}).get("references") or {})
+        if not old:
+            continue  # a part the committed plan does not have: nothing the user's words change
+        found += list(leaves(path.rstrip("/").rsplit("/", 1)[-1], old, new))
+    return found
+
+
 def shown(value) -> str:
     return json.dumps(value, ensure_ascii=False)
 
@@ -921,33 +948,59 @@ class Ledger:
         what = f"report {report.id}"
         source = self.admit(owner, report.source, proposal, what=what, quote=report.quote, earlier=True)
         _, old, new = self._field(owner, report, what)
-        self._definite(owner, report, new, source, proposal, what)
+        self._check_words(owner, source, proposal, what, report.quote, [(report.field, old, new)], target=report.target)
         amended = self._amend(owner, report.target, report.field, old, new, via="user_report", event=source.event, change=report.id, what=what)
         self._audit(owner, source.event, "user_report", report.id, dict(target=report.target, field=report.field, old=old, new=new,
                                                                         quote=report.quote, decisions=[entry["decision"] for entry in amended]))
         return dict(id=report.id, target=report.target, field=report.field, old=old, new=new, **self._said(owner, source, proposal),
                     quote=report.quote, locks=amended_locks(amended), amended=amended)
 
-    def _definite(self, owner: str, report: Report, new, source: Source, proposal: Proposal, what: str):
-        from tripwright.definite import judge
+    def _check_words(self, owner: str, source: Source, proposal: Proposal, what: str, words: str,
+                     changes: list[tuple[str, Any, Any]], *, target: str = "", any_value: bool = False) -> None:
+        """D-19 (2026-11-13), one check for every protected value the user changes, a report (path 2) or a decision
+        that sets or meets a must (path 1): when the words come from the user's message before this turn's, this turn's
+        answer must not decline them (an explicit no); and the words must give each new value (definite.py): no value or
+        another value is refused, a value said roughly counts only from the answer's turn. Each refusal says what to ask."""
+        from tripwright.definite import declines, judge_value, vague_change
 
+        if source.event != proposal.answered:
+            answer = self._message(owner, proposal.answered).get("received", {}).get("text", "")
+            if declines(answer):
+                raise ValueError(f"{what} not admitted (declined): the user's answer in this turn ({answer!r}) says no to the words "
+                                 f"of their message before it; keep things as they are, or ask what they want instead")
         event = self._message(owner, source.event)
         said_on = aware(event["receipt"]["received_at"]).astimezone(zone(self._plan(owner).get("timezone") or "UTC")).date()
-        place = next((entry for entry in self._plan(owner).get("places", []) if entry.get("id") == new), None)
-        found = judge(report.field, new, report.quote, said_on=said_on, place=place)
-        name = {"time": "time", "date": "date", "number": "number", "code": "code", "place": "place"}.get(found["kind"], "value")
-        ask = (f"ask the user which {name} exactly, and report it from the turn of their answer, quoting the words that "
-               f"give it")
-        if found["status"] == "missing":
-            raise ValueError(f"{what} not admitted (definite value): the quoted words name no {name} ({report.quote!r}); "
-                             f"a yes or a vague wish (an earlier train) does not set {report.target}/{report.field}: {ask}")
-        if found["status"] == "other":
-            raise ValueError(f"{what} not admitted (definite value): the quoted words name another {name} than {shown(new)} "
-                             f"({report.quote!r}): {ask}")
-        if found["status"] == "approximate" and source.event == proposal.answered:
-            raise ValueError(f"{what} not admitted (definite value): the quoted words give the {name} only roughly "
-                             f"({report.quote!r}); ask the user to confirm {shown(new)} first, then, in the turn of their answer, "
-                             f"report it quoting these words with source.event = {source.event} (the message just before)")
+        places = {entry.get("id"): entry for entry in self._plan(owner).get("places", [])}
+        if any_value:
+            # a decision (path 1) carries a whole part: one value its words name is enough (an end moved with its start
+            # is not said again); refused when they give a value only roughly in this turn, or only ask for a change
+            # without saying to what. Words that only point at what the agent showed (“改成这样，定了”) are taken as before.
+            found = [judge_value(field, old, new, words, said_on=said_on, place=places.get(new) if isinstance(new, str) else None)
+                     for field, old, new in changes]
+            if any(entry["status"] == "definite" for entry in found):
+                return
+            if any(entry["status"] == "approximate" for entry in found) and source.event == proposal.answered:
+                raise ValueError(f"{what} not admitted (definite value): the user's words give the new value only roughly ({words!r}); "
+                                 f"ask the user to confirm the exact one first, then record it from the turn of their answer")
+            if changes and vague_change(words):
+                raise ValueError(f"{what} not admitted (definite value): the user's words ask for a change but name no value "
+                                 f"({words!r}); ask the user which one exactly, and record it from the turn of their answer")
+            return
+        for field, old, new in changes:
+            found = judge_value(field, old, new, words, said_on=said_on, place=places.get(new) if isinstance(new, str) else None)
+            name = {"time": "time", "date": "date", "number": "number", "code": "code", "place": "place", "label": "value"}.get(found["kind"], "value")
+            where = f"{target}/{field}" if target else field
+            ask = f"ask the user which {name} exactly, and record it from the turn of their answer, quoting the words that give it"
+            if found["status"] == "missing":
+                raise ValueError(f"{what} not admitted (definite value): the user's words name no {name} for {where} ({words!r}); "
+                                 f"a yes or a vague wish (an earlier train, another counter) does not set {shown(new)}: {ask}")
+            if found["status"] == "other":
+                raise ValueError(f"{what} not admitted (definite value): the user's words name another {name} than {shown(new)} "
+                                 f"for {where} ({words!r}): {ask}")
+            if found["status"] == "approximate" and source.event == proposal.answered:
+                raise ValueError(f"{what} not admitted (definite value): the user's words give the {name} for {where} only roughly "
+                                 f"({words!r}); ask the user to confirm {shown(new)} first, then, in the turn of their answer, "
+                                 f"record it with source.event = {source.event} (the message just before)")
 
     def _correction(self, owner: str, correction: Correction, proposal: Proposal) -> dict:
         """Path 3's question. It is asked by this proposal, whatever message its source cites: `asked` holds the message
@@ -1193,7 +1246,11 @@ class Ledger:
                 record, replaced, refused = None, [], []
                 if paths:
                     if decision.must or self._meets_must(owner, decision, paths):
-                        decision.source = self.admit(owner, decision.source, proposal, what=what)
+                        decision.source = self.admit(owner, decision.source, proposal, what=what, earlier=True)
+                        # D-19: the same words check as a report; a decision carries no quote, so its message's words
+                        text = self._message(owner, decision.source.event)["received"]["text"]
+                        self._check_words(owner, decision.source, proposal, what, text, changed_values(self._plan(owner), decision, paths),
+                                          any_value=True)
                     else:
                         decision.source = self._source(owner, decision.source)
                     authority = self._authority(owner, decision.source.event)

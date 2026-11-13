@@ -181,11 +181,12 @@ def test_the_users_new_decision_in_this_turn_changes_a_must(required):
 
 def test_dropping_a_must_needs_the_users_words_in_this_turn(required):
     """A decision that meets a must passes the admission even without `must`, so it is no way around the lock: here it
-    cites an earlier message of the user, which a record without a must could cite."""
+    cites an earlier message of the user, which a record without a must could cite. Since D-19 (2026-11-13) the user's
+    message just before counts, but only with a definite value: “随便吧” gives none."""
     earlier = message(required, "饭后随便吧。")
     now = message(required, "嗯。")
     plan, decision = decided(required, earlier, text=OTHER)
-    with pytest.raises(ValueError, match=r"not admitted \(this turn\)"):
+    with pytest.raises(ValueError, match=r"not admitted \(definite value\)"):
         propose(required, now, plan=plan, decisions=[decision])
     assert [entry["must"] for entry in active_decisions(required)] == [True]
 
