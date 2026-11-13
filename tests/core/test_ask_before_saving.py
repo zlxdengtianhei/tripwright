@@ -459,6 +459,7 @@ def test_tell_user_offers_keep_or_undo_to_the_previous_version(trip):
     assert [option["id"] for option in options] == ["keep", "undo"]
     assert options[0].get("recommended") and options[0].get("if_no_answer")
     assert "第 1 版" in options[1]["then"]
+    assert draft["tell_user"]["say"] == "不想要这次改动，回“撤回”，我恢复到第 1 版。" and "tell_user.say" in draft["tell_user"]["how"]
 
 
 def test_options_follow_an_english_conversation(trip):

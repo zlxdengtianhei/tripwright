@@ -105,11 +105,14 @@ def save_options(asks: bool, n: int, base: int, language: str) -> list[dict]:
 # In the proactive save mode (the user's save_mode setting, or TRIPWRIGHT_SAVE_UNVERIFIED=agent) nothing waits for the
 # user: propose names the same facts as tell_user, and the answer says how to get the previous version back.
 TELL_USER = dict(zh="这次改动新带来 {n} 条没核的事实；用户选的是主动模式，不等回话：commit(draft_id, accept_unverified=true) 存下，"
-                    "回答里说改了什么、哪几条没核、各自的后果与备选，并告诉用户回“撤回”就恢复上一版（用改之前那天的 json 重新 propose 再 commit）。",
+                    "回答里说改了什么、哪几条没核、各自的后果与备选，末尾原样带上 tell_user.say（用户回“撤回”时，用改之前那天的 json 重新 propose 再 commit）。",
                  en="This change brings in {n} unverified fact(s); the save mode is proactive, so nothing waits for the user: "
                     "commit(draft_id, accept_unverified=true), then tell the user what changed, which facts are unknown, what "
-                    "follows from each and the alternative, and that replying “undo” brings the previous version back (propose "
-                    "the day's json from before the change again, then commit).")
+                    "follows from each and the alternative, and end with tell_user.say as it is (on “undo”, propose the day's "
+                    "json from before the change again, then commit).")
+# The sentence a proactive answer ends with (2026-11-13: GPT-6 Luna saved in the same turn 2 times in 2 and named the
+# unverified fact, but said nothing about undoing it).
+UNDO_SAY = dict(zh="不想要这次改动，回“撤回”，我恢复到第 {base} 版。", en="If you don't want this change, reply “undo” and I'll restore version {base}.")
 # How the user switches the save mode (consider.save_mode), returned with every turn.
 SAVE_MODE_HOW = dict(zh="用户说“以后直接改，不用问我”或“以后先问我”这类话时，在这条 turn 的 record 里记一条 setting：key=save_mode，"
                         "value 写 proactive（主动）或 cautious（谨慎），long_term=true（写在条目上），turn 带 speaker。只记用户自己说的，不替用户选。",
@@ -1092,7 +1095,8 @@ class Tripwright:
         asking = {"ask_user" if asks else "tell_user": dict(
             unverified=[{key: check[key] for key in ("id", "text", "details", "consequence", "alternative")} for check in ask],
             how=words[language].format(n=len(ask)),
-            **({} if words is ASK_WITH_REFUSAL else dict(options=save_options(asks, len(ask), draft["base_version"], language))))} if ask else {}
+            **({} if words is ASK_WITH_REFUSAL else dict(options=save_options(asks, len(ask), draft["base_version"], language))),
+            **({} if asks or words is ASK_WITH_REFUSAL else dict(say=UNDO_SAY[language].format(base=draft["base_version"]))))} if ask else {}
         return dict(draft_id=draft["id"], base_version=draft["base_version"], status=draft["status"], **asking,
                     checks=draft["checks"], job_id=draft["job_id"], usages=draft["usages"], snapshot=draft["snapshot"],
                     **(dict(lock_changes=locks) if locks else {}), changelog=draft.get("changelog", []),
