@@ -652,7 +652,8 @@ class Ledger:
             refuse("this turn", "a user lock changes only in a proposal that answers the user's message (propose with its turn's ctx_id)")
         if source.event != answered:
             refuse("this turn", f"source.event must be {answered}, the message this proposal answers: the user's own words in this "
-                                f"turn, not an earlier message (got {source.event})")
+                                f"turn, not an earlier message (got {source.event}). When the words came in an earlier message, "
+                                "ask the user to say the change again in one sentence with the new value, then report it from that turn")
         received = event["received"]
         if source.nature is not None and source.nature != received["nature"]:
             refuse("nature", f"Source nature cannot be upgraded or rewritten: message {source.event} is {received['nature']}, "

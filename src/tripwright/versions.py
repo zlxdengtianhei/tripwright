@@ -43,8 +43,11 @@ def lock_reason(check: dict) -> str:
 NODE_CHANGE_HOW = ("If the user's own message asks for this change and says the new value (\"不坐 16:30 那班了，改坐 9 点的\"), "
                    "send changes.reports in the same proposal, one per field as listed here, with quote = the user's words "
                    "copied from that message and source.event = that message (\"this\" for the turn's own message); the user "
-                   "need not say anything more. This is not a correction (corrections are the agent's own doubts and wait for "
-                   "a later answer). If the user did not ask for it, keep the node as it is, or ask the user.")
+                   "need not say anything more. Only the proposal of the turn that received those words can report them: in "
+                   "a later turn (after the user answered a question), ask the user to say the change again in one sentence "
+                   "with the new value (\"11 号的火车改坐 9 点那班\") and report it from that turn. This is not a correction "
+                   "(corrections are the agent's own doubts and wait for a later answer). If the user did not ask for it, "
+                   "keep the node as it is, or ask the user.")
 REPLY_NATURES = ("user_verbatim", "host_restatement")
 # The unverified facts a change waits for the user about: facts of the outside world that a lookup could settle
 # (evidence: opening hours, a timetable, the weather, whether a ticket applies, a block's own critical facts;
