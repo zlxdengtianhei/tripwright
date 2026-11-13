@@ -186,6 +186,13 @@ PROMISES = (
     Promise("first-part-answers-the-points", MAIN_TEXTS + (SERVER,), must=(r"`?points`?",)),
     Promise("second-part-twelve-lines", ALL_MAIN, must=(r"(?:正文最多 12 行|at most 12 body lines)",)),
     Promise("tickets-as-stored", ALL_MAIN, must=(r"(?:票照 `tickets`|tickets as the result's stored tickets)",)),
+    # G9 (analysis 2026-11-13): small things the user said before that no guide carried
+    Promise("voice-typed-words-are-asked", ("skills/tripwright-requirements/SKILL.md", SINGLE),
+            must=(r"voice-typed message can mishear a word", r"你说的‘X’是指‘Y’吗")),
+    Promise("unmentioned-is-no-no", ("skills/tripwright-requirements/SKILL.md",), must=(r"an unmentioned place is no “no”",)),
+    Promise("cards-and-passes-priced", ("skills/tripwright-requirements/SKILL.md",) + RESEARCHER, must=(r"`note:card-",)),
+    Promise("planning-days", (RECORDS,), must=(r"One core area per day", r"better forecast", r"`due_at` before that day")),
+    Promise("english-place-names", ("skills/tripwright-main/references/writing.md",), must=(r"followed by its English name",)),
 )
 
 
