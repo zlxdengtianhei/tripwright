@@ -473,3 +473,18 @@ def test_a_refused_draft_asks_about_the_conflict_and_carries_no_save_options(tri
     """A refused draft cannot be saved as it is, so "save it as it is" is no option there."""
     import tripwright.service as module
     assert "options" not in module.ASK_WITH_REFUSAL["zh"]
+
+
+def test_a_save_mode_setting_with_the_mode_only_in_its_text_counts(trip):
+    """GPT-6 Luna, 2026-11-13, 3 of 3 runs: the setting was recorded with no value and the mode in its text; the
+    change after it was then still asked about. A text naming one mode counts; "agent" in a text is no mode."""
+    from tripwright.consider import mode_of
+
+    assert mode_of(dict(text="主动模式：计划后续变更可直接修改，无需先征求确认。")) == "proactive"
+    assert mode_of(dict(text="proactive")) == "proactive" and mode_of(dict(value="谨慎")) == "cautious"
+    assert mode_of(dict(text="the agent asks")) is None and mode_of(dict(text="主动还是谨慎")) is None
+    trip.turn("alice", "以后改计划直接改就行，不用先问我。", "mode", scenario="replan", speaker="p1", record=dict(items=[dict(
+        kind="setting", key="save_mode", subject=["p1"], strength="must", quote="以后改计划直接改就行，不用先问我",
+        text="主动模式：计划后续变更可直接修改，无需先征求确认。", source={"event": "this", "basis": "user_explicit"})]))
+    _, draft = moved(trip)
+    assert "tell_user" in draft and trip.asks_first("alice") is False

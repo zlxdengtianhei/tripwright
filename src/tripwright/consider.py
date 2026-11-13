@@ -451,10 +451,20 @@ def save_mode(store, owner: str, *, at: str) -> dict:
     after the user's answer (cautious): the user's `save_mode` setting, this trip's before a long-term one, else the
     deployment's. `{mode, by, record?}`, by `user` or `deployment`."""
     chosen = best(settings(store, owner, at=at), "save_mode")
-    mode = MODE_WORDS.get(str((chosen or {}).get("value") or "").strip().lower())
+    mode = mode_of(chosen) if chosen else None
     if mode:
         return dict(mode=mode, by="user", record=chosen["id"])
     return dict(mode=deployment_mode(), by="deployment")
+
+
+def mode_of(item: dict) -> str | None:
+    """The mode a save_mode setting names: its value, else one mode word in its text. GPT-6 Luna recorded the setting
+    three times in three runs with the mode only in the text ("proactive", "主动模式：…") and no value (2026-11-13)."""
+    mode = MODE_WORDS.get(str(item.get("value") or "").strip().lower())
+    if mode:
+        return mode
+    said = {MODE_WORDS[word] for word in ("proactive", "主动", "cautious", "谨慎") if word in str(item.get("text") or "").lower()}
+    return said.pop() if len(said) == 1 else None
 
 
 def save_mode_answered(store, owner: str, *, at: str) -> bool:

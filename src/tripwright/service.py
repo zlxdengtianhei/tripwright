@@ -112,9 +112,9 @@ TELL_USER = dict(zh="这次改动新带来 {n} 条没核的事实；用户选的
                     "the day's json from before the change again, then commit).")
 # How the user switches the save mode (consider.save_mode), returned with every turn.
 SAVE_MODE_HOW = dict(zh="用户说“以后直接改，不用问我”或“以后先问我”这类话时，在这条 turn 的 record 里记一条 setting：key=save_mode，"
-                        "value=proactive（主动）或 cautious（谨慎），long_term=true，turn 带 speaker。只记用户自己说的，不替用户选。",
+                        "value 写 proactive（主动）或 cautious（谨慎），long_term=true（写在条目上），turn 带 speaker。只记用户自己说的，不替用户选。",
                      en="When the user says “from now on just change it” or “ask me first from now on”, record a setting in this "
-                        "turn's record: key=save_mode, value=proactive or cautious, long_term=true, with the turn's speaker. Record only "
+                        "turn's record: key=save_mode, value proactive or cautious, long_term=true on the item, with the turn's speaker. Record only "
                         "what the user said; never choose for the user.")
 # A refused draft goes back to the user anyway: the unverified facts its change brings in are said in the same reply,
 # so the corrected draft does not need one more round for them (2026-11-12, Fable: a draft refused for a conflict, the
