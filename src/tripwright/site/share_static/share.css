@@ -11,8 +11,9 @@ a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var
 html[data-language=zh] .en,html[data-language=en] .zh{display:none}
 h1,h2,h3,h4{line-height:var(--heading-2-lh);margin:0}
 p{margin:var(--step-2) 0}
-del{color:var(--ink-2);text-decoration:line-through;text-decoration-thickness:2px}
-ins{text-decoration:none;background:var(--water);font-weight:var(--heading-3-weight);padding:0 var(--step-1)}
+/* revision marks (kit class names): what was planned struck out, what replaced it marked as new; both languages */
+del.tw-rev-old{color:var(--ink-2);text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:var(--struck)}
+ins.tw-rev-new{text-decoration:underline;text-decoration-thickness:2px;text-decoration-color:var(--ink);text-underline-offset:3px;background:var(--added);color:var(--ink);padding:0 var(--step-1);font-weight:var(--heading-3-weight)}
 .wrap,.days{max-width:1280px;margin:0 auto;padding-left:var(--step-5);padding-right:var(--step-5)}
 .muted{color:var(--ink-2)}.small{font-size:var(--body-size)}
 /* pins: one numbering for the map and the lists; the shape says the state */
@@ -72,6 +73,7 @@ h2{font-size:var(--heading-3-size);font-weight:var(--heading-3-weight);margin:0 
 .leaflet-marker-icon.pinmark{background:none;border:0;display:grid;place-items:center}
 /* the map library's own controls, set to the scheme's values */
 .plate .leaflet-container{font-family:var(--body-font);font-size:var(--label-size)}
+.plate .leaflet-tile-pane{filter:grayscale(1) opacity(.55)}
 .plate .leaflet-control-attribution{font-size:var(--label-size)}
 .plate .leaflet-bar{border-radius:var(--r-panel);overflow:hidden}
 .plate .leaflet-bar a,.plate .leaflet-touch .leaflet-bar a:first-child,.plate .leaflet-touch .leaflet-bar a:last-child,.plate .leaflet-bar a:first-child,.plate .leaflet-bar a:last-child{border-radius:var(--r-none)}
