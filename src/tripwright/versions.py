@@ -37,6 +37,14 @@ def lock_reason(check: dict) -> str:
     return " (locked part missing)" if changed == ["missing"] else f" ({', '.join(changed)} changed)"
 
 
+# How a hard node the user asked to change gets changed (2026-11-13, tw-multi s3: Codex moved the 16:30 train to 09:00
+# as the user asked, was refused, and told the user a correction was needed; 6 runs of 6 were never saved). The user's
+# words in this message are what change it (D-36, D-53); a "yes, save it" to the unverified facts does not (D-11).
+NODE_CHANGE_HOW = ("If the user's own message asks for this change and says the new value (\"不坐 16:30 那班了，改坐 9 点的\"), "
+                   "send changes.reports in the same proposal, one per field as listed here, with quote = the user's words "
+                   "copied from that message and source.event = that message (\"this\" for the turn's own message); the user "
+                   "need not say anything more. This is not a correction (corrections are the agent's own doubts and wait for "
+                   "a later answer). If the user did not ask for it, keep the node as it is, or ask the user.")
 REPLY_NATURES = ("user_verbatim", "host_restatement")
 # The unverified facts a change waits for the user about: facts of the outside world that a lookup could settle
 # (evidence: opening hours, a timetable, the weather, whether a ticket applies, a block's own critical facts;
@@ -277,8 +285,13 @@ class Versions:
                     protected = [key for key in ("time", "subject", "place", "buffer_minutes", "destination", "line")
                                  if (f"anchor:{anchor['id']}", key) not in sourced]
                     matches = actual is not None and actual[0] == day["date"] and all(actual[1].get(key) == anchor.get(key) for key in protected)
+                    changed = [key for key in protected if actual is not None and actual[0] == day["date"]
+                               and actual[1].get(key) != anchor.get(key)] if not matches else []
+                    how = dict(reports=[dict(target=f"anchor:{anchor['id']}", field=key, old=anchor.get(key), new=actual[1].get(key))
+                                        for key in changed], how=NODE_CHANGE_HOW) if changed else {}
                     report["checks"].append(conclusion(f"preserved-anchor:{anchor['id']}", "passed" if matches else "conflict",
-                                                       "An existing hard node must remain in the candidate with its people, date, time and buffer.", date=day["date"]))
+                                                       "An existing hard node must remain in the candidate with its people, date, time and buffer.",
+                                                       date=day["date"], **({"report": how["reports"][0], **how} if how else {})))
         for decision in self.ledger.current(owner)["decisions"]:
             for path, expected in decision["locked_paths"].items():
                 if not binding(decision, path):

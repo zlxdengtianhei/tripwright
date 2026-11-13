@@ -174,7 +174,7 @@ The service does not guess which records are related. Declare it on the items, i
 <!-- only: skill -->
 - A must's locked value changes in only three ways, each through `propose` and then `commit`:
   1. A new explicit user decision; it supersedes the lock.
-  2. `changes.reports` `{target, field, old, new, quote, source}`: what the user's own message in this turn says happened (“我买了票”). The `turn` for that message must carry `speaker`, the writer's person ID; a screenshot extraction or your inference cannot report.
+  2. `changes.reports` `{target, field, old, new, quote, source}`: what the user's own message in this turn says happened (“我买了票”), or asks to change in a hard node or a booked item with the new value (“不坐 16:30 那班了，改坐 9 点的”); the user need not say more, and a “yes, save it” to unverified facts does not stand in for it. The `turn` for that message must carry `speaker`, the writer's person ID; a screenshot extraction or your inference cannot report.
   3. `changes.corrections` `{target, field, old, new, basis, ask, evidence_ids, source}`: you think a locked coordinate, opening time, price or deadline is wrong. It becomes an open question in every pack for the people of the lock; ask it as the pack words it. Nothing changes until the user answers in a later message; record the answer with `changes.confirm_corrections` `{id, answer: confirmed|rejected, quote, source}`.
   `old` must equal the locked value, or the change is refused as stale. `propose` and `commit` list what changed in `lock_changes`.
 <!-- /only -->
