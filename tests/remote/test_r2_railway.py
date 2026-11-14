@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import stat
+import threading
 import time
 
 import httpx2
@@ -82,15 +83,20 @@ def test_an_idle_server_stops_polling_and_the_next_request_fetches_once(remote_c
     monkeypatch.setenv("TRIPWRIGHT_ACTIVE_WINDOW", "1")
     registry = PersonalRepository(remote_config)
     service = registry.open()
-    fetched = []
+    fetched = []  # the name of the thread that fetched, one entry per fetch
     original = service.repository.git.fetch
 
     def counted(*args):
-        fetched.append(time.monotonic())
+        fetched.append(threading.current_thread().name)
         return original(*args)
     monkeypatch.setattr(service.repository.git, "fetch", counted)
     app = create_app(remote_config, key=URL_KEY, warm=False, service=service)
     service.committer.poll_seconds = 0.2
+
+    def by_request():
+        # Fetches made while answering, not by the background loop: on a loaded machine the request can outlast one
+        # poll interval, and the loop then polls as designed (2026-11-14: 1 run in 8 on a server with load 4).
+        return [name for name in fetched if name != "tripwright-committer"]
 
     async def run():
         async with app.router.lifespan_context(app):
@@ -100,9 +106,9 @@ def test_an_idle_server_stops_polling_and_the_next_request_fetches_once(remote_c
                 await client.post("/mcp", json={})  # unauthenticated: stays idle
                 assert fetched == []
                 await client.post("/mcp/" + URL_KEY, json={})
-                assert len(fetched) == 1, "the first request after idling fetches before it is answered"
+                assert len(by_request()) == 1, f"the first request after idling fetches before it is answered: {fetched}"
                 await asyncio.sleep(0.6)
-                assert len(fetched) >= 2, "polls while active"
+                assert len(fetched) > len(by_request()), f"polls while active: {fetched}"
                 await asyncio.sleep(1.5)
                 settled = len(fetched)
                 await asyncio.sleep(1.0)
