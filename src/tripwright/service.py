@@ -669,12 +669,15 @@ class Tripwright:
         first version the last message made (its requirements may be a version of their own before the plan: 2026-11-14,
         ChatGPT went 1 → 3 for one message). None when there is nothing to go back to."""
         versions = sorted(self.store.all("versions", owner), key=lambda version: version["number"])
+        said = {event["id"]: event["received"]["text"] for event in self.versions.messages(owner)}
         target = current.get("base_version")
         event = current.get("source_event")
+        words = said.get(event)
         for version in reversed(versions):
             if version["number"] > current.get("number", 0):
                 continue
-            if event is None or version.get("source_event") != event:
+            # the same message, or the same words sent through turn again (a host retrying after a refusal)
+            if event is None or not (version.get("source_event") == event or (words and said.get(version.get("source_event")) == words)):
                 break
             target = version.get("base_version")
         if not UNDO_WORDS.match(text or "") or not isinstance(target, int) or target < 1 or current.get("number", 0) < 2:

@@ -158,3 +158,35 @@ def test_a_host_cannot_mark_its_own_withdrawal_as_the_services(trip):
     turn = call(server, "turn", text="把那条撤了。", scenario="replan")  # no speaker
     with pytest.raises(ToolError, match="only the user's own message"):
         call(server, "propose", ctx_id=turn["ctx_id"], changes=dict(withdraw=[dict(id=lock["id"], reason="x", filled_by="service")]))
+
+
+def test_the_plan_may_name_the_version_its_own_ledger_commit_made_and_the_undo_goes_back_before_both(trip):
+    """GLM, 2026-11-14: after committing the message's ledger-only draft it proposed the plan with the new version
+    number, got “Stale version”, called turn again, and the undo then went back to the ledger-only version only."""
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    turn = call(server, "turn", text=MOVE, scenario="replan", speaker="p1")
+    ledger = call(server, "propose", ctx_id=turn["ctx_id"], base_version=turn["base_version"], changes=dict(decisions=[must_dinner(turn)]))
+    assert call(server, "commit", draft_id=ledger["draft_id"])["number"] == 2
+    plan = call(server, "propose", ctx_id=turn["ctx_id"], base_version=2,
+                days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
+    assert plan["status"] == "proposed", plan
+    assert call(server, "commit", draft_id=plan["draft_id"], accept_unverified=True)["number"] == 3
+    back_turn, back = undo(server)
+    assert back_turn["undo"]["restore_version"] == 1
+    call(server, "commit", draft_id=back["draft_id"], accept_unverified=True)
+    assert dinner(trip) == "17:00"
+
+
+def test_a_turn_sent_again_with_the_same_words_is_the_same_message_for_the_undo(trip):
+    """Should a host still call turn again with the same words between the two commits, the undo takes both back."""
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    turn = call(server, "turn", text=MOVE, scenario="replan", speaker="p1")
+    ledger = call(server, "propose", ctx_id=turn["ctx_id"], changes=dict(decisions=[must_dinner(turn)]))
+    call(server, "commit", draft_id=ledger["draft_id"])
+    again = call(server, "turn", text=MOVE, scenario="replan", speaker="p1")
+    plan = call(server, "propose", ctx_id=again["ctx_id"], days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
+    assert call(server, "commit", draft_id=plan["draft_id"], accept_unverified=True)["number"] == 3
+    back_turn, back = undo(server)
+    assert back_turn["undo"]["restore_version"] == 1
+    call(server, "commit", draft_id=back["draft_id"], accept_unverified=True)
+    assert dinner(trip) == "17:00"

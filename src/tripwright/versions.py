@@ -534,8 +534,11 @@ class Versions:
             current = self.current(owner)
             if base_version is None:
                 base_version = context.get("moved_from", context["base_version"])  # the version turn gave with this ctx_id
-            if base_version == context.get("moved_from", context["base_version"]) and context["base_version"] != current["number"] \
-                    and self._only_own_ledger_commits(owner, context, current):
+            # the base the host sends is the turn's version, or the current one it just got from committing this
+            # message's ledger-only draft (2026-11-14: GLM sent the new number, was told “Stale version” and called turn
+            # again, so the plan was saved under another message and “撤回” then went back too little)
+            if base_version in (context.get("moved_from", context["base_version"]), current["number"]) \
+                    and context["base_version"] != current["number"] and self._only_own_ledger_commits(owner, context, current):
                 # 2026-11-12: this message's requirements were committed first as their own ledger-only version, so
                 # that a plan draft held back by the verifier never takes them with it; the plan is then proposed
                 # against the same context, moved onto that version (nothing else changed since the turn).
