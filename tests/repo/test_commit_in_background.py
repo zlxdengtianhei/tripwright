@@ -1,7 +1,7 @@
 """commit does not wait for Git (2026-11-14: the reply must not wait for saving and the site update; they belong to the
 second half). The version is in the index when commit returns; the committer's background loop commits and pushes
 it after its batch window, and the public page is rebuilt after that (site/publish.Publisher). Before, every commit
-waited up to 5 s for the push: 2.0-2.8 s on a local bare remote (tw-modes, out/DESIGN.md)."""
+waited up to 5 s for the push: 2.0-2.8 s on a local bare remote (a fictional trip, 2026-11-14)."""
 import time
 
 from repo_fixtures import bare, git, new_repository, plan
