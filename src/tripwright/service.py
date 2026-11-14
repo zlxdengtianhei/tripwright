@@ -401,7 +401,8 @@ class Tripwright:
         # How long commit waits for the Git commit and push (and so for write.state `effective`). 0: it returns once the
         # version is in the index, and the committer commits, pushes and schedules the page in the background (the
         # user, 2026-11-14: the reply must not wait for saving and the site update; they belong to the second half).
-        # On a local bare remote the wait was 2.0-2.8 s of every commit (measured on a fictional trip, 2026-11-14).
+        # On a local bare remote the wait was 0.4-2.8 s of every commit, by machine (a fictional trip, 2026-11-14: 2.0-2.8 s on
+        # a loaded Mac, 0.44-0.61 s on a Linux server).
         self.commit_wait = commit_wait
         self.language = language
         self.flow = Flow()

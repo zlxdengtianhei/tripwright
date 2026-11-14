@@ -11,8 +11,10 @@ How to do a role:
 
 ## On the road (`scenario: "quick"`)
 
-1. Main: `turn` with the user's words, `scenario: "quick"`, the named things in `points`, and in `record` what the message states. Send `first_part` as `next` says and end the reply.
-2. Main: check what the user will act on yourself, with `query` and the host's web search. Here the researcher is optional by design (the user asks and gets an answer directly); read its steps only when a lookup is unclear.
+1. Main: `turn` with the user's words, a stable `request_id`, `scenario: "quick"`, the named things in `points`, and in `record` what the message states. Send `first_part` as `next` says and end the reply.
+   - A voice-typed message can mishear a word: when one makes no sense in context, do not act on it as written; guess the word meant and ask one short question (“你说的‘X’是指‘Y’吗？”).
+   - Leave out the dimensions the user said not to consider (`exclude_keys` in `turn`). When conditions contradict each other or the new message, go on with the default reading, say so and list it as a question.
+2. Main: check what the user will act on yourself, with `query` and the host's web search. Here the researcher is optional by design (the user asks and gets an answer directly); read its steps only when a lookup is unclear. What you cannot check goes into the same reply as an unchecked limit with its consequence; do not ask for another message to finish it.
 3. Main: the second part under `second_part_title`, first line what differs from the first part.
 4. When the message also changes the plan, go on with “Change the plan” from step 4.
 

@@ -334,7 +334,7 @@ def today_view(state: dict) -> str:
 
 
 def pack_view(pack: dict, *, state: dict, sources: dict | None = None) -> str:
-    """`views/packs/<date>.md`: the day's pack for a host without tools (this day, everyone, conversation)."""
+    """`views/packs/<date>.md`: the day's pack as a file (this day, everyone, conversation)."""
     rendered = render_pack(pack, sources=sources)["markdown"]
     header = generated_header([at(state, "ledger"), at(state, "plan"), f"约束包 {pack['pack_id']}"], head_of(pack["snapshot"]))
     return header + "\n" + rendered

@@ -24,7 +24,7 @@ my-travel/
    ├─ plan/versions.jsonl       append-only version ledger (everything but the plan, plus its digest)
    ├─ evidence/<date>/<id>.yaml  evidence records
    ├─ research/                 the user's own material; the tool never rewrites it
-   └─ views/                    generated: today.md, days/, packs/ (for hosts without tools), index.md, decisions.md, memory.md
+   └─ views/                    generated: today.md, days/, packs/ (each day's pack as a file), index.md, decisions.md, memory.md
 ```
 
 IDs are type, UTC date and six random characters (`I-261031-k3f9qa`), so two writers that create records offline do not collide. YAML files load back to exactly the values written (JSON, which is valid YAML, is used where YAML would change a value), so an index rebuilt from the files equals the one they came from. A version's plan is the `plan/` of the commit whose `Tripwright-Version` trailer names it; older plans come back from history.

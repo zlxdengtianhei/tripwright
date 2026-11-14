@@ -55,7 +55,7 @@ Keep progress notes, tools, files and saving out of the answer.
 Read this from `SKILL.md` for a long or English answer. These rules apply to the answer; copy server transport sentences unchanged even when longer.
 
 <!-- /only -->
-When the scenario is unclear, take the more careful one (“I am leaving now, what next” is a replan) and go on; do not stop to ask. Start from where the user says they are. Never invent a numeric threshold the user did not give.
+When the scenario is unclear, take the more careful one (“I am leaving now, what next” is a replan) and go on; do not stop to ask. Start from where the user says they are. Never invent a numeric threshold the user did not give. A voice-typed message can mishear a word: when one makes no sense in context, do not act on it as written; guess the word meant and ask one short question (“你说的‘X’是指‘Y’吗？”).
 
 简明写法：一句一事，动作句用坐、换、走、下车、买、出示、搜开头；条件放在动作前；能核实的写数字，没有的写没核；同一概念一个词。地名单独一行原文，下一行中文名与是什么、链接。用户用什么语言就用什么语言回答；服务端交通原句保留，必要翻译另列并保持同样的范围与不确定程度。第一段不用存的否定句推断，第二段照抄 `sentences`；“怎么查、怎么问”永远在回答末尾，已知稳定事实不推给用户再查。
 

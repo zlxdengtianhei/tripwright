@@ -86,7 +86,8 @@ PROMISES = (
     Promise("single-agent-roles-in-turn", (SINGLE,),
             must=(r'state\(view="role", role="single"\)', r'state\(view="role", role="<role>"\)', r"## On the road",
                   r"## Change the plan", r"## Undo", r"## Screenshots or a batch of new requirements", r"## A status report",
-                  r"researcher is optional by design", r"`tell_user\.say`"),
+                  r"researcher is optional by design", r"`tell_user\.say`", r"`exclude_keys`", r"default reading",
+                  r"unchecked limit"),
             must_not=(r"写回仓", r"## Without tools"), bad_sample="## Without tools\n\n写回仓 block"),
     Promise("multi-agent-optional", (MAIN, AGENTS_MD),
             must=(r"background `tripwright-researcher`", r"no second turn was called")),
@@ -187,7 +188,9 @@ PROMISES = (
     Promise("second-part-twelve-lines", ALL_MAIN, must=(r"(?:正文最多 12 行|at most 12 body lines)",)),
     Promise("tickets-as-stored", ALL_MAIN, must=(r"(?:票照 `tickets`|tickets as the result's stored tickets)",)),
     # G9 (analysis 2026-11-13): small things the user said before that no guide carried
-    Promise("voice-typed-words-are-asked", ("skills/tripwright-requirements/SKILL.md",),
+    # 2026-11-14 (tw-judge): on the road one agent reads the single-agent page, and the main agent its writing page
+    Promise("voice-typed-words-are-asked", ("skills/tripwright-requirements/SKILL.md", SINGLE,
+                                            "skills/tripwright-main/references/writing.md"),
             must=(r"voice-typed message can mishear a word", r"你说的‘X’是指‘Y’吗")),
     Promise("unmentioned-is-no-no", ("skills/tripwright-requirements/SKILL.md",), must=(r"an unmentioned place is no “no”",)),
     Promise("cards-and-passes-priced", ("skills/tripwright-requirements/SKILL.md",) + RESEARCHER, must=(r"`note:card-",)),

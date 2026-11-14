@@ -642,7 +642,7 @@ def day_pack_id(day: str, snapshot: dict) -> str:
 
 
 def day_packs(store: Store, owner: str, *, snapshot: dict, at: str, trip_folder: str | None, language: str = "zh") -> dict[str, dict]:
-    """`{date: pack}` for every day of the committed plan, for hosts without tools: everyone, the whole day, the
+    """`{date: pack}` for every day of the committed plan, as files a reader of the repository can open: everyone, the whole day, the
     conversation channel. Each pack is the one `present` settles on, so an over-budget day already lists what it left out."""
     plan = bound_plan(store, owner, snapshot)
     packs = {}
