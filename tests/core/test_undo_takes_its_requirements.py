@@ -127,3 +127,34 @@ def test_a_users_must_is_not_withdrawn_on_words_that_do_not_say_so_or_without_th
         with pytest.raises(ToolError, match=message):
             call(server, "propose", ctx_id=turn["ctx_id"], changes=dict(withdraw=[dict(id=lock["id"], reason="x")]))
     assert trip.store.get("decisions", "alice", lock["id"])["status"] == "active"
+
+
+def test_a_must_item_goes_with_the_undo_without_a_speaker_and_the_allergy_is_named_as_kept(trip):
+    """GLM, 2026-11-14: the must was recorded as an item (“Day 1 dinner is at 19:00”, strength must) and the undo
+    turn had no speaker; the answer said the item went when it had not."""
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    turn = call(server, "turn", text=MOVE + "我对花生过敏。", scenario="replan", speaker="p1")
+    must = dict(kind="constraint", key="d1-dinner-time", text="Day 1 dinner is at 19:00.", quote="第一天的晚饭挪到 19:00",
+                subject=["p1"], strength="must", source={"event": "this", "basis": "user_explicit"})
+    ledger = call(server, "propose", ctx_id=turn["ctx_id"], changes=dict(items=[must, allergy()]))
+    call(server, "commit", draft_id=ledger["draft_id"])
+    plan = call(server, "propose", ctx_id=turn["ctx_id"], days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
+    call(server, "commit", draft_id=plan["draft_id"], accept_unverified=True)
+    back_turn = call(server, "turn", text="撤回", scenario="replan")  # no speaker, as GLM sent it
+    back = call(server, "propose", ctx_id=back_turn["ctx_id"], restore_version=back_turn["undo"]["restore_version"])
+    version = call(server, "commit", draft_id=back["draft_id"], accept_unverified=True)
+    active = {item["key"] for item in trip.ledger.current("alice")["items"]}
+    assert dinner(trip) == "17:00" and "d1-dinner-time" not in active and "diet:peanut" in active
+    say = version["tell_user"]["say"]
+    assert "随撤回一起撤掉了：Day 1 dinner is at 19:00." in say and "照旧留着：对花生过敏" in say
+
+
+def test_a_host_cannot_mark_its_own_withdrawal_as_the_services(trip):
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    older_must(server, trip)
+    lock = next(entry for entry in trip.store.all("decisions", "alice") if entry["status"] == "active" and entry.get("must"))
+    turn = call(server, "turn", text="把那条撤了。", scenario="replan")  # no speaker
+    with pytest.raises(ToolError, match="only the user's own message"):
+        call(server, "propose", ctx_id=turn["ctx_id"], changes=dict(withdraw=[dict(id=lock["id"], reason="x", filled_by="service")]))

@@ -263,11 +263,12 @@ class Withdrawal(Model):
     changed, never deleted."""
     id: str = Field(description="ID of an active item or decision, e.g. D-261101-k3f9qa.")
     reason: str = Field(min_length=1, description="Why it is taken back, in words the answer can show the user.")
+    filled_by: SkipJsonSchema[Literal["service"] | None] = None  # set by propose(restore_version) only, never by a host
 
 
 # The words that take something back. A user's record is withdrawn only on the user's own message saying so: the
 # service cannot read what is meant, so it asks for one of these words, as it asks a must's words for the new value.
-WITHDRAW_WORDS = re.compile(r"撤|取消|不要|别要|删|去掉|算了|作废|不算|undo|revert|remove|cancel|drop|withdraw|forget|delete|"
+WITHDRAW_WORDS = re.compile(r"撤|取消|不要|别要|删|去掉|算了|作废|不算|改回|恢复|undo|revert|remove|cancel|drop|withdraw|forget|delete|"
                             r"never ?mind|take (?:it|that) back", re.IGNORECASE)
 
 
@@ -1122,7 +1123,9 @@ class Ledger:
             message = self._message(owner, answered or "") if answered else {}
             received = message.get("received") or {}
             people = {person["id"] for person in self._plan(owner).get("people", [])}
-            if received.get("nature") not in USER_NATURES or received.get("speaker") not in people:
+            # what the service takes back with an undo needs no more than the undone change did: the user's words saying so
+            speaker_ok = entry.filled_by == "service" or received.get("speaker") in people
+            if received.get("nature") not in USER_NATURES or not speaker_ok:
                 raise ValueError(f"withdraw: {entry.id} is the user's; only the user's own message (turn with the speaker) takes it back")
             if not WITHDRAW_WORDS.search(received.get("text") or ""):
                 raise ValueError(f"withdraw: {entry.id} is the user's, and this message does not say to drop it "

@@ -125,10 +125,12 @@ PROACTIVE_SAY = dict(zh=dict(page="当前是主动模式：改动已存，现在
 # (the user, 2026-11-14: "用户回复撤回后，再告诉他我们有谨慎模式可选，建议他考虑谨慎模式"; once, not on every undo).
 RESTORED_SAY = dict(zh=dict(page="已撤回：计划回到第 {restored} 版，页面也在更新。", plain="已撤回：计划回到第 {restored} 版。",
                             taken="那一轮记下的{n}也随撤回一起撤掉了：{what}。", one="这条要求", many="这几条要求", join="；",
+                            kept="那一轮记下的这些照旧留着：{what}。",
                             offer="另外我们有谨慎模式：改计划前先把改动给你看，你同意了再存。建议考虑；想用就回“以后先问我”。"),
                     en=dict(page="Undone: the plan is back to version {restored}, and the page is being updated.",
                             plain="Undone: the plan is back to version {restored}.",
                             taken="{n} recorded with that change went with the undo: {what}.", one="The requirement",
+                            kept="Still kept from that change: {what}.",
                             many="The requirements", join="; ",
                             offer="We also have a cautious mode: I show you a change first and save it only after you agree. "
                                   "Worth considering; to switch, reply “ask me first from now on”."))
@@ -1155,19 +1157,31 @@ class Tripwright:
         english = self._reply_language(owner) == "en"
         changes.setdefault("why", (f"restores version {number}" if english else f"恢复到第 {number} 版"))
         named = {entry.get("id") for entry in changes.get("withdraw") or [] if isinstance(entry, dict)}
-        taken = [dict(id=record["id"], reason=(f"taken back with the undo to version {number}" if english else f"随撤回到第 {number} 版撤掉"))
+        taken = [dict(id=record["id"], filled_by="service",
+                      reason=(f"taken back with the undo to version {number}" if english else f"随撤回到第 {number} 版撤掉"))
                  for record in self._undone_conflicts(owner, number, old["plan"]) if record["id"] not in named]
         if taken:
             changes["withdraw"] = [*(changes.get("withdraw") or []), *taken]
         return dict(arguments, plan=encode_copy(old["plan"]), changes=changes)
 
+    def _undone_events(self, owner: str, number: int, *, besides: str | None = None) -> set:
+        """The messages whose versions came after version `number` (the turns an undo to it takes back)."""
+        return {version.get("source_event") for version in self.store.all("versions", owner)
+                if version["number"] > number and version["id"] != besides} - {None}
+
     def _undone_conflicts(self, owner: str, number: int, plan: dict) -> list[dict]:
-        """The user decisions that the turns after version `number` recorded and that the restored plan breaks: a locked
-        path whose value differs in it, or that it no longer has (D-20, 2026-11-14: ChatGPT recorded “dinner must be
-        19:00” before moving the dinner, and the undo was refused by that must). They go with the undo; what does not
-        conflict (an allergy said in the same message) stays. A decision from before version `number` is not taken."""
-        undone = {version.get("source_event") for version in self.store.all("versions", owner) if version["number"] > number}
-        found = []
+        """What the turns after version `number` recorded that the restored plan breaks, taken back with the undo (D-20,
+        2026-11-14: ChatGPT recorded “dinner must be 19:00” before moving the dinner, and the undo was refused by it; GLM
+        recorded the same as a must item, and said it was gone when it was not):
+        - a user decision with a locked path whose value differs in the restored plan, or that it no longer has;
+        - a requirement item of strength `must`: it is why the undone change was made, and the restored plan no longer
+          follows it (the service cannot test its words against the plan).
+        What else those turns recorded stays: a prohibition (an allergy said in the same message), a preference, a fact,
+        a setting. A record from before version `number` is never taken."""
+        undone = self._undone_events(owner, number)
+        found = [item for item in self.store.all("items", owner)
+                 if item.get("status") == "active" and item["source"].get("event") in undone and item.get("strength") == "must"
+                 and item.get("kind") != consider.SETTING]
         for decision in self.store.all("decisions", owner):
             if decision.get("status") != "active" or decision["source"].get("event") not in undone or not decision.get("locked_paths"):
                 continue
@@ -1248,6 +1262,11 @@ class Tripwright:
 
     def _propose_tool(self, owner: str, **arguments) -> dict:
         self.bound(owner)
+        changes = arguments.get("changes")
+        if isinstance(changes, dict) and isinstance(changes.get("withdraw"), list):
+            # only the service marks what it takes back with an undo (filled_by=service); a host's mark is dropped
+            arguments["changes"] = dict(changes, withdraw=[{key: value for key, value in entry.items() if key != "filled_by"}
+                                                           if isinstance(entry, dict) else entry for entry in changes["withdraw"]])
         restored = arguments.pop("restore_version", None)
         if restored is not None:
             arguments = self._restored(owner, restored, arguments)
@@ -1419,13 +1438,16 @@ class Tripwright:
                        if entry.get("restored_from") is not None and entry["id"] != version["id"]]
             offer = proactive and not earlier and consider.save_mode(self.store, owner, at=now())["by"] != "user"
             taken = self._taken_back(owner, draft)
+            kept = self._kept_after_undo(owner, restored, version["id"])
             gap = " " if language == "en" else ""
             say = words[page].format(restored=restored)
             if taken:
                 say += gap + words["taken"].format(n=words["one" if len(taken) == 1 else "many"],
                                                    what=words["join"].join(entry["text"] for entry in taken))
+            if kept:
+                say += gap + words["kept"].format(what=words["join"].join(entry["text"] for entry in kept))
             say += gap + words["offer"] if offer else ""
-            return dict(say=say, how=SAY_HOW[language], **({"taken_back": taken} if taken else {}),
+            return dict(say=say, how=SAY_HOW[language], **({"taken_back": taken} if taken else {}), **({"kept": kept} if kept else {}),
                         **({"offer": "cautious_mode"} if offer else {}))
         if not proactive:
             return None
@@ -1454,6 +1476,14 @@ class Tripwright:
                           "record, so the undo cannot take it back by itself. Tell the user the plan was not changed back and "
                           "ask whether to drop that requirement too. If the user says so, propose(ctx_id of that message, "
                           "restore_version=…, changes={withdraw: [{id, reason}]}) and commit; otherwise keep the plan.")
+
+    def _kept_after_undo(self, owner: str, number: int, version_id: str) -> list[dict]:
+        """The user's requirements the undone turns recorded that are still active after the undo (an allergy), so the
+        answer says they stay and does not claim they went (2026-11-14, GLM)."""
+        undone = self._undone_events(owner, number, besides=version_id)
+        return [dict(id=item["id"], text=item.get("text") or item["id"]) for item in self.store.all("items", owner)
+                if item.get("status") == "active" and item["source"].get("event") in undone and item.get("kind") != consider.SETTING
+                and item["source"].get("basis") != "agent_inference"]
 
     def _taken_back(self, owner: str, draft: dict) -> list[dict]:
         """What this commit withdrew (changes.withdraw), each with the words the answer names it by."""
