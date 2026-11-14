@@ -188,7 +188,7 @@ PROMISES = (
     Promise("second-part-twelve-lines", ALL_MAIN, must=(r"(?:正文最多 12 行|at most 12 body lines)",)),
     Promise("tickets-as-stored", ALL_MAIN, must=(r"(?:票照 `tickets`|tickets as the result's stored tickets)",)),
     # G9 (analysis 2026-11-13): small things the user said before that no guide carried
-    # 2026-11-14 (tw-judge): on the road one agent reads the single-agent page, and the main agent its writing page
+    # 2026-11-14 (a review): on the road one agent reads the single-agent page, and the main agent its writing page
     Promise("voice-typed-words-are-asked", ("skills/tripwright-requirements/SKILL.md", SINGLE,
                                             "skills/tripwright-main/references/writing.md"),
             must=(r"voice-typed message can mishear a word", r"你说的‘X’是指‘Y’吗")),
