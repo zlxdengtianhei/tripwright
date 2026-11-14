@@ -233,6 +233,23 @@ def judge_value(field: str, old, new, words: str, *, said_on: date | None = None
     return dict(kind="label", status="definite" if said else "missing")
 
 
+# Words that take a record back, without the ones that also say no (不要, 算了: “不要了” may drop the record or decline
+# the question) or ask for a plan change (恢复, 改回). A user's record is withdrawn on them only together with a value
+# of that record, or as the answer to the service's own question naming it (ledger._withdraw, D-21, 2026-11-14).
+TAKE_BACK = re.compile(r"撤|取消|删|去掉|作废|\bremove\b|\bcancel\b|\bdrop\b|\bwithdraw\b|\bdelete\b|\btake (?:it|that|this) back\b",
+                       re.IGNORECASE)
+# A plain yes to a question (“好的”, “可以”, “ok”).
+AFFIRM = re.compile(r"^\s*(?:好|可以|行|是|对|嗯|同意|没问题|yes|yep|yeah|ok|okay|sure)(?:的|啊|吧|呀)?(?:[\s，,。.!！~～]|$)", re.IGNORECASE)
+
+
+def takes_back(words: str) -> bool:
+    return bool(TAKE_BACK.search(words or ""))
+
+
+def affirms(words: str) -> bool:
+    return bool(AFFIRM.search(words or "")) and not declines(words)
+
+
 # Words that ask for a change without saying to what (“门票换个窗口买吧”, “改坐早一点的车”, “another counter”).
 VAGUE_CHANGE = re.compile(r"随便|无所谓|看着办|\bwhatever\b|\banything\b|换个|换一个|换一家|换别的|另一个|另外一个|别的|其他的|早一点|晚一点|早点|晚点|早些|晚些"
                           r"|\banother\b|\bdifferent\b|\bother one\b|\bearlier\b|\blater\b|\bsomewhere else\b", re.IGNORECASE)

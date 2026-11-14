@@ -122,16 +122,17 @@ def test_a_users_must_is_not_withdrawn_on_words_that_do_not_say_so_or_without_th
     server = create_server(trip, local_user="alice", manage_jobs=False)
     older_must(server, trip)
     lock = next(entry for entry in trip.store.all("decisions", "alice") if entry["status"] == "active" and entry.get("must"))
-    for words, speaker, message in (("好的。", "p1", "does not say to drop it"), ("把那条撤了。", None, "only the user's own message")):
+    for words, speaker, message in (("好的。", "p1", "does not take it back for certain: ask the user"), ("把那条撤了。", None, "only the user's own message")):
         turn = call(server, "turn", text=words, scenario="replan", **({"speaker": speaker} if speaker else {}))
         with pytest.raises(ToolError, match=message):
             call(server, "propose", ctx_id=turn["ctx_id"], changes=dict(withdraw=[dict(id=lock["id"], reason="x")]))
     assert trip.store.get("decisions", "alice", lock["id"])["status"] == "active"
 
 
-def test_a_must_item_goes_with_the_undo_without_a_speaker_and_the_allergy_is_named_as_kept(trip):
-    """GLM, 2026-11-14: the must was recorded as an item (“Day 1 dinner is at 19:00”, strength must) and the undo
-    turn had no speaker; the answer said the item went when it had not."""
+def test_a_must_item_stays_after_the_undo_and_is_named_with_the_allergy_and_asked_about(trip):
+    """GLM, 2026-11-14: the must was recorded as an item (“Day 1 dinner is at 19:00”, strength must) and the undo turn
+    had no speaker; the answer said the item went when it had not. D-21: the service does not test an item's words
+    against the plan, so the item stays; the receipt names it in the user's words and asks, and names the allergy as kept."""
     server = create_server(trip, local_user="alice", manage_jobs=False)
     turn = call(server, "turn", text=MOVE + "我对花生过敏。", scenario="replan", speaker="p1")
     must = dict(kind="constraint", key="d1-dinner-time", text="Day 1 dinner is at 19:00.", quote="第一天的晚饭挪到 19:00",
@@ -144,9 +145,11 @@ def test_a_must_item_goes_with_the_undo_without_a_speaker_and_the_allergy_is_nam
     back = call(server, "propose", ctx_id=back_turn["ctx_id"], restore_version=back_turn["undo"]["restore_version"])
     version = call(server, "commit", draft_id=back["draft_id"], accept_unverified=True)
     active = {item["key"] for item in trip.ledger.current("alice")["items"]}
-    assert dinner(trip) == "17:00" and "d1-dinner-time" not in active and "diet:peanut" in active
+    assert dinner(trip) == "17:00" and "d1-dinner-time" in active and "diet:peanut" in active
     say = version["tell_user"]["say"]
-    assert "随撤回一起撤掉了：Day 1 dinner is at 19:00。" in say and "照旧留着：对花生过敏。" in say and "。。" not in say
+    assert "随撤回一起撤掉" not in say and "照旧留着的必须项：“第一天的晚饭挪到 19:00”。要不要也撤掉？" in say
+    assert "照旧留着：对花生过敏。" in say and "。。" not in say
+    assert [entry["key"] for entry in version["tell_user"]["kept_musts"]] == ["d1-dinner-time"]
 
 
 def test_a_host_cannot_mark_its_own_withdrawal_as_the_services(trip):

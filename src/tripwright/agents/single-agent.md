@@ -29,8 +29,8 @@ How to do a role:
 ## Undo (“撤回”, “undo”, “改回去”)
 
 1. Main: `turn` with the words; it returns `undo.restore_version`.
-2. Main: `propose(ctx_id, restore_version=...)`, then `commit`, and end the answer with the receipt's `tell_user.say`. No other role. Requirements the undone turns recorded that the restored plan breaks go with the undo, and `tell_user.say` names them; the others (an allergy said in the same message) stay.
-3. If `commit` refuses it, an older requirement holds it: tell the user the plan was not changed back and ask whether to drop that one too, as the refusal says. When the user says so, propose again with `restore_version` and `changes.withdraw` and commit. Never call a refused undo done.
+2. Main: `propose(ctx_id, restore_version=...)`, then `commit`, and end the answer with the receipt's `tell_user.say`. No other role. A decision those turns locked that the restored plan changes goes with the undo; `tell_user.say` names it. Everything else they recorded stays: an allergy, and a must the service cannot test against the plan, which `tell_user.say` names in the user's words and asks about (`kept_musts`, `next`).
+3. If `propose` returns `undo_blocked`, a requirement set before holds it: tell the user its `say` (the plan was not changed back; drop that one too?) and wait. On a yes or “drop it”, propose again in that turn with `restore_version` and `changes.withdraw`, as its `next` says. On a no, keep the plan. Never call a refused undo done.
 
 ## Screenshots or a batch of new requirements
 

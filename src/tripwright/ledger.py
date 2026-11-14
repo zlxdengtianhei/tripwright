@@ -266,6 +266,32 @@ class Withdrawal(Model):
     filled_by: SkipJsonSchema[Literal["service"] | None] = None  # set by propose(restore_version) only, never by a host
 
 
+def record_values(table: str, record: dict) -> list[tuple[str, Any]]:
+    """The values a withdrawal's words may name to point at this record: a decision's locked values and its choice; an
+    item's value and the times its own words state."""
+    from tripwright.definite import times
+
+    found = []
+    if table == "decisions":
+        found += [(path.rsplit("/", 1)[-1], value) for path, value in (record.get("locked_paths") or {}).items()
+                  if isinstance(value, (str, int)) and not isinstance(value, bool)]
+        if isinstance(record.get("choice"), str):
+            found.append(("choice", record["choice"]))
+    else:
+        if isinstance(record.get("value"), (str, int)) and not isinstance(record.get("value"), bool):
+            found.append(("value", record["value"]))
+        for said in times(" ".join(str(record.get(key) or "") for key in ("text", "quote"))):
+            if said.get("approximate"):
+                continue
+            hour = said["hour"] + 12 if said.get("period") == "late" and said["hour"] < 12 else said["hour"]
+            found.append(("time", f"{hour:02d}:{said['minute']:02d}"))
+    return found
+
+
+def describe_record(table: str, record: dict) -> str:
+    return f"{record['question']}：{record['choice']}" if table == "decisions" else str(record.get("text") or record["id"])
+
+
 # The words that take something back. A user's record is withdrawn only on the user's own message saying so: the
 # service cannot read what is meant, so it asks for one of these words, as it asks a must's words for the new value.
 WITHDRAW_WORDS = re.compile(r"撤|取消|不要|别要|删|去掉|算了|作废|不算|改回|恢复|undo|revert|remove|cancel|drop|withdraw|forget|delete|"
@@ -302,9 +328,11 @@ class Changes(Model):
         "Confirmed, the lock takes the new value; send the plan with it in the same proposal."))
     withdraw: list[Withdrawal] = Field(default_factory=list, description=(
         "Take back a requirement or decision the user no longer wants: {id, reason}. The record stays, superseded, with "
-        "this message as the reason. A user's record (a must too) needs the user's own words in this turn's message "
-        "saying to drop it (撤、取消、不要、删、去掉、remove, cancel, drop…). propose(restore_version=N) fills it in "
-        "itself for what the undone turns recorded that the restored plan breaks."))
+        "this message as the reason. A user's record (a must too) needs the user's own message in this turn (with the "
+        "speaker): a yes to the service's question naming it in its reply to the message before, or words that say to "
+        "drop it (撤、取消、删、去掉、remove, cancel, drop…) and give its value (19:00); anything else is refused with how "
+        "to ask. propose(restore_version=N) fills it in itself for a decision the undone turns locked that the restored "
+        "plan changes."))
     revisions: list[Revision] = Field(default_factory=list, description=(
         "The plan changes what the user decided earlier but did not mark a must: one {decision, reason} per such decision. "
         "A plan that changes it without one is refused; the change log shows the reason (D-53)."))
@@ -974,6 +1002,22 @@ class Ledger:
         return dict(id=report.id, target=report.target, field=report.field, old=old, new=new, **self._said(owner, source, proposal),
                     quote=report.quote, locks=amended_locks(amended), amended=amended)
 
+    def _words_context(self, owner: str, event_id: str) -> tuple[date, dict]:
+        """What the words of a user's message are read against: the day it was said, in the trip's zone, and the
+        trip's places (definite.judge_value)."""
+        event = self._message(owner, event_id)
+        said_on = aware(event["receipt"]["received_at"]).astimezone(zone(self._plan(owner).get("timezone") or "UTC")).date()
+        return said_on, {entry.get("id"): entry for entry in self._plan(owner).get("places", [])}
+
+    def names_value(self, owner: str, event_id: str, words: str, values: list[tuple[str, Any]]) -> bool:
+        """The user's words give one of these values for certain: the D-19 reading (definite.judge_value), shared by a
+        must's change and a withdrawal that points at its record."""
+        from tripwright.definite import judge_value
+
+        said_on, places = self._words_context(owner, event_id)
+        return any(judge_value(field, None, value, words, said_on=said_on, place=places.get(value) if isinstance(value, str) else None)
+                   ["status"] == "definite" for field, value in values)
+
     def _check_words(self, owner: str, source: Source, proposal: Proposal, what: str, words: str,
                      changes: list[tuple[str, Any, Any]], *, target: str = "", any_value: bool = False) -> None:
         """D-19 (2026-11-13), one check for every protected value the user changes, a report (path 2) or a decision
@@ -987,9 +1031,7 @@ class Ledger:
             if declines(answer):
                 raise ValueError(f"{what} not admitted (declined): the user's answer in this turn ({answer!r}) says no to the words "
                                  f"of their message before it; keep things as they are, or ask what they want instead")
-        event = self._message(owner, source.event)
-        said_on = aware(event["receipt"]["received_at"]).astimezone(zone(self._plan(owner).get("timezone") or "UTC")).date()
-        places = {entry.get("id"): entry for entry in self._plan(owner).get("places", [])}
+        said_on, places = self._words_context(owner, source.event)
         if any_value:
             # a decision (path 1) carries a whole part: one value its words name is enough (an end moved with its start
             # is not said again); refused when they give a value only roughly in this turn, or only ask for a change
@@ -1107,6 +1149,35 @@ class Ledger:
                        recommendation="Clarify which reading applies" if fresh else "Keep the safer existing condition until clarified",
                        default="Await clarification; neither new reading is selected" if fresh else "Keep existing", since=now(), status="open"), insert=True)
 
+    def _user_says_withdraw(self, owner: str, table: str, record: dict, answered: str, words: str):
+        """Whether the user's message takes this record back, read only where it can be told for certain (D-21,
+        2026-11-14): the words say to drop something (撤、取消、删、去掉、remove…) and give a value of this record
+        (its locked time, its value: the same reading as a must's change, D-19); or they answer, with a yes or a word
+        that takes it back, the question the service itself asked in reply to the user's message before, naming this
+        record. Anything else is refused with how to ask."""
+        from tripwright.definite import affirms, declines, takes_back
+
+        values = record_values(table, record)
+        if takes_back(words) and not declines(words) and values and self.names_value(owner, answered, words, values):
+            return
+        if self._asked_to_withdraw(owner, answered, record["id"]) and not declines(words) and (affirms(words) or takes_back(words)):
+            return
+        shown_as = describe_record(table, record)
+        raise ValueError(f"withdraw: {record['id']} ({shown_as}) is the user's, and this message ({words!r}) does not take it back for "
+                         f"certain: ask the user whether to drop “{shown_as}”, naming it; take it back from the turn of their answer "
+                         "when they say yes or say to drop it, or when their words name its value and say to drop it")
+
+    def _asked_to_withdraw(self, owner: str, answered: str, record_id: str) -> bool:
+        """The service asked, in its reply to the user's message just before this one, whether to drop this record
+        (a draft of that message lists it in ask_withdraw: an undo it held, or one that kept a must)."""
+        messages = [event["id"] for event in self.store.all("events", owner)
+                    if (event.get("received") or {}).get("nature") in USER_NATURES]
+        if answered not in messages or messages.index(answered) == 0:
+            return False
+        before = messages[messages.index(answered) - 1]
+        return any(draft.get("source_event") == before and record_id in (draft.get("ask_withdraw") or [])
+                   for draft in self.store.all("drafts", owner))
+
     def _withdraw(self, owner: str, entry: Withdrawal, answered: str | None) -> dict:
         """Take back one active item or decision (changes.withdraw). The agent's own reading goes on its word; a record
         from the user's words needs this proposal's message to be the user's own, from a person of the trip, with a word
@@ -1127,9 +1198,11 @@ class Ledger:
             speaker_ok = entry.filled_by == "service" or received.get("speaker") in people
             if received.get("nature") not in USER_NATURES or not speaker_ok:
                 raise ValueError(f"withdraw: {entry.id} is the user's; only the user's own message (turn with the speaker) takes it back")
-            if not WITHDRAW_WORDS.search(received.get("text") or ""):
-                raise ValueError(f"withdraw: {entry.id} is the user's, and this message does not say to drop it "
-                                 "(撤、取消、不要、删、去掉、remove, cancel, drop…); ask the user first")
+            if entry.filled_by == "service":
+                if not WITHDRAW_WORDS.search(received.get("text") or ""):
+                    raise ValueError(f"withdraw: {entry.id}: the undo message does not say to take anything back")
+            else:
+                self._user_says_withdraw(owner, table, record, answered, received.get("text") or "")
         record.update(status="superseded", withdrawn=dict(event=answered, reason=entry.reason))
         self.store.put(table, owner, record)
         self._audit(owner, answered or record["source"]["event"], "withdraw", entry.id, {"reason": entry.reason})

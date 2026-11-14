@@ -126,26 +126,40 @@ PROACTIVE_SAY = dict(zh=dict(page="当前是主动模式：改动已存，现在
 RESTORED_SAY = dict(zh=dict(page="已撤回：计划回到第 {restored} 版，页面也在更新。", plain="已撤回：计划回到第 {restored} 版。",
                             taken="那一轮记下的{n}也随撤回一起撤掉了：{what}。", one="这条要求", many="这几条要求", join="；",
                             kept="那一轮记下的这些照旧留着：{what}。",
+                            kept_musts="那一轮记下、照旧留着的必须项：{what}。要不要也撤掉？",
                             offer="另外我们有谨慎模式：改计划前先把改动给你看，你同意了再存。建议考虑；想用就回“以后先问我”。"),
                     en=dict(page="Undone: the plan is back to version {restored}, and the page is being updated.",
                             plain="Undone: the plan is back to version {restored}.",
                             taken="{n} recorded with that change went with the undo: {what}.", one="The requirement",
                             kept="Still kept from that change: {what}.",
+                            kept_musts="Musts recorded with that change are still kept: {what}. Drop them too?",
                             many="The requirements", join="; ",
                             offer="We also have a cautious mode: I show you a change first and save it only after you agree. "
                                   "Worth considering; to switch, reply “ask me first from now on”."))
 SAY_HOW = dict(zh="回答末尾原样带上 say。", en="End the answer with say as it is.")
+# What to do when the service asked whether to drop a requirement (D-21): the user's answer decides, not the agent.
+WITHDRAW_NEXT = dict(zh="等用户回答：用户说好、或说撤掉它，在那一轮 propose(ctx_id, changes.withdraw=[{id, reason}]) 再 commit；"
+                        "用户说不、或没说清，就留着，不替用户撤。",
+                     en="Wait for the user's answer: on a yes or “drop it”, in that turn propose(ctx_id, changes.withdraw=[{id, reason}]) "
+                        "and commit; on a no, or anything unclear, keep it and do not drop it for the user.")
+# An undo the service cannot save because an older requirement holds it (D-21): said where propose refuses it.
+UNDO_BLOCKED = dict(zh=dict(say="计划没撤回去：第 {restored} 版和你之前定的这条要求冲突：{what}。要不要把它也撤掉？",
+                            next="先把 say 告诉用户，不说已撤回。用户说好、或说撤掉它：在那一轮 propose(ctx_id, restore_version={restored}, "
+                                 "changes.withdraw=[{{id, reason}}]) 再 commit；用户说不：计划照旧。"),
+                    en=dict(say="The plan was not changed back: version {restored} conflicts with this requirement you set earlier: {what}. Drop it too?",
+                            next="Tell the user say first; do not call it undone. On a yes or “drop it”: in that turn propose(ctx_id, "
+                                 "restore_version={restored}, changes.withdraw=[{{id, reason}}]) and commit; on a no, keep the plan."))
 # A message that only takes the last change back (“撤回”, “undo”): turn names the version to restore, so the agent
 # does not have to work it out (or remember restore_version).
 UNDO_WORDS = re.compile(r"^\s*(?:撤回|撤销|改回去|恢复上一版|不要这次改动|undo|revert|change it back|undo (?:that|it|the change))"
                         r"[\s。．.!！~～吧了啊呀，,]*$", re.IGNORECASE)
 UNDO_NEXT = dict(zh="用户要撤回上一次改动：propose(ctx_id, restore_version={number}) 再 commit，回答末尾原样带上 commit 返回的 tell_user.say。"
-                    "那几轮记进账本、和恢复后的计划冲突的要求随撤回一起撤掉（回执 tell_user.say 会点名）；不冲突的（例：过敏）照旧留着。"
-                    "commit 被拒时照报错里写的问用户，不要说成已撤回或“撤销草稿”。",
+                    "那几轮锁住、恢复后的计划改了的决定随撤回一起撤掉；其余照旧留着（例：过敏），留着的必须项由回执点名、问用户。"
+                    "propose 返回 undo_blocked 时，先照它的 say 告诉用户、问用户，不要说成已撤回或“撤销草稿”。",
                  en="The user takes the last change back: propose(ctx_id, restore_version={number}), then commit, and end the answer with "
-                    "the tell_user.say commit returns. Requirements those turns recorded that the restored plan breaks go with the undo "
-                    "(tell_user.say names them); the others (e.g. an allergy) stay. If commit is refused, ask the user as the refusal says; "
-                    "never call it undone or an “undo draft”.")
+                    "the tell_user.say commit returns. A decision those turns locked that the restored plan changes goes with the undo; "
+                    "the rest stays (e.g. an allergy), and the receipt names a kept must and asks. If propose returns undo_blocked, tell "
+                    "the user its say and ask; never call it undone or an “undo draft”.")
 # What the main agent does once the verifier's report is recorded (analysis 5.14): by verdict, and for an incomplete
 # check by save mode. The cautious question comes with options, as ask_user's do.
 REPORT_NEXT = dict(
@@ -1173,20 +1187,21 @@ class Tripwright:
                 if version["number"] > number and version["id"] != besides} - {None}
 
     def _undone_conflicts(self, owner: str, number: int, plan: dict) -> list[dict]:
-        """What the turns after version `number` recorded that the restored plan breaks, taken back with the undo (D-20,
-        2026-11-14: ChatGPT recorded “dinner must be 19:00” before moving the dinner, and the undo was refused by it; GLM
-        recorded the same as a must item, and said it was gone when it was not):
-        - a user decision with a locked path whose value differs in the restored plan, or that it no longer has;
-        - a requirement item of strength `must`: it is why the undone change was made, and the restored plan no longer
-          follows it (the service cannot test its words against the plan).
-        What else those turns recorded stays: a prohibition (an allergy said in the same message), a preference, a fact,
-        a setting. A record from before version `number` is never taken."""
-        undone = self._undone_events(owner, number)
-        found = [item for item in self.store.all("items", owner)
-                 if item.get("status") == "active" and item["source"].get("event") in undone and item.get("strength") == "must"
-                 and item.get("kind") != consider.SETTING]
+        """What an undo to version `number` takes back by itself: only what the service can tell for certain the restored
+        plan breaks (D-21, 2026-11-14): a user decision the turns after version `number` recorded whose locked path has
+        another value in the restored plan, or is gone from it (ChatGPT recorded “dinner must be 19:00” before moving
+        the dinner, and the undo was refused by it). Anything else stays: a must item (its words are not tested against
+        the plan; the answer names it and asks), an allergy, a preference. A record from before version `number` is
+        never taken."""
+        return self._breaking_locks(owner, plan, self._undone_events(owner, number))
+
+    def _breaking_locks(self, owner: str, plan: dict, events: set | None = None) -> list[dict]:
+        """Active decisions with a locked path whose value `plan` changes or drops; only those from `events` when given."""
+        found = []
         for decision in self.store.all("decisions", owner):
-            if decision.get("status") != "active" or decision["source"].get("event") not in undone or not decision.get("locked_paths"):
+            if decision.get("status") != "active" or not decision.get("locked_paths"):
+                continue
+            if events is not None and decision["source"].get("event") not in events:
                 continue
             for path, value in decision["locked_paths"].items():
                 try:
@@ -1362,7 +1377,7 @@ class Tripwright:
             how=words[language].format(n=len(ask)),
             **({} if words is ASK_WITH_REFUSAL else dict(options=save_options(asks, len(ask), draft["base_version"], language))),
             **({} if asks or words is ASK_WITH_REFUSAL else dict(say=UNDO_SAY[language].format(base=draft["base_version"]))))} if ask else {}
-        return dict(draft_id=draft["id"], base_version=draft["base_version"], status=draft["status"], **asking,
+        response = dict(draft_id=draft["id"], base_version=draft["base_version"], status=draft["status"], **asking,
                     checks=draft["checks"], job_id=draft["job_id"], usages=draft["usages"], snapshot=draft["snapshot"],
                     **(dict(lock_changes=locks) if locks else {}), changelog=draft.get("changelog", []),
                     warnings=draft["checks"]["conflicts"] if unchanged_plan else [],
@@ -1370,6 +1385,11 @@ class Tripwright:
                     possible_contradictions=draft["checks"].get("possible_contradictions", []),
                     verify=dict(pack_id=draft["verify"]["pack"]["pack_id"], tokens=draft["verify"]["tokens"],
                                 how=f"state(view='pack', draft_id='{draft['id']}') returns the wide pack and the complete candidate for the verifier"))
+        if draft.get("restored_from") is not None and (draft["status"] != "proposed" or draft.get("refused")):
+            blocked = self._undo_blocked(owner, draft, language)
+            if blocked:
+                response.update(undo_blocked=blocked, notice=blocked["say"] + " " + (notice or ""))
+        return response
 
     def commit(self, owner: str, draft_id: str, idempotency_key: str | None = None, *, accept_unverified: bool = False,
                ask_first: bool = False, wait: float | None = None) -> dict:
@@ -1441,20 +1461,45 @@ class Tripwright:
                        if entry.get("restored_from") is not None and entry["id"] != version["id"]]
             offer = proactive and not earlier and consider.save_mode(self.store, owner, at=now())["by"] != "user"
             taken = self._taken_back(owner, draft)
-            kept = self._kept_after_undo(owner, restored, version["id"])
+            kept_all = self._kept_after_undo(owner, restored, version["id"])
+            musts = [entry for entry in kept_all if entry["strength"] == "must"]
+            kept = [entry for entry in kept_all if entry["strength"] != "must"]
             gap = " " if language == "en" else ""
             say = words[page].format(restored=restored)
             if taken:
                 say += gap + words["taken"].format(n=words["one" if len(taken) == 1 else "many"],
                                                    what=words["join"].join(entry["text"].rstrip("。.；;，, ") for entry in taken))
+            if musts:
+                say += gap + words["kept_musts"].format(what=words["join"].join(f"“{entry['quote']}”" for entry in musts))
+                # the next answer may take them back with a yes (ledger._asked_to_withdraw)
+                self.store.put("drafts", owner, dict(self.store.get("drafts", owner, draft["id"]),
+                                                     ask_withdraw=[entry["id"] for entry in musts]))
             if kept:
                 say += gap + words["kept"].format(what=words["join"].join(entry["text"].rstrip("。.；;，, ") for entry in kept))
             say += gap + words["offer"] if offer else ""
             return dict(say=say, how=SAY_HOW[language], **({"taken_back": taken} if taken else {}), **({"kept": kept} if kept else {}),
+                        **(dict(kept_musts=musts, next=WITHDRAW_NEXT[language]) if musts else {}),
                         **({"offer": "cautious_mode"} if offer else {}))
         if not proactive:
             return None
         return dict(say=PROACTIVE_SAY[language][page], how=SAY_HOW[language], restore_version=version["base_version"])
+
+    def _undo_blocked(self, owner: str, draft: dict, language: str) -> dict | None:
+        """An undo draft refused because a requirement older than the undone turns holds the restored plan (D-21): which
+        one, in the user's words, that the plan was not changed back, and what to ask. Recorded on the draft, so the
+        user's yes in the next message takes it back (ledger._asked_to_withdraw)."""
+        named = {entry.get("id") for entry in (draft.get("changes") or {}).get("withdraw") or [] if isinstance(entry, dict)}
+        held = [decision for decision in self._breaking_locks(owner, draft["plan"]) if decision["id"] not in named]
+        if not held:
+            return None
+        words = UNDO_BLOCKED["en" if language == "en" else "zh"]
+        said = {event["id"]: event["received"]["text"] for event in self.versions.messages(owner)}
+        entries = [dict(id=decision["id"], text=f"{decision['question']}：{decision['choice']}",
+                        quote=said.get(decision["source"].get("event")) or decision.get("reason") or decision["choice"]) for decision in held]
+        self.store.put("drafts", owner, dict(self.store.get("drafts", owner, draft["id"]), ask_withdraw=[entry["id"] for entry in entries]))
+        what = ("; " if language == "en" else "；").join(f"“{entry['quote']}”（{entry['text']}）" for entry in entries)
+        return dict(held_by=entries, say=words["say"].format(restored=draft["restored_from"], what=what),
+                    next=words["next"].format(restored=draft["restored_from"]))
 
     def _undo_refused(self, owner: str, draft_id: str, error: ValueError) -> ValueError:
         """A refused undo says what holds it and what to do next (2026-11-14: in ChatGPT the host, told only of a lock,
@@ -1484,7 +1529,8 @@ class Tripwright:
         """The user's requirements the undone turns recorded that are still active after the undo (an allergy), so the
         answer says they stay and does not claim they went (2026-11-14, GLM)."""
         undone = self._undone_events(owner, number, besides=version_id)
-        return [dict(id=item["id"], text=item.get("text") or item["id"]) for item in self.store.all("items", owner)
+        return [dict(id=item["id"], key=item.get("key"), text=item.get("text") or item["id"], strength=item.get("strength"),
+                     quote=item.get("quote") or item.get("text") or item["id"]) for item in self.store.all("items", owner)
                 if item.get("status") == "active" and item["source"].get("event") in undone and item.get("kind") != consider.SETTING
                 and item["source"].get("basis") != "agent_inference"]
 
