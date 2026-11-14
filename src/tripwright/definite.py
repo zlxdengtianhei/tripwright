@@ -242,12 +242,39 @@ TAKE_BACK = re.compile(r"撤|取消|删|去掉|作废|\bremove\b|\bcancel\b|\bdr
 AFFIRM = re.compile(r"^\s*(?:好|可以|行|是|对|嗯|同意|没问题|yes|yep|yeah|ok|okay|sure)(?:的|啊|吧|呀)?(?:[\s，,。.!！~～]|$)", re.IGNORECASE)
 
 
+# A yes or a “drop it” that turns or keeps something (“好的，不过……先留着”, “可以，但先别撤”, “对，留着吧”, “OK, but keep
+# it”) cannot be read for certain as agreeing to drop the record: it counts as neither (2026-11-14, round 4 review).
+HEDGE = re.compile(r"不过|但是|但|可是|只是|然而|留着|留下|先别|别撤|别删|不撤|不删|保留|\bbut\b|\bhowever\b|\bthough\b|\bkeep\b"
+                   r"|\bleave (?:it|that|them)\b|\bdon'?t\b", re.IGNORECASE)
+
+
+def hedged(words: str) -> bool:
+    return bool(HEDGE.search(words or ""))
+
+
 def takes_back(words: str) -> bool:
-    return bool(TAKE_BACK.search(words or ""))
+    return bool(TAKE_BACK.search(words or "")) and not hedged(words)
 
 
 def affirms(words: str) -> bool:
-    return bool(AFFIRM.search(words or "")) and not declines(words)
+    return bool(AFFIRM.search(words or "")) and not declines(words) and not hedged(words)
+
+
+# What an object of the trip is called, by kind (a withdrawal's words must point at the record's own object, not only
+# at a value it shares with another: “取消 19:00 那班火车” is not about a dinner at 19:00).
+OBJECT_WORDS = {
+    "meal": r"晚饭|午饭|早饭|早餐|午餐|晚餐|吃饭|\bdinner\b|\blunch\b|\bbreakfast\b|\bmeal\b",
+    "transport": r"火车|列车|高铁|动车|航班|飞机|大巴|巴士|公交|地铁|渡轮|轮渡|\btrain\b|\bflight\b|\bplane\b|\bbus\b|\bcoach\b|\bferry\b|\bmetro\b",
+    "lodging": r"酒店|旅店|民宿|住处|\bhotel\b|\bhostel\b",
+    "coffee": r"咖啡|\bcoffee\b|\bcaf[eé]\b",
+    "visit": r"画廊|博物馆|美术馆|公园|观景|景点|\bgallery\b|\bmuseum\b|\bpark\b|\bviewpoint\b",
+}
+BLOCK_KINDS = {"meal": "meal", "visit": "visit", "transfer": "transport", "travel": "transport", "rail": "transport",
+               "transit": "transport", "stay": "lodging", "lodging": "lodging"}
+
+
+def objects_named(words: str) -> set[str]:
+    return {kind for kind, pattern in OBJECT_WORDS.items() if re.search(pattern, words or "", re.IGNORECASE)}
 
 
 # Words that ask for a change without saying to what (“门票换个窗口买吧”, “改坐早一点的车”, “another counter”).

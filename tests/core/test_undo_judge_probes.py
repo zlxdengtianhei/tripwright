@@ -243,3 +243,79 @@ def test_undo_names_the_must_items_it_kept_and_asks(trip):
     draft = call(server, "propose", ctx_id=reply["ctx_id"], changes=dict(withdraw=[dict(id=item["id"], reason="用户同意")]))
     call(server, "commit", draft_id=draft["draft_id"])
     assert trip.store.get("items", "alice", item["id"])["status"] == "superseded"
+
+
+# --- round 4 (2026-11-14): a value names a record only with its object; a yes is read as a whole ----------------------
+
+def asked_about(server, service):
+    """An older lock holds an undo; propose's undo_blocked asks about it (the question the next answer replies to)."""
+    lock = older_lock(server, service)
+    turn = call(server, "turn", text="第一天的咖啡改到 20:30。", scenario="replan", speaker="p1")
+    plan = call(server, "propose", ctx_id=turn["ctx_id"], days=[day_with(service, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
+    call(server, "commit", draft_id=plan["draft_id"], accept_unverified=True)
+    undo = call(server, "turn", text="撤回", scenario="replan", speaker="p1")
+    back = call(server, "propose", ctx_id=undo["ctx_id"], restore_version=undo["undo"]["restore_version"])
+    assert back["undo_blocked"]["held_by"][0]["id"] == lock["id"]
+    return lock, undo["undo"]["restore_version"]
+
+
+def test_p5_a_value_said_about_another_object_does_not_take_this_one(trip):
+    """The reviewer's P5: “取消 19:00 那班去卑尔根的火车。” is about a train; the dinner lock is 19:00 too."""
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    lock = older_lock(server, trip)
+    with pytest.raises(ToolError, match="naming it"):
+        withdraw_on(server, trip, "取消 19:00 那班去卑尔根的火车。", lock)
+    assert trip.store.get("decisions", "alice", lock["id"])["status"] == "active"
+
+
+def test_a_value_that_other_plan_entries_share_needs_the_object_named(trip):
+    """“撤掉 19:00 那条。” names no object, and 19:00 is also when the coffee after dinner ends."""
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    lock = older_lock(server, trip)
+    with pytest.raises(ToolError, match="naming it"):
+        withdraw_on(server, trip, "撤掉 19:00 那条。", lock)
+    assert trip.store.get("decisions", "alice", lock["id"])["status"] == "active"
+
+
+def test_the_value_with_its_own_object_still_takes_it_back(trip):
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    lock = older_lock(server, trip)
+    withdraw_on(server, trip, "撤掉晚饭 19:00 那条。", lock)
+    assert trip.store.get("decisions", "alice", lock["id"])["status"] == "superseded"
+
+
+@pytest.mark.parametrize("answer", ["好的，不过晚饭那条先留着。", "可以，但先别撤。", "对，留着吧。", "OK, but keep it."])
+def test_a_yes_with_a_but_or_a_keep_is_no_yes(trip, answer):
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    lock, restore = asked_about(server, trip)
+    reply = call(server, "turn", text=answer, scenario="replan", speaker="p1")
+    with pytest.raises(ToolError, match="ask the user"):
+        call(server, "propose", ctx_id=reply["ctx_id"], restore_version=restore,
+             changes=dict(withdraw=[dict(id=lock["id"], reason="x")]))
+    assert trip.store.get("decisions", "alice", lock["id"])["status"] == "active"
+
+
+def test_a_plain_yes_that_says_to_drop_it_still_takes_it_back(trip):
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    lock, restore = asked_about(server, trip)
+    reply = call(server, "turn", text="好，撤掉吧。", scenario="replan", speaker="p1")
+    draft = call(server, "propose", ctx_id=reply["ctx_id"], restore_version=restore,
+                 changes=dict(withdraw=[dict(id=lock["id"], reason="用户说撤掉")]))
+    call(server, "commit", draft_id=draft["draft_id"], accept_unverified=True)
+    assert trip.store.get("decisions", "alice", lock["id"])["status"] == "superseded" and dinner(trip) == "17:00"
+
+
+def test_words_that_say_to_drop_it_but_keep_something_are_refused(trip):
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    lock = older_lock(server, trip)
+    with pytest.raises(ToolError, match="ask the user"):
+        withdraw_on(server, trip, "撤掉晚饭 19:00 那条，不过先留着计划。", lock)
+    assert trip.store.get("decisions", "alice", lock["id"])["status"] == "active"

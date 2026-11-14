@@ -288,6 +288,13 @@ def record_values(table: str, record: dict) -> list[tuple[str, Any]]:
     return found
 
 
+def lock_blocks(plan: dict) -> dict:
+    """Every block of the plan by ID (the same reading locks use)."""
+    from tripwright.locks import blocks
+
+    return {block_id: block for block_id, (_, block) in blocks(plan or {}).items()} if plan else {}
+
+
 def describe_record(table: str, record: dict) -> str:
     return f"{record['question']}：{record['choice']}" if table == "decisions" else str(record.get("text") or record["id"])
 
@@ -1158,7 +1165,8 @@ class Ledger:
         from tripwright.definite import affirms, declines, takes_back
 
         values = record_values(table, record)
-        if takes_back(words) and not declines(words) and values and self.names_value(owner, answered, words, values):
+        if takes_back(words) and not declines(words) and values and self.names_value(owner, answered, words, values) \
+                and self._points_at(owner, table, record, answered, words, values):
             return
         if self._asked_to_withdraw(owner, answered, record["id"]) and not declines(words) and (affirms(words) or takes_back(words)):
             return
@@ -1166,6 +1174,48 @@ class Ledger:
         raise ValueError(f"withdraw: {record['id']} ({shown_as}) is the user's, and this message ({words!r}) does not take it back for "
                          f"certain: ask the user whether to drop “{shown_as}”, naming it; take it back from the turn of their answer "
                          "when they say yes or say to drop it, or when their words name its value and say to drop it")
+
+    def _points_at(self, owner: str, table: str, record: dict, answered: str, words: str, values: list) -> bool:
+        """The words that name this record's value point at this record, not at another object (round 4 review,
+        2026-11-14: “取消 19:00 那班去卑尔根的火车。” took back “dinner 19:00”). Refused when they name a kind of object the
+        record's own words and its locked blocks do not (a train for a dinner), or a stored place that is not its own; and,
+        when they name no object at all, when the value they give is also another plan block's time or another active
+        record's value. Only what can be told for certain counts (D-21)."""
+        from tripwright.definite import BLOCK_KINDS, objects_named
+
+        plan = self._plan(owner)
+        blocks = lock_blocks(plan)
+        own_blocks = {part.split("/")[2] for part in (record.get("locked_paths") or {}) if part.startswith("/blocks/")}
+        own_text = " ".join(str(record.get(key) or "") for key in ("question", "choice", "reason", "text", "quote", "key"))
+        try:
+            own_text += " " + (self._message(owner, record["source"].get("event") or "").get("received") or {}).get("text", "")
+        except ValueError:
+            pass
+        own = objects_named(own_text) | {BLOCK_KINDS[block.get("kind")] for block_id, block in blocks.items()
+                                          if block_id in own_blocks and block.get("kind") in BLOCK_KINDS}
+        own |= {"transport" for part in (record.get("locked_paths") or {}) if part.startswith("/bookings")}
+        own_places = {blocks[block_id].get("place") for block_id in own_blocks if block_id in blocks}
+        said = objects_named(words)
+        if said - own:
+            return False
+        for place in plan.get("places", []):
+            names = [name for name in (place.get("name"), place.get("name_local")) if name]
+            if place.get("id") not in own_places and any(name in words for name in names):
+                return False
+        if said & own or own_places & {place.get("id") for place in plan.get("places", [])
+                                       if any(name and name in words for name in (place.get("name"), place.get("name_local")))}:
+            return True
+        # no object named: the value must belong to this record alone
+        hits = [value for field, value in values if self.names_value(owner, answered, words, [(field, value)])]
+        for block_id, block in blocks.items():
+            if block_id not in own_blocks and any(block.get(edge) == value for edge in ("start", "end") for value in hits):
+                return False
+        for other_table in ("decisions", "items"):
+            for other in self.store.all(other_table, owner):
+                if other["id"] != record["id"] and other.get("status") == "active" and \
+                        any(value in hits for _, value in record_values(other_table, other)):
+                    return False
+        return True
 
     def _asked_to_withdraw(self, owner: str, answered: str, record_id: str) -> bool:
         """The service asked, in its reply to the user's message just before this one, whether to drop this record
