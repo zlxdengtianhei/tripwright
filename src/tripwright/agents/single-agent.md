@@ -29,7 +29,8 @@ How to do a role:
 ## Undo (“撤回”, “undo”, “改回去”)
 
 1. Main: `turn` with the words; it returns `undo.restore_version`.
-2. Main: `propose(ctx_id, restore_version=...)`, then `commit`, and end the answer with the receipt's `tell_user.say`. No other role: an undo restores the plan only, and what was recorded in the ledger stays.
+2. Main: `propose(ctx_id, restore_version=...)`, then `commit`, and end the answer with the receipt's `tell_user.say`. No other role. Requirements the undone turns recorded that the restored plan breaks go with the undo, and `tell_user.say` names them; the others (an allergy said in the same message) stay.
+3. If `commit` refuses it, an older requirement holds it: tell the user the plan was not changed back and ask whether to drop that one too, as the refusal says. When the user says so, propose again with `restore_version` and `changes.withdraw` and commit. Never call a refused undo done.
 
 ## Screenshots or a batch of new requirements
 

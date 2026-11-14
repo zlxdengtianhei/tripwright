@@ -472,11 +472,15 @@ class Versions:
                   for entry in operations.get(part, []) if part == "reports" or entry["answer"] == "confirmed"}
         refused, changed = [], set()
         after_ids = {decision["id"] for decision, _ in after}
+        # a lock the user's own message took back in this proposal (changes.withdraw) protects nothing after it (D-20)
+        withdrawn = {entry["id"] for entry in operations.get("withdrawn", [])}
         for lock, path in base:
             value, recorded = lock["locked_paths"][path], (lock.get("placement") or {}).get(path)
             items = changed_items(path, lock_changes(plan, path, value, recorded))
             if items or lock["id"] not in after_ids:
                 changed.add(lock["id"])
+            if lock["id"] in withdrawn:
+                continue
             whole = claimed(path, value)
             for item in sorted(items):
                 if not (protects(fields, item) or any(covers(claims, whole) and protects(holds, item) for claims, holds, _ in covering)):

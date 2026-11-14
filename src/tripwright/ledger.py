@@ -258,6 +258,19 @@ class Revision(Model):
     filled_by: Literal["service"] | None = Field(default=None, description="service: omitted by the host; records contact, not precedence.")
 
 
+class Withdrawal(Model):
+    """A record the user no longer wants, taken back (D-20, 2026-11-14): an item or a decision, kept with its status
+    changed, never deleted."""
+    id: str = Field(description="ID of an active item or decision, e.g. D-261101-k3f9qa.")
+    reason: str = Field(min_length=1, description="Why it is taken back, in words the answer can show the user.")
+
+
+# The words that take something back. A user's record is withdrawn only on the user's own message saying so: the
+# service cannot read what is meant, so it asks for one of these words, as it asks a must's words for the new value.
+WITHDRAW_WORDS = re.compile(r"撤|取消|不要|别要|删|去掉|算了|作废|不算|undo|revert|remove|cancel|drop|withdraw|forget|delete|"
+                            r"never ?mind|take (?:it|that) back", re.IGNORECASE)
+
+
 class Changes(Model):
     items: list[Item] = Field(default_factory=list)
     facts: list[Fact] = Field(default_factory=list)
@@ -286,6 +299,11 @@ class Changes(Model):
     confirm_corrections: list[Confirmation] = Field(default_factory=list, description=(
         "The user's answer to an open correction, from a later message: {id, answer: confirmed|rejected, quote, source}. "
         "Confirmed, the lock takes the new value; send the plan with it in the same proposal."))
+    withdraw: list[Withdrawal] = Field(default_factory=list, description=(
+        "Take back a requirement or decision the user no longer wants: {id, reason}. The record stays, superseded, with "
+        "this message as the reason. A user's record (a must too) needs the user's own words in this turn's message "
+        "saying to drop it (撤、取消、不要、删、去掉、remove, cancel, drop…). propose(restore_version=N) fills it in "
+        "itself for what the undone turns recorded that the restored plan breaks."))
     revisions: list[Revision] = Field(default_factory=list, description=(
         "The plan changes what the user decided earlier but did not mark a must: one {decision, reason} per such decision. "
         "A plan that changes it without one is refused; the change log shows the reason (D-53)."))
@@ -462,7 +480,7 @@ def amended_locks(amended: list[dict]) -> list[dict]:
     return [dict(decision=entry["replaces"], path=path) for entry in amended for path in entry["paths"]]
 
 
-TAKES_EFFECT = dict(decisions="on commit", reports="on commit",
+TAKES_EFFECT = dict(decisions="on commit", reports="on commit", withdrawn="on commit",
                     corrections="only after the user confirms it in a later message (confirm_corrections)")
 
 
@@ -1088,6 +1106,32 @@ class Ledger:
                        recommendation="Clarify which reading applies" if fresh else "Keep the safer existing condition until clarified",
                        default="Await clarification; neither new reading is selected" if fresh else "Keep existing", since=now(), status="open"), insert=True)
 
+    def _withdraw(self, owner: str, entry: Withdrawal, answered: str | None) -> dict:
+        """Take back one active item or decision (changes.withdraw). The agent's own reading goes on its word; a record
+        from the user's words needs this proposal's message to be the user's own, from a person of the trip, with a word
+        that takes something back. A decision's locks go with it (the commit's lock check reads `withdrawn`)."""
+        table = next((name for name in ("decisions", "items") if any(record["id"] == entry.id for record in self.store.all(name, owner))), None)
+        if table is None:
+            raise ValueError(f"withdraw: no item or decision {entry.id!r}; state(view='ledger') lists them")
+        record = self.store.get(table, owner, entry.id)
+        if record.get("status") != "active":
+            raise ValueError(f"withdraw: {entry.id} is {record.get('status')}, not active")
+        users = (record.get("decided_by") == "user" or "user" in (record.get("parts") or {}).values()) if table == "decisions" \
+            else user_layer(record["source"]["basis"])
+        if users:
+            message = self._message(owner, answered or "") if answered else {}
+            received = message.get("received") or {}
+            people = {person["id"] for person in self._plan(owner).get("people", [])}
+            if received.get("nature") not in USER_NATURES or received.get("speaker") not in people:
+                raise ValueError(f"withdraw: {entry.id} is the user's; only the user's own message (turn with the speaker) takes it back")
+            if not WITHDRAW_WORDS.search(received.get("text") or ""):
+                raise ValueError(f"withdraw: {entry.id} is the user's, and this message does not say to drop it "
+                                 "(撤、取消、不要、删、去掉、remove, cancel, drop…); ask the user first")
+        record.update(status="superseded", withdrawn=dict(event=answered, reason=entry.reason))
+        self.store.put(table, owner, record)
+        self._audit(owner, answered or record["source"]["event"], "withdraw", entry.id, {"reason": entry.reason})
+        return dict(id=entry.id, reason=entry.reason)
+
     def apply(self, owner: str, changes: Changes | dict, *, answered: str | None = None, at: str | None = None,
               plan: dict | None = None) -> dict:
         """The proposal the changes come with (`Proposal`): `answered`, the message it answers, from which alone user
@@ -1097,8 +1141,11 @@ class Ledger:
         proposal = Proposal(answered=answered, at=at, plan=plan)
         changes = Changes.model_validate(changes).model_copy(deep=True)
         changed = []
-        operations = dict(decisions=[], reports=[], corrections=[], confirmations=[], stable=[])
+        operations = dict(decisions=[], reports=[], corrections=[], confirmations=[], stable=[], withdrawn=[])
         with self.store.transaction():
+            for entry in changes.withdraw:
+                operations["withdrawn"].append(self._withdraw(owner, entry, answered))
+                changed.append(entry.id)
             contradictory = set()
             pairs = []
             crowding = []
