@@ -1,6 +1,6 @@
 """Transit sources a deployment adds beside Transitous (docs/transit-sources.md, R-07, R-08).
 
-A source is a MOTIS server the deployment runs itself (deploy/compose.yaml, profile `transit`) with one region's GTFS
+A source is a MOTIS server the deployment runs itself (the `motis` service of deploy/compose.transit.yaml) with one region's GTFS
 and, where the region has one, its GTFS-RT feed. It speaks the same API as Transitous, so it is a `TransitousProvider`
 with its own address, name and attribution. `TRIPWRIGHT_TRANSIT_SOURCES` names a YAML file listing the sources, or
 holds the list itself (a value starting with "[" or "{", for a `docker run -e`); without it the service uses

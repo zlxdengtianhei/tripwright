@@ -47,7 +47,11 @@ def deployment(monkeypatch, tmp_path):
 def test_a_region_without_a_source_is_named_and_the_guide_is_linked(service, plan):
     trip(service, plan, "Wien")
     asked = question(said(service, "帮我排一下。"))
-    assert asked["say"].startswith("维也纳市内没接实时交通源") and "Wiener Linien" in asked["say"]
+    assert asked["say"].startswith("维也纳市内没接实时交通源")
+    # The region's known sources cannot be connected yet: named as such, never offered as something to set up.
+    assert "现在没有能直接接上的实时源（Wiener Linien、VAO 是自有接口，还没有适配器）" in asked["say"]
+    assert "要不要我先找找这一带有没有" in asked["say"] and "要不要给你的部署配一个" not in asked["say"]  # bad sample: the old offer
+    assert "GTFS-RT" in asked["then"] and "source:realtime" in asked["then"]  # a yes has a next step the agent can take
     assert sources.DOC["zh"] in asked["say"] and asked["doc"] == sources.DOC["zh"]
     assert "本人申请 key" in asked["say"] and "Transitous" in asked["say"]
 
@@ -63,6 +67,7 @@ def test_the_question_is_in_english_for_an_english_message(service, plan):
     trip(service, plan, "Vienna")
     asked = question(said(service, "Please plan the trip."))
     assert asked["say"].startswith("Vienna: no real-time transport source is connected") and sources.DOC["en"] in asked["say"]
+    assert "(Wiener Linien, VAO: their own APIs, no adapter yet)" in asked["say"] and "Shall I look for one?" in asked["say"]
 
 
 def test_it_is_asked_once_a_no_is_kept_and_silence_counts_as_no(service, plan):
@@ -108,3 +113,4 @@ def test_only_the_areas_the_source_does_not_cover_are_named(service, plan, deplo
     asked = question(said(service, "帮我排一下。"))
     assert asked and asked["say"].startswith("奥地利其他乡村与区域巴士没接实时交通源")
     assert "维也纳市内" not in asked["say"]  # bad sample: naming the region the deployment already covers
+    assert "（VAO 是自有接口" in asked["say"] and "Wiener Linien" not in asked["say"]

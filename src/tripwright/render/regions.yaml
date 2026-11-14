@@ -6,7 +6,7 @@
 # 链接格式与“未在手机上验证”见 links.py；10-31 用户在手机上点过：Google 地图链接进 App，Scotty 链接进浏览器。
 # M1（D-61 六）：每行另有这一趟“来源与须知”的产品默认值，账本里这一趟或长期的 setting 条目盖过它（consider.py 的 sources）：
 #   match：行程地区（trip.areas、day.area）里出现哪些词就算这一行（不分大小写）；
-#   languages：起草询问用的当地语言（英语总带，不写在这里）；realtime：这一带可选的实时来源（要用户去配，默认不配）；
+#   languages：起草询问用的当地语言（英语总带，不写在这里）；realtime：这一带已知的实时来源，都是自有接口、还没有适配器（name 是问句里点名用的短名：说清它们现在接不上）；
 #   notes：地区须知，每条标 verified 或 inferred。
 
 # 每趟都有的数据源（默认开）。
@@ -65,7 +65,7 @@ regions:
     match: [salzkammergut, hallstatt, bad ischl, gosau, st. wolfgang, obertraun, 湖区]
     languages: [de]
     realtime:
-      - {id: vao, zh: "奥地利 VAO（全境实时，要本人签约；还没有适配器）", en: "Austria VAO (nationwide real time; needs your own contract; no adapter yet)"}
+      - {id: vao, name: VAO, zh: "奥地利 VAO（全境实时，要本人签约）", en: "Austria VAO (nationwide real time; needs your own contract)"}
 
   - id: at-rural
     name: 奥地利其他乡村与区域巴士
@@ -78,7 +78,7 @@ regions:
     match: [austria, österreich, oesterreich, 奥地利, salzburg, graz, innsbruck, linz, 萨尔茨堡, 格拉茨]
     languages: [de]
     realtime:
-      - {id: vao, zh: "奥地利 VAO（全境实时，要本人签约；还没有适配器）", en: "Austria VAO (nationwide real time; needs your own contract; no adapter yet)"}
+      - {id: vao, name: VAO, zh: "奥地利 VAO（全境实时，要本人签约）", en: "Austria VAO (nationwide real time; needs your own contract)"}
     notes:
       - {zh: "奥地利周日多数超市和商店不开门，车站与加油站的店除外", en: "In Austria most supermarkets and shops close on Sundays, except at stations and petrol stations", status: inferred}
 
@@ -93,8 +93,8 @@ regions:
     match: [wien, vienna, 维也纳]
     languages: [de]
     realtime:
-      - {id: wiener-linien, zh: "维也纳 Wiener Linien 实时（自有接口，还没有适配器）", en: "Vienna Wiener Linien real time (its own API; no adapter yet)"}
-      - {id: vao, zh: "奥地利 VAO（全境实时，要本人签约；还没有适配器）", en: "Austria VAO (nationwide real time; needs your own contract; no adapter yet)"}
+      - {id: wiener-linien, name: Wiener Linien, zh: "维也纳 Wiener Linien 实时", en: "Vienna Wiener Linien real time"}
+      - {id: vao, name: VAO, zh: "奥地利 VAO（全境实时，要本人签约）", en: "Austria VAO (nationwide real time; needs your own contract)"}
     notes:
       - {zh: "奥地利周日多数超市和商店不开门，车站与加油站的店除外", en: "In Austria most supermarkets and shops close on Sundays, except at stations and petrol stations", status: inferred}
 

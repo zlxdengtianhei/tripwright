@@ -20,7 +20,7 @@ Where to look, in this order:
 4. **The country's national access point.** EU member states must each run one for transport data (Delegated Regulation (EU) 2017/1926); [NAPCORE lists them](https://napcore.eu/description-naps/national-access-point). Most are catalogues that link to the publishers, not download pages.
 5. **The operator or the city's open-data portal.** A rule of thumb from Transitous: if Google Maps shows public transport in a region, a GTFS for it very likely exists.
 
-Examples of what you find (read on 2026-11-14): Switzerland's [opentransportdata.swiss](https://opentransportdata.swiss/en/cookbook/timetable-cookbook/gtfs) has GTFS and GTFS-RT, the real time with a free key limited to 2 requests a minute; Germany's [gtfs.de](https://gtfs.de/en/feeds) has a free GTFS (CC BY 4.0, the next 30 days) and a beta GTFS-RT; England, Wales and Scotland's buses are on the Bus Open Data Service with a free key; Japan's are mostly behind the ODPT API with a free token. In mainland China we found no open GTFS: only map companies' APIs, which need a key and a verified identity and cannot be loaded into MOTIS (section 6).
+Examples of what you find (read on 2026-11-14): Switzerland's [opentransportdata.swiss](https://opentransportdata.swiss/en/cookbook/timetable-cookbook/gtfs) has GTFS and GTFS-RT; the real time needs a key you request on the platform, and its two pages disagree on the limit per key ([GTFS-RT page](https://opentransportdata.swiss/en/cookbook/realtime-prediction-cookbook/gtfs-rt): 2 requests a minute; [limits page](https://opentransportdata.swiss/en/limits-and-costs/): 5); Germany's [gtfs.de](https://gtfs.de/en/feeds) has a free GTFS (CC BY 4.0, the next 30 days) and a beta GTFS-RT; England, Wales and Scotland's buses are on the Bus Open Data Service with a free key; Japan's are mostly behind the ODPT API with a free token. In mainland China we found no open GTFS: only map companies' APIs, which need a key and a verified identity and cannot be loaded into MOTIS (section 6).
 
 Before you use a source, check four things:
 
@@ -61,10 +61,10 @@ with `osm: aachen.osm.pbf`, the dataset tag `avv` and `path: avv.gtfs.zip` in `c
 Then import once (5.5 seconds and 30 MB for Aachen in our run; for all of Germany, one published run reports a peak of about 7 GB of memory during import, [source](https://github.com/helpcode-ai/anythingmcp/blob/main/deploy/motis/Dockerfile); **not tested** here):
 
 ```bash
-docker run --rm -v "$PWD":/data -w /data ghcr.io/motis-project/motis:2.11.4 /motis import
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/data -w /data ghcr.io/motis-project/motis:2.11.4 /motis import
 ```
 
-The MOTIS image runs as its own unprivileged user. On Docker Desktop that user could write into the folder; on a Linux server, if the import stops with "permission denied", add `--user "$(id -u):$(id -g)"` to this command and to the MOTIS container below (**not tested** on Linux).
+Keep `--user "$(id -u):$(id -g)"`: it runs the import as you, so it can write `data/` into your folder. Without it the import runs as the image's own user (`motis`, UID 100); on a Linux server with Docker Engine that user cannot write into a folder you own, and the import stops with `unable to import: basic_ios::clear: iostream error` and leaves no `data/` (seen on Ubuntu, 2026-11-14). The server needs no `--user`: it only reads `data/`. With `sudo docker`, the `$(id -u)` is still yours, because your shell fills it in before `sudo` runs. Both the Mac (Docker Desktop) and the Linux server ran this command as written.
 
 **`sources.yaml`.** One entry per MOTIS server:
 
@@ -92,7 +92,7 @@ sources:
 ```bash
 cd deploy
 echo 'COMPOSE_FILE=compose.yaml:compose.transit.yaml' >> .env
-docker compose run --rm --no-deps motis /motis import    # if you did not import in section 3
+docker compose run --rm --no-deps --user "$(id -u):$(id -g)" motis /motis import    # if you did not import in section 3
 docker compose up -d
 ```
 

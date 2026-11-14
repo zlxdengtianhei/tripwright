@@ -29,7 +29,13 @@ SETTING = "setting"
 # basis is the agent's. An agent's entry that meets a user's on the same object names it under CONFLICTS_USER.
 USER_LAYER = ("user_explicit", "direction_set")
 CONFLICTS_USER = "conflicts_with_user"
-SCENARIOS = ("plan", "replan", "compare", "requirements")  # the scenarios that plan, so ask about must-go and sources
+SCENARIOS = ("plan", "replan", "compare", "requirements")
+# What the agent does when the user says yes to the real-time question (R-07): the next step it can take itself.
+REALTIME_THEN = ("If the user wants one: look for this region's open GTFS-RT feed as the guide's section 1 says (transitous.org/sources, "
+                 "Mobility Database, the country's national access point) and tell the user what you found, with its licence and "
+                 "whether it needs a key. If there is one, record source:realtime with on: true and which: the feed, and give the "
+                 "setup of the guide's sections 3 to 5 with its addresses, to run where the service runs (a coding agent can run "
+                 "them; a key or contract is the user's). If there is none, say so plainly and keep the timetable.")  # the scenarios that plan, so ask about must-go and sources
 WORDS = {
     "zh": dict(more="另有 {n} 条没列，state(view='memory') 可看；单条的原话与来源用 explain(record_id)。", must="必须", inferred="推断", pending="长期条目待确认，没答前照用",
                next="回答前先逐条看 consider 里的 {n} 条：用到哪条、权衡掉哪条（为什么），回答里说清；标“必须”的不能动，要动先问用户；"
@@ -37,9 +43,10 @@ WORDS = {
                ask_next="ask 里的问题照问。", people="{id}：{name}", destination="{areas}（{start}—{end}）",
                priority={"must": "必去（计划里标的）", "recommended": "推荐"},
                must_go="有没有必须要去的地方或必须守的时间？没提就当没有。",
-               realtime="{regions}没接实时交通源：班次只能按时刻表给，晚点和停运要到当地 App 查。要不要给你的部署配一个（例：{options}）？"
-                        "配法见 {doc}，有的源要你本人申请 key。不配就照现在用免费的 Transitous，按时刻表。",
-               trip_places="这趟去的地方", any_feed="当地交通方公开的 GTFS-RT",
+               realtime="{regions}没接实时交通源：班次只能按时刻表给，晚点和停运要到当地 App 查。现在没有能直接接上的实时源{known}；"
+                        "当地要是有公开的 GTFS-RT，可以接到你的部署上（做法见 {doc}，有的要你本人申请 key）。要不要我先找找这一带有没有？"
+                        "不配就照现在用免费的 Transitous，按时刻表。",
+               trip_places="这趟去的地方", known="（{names} 是自有接口，还没有适配器）",
                must_go_default="用户没提必须去的地方，按没有算", realtime_default="这趟不配实时数据，用 Transitous（按时刻表）",
                save_mode="改计划时碰到没核过的事实（例：营业时间），你要哪种？① 主动：我直接存，回答里说清哪条没核，回“撤回”就恢复上一版；"
                          "② 谨慎：先问你，你回话后再存。不回就按{default}；以后随时一句话能改。",
@@ -55,9 +62,10 @@ WORDS = {
                priority={"must": "must-see (marked in the plan)", "recommended": "recommended"},
                must_go="Is there any place you must go to, or a time you must keep? If you don't say, I take it there is none.",
                realtime="{regions}: no real-time transport source is connected, so departures are timetable only and delays and "
-                        "cancellations have to be checked in the local app. Do you want one set up on your deployment (e.g. {options})? "
-                        "How: {doc}; some sources need a key you apply for yourself. Without it I keep using the free Transitous timetable.",
-               trip_places="The places on this trip", any_feed="the local operator's open GTFS-RT feed",
+                        "cancellations have to be checked in the local app. No real-time source can be connected directly yet{known}; "
+                        "if there is an open GTFS-RT feed here, it can be added to your deployment (how: {doc}; some need a key you apply "
+                        "for yourself). Shall I look for one? Without it I keep using the free Transitous timetable.",
+               trip_places="The places on this trip", known=" ({names}: their own APIs, no adapter yet)",
                must_go_default="The user named no must-go place; taken as none", realtime_default="No real-time data on this trip; Transitous timetable",
                save_mode="When a change brings in facts nobody has checked (e.g. opening hours), which do you want? 1 Proactive: I save it "
                          "and say which facts are unchecked; reply “undo” to get the previous version back. 2 Cautious: I ask first and "
@@ -262,10 +270,12 @@ def sources(store, owner: str, plan: dict | None, *, at: str, language: str = "z
     # The areas no deployment source with real time covers, and the region rows they fall in (R-07: those are named).
     live = [word for source in connected if source["realtime"] for word in source["match"]]
     missing = [area for area in areas_of(plan) if not any(word in area for word in live)]
-    named = [row.get("name_en", row["name"]) if key == "en" else row["name"]
-             for row in (regions_of(plan, missing) if missing else []) if row["id"] != "default"]
+    uncovered = [row for row in (regions_of(plan, missing) if missing else []) if row["id"] != "default"]
+    named = [row.get("name_en", row["name"]) if key == "en" else row["name"] for row in uncovered]
+    # The region table's real-time sources there: their own APIs, no adapter yet, so the question names them as such.
+    known = list(dict.fromkeys(option.get("name") or option[key] for row in uncovered for option in row.get("realtime") or []))
     return dict(regions=[dict(id=row["id"], name=row["name"]) for row in rows], entries=found, languages=codes, apps=apps,
-                reports=reports, realtime=dict(configured=configured, options=[option[key] for option in options],
+                reports=reports, realtime=dict(configured=configured, options=[option[key] for option in options], known=known,
                                                live=not missing, missing=named, doc=transit_sources.DOC[key]))
 
 
@@ -444,11 +454,10 @@ def asks(store, owner: str, plan: dict | None, *, scenario: str, scope: dict | N
     realtime = known["realtime"]
     if plan and planning and not realtime["configured"] and not realtime.get("live") \
             and not any(entry["id"] == "realtime" for entry in settled(store, owner)):
-        options = w["join"].join(realtime["options"]) or w["any_feed"]
+        known_names = w["known"].format(names=w["join"].join(realtime["known"])) if realtime["known"] else ""
         found.append(dict(id="realtime", say=w["realtime"].format(regions=w["join"].join(realtime["missing"]) or w["trip_places"],
-                                                                  options=options,
-                                                                  doc=realtime["doc"]),
-                          doc=realtime["doc"], default=w["realtime_default"],
+                                                                  known=known_names, doc=realtime["doc"]),
+                          doc=realtime["doc"], default=w["realtime_default"], then=REALTIME_THEN,
                           record=dict(items=[dict(kind=SETTING, key="source:realtime", value={"on": "true or false", "which": "<id>"},
                                                   subject=["*"], strength="prefer", quote="<the user's words>", text="<one sentence>",
                                                   source={"event": "this", "basis": "user_explicit"})])))

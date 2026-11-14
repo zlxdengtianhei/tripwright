@@ -20,7 +20,7 @@
 4. **该国的国家访问点（NAP）。** 欧盟成员国都必须设一个交通数据的国家访问点（委托条例 (EU) 2017/1926）；[NAPCORE 有清单](https://napcore.eu/description-naps/national-access-point)。多数是目录，链到数据发布方，不直接给下载。
 5. **运营方或城市的开放数据门户。** Transitous 给的经验：Google 地图在一个地区显示公交，那里多半有 GTFS。
 
-找到的大致样子（2026-11-14 读）：瑞士 [opentransportdata.swiss](https://opentransportdata.swiss/en/cookbook/timetable-cookbook/gtfs) 有 GTFS 与 GTFS-RT，实时要免费 key，每个 key 每分钟最多 2 次；德国 [gtfs.de](https://gtfs.de/en/feeds) 有免费 GTFS（CC BY 4.0，只含未来 30 天）和测试版 GTFS-RT；英格兰、威尔士、苏格兰的巴士在 Bus Open Data Service，免费注册拿 key；日本多数在 ODPT 的 API 后面，免费注册拿 token。中国大陆我们没找到开放的 GTFS：只有地图厂商的接口，要 key、要实名，也塞不进 MOTIS（见第 6 节）。
+找到的大致样子（2026-11-14 读）：瑞士 [opentransportdata.swiss](https://opentransportdata.swiss/en/cookbook/timetable-cookbook/gtfs) 有 GTFS 与 GTFS-RT；实时要在平台上申请 key，每个 key 的次数限制它两页写得不一样（[GTFS-RT 页](https://opentransportdata.swiss/en/cookbook/realtime-prediction-cookbook/gtfs-rt)：每分钟 2 次；[限额页](https://opentransportdata.swiss/en/limits-and-costs/)：5 次）；德国 [gtfs.de](https://gtfs.de/en/feeds) 有免费 GTFS（CC BY 4.0，只含未来 30 天）和测试版 GTFS-RT；英格兰、威尔士、苏格兰的巴士在 Bus Open Data Service，免费注册拿 key；日本多数在 ODPT 的 API 后面，免费注册拿 token。中国大陆我们没找到开放的 GTFS：只有地图厂商的接口，要 key、要实名，也塞不进 MOTIS（见第 6 节）。
 
 用一个源之前，核四件事：
 
@@ -61,10 +61,10 @@ curl -L -o avv.gtfs.zip https://opendata.avv.de/current_GTFS/AVV_GTFS_Masten_mit
 然后导入一次（我们跑亚琛 5.5 秒、30 MB；德国全境，有一份公开的读数说导入时内存峰值约 7 GB，[出处](https://github.com/helpcode-ai/anythingmcp/blob/main/deploy/motis/Dockerfile)；这里**没测**）：
 
 ```bash
-docker run --rm -v "$PWD":/data -w /data ghcr.io/motis-project/motis:2.11.4 /motis import
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/data -w /data ghcr.io/motis-project/motis:2.11.4 /motis import
 ```
 
-MOTIS 镜像用它自己的非 root 用户运行。在 Docker Desktop 上它能写这个文件夹；在 Linux 服务器上，导入报 “permission denied” 时，给这条命令和下面的 MOTIS 容器加 `--user "$(id -u):$(id -g)"`（Linux 上**没测**）。
+`--user "$(id -u):$(id -g)"` 要留着：导入以你的身份跑，才能往你的文件夹里写 `data/`。不加时导入用镜像自己的用户（`motis`，UID 100）；在装 Docker Engine 的 Linux 服务器上，这个用户写不了你的文件夹，导入停在 `unable to import: basic_ios::clear: iostream error`，也没有 `data/`（2026-11-14 在 Ubuntu 上见到）。服务本身不用加 `--user`：它只读 `data/`。用 `sudo docker` 时 `$(id -u)` 仍是你的，因为 shell 在 `sudo` 跑之前就把它填好了。这条命令原样在 Mac（Docker Desktop）和 Linux 服务器上都跑过。
 
 **`sources.yaml`。** 每个 MOTIS 服务器一条：
 
@@ -92,7 +92,7 @@ sources:
 ```bash
 cd deploy
 echo 'COMPOSE_FILE=compose.yaml:compose.transit.yaml' >> .env
-docker compose run --rm --no-deps motis /motis import    # 第 3 节没导入的话
+docker compose run --rm --no-deps --user "$(id -u):$(id -g)" motis /motis import    # 第 3 节没导入的话
 docker compose up -d
 ```
 

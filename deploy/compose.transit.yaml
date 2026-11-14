@@ -2,6 +2,8 @@
 # Off unless named: `docker compose -f compose.yaml -f compose.transit.yaml up -d`, or COMPOSE_FILE in deploy/.env.
 # Everything for it lives in one folder beside the data folder, ../../transit: the OSM extract, the GTFS zip, MOTIS's
 # config.yml and imported data/, and sources.yaml, which tells Tripwright where the server is and which area it covers.
+# Import as yourself, so the import can write data/ there (as the image's user it fails on Linux with
+# "unable to import: basic_ios::clear: iostream error"): docker compose run --rm --no-deps --user "$(id -u):$(id -g)" motis /motis import
 services:
   tripwright:
     environment:
