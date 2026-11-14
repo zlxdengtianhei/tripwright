@@ -106,3 +106,18 @@ def test_a_message_that_says_more_is_no_undo(words):
 def test_nothing_to_go_back_to_gives_no_undo(trip):
     turn = trip.turn("alice", "撤回", "nothing", scenario="replan")
     assert "undo" not in turn
+
+
+def test_with_a_public_page_the_sentence_says_the_page_is_being_updated(trip, monkeypatch):
+    monkeypatch.setattr(type(trip), "_page_connected", lambda self: True)
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    _, _, version = host_change(server, trip, "page")
+    assert version["tell_user"]["say"] == "当前是主动模式：改动已存，现在开始更新页面；想撤回，直接回复“撤回”。"
+    _, _, back = host_undo(server)
+    assert back["tell_user"]["say"].startswith("已撤回：计划回到第 1 版，页面也在更新。")
+
+
+def test_on_the_road_the_optional_researcher_says_looking_it_up_yourself_is_the_design(trip):
+    turn = trip.turn("alice", "今晚最晚几点出发回住处？", "road", scenario="quick")
+    researcher = [entry for entry in turn["flow"]["dispatch"] if entry["role"] == "tripwright-researcher"]
+    assert researcher and all(entry.get("optional") and "设计如此" in entry["why"] for entry in researcher)
