@@ -87,13 +87,13 @@ SAVE_OPTIONS = dict(
                  ("check_first", "我先查这几条再存", "多等一轮；查不到的仍标没核"),
                  ("keep", "不改，保持现在的计划", "这次改动不存，计划照旧")],
             tell=[("keep", "保留这版", "已存；没核的在计划和页面上标着"),
-                  ("undo", "撤回", "计划回到第 {base} 版")]),
+                  ("undo", "撤回", "计划回到这次改动之前")]),
     en=dict(ask=[("save", "Save it as it is and check the {n} unverified fact(s) yourself before going", "The plan changes now; "
                   "the unverified facts are marked in the plan and on the page"),
                  ("check_first", "Let me look them up first, then save", "One more round; what cannot be checked stays marked"),
                  ("keep", "Leave the plan as it is", "This change is not saved")],
             tell=[("keep", "Keep this version", "Saved; the unverified facts are marked in the plan and on the page"),
-                  ("undo", "Undo", "The plan goes back to version {base}")]))
+                  ("undo", "Undo", "The plan goes back to before this change")]))
 
 
 def save_options(asks: bool, n: int, base: int, language: str) -> list[dict]:
@@ -113,7 +113,10 @@ TELL_USER = dict(zh="这次改动新带来 {n} 条没核的事实；现在是主
                     "restore_version set to the version before the change, then commit).")
 # The sentence a proactive answer ends with (2026-11-13: GPT-6 Luna saved in the same turn 2 times in 2 and named the
 # unverified fact, but said nothing about undoing it).
-UNDO_SAY = dict(zh="不想要这次改动，回“撤回”，我恢复到第 {base} 版。", en="If you don't want this change, reply “undo” and I'll restore version {base}.")
+# No version number (D-22, 2026-11-14): before the commit the number is not known for certain (a host that commits the
+# message's requirements first makes another version; GLM said “我恢复到第 5 版” when the undo went back to 3). The exact
+# number is only in the commit receipt's tell_user.say.
+UNDO_SAY = dict(zh="不想要这次改动，回“撤回”，我恢复上一版。", en="If you don't want this change, reply “undo” and I'll restore the previous version.")
 # The sentence every plan change saved in the proactive mode ends with (the user, 2026-11-14: "第一轮回复完后可以提示：
 # 当前在主动模式，现在开始更新页面；如果想撤回可以直接回复'撤回'"). commit returns it, so it does not rest on the model
 # remembering it; `page` when a public page is connected (it is rebuilt in the background), `plain` otherwise.
@@ -1376,7 +1379,7 @@ class Tripwright:
             unverified=[{key: check[key] for key in ("id", "text", "details", "consequence", "alternative")} for check in ask],
             how=words[language].format(n=len(ask)),
             **({} if words is ASK_WITH_REFUSAL else dict(options=save_options(asks, len(ask), draft["base_version"], language))),
-            **({} if asks or words is ASK_WITH_REFUSAL else dict(say=UNDO_SAY[language].format(base=draft["base_version"]))))} if ask else {}
+            **({} if asks or words is ASK_WITH_REFUSAL else dict(say=UNDO_SAY[language])))} if ask else {}
         response = dict(draft_id=draft["id"], base_version=draft["base_version"], status=draft["status"], **asking,
                     checks=draft["checks"], job_id=draft["job_id"], usages=draft["usages"], snapshot=draft["snapshot"],
                     **(dict(lock_changes=locks) if locks else {}), changelog=draft.get("changelog", []),

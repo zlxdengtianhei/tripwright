@@ -488,8 +488,29 @@ def test_tell_user_offers_keep_or_undo_to_the_previous_version(trip):
     options = draft["tell_user"]["options"]
     assert [option["id"] for option in options] == ["keep", "undo"]
     assert options[0].get("recommended") and options[0].get("if_no_answer")
-    assert "第 1 版" in options[1]["then"]
-    assert draft["tell_user"]["say"] == "不想要这次改动，回“撤回”，我恢复到第 1 版。" and "tell_user.say" in draft["tell_user"]["how"]
+    assert options[1]["then"] == "计划回到这次改动之前"
+    # D-22: no version number before the commit; the exact one is only in the commit receipt
+    assert draft["tell_user"]["say"] == "不想要这次改动，回“撤回”，我恢复上一版。" and "tell_user.say" in draft["tell_user"]["how"]
+
+
+def test_propose_says_how_to_undo_without_a_version_number_and_the_receipt_has_the_number(trip, monkeypatch):
+    """D-22 (2026-11-14): GLM ended an answer with propose's “我恢复到第 5 版” when the undo went back to version 3."""
+    import re
+
+    monkeypatch.setenv("TRIPWRIGHT_SAVE_UNVERIFIED", "agent")
+    for key, text in (("zh", MOVE), ("en", "Move dinner on June 10 from 17:00 to 19:00.")):
+        turn = trip.turn("alice", text, f"move-{key}", scenario="replan")
+        draft = trip.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], idempotency_key=f"move-{key}",
+                             days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
+        tell = draft["tell_user"]
+        assert not re.search(r"\d", tell["say"]), tell["say"]
+        assert not re.search(r"\d", next(option["then"] for option in tell["options"] if option["id"] == "undo"))
+        version = trip.commit("alice", draft["draft_id"], f"commit-{key}", accept_unverified=True)
+        back = trip.turn("alice", "撤回" if key == "zh" else "undo", f"undo-{key}", scenario="replan")
+        restored = trip.propose("alice", ctx_id=back["ctx_id"], restore_version=back["undo"]["restore_version"])
+        receipt = trip.commit("alice", restored["draft_id"], f"undo-{key}", accept_unverified=True)
+        assert re.search(rf"\b{back['undo']['restore_version']}\b", receipt["tell_user"]["say"]), receipt["tell_user"]["say"]
+        assert version["number"] > back["undo"]["restore_version"]
 
 
 def test_options_follow_an_english_conversation(trip):
