@@ -29,13 +29,13 @@ SETTING = "setting"
 # basis is the agent's. An agent's entry that meets a user's on the same object names it under CONFLICTS_USER.
 USER_LAYER = ("user_explicit", "direction_set")
 CONFLICTS_USER = "conflicts_with_user"
-SCENARIOS = ("plan", "replan", "compare", "requirements")
+SCENARIOS = ("plan", "replan", "compare", "requirements")  # the scenarios that plan, so ask about must-go and sources
 # What the agent does when the user says yes to the real-time question (R-07): the next step it can take itself.
 REALTIME_THEN = ("If the user wants one: look for this region's open GTFS-RT feed as the guide's section 1 says (transitous.org/sources, "
                  "Mobility Database, the country's national access point) and tell the user what you found, with its licence and "
                  "whether it needs a key. If there is one, record source:realtime with on: true and which: the feed, and give the "
                  "setup of the guide's sections 3 to 5 with its addresses, to run where the service runs (a coding agent can run "
-                 "them; a key or contract is the user's). If there is none, say so plainly and keep the timetable.")  # the scenarios that plan, so ask about must-go and sources
+                 "them; a key or contract is the user's). If there is none, say so plainly and keep the timetable.")
 WORDS = {
     "zh": dict(more="另有 {n} 条没列，state(view='memory') 可看；单条的原话与来源用 explain(record_id)。", must="必须", inferred="推断", pending="长期条目待确认，没答前照用",
                next="回答前先逐条看 consider 里的 {n} 条：用到哪条、权衡掉哪条（为什么），回答里说清；标“必须”的不能动，要动先问用户；"
