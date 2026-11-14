@@ -7,7 +7,7 @@ import json
 import sys
 
 from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+from mcp.client.stdio import get_default_environment, stdio_client
 
 from repo_fixtures import BY_HAND, TRIP, Writer, bare, git, new_repository, plan, seeded
 from tripwright.adapters.mcp import create_server
@@ -92,7 +92,9 @@ def test_mcp_server_uses_instructions_and_the_new_parameters_without_prompts(tmp
 
 
 async def stdio_round(folder) -> dict:
-    parameters = StdioServerParameters(command=sys.executable, args=["-m", "tripwright.cli", "--repo", str(folder), "serve", "--stdio"])
+    # the cautious mode, which waits for the user's answer, is no longer the default (2026-11-14): this round selects it
+    parameters = StdioServerParameters(command=sys.executable, args=["-m", "tripwright.cli", "--repo", str(folder), "serve", "--stdio"],
+                                       env=dict(get_default_environment(), TRIPWRIGHT_SAVE_UNVERIFIED="ask"))
     async with stdio_client(parameters) as streams:
         async with ClientSession(*streams) as session:
             await session.initialize()
@@ -115,13 +117,14 @@ async def stdio_round(folder) -> dict:
             return dict(turn=turn, committed=committed, verify=verify, memory=memory)
 
 
-def test_a_round_over_real_stdio_on_a_repository_reaches_effective(tmp_path):
+def test_a_round_over_real_stdio_on_a_repository_reaches_the_remote(tmp_path):
     remote = bare(tmp_path / "remote.git")
     folder = new_repository(tmp_path / "repo", remote=remote)
     result = asyncio.run(stdio_round(folder))
     title = result["turn"]["pack"]["markdown"].splitlines()[0]
     assert result["turn"]["write"]["state"] == "received" and title.startswith("# 现在 ") and "｜约束包 CTX-" in title
-    assert result["committed"]["write"]["state"] == "effective"
+    # commit returns before Git (2026-11-14); the background loop, or the shutdown flush at the latest, pushes it
+    assert result["committed"]["accepted"] and result["committed"]["write"]["state"] in ("received", "pending_sync", "effective")
     assert result["verify"]["markdown"].count("逐条处置") == 1 and result["verify"]["candidate"]["id"] == TRIP
     assert result["memory"]["schema"] == "tripwright.memory/1"
     assert git(folder, "rev-parse", "HEAD") == git(remote, "rev-parse", "main")

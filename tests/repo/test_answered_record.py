@@ -7,7 +7,8 @@ import pytest
 from repo_fixtures import Writer, bare, clone, git, new_repository, plan
 
 
-def test_the_answering_message_is_in_the_version_file_and_in_a_second_copy(tmp_path):
+def test_the_answering_message_is_in_the_version_file_and_in_a_second_copy(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRIPWRIGHT_SAVE_UNVERIFIED", "ask")  # the cautious mode waits for the answer (no longer the default)
     remote = bare(tmp_path / "remote.git")
     first = Writer(new_repository(tmp_path / "laptop", remote=remote))
     try:

@@ -14,6 +14,12 @@ from tripwright.versions import commit_key, proposal_key
 from test_ask_before_saving import DINNER, MOVE, YES, day_with, trip  # noqa: F401  (trip is a fixture)
 
 
+@pytest.fixture(autouse=True)
+def cautious_deployment(monkeypatch):
+    """These tests answer a draft that waits for the user: the cautious mode, no longer the default (2026-11-14)."""
+    monkeypatch.setenv("TRIPWRIGHT_SAVE_UNVERIFIED", "ask")
+
+
 def call(server, tool, **arguments):
     return asyncio.run(server.call_tool(tool, arguments)).structured_content
 

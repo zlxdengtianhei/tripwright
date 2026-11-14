@@ -19,7 +19,8 @@ def said(service, key="save_mode", value="proactive", text=WORDS, speaker="p1", 
     (dict(speaker=None), "没有行程里的说话人", "turn 带 speaker"),
     (dict(basis="agent_inference"), "agent 的推断", "kind=setting"),
 ])
-def test_a_save_mode_that_does_not_count_is_said_with_why_and_how(trip, arguments, why, how):
+def test_a_save_mode_that_does_not_count_is_said_with_why_and_how(trip, arguments, why, how, monkeypatch):
+    monkeypatch.setenv("TRIPWRIGHT_SAVE_UNVERIFIED", "ask")  # a cautious deployment, so a proactive setting that does not count shows
     turn = said(trip, **arguments)
     [entry] = turn["recorded"]["not_in_effect"]
     assert why in entry["why"] and how in entry["how"]
