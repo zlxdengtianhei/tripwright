@@ -5,7 +5,7 @@
 `SKILL.md`, `references/records.md`, `references/single-agent.md`, `references/tools.md`, `references/writing.md` and the other three role skills (`skills/tripwright-requirements/`, `skills/tripwright-verifier/`, `skills/tripwright-researcher/`) are generated. Edit the sources and rebuild from the repository root:
 
 - Role text: `src/tripwright/agents/roles/<role>.md`. Whole-line directives choose what each target gets (`only`, `include`, `reference`); see the docstring of `src/tripwright/agents/assemble.py`.
-- The six single-agent steps: `src/tripwright/agents/steps/<n>-<name>.md`, each with a with-tools and a without-tools section.
+- One agent doing the roles in turn (by scenario, each role by its own steps): `src/tripwright/agents/single-agent.md`. It replaced the six single-agent steps (`steps/<n>-<name>.md`, with versions for chat apps without tools) on 2026-11-14, which repeated the roles' rules in a second text.
 - Writing rules, answer outline, transport lines and lookup triggers: block B's `src/tripwright/render/fragments/<name>.<language>.md`, copied verbatim. Every pack also inlines `writing.<language>.md`, and the contract samples are tuned to its token estimate (`tripwright.render.tokens.estimate`: 561 for zh, 653 for en); a change that moves the estimate needs new samples from the main session.
 - Rebuild: `uv run python -m tripwright.agents build`; check without writing: `uv run python -m tripwright.agents build --check`.
 

@@ -102,17 +102,42 @@ def save_options(asks: bool, n: int, base: int, language: str) -> list[dict]:
     recommended = "save" if asks else "keep"
     return [dict(id=key, say=say.format(n=n), then=then.format(base=base), **({"recommended": True} if key == recommended else {}),
                  **({"if_no_answer": True} if key == "keep" else {})) for key, say, then in rows]
-# In the proactive save mode (the user's save_mode setting, or TRIPWRIGHT_SAVE_UNVERIFIED=agent) nothing waits for the
+# In the proactive save mode (the user's save_mode setting, or the default without one) nothing waits for the
 # user: propose names the same facts as tell_user, and the answer says how to get the previous version back.
-TELL_USER = dict(zh="这次改动新带来 {n} 条没核的事实；用户选的是主动模式，不等回话：commit(draft_id, accept_unverified=true) 存下，"
-                    "回答里说改了什么、哪几条没核、各自的后果与备选，末尾原样带上 tell_user.say（用户回“撤回”时，propose(restore_version=改之前的版本号) 再 commit）。",
+TELL_USER = dict(zh="这次改动新带来 {n} 条没核的事实；现在是主动模式，不等回话：commit(draft_id, accept_unverified=true) 存下，"
+                    "回答里说改了什么、哪几条没核、各自的后果与备选，末尾原样带上 commit 返回的 tell_user.say（用户回“撤回”时，propose(restore_version=改之前的版本号) 再 commit）。",
                  en="This change brings in {n} unverified fact(s); the save mode is proactive, so nothing waits for the user: "
                     "commit(draft_id, accept_unverified=true), then tell the user what changed, which facts are unknown, what "
-                    "follows from each and the alternative, and end with tell_user.say as it is (on “undo”, propose with "
+                    "follows from each and the alternative, and end with the tell_user.say commit returns, as it is (on “undo”, propose with "
                     "restore_version set to the version before the change, then commit).")
 # The sentence a proactive answer ends with (2026-11-13: GPT-6 Luna saved in the same turn 2 times in 2 and named the
 # unverified fact, but said nothing about undoing it).
 UNDO_SAY = dict(zh="不想要这次改动，回“撤回”，我恢复到第 {base} 版。", en="If you don't want this change, reply “undo” and I'll restore version {base}.")
+# The sentence every plan change saved in the proactive mode ends with (the user, 2026-11-14: "第一轮回复完后可以提示：
+# 当前在主动模式，现在开始更新页面；如果想撤回可以直接回复'撤回'"). commit returns it, so it does not rest on the model
+# remembering it; `page` when a public page is connected (it is rebuilt in the background), `plain` otherwise.
+PROACTIVE_SAY = dict(zh=dict(page="当前是主动模式：改动已存，现在开始更新页面；想撤回，直接回复“撤回”。",
+                             plain="当前是主动模式：改动已存；想撤回，直接回复“撤回”。"),
+                     en=dict(page="You're in proactive mode: the change is saved and the page is being updated now; to undo it, just reply “undo”.",
+                             plain="You're in proactive mode: the change is saved; to undo it, just reply “undo”."))
+# After an undo: the plan is back, and the first time this user undoes a change, the cautious mode is offered once
+# (the user, 2026-11-14: "用户回复撤回后，再告诉他我们有谨慎模式可选，建议他考虑谨慎模式"; once, not on every undo).
+RESTORED_SAY = dict(zh=dict(page="已撤回：计划回到第 {restored} 版，页面也在更新。", plain="已撤回：计划回到第 {restored} 版。",
+                            offer="另外我们有谨慎模式：改计划前先把改动给你看，你同意了再存。建议考虑；想用就回“以后先问我”。"),
+                    en=dict(page="Undone: the plan is back to version {restored}, and the page is being updated.",
+                            plain="Undone: the plan is back to version {restored}.",
+                            offer="We also have a cautious mode: I show you a change first and save it only after you agree. "
+                                  "Worth considering; to switch, reply “ask me first from now on”."))
+SAY_HOW = dict(zh="回答末尾原样带上 say。", en="End the answer with say as it is.")
+# A message that only takes the last change back (“撤回”, “undo”): turn names the version to restore, so the agent
+# does not have to work it out (or remember restore_version).
+UNDO_WORDS = re.compile(r"^\s*(?:撤回|撤销|改回去|恢复上一版|不要这次改动|undo|revert|change it back|undo (?:that|it|the change))"
+                        r"[\s。．.!！~～吧了啊呀，,]*$", re.IGNORECASE)
+UNDO_NEXT = dict(zh="用户要撤回上一次改动：propose(ctx_id, restore_version={number}) 再 commit，回答末尾原样带上 commit 返回的 tell_user.say。"
+                    "撤回只恢复计划；那一轮记进账本的要求（例：过敏）照旧留着，用户要删再另说。",
+                 en="The user takes the last change back: propose(ctx_id, restore_version={number}), then commit, and end the answer with "
+                    "the tell_user.say commit returns. Undo restores the plan only; requirements recorded in that turn (e.g. an allergy) "
+                    "stay in the ledger unless the user says otherwise.")
 # What the main agent does once the verifier's report is recorded (analysis 5.14): by verdict, and for an incomplete
 # check by save mode. The cautious question comes with options, as ask_user's do.
 REPORT_NEXT = dict(
@@ -120,7 +145,7 @@ REPORT_NEXT = dict(
             conflict="核对员判冲突：这份草稿存不下。照它说的冲突改草稿、重新 propose，再派核对员。",
             ask="核对员有没核到的：先问用户，至多三个选项，每个一句后果：① 照这样存，没核到的到时自己看一眼（推荐）；② 我先补核再存；③ 不改（不回话就按这个）。"
                 "用户回话后 commit(accept_unverified=true)。",
-            tell="核对员有没核到的：用户选的是主动模式，commit(accept_unverified=true) 存下，回答里逐条说没核到的和后果，末尾说回“撤回”能恢复上一版。",
+            tell="核对员有没核到的：现在是主动模式，commit(accept_unverified=true) 存下，回答里逐条说没核到的和后果，末尾说回“撤回”能恢复上一版。",
             incomplete="核对员判不完整，但没列出没核到的：可以 commit。"),
     en=dict(passed="The verifier passed the draft: commit.",
             conflict="The verifier found a conflict: this draft cannot be saved. Change the draft as it says, propose again and dispatch the verifier again.",
@@ -361,7 +386,7 @@ def whole_sentences(text: str, limit: int) -> str:
 
 class Tripwright:
     def __init__(self, store: Store, *, query_router: QueryRouter | None = None, query_timeout: float = 30,
-                 deep_timeout: float = 120, repository=None, commit_wait: float = 5.0, language: str = "zh"):
+                 deep_timeout: float = 120, repository=None, commit_wait: float = 0.0, language: str = "zh"):
         self.store = store
         self.events = Events(store)
         self.ledger = Ledger(store)
@@ -373,6 +398,10 @@ class Tripwright:
         self.query_router = query_router or QueryRouter(store)
         self.query_timeout = query_timeout
         self.deep_timeout = deep_timeout
+        # How long commit waits for the Git commit and push (and so for write.state `effective`). 0: it returns once the
+        # version is in the index, and the committer commits, pushes and schedules the page in the background (the
+        # user, 2026-11-14: the reply must not wait for saving and the site update; they belong to the second half).
+        # On a local bare remote the wait was 2.0-2.8 s of every commit (out/DESIGN.md, tw-modes 2026-11-14).
         self.commit_wait = commit_wait
         self.language = language
         self.flow = Flow()
@@ -579,11 +608,12 @@ class Tripwright:
             if review:
                 response["review"] = review
             waiting = self._waiting_draft(owner, event_id, language) if self.asks_first(owner) else None
+            undo = self._undo(owner, text, current, language)
             response["flow"] = self.flow.turn(owner, clock(), text=text, scenario=scenario, language=language, nature=nature_key,
                                               recorded=bool(record_input), changed=bool(recorded.get("replaced")),
                                               review=[entry["decision"] for entry in review], second=bool(first), latest=first_part.asks_latest(text),
                                               unknown=bool(self._unknown_places(plan, told, language=language)),
-                                              answers_draft=bool(waiting),
+                                              answers_draft=bool(waiting or undo),
                                               ids=dict(event_id=event_id, ctx_id=context_id, base_version=current["number"]))
             # The agent acts on the instruction it reads first: whom to dispatch leads it (2026-11-12 live runs: as a
             # separate field only, a short planning edit went to the requirements role 2 times in 10).
@@ -605,6 +635,10 @@ class Tripwright:
                 response["waiting_draft"] = waiting
                 if not first:  # a first part keeps its own first instruction; the pointer is in waiting_draft all the same
                     response["next"] = whole_sentences(waiting["say"] + (" " if language == "en" else "") + response["next"], 600)
+            if undo:
+                response["undo"] = undo
+                if not first:
+                    response["next"] = whole_sentences(undo["say"] + (" " if language == "en" else "") + response["next"], 700)
             if told is not None:
                 response["points"] = told
         if self.committer is not None:
@@ -615,12 +649,21 @@ class Tripwright:
     def asks_first(self, owner: str | None = None) -> bool:
         """Whether a host agent's accept_unverified counts only after another message has arrived through turn
         (versions.commit): the cautious save mode. The user chooses it per trip or for good (a `save_mode` setting,
-        consider.save_mode, 2026-11-13: two modes, the user picks); without one the deployment's default holds:
-        `ask` (cautious) follows what the user said on 2026-10-31 (results nobody verified are not acceptable), read as
-        "ask before saving"; TRIPWRIGHT_SAVE_UNVERIFIED=agent is proactive. Either way a changed must, a bought or
+        consider.save_mode, 2026-11-13: two modes, the user picks); without one the default is proactive (the user,
+        2026-11-14), and TRIPWRIGHT_SAVE_UNVERIFIED=ask makes it cautious for a deployment. Either way a changed must, a bought or
         booked item, a hard node and competing preferences are refused as before."""
         mode = consider.save_mode(self.store, owner, at=now()) if owner is not None else dict(mode=consider.deployment_mode())
         return mode["mode"] == "cautious"
+
+    def _undo(self, owner: str, text: str, current: dict, language: str) -> dict | None:
+        """A message that only takes the last change back (“撤回”, “undo”): the version to restore, the one the current
+        version was made from. None when there is nothing to go back to."""
+        target = current.get("base_version")
+        if not UNDO_WORDS.match(text or "") or not isinstance(target, int) or target < 1 or current.get("number", 0) < 2:
+            return None
+        if not any(version["number"] == target and version.get("plan") for version in self.store.all("versions", owner)):
+            return None
+        return dict(restore_version=target, say=UNDO_NEXT["en" if language == "en" else "zh"].format(number=target))
 
     def _waiting_draft(self, owner: str, event_id: str, language: str) -> dict | None:
         """The plan draft this message answers: proposed for the message before this one, still on the current
@@ -1292,6 +1335,8 @@ class Tripwright:
                                         state="received" if self.committer else "effective")
                 notices.settle(self.store, owner, prior) if self.committer is None else None
         timeout = self.commit_wait if wait is None else wait
+        if self.committer is not None and prior["state"] == "received" and timeout <= 0:
+            self.committer.poke()  # the background loop commits and pushes it after its batch window
         if self.committer is not None and prior["state"] == "received" and timeout > 0:
             self.committer.wait(prior["id"], timeout)
             # Replayed on a newer head while we waited: the version as it now stands, with `redone` when it was redone (D-75).
@@ -1305,13 +1350,42 @@ class Tripwright:
         # Saved with unverified facts the user did not answer about (the proactive mode): the answer the agent writes
         # next ends with how to undo it. The receipt is the last thing it reads before writing (2026-11-13: the same
         # sentence in propose's tell_user was not said in 2 runs of 2).
-        undo = dict(say=UNDO_SAY["en" if self._reply_language(owner) == "en" else "zh"].format(base=version["base_version"])) \
-            if draft.get("ask") and version.get("accept_unverified") and not version.get("answered") and not ask_first else None
+        undo = self._saved_say(owner, draft, version, ask_first)
         ids = {item.get("id") for item in (draft.get("changes") or {}).get("items", [])}
         ineffective = self._settings_not_in_effect(owner, [item for item in self.store.all("items", owner) if item["id"] in ids],
                                                    self._reply_language(owner)) if ids else []
         return dict(version, accepted=True, write=self.write_ref(owner, prior), **(dict(lock_changes=locks) if locks else {}),
                     **(dict(tell_user=undo) if undo else {}), **(dict(settings_not_in_effect=ineffective) if ineffective else {}))
+
+    def _saved_say(self, owner: str, draft: dict, version: dict, ask_first: bool) -> dict | None:
+        """The sentence the answer ends with after this commit (tell_user.say), or None. An undo: the version it went back
+        to, and the first time this user undoes a change in the proactive mode, the cautious mode offered once. Any other
+        plan change saved in the proactive mode: the mode, the page being updated, and “撤回” to undo it. Nothing for a
+        ledger-only commit, for the cautious mode (the user saw the change before it was saved) or an answered ask."""
+        if ledger_only(draft) or version.get("answered"):
+            return None
+        proactive = not ask_first and not self.asks_first(owner)
+        language = "en" if self._reply_language(owner) == "en" else "zh"
+        page = "page" if self._page_connected() else "plain"
+        restored = version.get("restored_from")
+        if restored is not None:
+            words = RESTORED_SAY[language]
+            earlier = [entry for entry in self.store.all("versions", owner)
+                       if entry.get("restored_from") is not None and entry["id"] != version["id"]]
+            offer = proactive and not earlier and consider.save_mode(self.store, owner, at=now())["by"] != "user"
+            say = words[page].format(restored=restored) + ((" " if language == "en" else "") + words["offer"] if offer else "")
+            return dict(say=say, how=SAY_HOW[language], **({"offer": "cautious_mode"} if offer else {}))
+        if not proactive:
+            return None
+        return dict(say=PROACTIVE_SAY[language][page], how=SAY_HOW[language], restore_version=version["base_version"])
+
+    def _page_connected(self) -> bool:
+        """A public page is connected: the committer's publisher rebuilds it in the background after each new version."""
+        if self.committer is None:
+            return False
+        from tripwright.site.publish import share_connection
+
+        return share_connection(self.committer.publisher.data_dir) is not None
 
     def result(self, owner: str, job_id: str, *, cancel: bool = False, ack_events: list[str] | None = None,
                report: dict | None = None) -> dict:

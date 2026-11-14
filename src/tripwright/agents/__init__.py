@@ -60,8 +60,11 @@ def user_repo_files() -> dict[str, bytes]:
 
 def role_steps(role: str) -> dict:
     """A role's steps as its skill holds them, for a host without the skill files (a chat app): `state(view="role")`.
-    `role` is a role name, or `<role>/<file>` for one of its `references/` files. The same bytes the skill ships,
+    `role` is a role name, `<role>/<file>` for one of its `references/` files, or `single`: the order in which one agent
+    without subagents does the roles (the main role's `single-agent.md`). The same bytes the skill ships,
     without the generator's front matter, so a chat app and a repository host follow one text (2026-11-13, G1)."""
+    if role == "single":  # the order in which one agent does the roles (references/single-agent.md, 2026-11-14)
+        role = "tripwright-main/single-agent.md"
     name, _, file = role.partition("/")
     if name not in ROLES:
         raise ValueError(f"Unknown role {role!r}; one of: {', '.join(ROLES)}")

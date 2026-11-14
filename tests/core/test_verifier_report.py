@@ -33,7 +33,8 @@ def test_a_conflict_the_verifier_found_is_not_saved(trip):
         host_commit(trip, draft, accept_unverified=True)
 
 
-def test_in_the_cautious_mode_unchecked_lines_wait_for_the_users_answer(trip):
+def test_in_the_cautious_mode_unchecked_lines_wait_for_the_users_answer(trip, monkeypatch):
+    monkeypatch.setenv("TRIPWRIGHT_SAVE_UNVERIFIED", "ask")  # the cautious mode is no longer the default (2026-11-14)
     draft = titled(trip)
     answer = report(trip, draft, verdict="incomplete", unchecked=["行李归谁背没核到"])
     assert "① 照这样存" in answer["result"]["report"]["next"]

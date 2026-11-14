@@ -49,9 +49,9 @@ PlanArguments = Annotated[Any, WithJsonSchema({"type": "object"})]
 ObjectList = Annotated[Any, WithJsonSchema({"type": "array", "items": {"type": "object"}})]
 # view="role" (G1, 2026-11-13): a role's steps for a host without the skill files; the tool description has no room for it
 RoleArgument = Annotated[str | None, WithJsonSchema({"type": ["string", "null"], "description": (
-    "view='role' only: tripwright-main, tripwright-requirements, tripwright-researcher or tripwright-verifier, or "
-    "<role>/<file> for a reference it lists. Returns that role's steps, to do a role flow.dispatch names yourself "
-    "when you cannot dispatch it.")})]
+    "view='role' only: tripwright-main, tripwright-requirements, tripwright-researcher or tripwright-verifier, "
+    "<role>/<file> for a reference it lists, or single. Returns that role's steps, to do a role flow.dispatch names yourself "
+    "when you cannot dispatch it; single returns the order in which one agent does the roles.")})]
 # the verifier's verdict handed back to the service (analysis 5.14, 2026-11-13)
 ReportArgument = Annotated[dict | None, WithJsonSchema({"type": ["object", "null"], "description": (
     "The verifier only, after checking the draft: {verdict: passed|conflict|incomplete, unchecked: [one sentence per item it "

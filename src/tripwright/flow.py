@@ -27,6 +27,7 @@ WHY = {
                researcher_second="第二段要核的事实交查询员（后台）",
                researcher_latest="今晚最晚的车交查询员查",
                researcher_unknown="有没存的地方：交查询员查",
+               researcher_quick="路上快问：你自己查（设计如此）；宿主能开后台 worker 时也可以交查询员",
                verifier="草稿改了计划：提交前交核对员从完整资料包核一遍",
                fares="有要买的票：另派一次查询员只查票价与优惠",
                unrecorded="这条消息还没进账本：先派需求整理员记下、提交它的草稿（计划没提交也不能丢），再给核对员"),
@@ -38,6 +39,7 @@ WHY = {
                researcher_second="The facts the second part checks go to the researcher (in the background)",
                researcher_latest="Tonight's latest connection goes to the researcher",
                researcher_unknown="A place is not stored: the researcher looks it up",
+               researcher_quick="On the road you look it up yourself (by design); a host with background workers may hand it to the researcher",
                verifier="The draft changes the plan: before commit, the verifier checks it from the wide pack",
                fares="Tickets still to buy: dispatch the researcher once more for fares and discounts only",
                unrecorded="Nothing of this message is in the ledger: dispatch the requirements role and commit its draft first (the request must not be lost if the plan is held back), then the verifier"),
@@ -54,21 +56,21 @@ SHORT = {
 }
 FULL = {
     "zh": dict(quick="路上即时问答：①turn 记下原话；②原样发 first_part；③要核的事实自己查，宿主能开后台 worker 时才派查询员（有截图或几件事时派需求整理员）；"
-                     "④第二段标题照给的写，先说和第一段的不同；⑤不派核对员。flow.dispatch 点了谁就派谁；不能派时先照该条的 steps 取这个角色的步骤，再自己依次做。",
+                     "④第二段标题照给的写，先说和第一段的不同；⑤不派核对员。flow.dispatch 点了谁就派谁；不能派子代理时，先取 state(view=\"role\", role=\"single\") 的编排，按它依次取各角色的步骤自己做。",
                plan="做计划：①turn 只带原话（不带 record）；②派需求整理员记进账本、连依赖（depends_on 等）、列要问的，先提交它交回的只改账本的草稿；"
                     "③先 query(kind='saved') 用存的资料，缺的派查询员查；④propose（同一个 ctx_id 与 base_version）；⑤草稿改了计划就派核对员核，"
-                    "通过才 commit；propose 返回 ask_user（谨慎模式，新带来的没核事实）时照它的 options 问用户（每个一句后果、标推荐、说不回按哪个），等回话再 commit；返回 tell_user（主动模式）就存，回答里说哪条没核、怎样撤回；⑥回答里说改了什么、为什么。flow.dispatch 点了谁就派谁；不能派时先照该条的 steps 取这个角色的步骤，再自己依次做。"),
+                    "通过才 commit；propose 返回 ask_user（谨慎模式，新带来的没核事实）时照它的 options 问用户（每个一句后果、标推荐、说不回按哪个），等回话再 commit；主动模式直接 commit，不等仓库与页面更新；⑥回答里说改了什么、为什么，commit 返回 tell_user 时末尾原样带上它的 say。flow.dispatch 点了谁就派谁；不能派子代理时，先取 state(view=\"role\", role=\"single\") 的编排，按它依次取各角色的步骤自己做。"),
     "en": dict(quick="On the road: (1) record the words with turn; (2) send first_part as given; (3) check the facts yourself, and dispatch the researcher only "
                      "when the host runs background workers (the requirements role when there are screenshots or several things); (4) write the given second heading and lead with "
-                     "what differs; (5) no verifier. Dispatch whom flow.dispatch names; without subagents, first read that role's steps with the entry's `steps` call, then do them yourself.",
+                     "what differs; (5) no verifier. Dispatch whom flow.dispatch names; without subagents, read the order with state(view=\"role\", role=\"single\"), then do each role's steps yourself in turn.",
                plan="Planning: (1) turn with the words only (no record); (2) dispatch the requirements role to record, link (depends_on and "
                     "relations) and list questions, and commit the ledger-only draft it returns first; (3) use query(kind='saved') first and "
                     "dispatch the researcher for what is missing; (4) propose (same ctx_id and base_version); (5) when the draft changes the "
                     "plan, dispatch the verifier and commit only after it passes; when propose returns ask_user (cautious mode, unverified facts "
                     "the change brings in), ask with its options (one consequence each, the recommended one marked, what happens "
-                    "without an answer) and commit after the answer; on tell_user (proactive mode) commit and say what is "
-                    "unverified and how to undo; (6) say what changed and why. Dispatch whom flow.dispatch "
-                    "names; without subagents, first read that role's steps with the entry's `steps` call, then do them yourself."),
+                    "without an answer) and commit after the answer; in the proactive mode commit at once, without waiting for the "
+                    "repository or the page; (6) say what changed and why, and end with the tell_user.say commit returns. Dispatch whom flow.dispatch "
+                    "names; without subagents, read the order with state(view=\"role\", role=\"single\"), then do each role's steps yourself in turn."),
 }
 
 # A minimal task packet on every named role (2026-11-13, analysis 5.3): the IDs to hand over, the one thing it returns
@@ -156,7 +158,8 @@ class Flow:
             if needed:
                 # On the road the main agent looks things up itself (2026-11-12 live runs: 3 of 3 right in 15-20 s; the
                 # user: "直接询问、直接回答"); the researcher is an option for hosts with background workers, not a step.
-                dispatch.append(dict(role="tripwright-researcher", why=why[reason], **({"optional": True} if mode == "quick" else {})))
+                dispatch.append(dict(role="tripwright-researcher", why=why["researcher_quick" if mode == "quick" else reason],
+                                     **({"optional": True} if mode == "quick" else {})))
                 break
         missed = (("tripwright-requirements" in seen.named and "record" not in seen.did)
                   or ("tripwright-researcher" in seen.named and "query" not in seen.did)

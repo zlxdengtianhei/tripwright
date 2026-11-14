@@ -1,13 +1,13 @@
 """Assemble skills and host agent files from one set of role and step sources (CONTRACTS section 4).
 
-Sources: this package's `roles/*.md` and `steps/*.md`; the main role owns its answer and writing reference.
+Sources: this package's `roles/*.md` and `single-agent.md` (the order in which one agent does the roles); the main
+role owns its answer and writing reference.
 `core.yaml` holds the steps of every message (S4a), rendered the same way into the server instructions, the `steps`
 that `turn` returns, the roles that include them and the AGENTS.md that `tripwright init` writes.
 Block B's writing fragments remain available through B's `tripwright.render.writing.fragment(name, language)`
 for explicit includes, copied verbatim. A role body is Markdown with
 whole-line directives: `<!-- only: skill claude -->` ... `<!-- /only -->` keeps lines for the named targets;
-`<!-- include: fragment writing zh -->`, `<!-- include: steps summary|tool|notool -->` and
-`<!-- include: core steps|always -->` insert text.
+`<!-- include: fragment writing zh -->` and `<!-- include: core steps|always -->` insert text.
 A missing fragment becomes a visible placeholder line, so the skill can be assembled before B delivers.
 
 `build(load_sources(root))` is pure: the same sources give the same bytes. Every output names its sources in a
@@ -35,9 +35,12 @@ GENERATED = f"{AGENTS}/generated"
 FRAGMENTS = "src/tripwright/render/fragments"
 CORE = f"{AGENTS}/core.yaml"
 AGENTS_TEMPLATE = f"{AGENTS}/templates/AGENTS.md.tmpl"
+# One agent doing the roles in turn (2026-11-14, the user: "还是需要给它一个操作步骤，引导它自己去调用不同的角色，逐一完成任务").
+# It replaced steps/*.md, a second set of steps that repeated the roles' rules (with a version for chat apps without tools).
+SINGLE_SOURCE = f"{AGENTS}/single-agent.md"
+SINGLE_OUTPUT = "skills/tripwright-main/references/single-agent.md"
 # S4a: the server instructions are the core steps and little else, for an entry that reads nothing but MCP (豆包工作)
 INSTRUCTIONS_LIMIT = 3600
-STEP_SECTIONS = ("## With tools", "## Without tools")
 # Frontmatter fields documented on code.claude.com/docs/en/sub-agents (read 2026-10-31). Claude Code ignores an
 # unknown field without an error, so a misspelt restriction would silently not apply: refuse it here instead.
 CLAUDE_FIELDS = {"tools", "disallowedTools", "model", "permissionMode", "maxTurns", "skills", "mcpServers", "hooks",
@@ -45,18 +48,6 @@ CLAUDE_FIELDS = {"tools", "disallowedTools", "model", "permissionMode", "maxTurn
 ROLE_FIELDS = {"name", "title", "description", "metadata", "targets", "claude"}
 METADATA_FIELDS = ("trigger", "owns", "not", "layer")
 DIRECTIVE = re.compile(r"<!--\s*(?:(only):\s*([\w ]+?)|(/only)|(include):\s*([\w ]+?)|(reference):\s*([\w.-]+?\.md)|(/reference))\s*-->")
-
-SINGLE_AGENT_INTRO = """# Single-agent steps
-
-Read this from `SKILL.md` when the host cannot dispatch subagents, or when a step is unclear. Each step has a version for hosts with the Tripwright tools and one for chat apps without them. Without tools, every reply ends with one 写回仓 block that collects what its steps add.
-
-Choose the steps by scenario:
-- Starting a new trip: 0, then the steps of the scenario.
-- Quick question: 1 → 2 (only the people and time involved) → 3 → 4 (the facts the user will act on) → 5 (record only what the message carried).
-- Status report only: 1 → 5.
-- Replan or plan from scratch: 1 → 6.
-- A large batch of new requirements: 1 → 2 → split into points and mark conflicts → 5 (proposals only)."""
-
 
 class AssembleError(ValueError):
     pass
@@ -67,16 +58,6 @@ class Role:
     name: str
     meta: dict
     body: str
-    path: str
-
-
-@dataclass(frozen=True)
-class Step:
-    number: int
-    title: str
-    summary: str
-    tool: str
-    notool: str
     path: str
 
 
@@ -92,7 +73,7 @@ class Core:
 @dataclass(frozen=True)
 class Sources:
     roles: dict[str, Role]
-    steps: tuple[Step, ...]
+    single: str
     fragments: dict[str, str]
     core: Core
     agents_template: str
@@ -142,21 +123,6 @@ def parse_role(text: str, path: str) -> Role:
     return Role(name, meta, body, path)
 
 
-def parse_step(text: str, path: str) -> Step:
-    meta, body = split_frontmatter(text, path)
-    number = int(Path(path).name.split("-", 1)[0])
-    if meta.get("step") != number or not meta.get("title") or not meta.get("summary"):
-        raise AssembleError(f"{path}: needs step: {number}, title and summary")
-    with_tools, without = STEP_SECTIONS
-    if body.count(with_tools + "\n") != 1 or body.count(without + "\n") != 1 or body.index(with_tools) > body.index(without):
-        raise AssembleError(f"{path}: needs one '{with_tools}' section followed by one '{without}' section")
-    before, _, rest = body.partition(with_tools + "\n")
-    if before.strip():
-        raise AssembleError(f"{path}: text before '{with_tools}'")
-    tool, _, notool = rest.partition(without + "\n")
-    return Step(number, meta["title"], meta["summary"], tool.strip(), notool.strip(), path)
-
-
 def plain(text) -> str:
     return " ".join(str(text).split())
 
@@ -199,17 +165,12 @@ def load_sources(root: Path = ROOT, read=read_fragment) -> Sources:
     for file in sorted((root / AGENTS / "roles").glob("*.md")):
         role = parse_role(file.read_text(encoding="utf-8"), file.relative_to(root).as_posix())
         roles[role.name] = role
-    steps = tuple(parse_step(file.read_text(encoding="utf-8"), file.relative_to(root).as_posix())
-                  for file in sorted((root / AGENTS / "steps").glob("*.md")))
-    # Step 0 (starting a new trip) is optional and comes before the six steps of every scenario.
-    first = 0 if steps and steps[0].number == 0 else 1
-    if [step.number for step in steps] != list(range(first, first + len(steps))):
-        raise AssembleError(f"{AGENTS}/steps: steps must be numbered 0 or 1..n without gaps")
+    single = (root / SINGLE_SOURCE).read_text(encoding="utf-8")
     fragments = b_fragments(read)
     if "tripwright-main" not in roles:
         raise AssembleError(f"{AGENTS}/roles: tripwright-main is required")
     core = parse_core((root / CORE).read_text(encoding="utf-8"))
-    return Sources(roles, steps, fragments, core, (root / AGENTS_TEMPLATE).read_text(encoding="utf-8"))
+    return Sources(roles, single, fragments, core, (root / AGENTS_TEMPLATE).read_text(encoding="utf-8"))
 
 
 # --- expansion ------------------------------------------------------------------
@@ -221,14 +182,6 @@ def fragment_text(sources: Sources, name: str, language: str, where: str) -> str
     if file in sources.fragments:
         return sources.fragments[file].strip("\n")
     return f"> 等 B 片段：{FRAGMENTS}/{file}"
-
-
-def steps_text(sources: Sources, mode: str, where: str) -> str:
-    if mode == "summary":
-        return "\n".join(f"{step.number}. **{step.title}.** {step.summary}" for step in sources.steps)
-    if mode not in ("tool", "notool"):
-        raise AssembleError(f"{where}: unknown steps mode {mode!r}")
-    return "\n\n".join(f"### {step.number}. {step.title}\n\n{step.tool if mode == 'tool' else step.notool}" for step in sources.steps)
 
 
 def core_step_lines(core: Core) -> list[str]:
@@ -309,9 +262,6 @@ def expand(body: str, target: str, sources: Sources, where: str) -> Expanded:
             if kind == "fragment" and len(arguments) == 2:
                 lines.extend(fragment_text(sources, *arguments, place).splitlines())
                 used.add("fragments")
-            elif kind == "steps" and len(arguments) == 1:
-                lines.extend(steps_text(sources, arguments[0], place).splitlines())
-                used.add("steps")
             elif kind == "core" and len(arguments) == 1:
                 lines.extend(core_text(sources.core, arguments[0], place).splitlines())
                 used.add("core")
@@ -335,8 +285,6 @@ def notice(paths: list[str]) -> str:
 
 def source_paths(role: Role, used: set[str]) -> list[str]:
     paths = [role.path]
-    if "steps" in used:
-        paths.append(f"{AGENTS}/steps/*.md")
     if "fragments" in used:
         paths.append(f"{FRAGMENTS}/*.md")
     if "core" in used:
@@ -404,10 +352,7 @@ def build(sources: Sources) -> dict[str, str]:
     # Not named AGENTS.md: a host working on this checkout would read it as this repository's instructions. init
     # writes it as the trip repository's AGENTS.md, without this notice (its own first line says init wrote it).
     outputs[f"{GENERATED}/repo/AGENTS.init.md"] = markdown(notice([AGENTS_TEMPLATE, CORE]), agents_md(sources))
-    steps_note = notice([f"{AGENTS}/steps/*.md"])
-    outputs["skills/tripwright-main/references/single-agent.md"] = markdown(steps_note, tidy("\n\n".join([
-        SINGLE_AGENT_INTRO, "## With tools", steps_text(sources, "tool", "single-agent"),
-        "## Without tools", steps_text(sources, "notool", "single-agent")])))
+    outputs[SINGLE_OUTPUT] = markdown(notice([SINGLE_SOURCE]), tidy(sources.single))
     return outputs
 
 

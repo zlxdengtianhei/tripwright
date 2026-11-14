@@ -40,11 +40,13 @@ def test_each_promise_from_the_packet_has_a_check():
     assert {promise.id for promise in PROMISES} >= {
         "turn-first", "order-only-from-user", "competing-preferences-get-options", "baggage-holder",
         "declare-relations-in-propose", "declarations-hold-only-on-overlap", "transport-text-search-term-and-triggers",
-        "write-state-words", "never-call-a-write-success", "six-single-agent-steps", "multi-agent-optional",
-        "no-tool-steps-end-with-write-back", "verifier-independent-input", "verifier-stale-gives-no-conclusion",
+        "write-state-words", "never-call-a-write-success", "single-agent-roles-in-turn", "multi-agent-optional",
+        "verifier-independent-input", "verifier-stale-gives-no-conclusion",
         "researcher-saved-first-with-provenance", "subagents-never-commit", "new-trip-carry-over",
         "possible-contradictions-named", "locks-follow-identity", "turn-records-this-message", "new-trip-calls",
-        "new-trip-without-tools", "verifier-gets-the-wide-pack"}
+        "verifier-gets-the-wide-pack"}
+    # 2026-11-14: the six single-agent steps and their versions for chat apps without tools became one order of the roles
+    assert not {promise.id for promise in PROMISES} & {"six-single-agent-steps", "no-tool-steps-end-with-write-back", "new-trip-without-tools"}
 
 
 def test_a_negated_block_is_not_mistaken_for_blocking(outputs):

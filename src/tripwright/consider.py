@@ -439,23 +439,30 @@ MODE_WORDS = {"proactive": "proactive", "主动": "proactive", "agent": "proacti
               "ask": "cautious"}
 
 
-def deployment_mode() -> str:
-    """The operator's default: TRIPWRIGHT_SAVE_UNVERIFIED=agent is proactive, anything else (the default `ask`) cautious."""
+def deployment_setting() -> str | None:
+    """The operator's TRIPWRIGHT_SAVE_UNVERIFIED as a mode, or None when it is not set (or not one of its two values)."""
     import os
 
-    return "proactive" if os.environ.get("TRIPWRIGHT_SAVE_UNVERIFIED", "ask").lower() == "agent" else "cautious"
+    return {"agent": "proactive", "ask": "cautious"}.get((os.environ.get("TRIPWRIGHT_SAVE_UNVERIFIED") or "").strip().lower())
+
+
+def deployment_mode() -> str:
+    """The mode of a user who has not chosen: TRIPWRIGHT_SAVE_UNVERIFIED=ask is cautious, `agent` or no value proactive
+    (the user, 2026-11-14: "未选模式时默认主动模式")."""
+    return deployment_setting() or "proactive"
 
 
 def save_mode(store, owner: str, *, at: str) -> dict:
     """Whether a change that brings in unverified outside facts is saved in the turn that proposed it (proactive) or
     after the user's answer (cautious): the user's `save_mode` setting, this trip's before a long-term one, else the
-    deployment's. `{mode, by, record?}`, by `user` or `deployment`."""
+    deployment's (proactive unless the operator set `ask`). `{mode, by, record?}`, by `user`, `deployment` (the
+    operator's variable) or `default` (neither)."""
     chosen = best([item for item in settings(store, owner, at=at) if item["key"] == "save_mode" and said_by_user(store, owner, item)],
                   "save_mode")
     mode = mode_of(chosen) if chosen else None
     if mode:
         return dict(mode=mode, by="user", record=chosen["id"])
-    return dict(mode=deployment_mode(), by="deployment")
+    return dict(mode=deployment_mode(), by="deployment" if deployment_setting() else "default")
 
 
 def said_by_user(store, owner: str, item: dict) -> bool:

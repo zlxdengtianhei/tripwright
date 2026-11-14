@@ -33,7 +33,7 @@ def test_the_build_refuses_instructions_over_the_limit_and_a_step_without_its_ch
     long = sources.core.__class__(sources.core.intro, sources.core.steps,
                                   sources.core.always + ("Read every file. " * 300,), sources.core.read)
     with pytest.raises(AssembleError, match="over 3600"):
-        build(sources.__class__(sources.roles, sources.steps, sources.fragments, long, sources.agents_template))
+        build(sources.__class__(sources.roles, sources.single, sources.fragments, long, sources.agents_template))
     with pytest.raises(AssembleError, match="each one action and the check"):
         parse_core("intro: x\nsteps:\n  - do: Call turn.\nalways: []\nread: y\n")
 

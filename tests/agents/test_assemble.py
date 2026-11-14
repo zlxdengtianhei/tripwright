@@ -3,7 +3,7 @@ import pytest
 
 from tripwright.agents.__main__ import main
 from tripwright.agents.assemble import (FRAGMENTS, GENERATED, NOTICE_PREFIX, ROOT, AssembleError, Sources, b_fragments, build,
-                                        check, expand, load_sources, parse_role, parse_step, write)
+                                        check, expand, load_sources, parse_role, write)
 from tripwright.render.writing import fragment
 
 MAIN = "skills/tripwright-main/SKILL.md"
@@ -75,7 +75,7 @@ def test_only_blocks_keep_lines_per_target_and_references_move_out_of_skills_onl
     ("<!-- only: phone -->\nA\n<!-- /only -->\n", "unknown targets"),
     ("text <!-- only: skill --> inline\n", "stand alone"),
     ("<!-- include: fragment writing fr -->\n", "unknown fragment"),
-    ("<!-- include: steps everything -->\n", "unknown steps mode"),
+    ("<!-- include: steps tool -->\n", "unknown include"),  # the step sources are gone (2026-11-14)
     ("<!-- include: website -->\n", "unknown include"),
 ])
 def test_malformed_directives_are_refused(sources, body, message):
@@ -109,26 +109,13 @@ def test_role_frontmatter_is_validated():
         parse_role(ROLE.replace("title: Sample", "title: Sample: broken: yes"), "roles/tripwright-sample.md")
 
 
-STEP = "---\nstep: 2\ntitle: T\nsummary: S\n---\n\n## With tools\n\nA\n\n## Without tools\n\nB\n\n写回仓: nothing.\n"
-
-
-def test_step_sources_need_both_versions_in_order():
-    step = parse_step(STEP, "steps/2-sample.md")
-    assert (step.tool, step.notool) == ("A", "B\n\n写回仓: nothing.")
-    with pytest.raises(AssembleError, match="step: 3"):
-        parse_step(STEP, "steps/3-sample.md")
-    with pytest.raises(AssembleError, match="followed by"):
-        parse_step(STEP.replace("## Without tools", "## Offline"), "steps/2-sample.md")
-    swapped = "---\nstep: 2\ntitle: T\nsummary: S\n---\n\n## Without tools\n\nB\n\n## With tools\n\nA\n"
-    with pytest.raises(AssembleError, match="followed by"):
-        parse_step(swapped, "steps/2-sample.md")
-
-
-def test_the_six_steps_and_the_new_trip_step_are_numbered_without_gaps(sources, checkout):
-    assert [step.number for step in sources.steps] == [0, 1, 2, 3, 4, 5, 6]
-    (checkout / "src/tripwright/agents/steps/3-first.md").unlink()
-    with pytest.raises(AssembleError, match="without gaps"):
-        load_sources(checkout)
+def test_the_single_agent_page_is_its_one_source_with_a_notice(sources, outputs):
+    """2026-11-14: one agent does the roles in turn (src/tripwright/agents/single-agent.md); the step sources with their
+    versions for chat apps without tools are gone."""
+    page = outputs["skills/tripwright-main/references/single-agent.md"]
+    assert page.splitlines()[0] == "<!-- 由 python -m tripwright.agents build 生成，源：src/tripwright/agents/single-agent.md；不要手改 -->"
+    assert sources.single.strip() in page and "写回仓" not in page
+    assert not (ROOT / "src/tripwright/agents/steps").exists()
 
 
 def test_fragments_come_from_b_s_reader_and_a_missing_one_is_left_out(sources):

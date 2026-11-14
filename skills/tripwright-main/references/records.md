@@ -49,11 +49,11 @@ Long-term records from earlier trips (stable preferences, companions, standing r
 ## Words for writes and checks
 
 `turn` and `commit` return `write.state`. Keep these words for yourself and for the record; tell the user only a conflict, a refused change or a blocked write, plus the accepted plan changes and reasons:
-- `received` 已收件: this answer already uses it; not saved yet.
+- `received` 已收件: this answer already uses it. After an accepted commit the version is already the current plan; its Git copy follows in the background.
 - `pending_sync` 待同步: committed locally, not yet on the canonical branch.
-- `effective` 已生效: on the canonical branch. Only now say “记下了” or “存好了”, and only if the user asked.
+- `effective` 已生效: on the canonical branch. Say “记下了” or “存好了” once the commit was accepted, and only if the user asked or the receipt's `tell_user.say` says it; the repository and the page follow in the background, and a write that cannot be pushed comes back as `write.blocked` in a later result.
 - `conflict` 冲突: only when both places changed the same item of the plan differently, or the change no longer passes the checks on the newer plan (a plan change made elsewhere is otherwise redone on the newer plan by the service, and its version says `redone`). The notice's `user_line` opens the answer: it names the item and both values; ask which one to keep.
 - `write.blocked` `{kind, since, hint}` (also in `state(view="sync")`): the write cannot be pushed or committed and is kept on the server. Tell the user what `hint` says: that it is kept on the server, why it cannot be pushed, and who must do what. Do not call it saved.
 - `state` with `storage.kind: local` (no remote repository; `storage.note` says more): the data lives only in the server's data directory. Remind the user once to back up the data directory themselves.
 
-Never call a write “成功” or “success”. When the second part shows a changed plan you proposed, its title says “（草稿）” until the write is `effective`, and it says “核过的安排” only when the deep check is `passed` and the commit was accepted; otherwise “安排（没核完）”. A stale result is reported only as “已过期，需重算”.
+Never call a write “成功” or “success”. When the second part shows a changed plan you proposed, its title says “（草稿）” until the commit is accepted, and it says “核过的安排” only when the deep check is `passed` and the commit was accepted; otherwise “安排（没核完）”. A stale result is reported only as “已过期，需重算”.

@@ -23,6 +23,13 @@ MOVE = "把 6 月 10 日的晚饭从 17:00 挪到 19:00。"
 YES = "可以，照这样存"
 
 
+@pytest.fixture(autouse=True)
+def cautious_deployment(monkeypatch):
+    """This file is about the cautious mode, which is no longer the default (2026-11-14: proactive unless chosen): its
+    tests run under a deployment that selects it (TRIPWRIGHT_SAVE_UNVERIFIED=ask). The tests of the default unset it."""
+    monkeypatch.setenv("TRIPWRIGHT_SAVE_UNVERIFIED", "ask")
+
+
 @pytest.fixture
 def trip(service, monkeypatch):
     """The fictional trip as the acceptance instance held it: one version, every opening hour unverified."""
@@ -364,7 +371,8 @@ def test_the_operator_can_let_the_agent_accept_by_itself(trip, monkeypatch):
     title = call(server, "propose", ctx_id=later["ctx_id"], base_version=later["base_version"], idempotency_key="title", days=[day])
     assert "tell_user" not in title and "ask_user" not in title
     saved = call(server, "commit", draft_id=title["draft_id"], idempotency_key="title")
-    assert saved["number"] == 3 and "tell_user" not in saved  # nothing unverified came in: no undo sentence
+    # nothing unverified came in, and still a plan change saved without asking: the answer ends with the mode and undo
+    assert saved["number"] == 3 and saved["tell_user"]["say"] == "当前是主动模式：改动已存；想撤回，直接回复“撤回”。"
 
 
 def test_tool_descriptions_describe_and_do_not_repeat_the_chat_rules(service):
@@ -390,7 +398,25 @@ def mode_said(service, value, words, key):
         text=words, source={"event": "this", "basis": "user_explicit"})]))
 
 
-def test_a_trip_without_a_choice_is_cautious_and_asks_once_which_mode(trip):
+def test_a_trip_without_a_choice_is_proactive_by_default_and_asks_once_which_mode(trip, monkeypatch):
+    """The user, 2026-11-14: "未选模式时默认主动模式". No user setting and no operator variable: proactive, by `default`."""
+    monkeypatch.delenv("TRIPWRIGHT_SAVE_UNVERIFIED")
+    turn, draft = moved(trip)
+    assert turn["save_mode"]["mode"] == "proactive" and turn["save_mode"]["by"] == "default"
+    question = next(question for question in turn["ask"] if question["id"] == "save_mode")
+    assert "不回就按主动" in question["say"]
+    assert "tell_user" in draft and "ask_user" not in draft and trip.asks_first("alice") is False
+    later = trip.turn("alice", "第一天下午还有什么安排？", "later", scenario="replan")
+    assert {"id": "save_mode", "scope": {}, "text": "用户没选存前问不问，按主动"} in later["recorded"]["defaulted"]
+
+
+def test_a_value_other_than_ask_or_agent_keeps_the_default(trip, monkeypatch):
+    monkeypatch.setenv("TRIPWRIGHT_SAVE_UNVERIFIED", "maybe")
+    turn, _ = moved(trip)
+    assert turn["save_mode"] == dict(turn["save_mode"], mode="proactive", by="default")
+
+
+def test_a_deployment_set_to_ask_is_cautious_and_asks_once_which_mode(trip):
     turn, draft = moved(trip)
     assert turn["save_mode"]["mode"] == "cautious" and turn["save_mode"]["by"] == "deployment"
     assert "key=save_mode" in turn["save_mode"]["how"]
@@ -416,7 +442,9 @@ def test_in_the_proactive_mode_the_change_is_saved_in_the_same_turn_and_the_answ
     version = trip.commit("alice", draft["draft_id"], "commit", ask_first=trip.asks_first("alice"), accept_unverified=True)
     assert version["number"] == 2 and "answered" not in version and dinner_line(trip).startswith("19:00")
     assert DINNER in [check["id"] for check in version["checks"]["unverified"]]  # saved, still marked unverified
-    assert version["tell_user"]["say"] == "不想要这次改动，回“撤回”，我恢复到第 1 版。"  # the receipt ends the answer with it
+    # the receipt ends the answer with the mode, the page and how to undo (2026-11-14); restore_version for the undo
+    assert version["tell_user"]["say"] == "当前是主动模式：改动已存；想撤回，直接回复“撤回”。"
+    assert version["tell_user"]["restore_version"] == 1
 
 
 def test_the_user_switches_back_to_cautious_in_one_sentence(trip):

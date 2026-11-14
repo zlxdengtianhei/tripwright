@@ -63,11 +63,25 @@ def test_the_verifier_named_after_a_draft_gets_the_draft_and_its_job(service, pl
     assert "passed" in verifier["returns"] and verifier["steps"].endswith('role="tripwright-verifier")')
 
 
-def test_the_whole_flow_says_to_read_the_steps_first_when_the_host_cannot_dispatch():
+def test_the_whole_flow_says_to_read_the_order_of_the_roles_when_the_host_cannot_dispatch():
+    """2026-11-14: one agent without subagents gets the order of the roles by scenario (role="single"), then each
+    role's own steps."""
     for language in ("zh", "en"):
         for mode in ("quick", "plan"):
-            assert "steps" in FULL[language][mode]
+            assert 'state(view="role", role="single")' in FULL[language][mode]
     assert "自己依次照它的步骤做" not in FULL["zh"]["plan"]
+
+
+def test_single_gives_the_order_of_the_roles_by_scenario(service):
+    single = service.state("alice", view="role", role="single")
+    page = _skill_dir("tripwright-main").joinpath("references", "single-agent.md").read_text(encoding="utf-8")
+    assert single["role"] == "tripwright-main" and single["file"] == "single-agent.md"
+    assert single["text"] == page.split("\n", 1)[1].strip()
+    for heading in ("## On the road", "## Change the plan", "## Undo", "## Screenshots or a batch of new requirements"):
+        assert heading in single["text"]
+    for role in ROLES[1:]:
+        assert f'role="{role}"' in single["text"] or role in single["text"]
+    assert "写回仓" not in single["text"]
 
 
 async def role_over_stdio(directory):
