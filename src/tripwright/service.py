@@ -1446,9 +1446,9 @@ class Tripwright:
             say = words[page].format(restored=restored)
             if taken:
                 say += gap + words["taken"].format(n=words["one" if len(taken) == 1 else "many"],
-                                                   what=words["join"].join(entry["text"] for entry in taken))
+                                                   what=words["join"].join(entry["text"].rstrip("。.；;，, ") for entry in taken))
             if kept:
-                say += gap + words["kept"].format(what=words["join"].join(entry["text"] for entry in kept))
+                say += gap + words["kept"].format(what=words["join"].join(entry["text"].rstrip("。.；;，, ") for entry in kept))
             say += gap + words["offer"] if offer else ""
             return dict(say=say, how=SAY_HOW[language], **({"taken_back": taken} if taken else {}), **({"kept": kept} if kept else {}),
                         **({"offer": "cautious_mode"} if offer else {}))

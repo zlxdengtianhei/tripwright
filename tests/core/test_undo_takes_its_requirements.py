@@ -146,7 +146,7 @@ def test_a_must_item_goes_with_the_undo_without_a_speaker_and_the_allergy_is_nam
     active = {item["key"] for item in trip.ledger.current("alice")["items"]}
     assert dinner(trip) == "17:00" and "d1-dinner-time" not in active and "diet:peanut" in active
     say = version["tell_user"]["say"]
-    assert "随撤回一起撤掉了：Day 1 dinner is at 19:00." in say and "照旧留着：对花生过敏" in say
+    assert "随撤回一起撤掉了：Day 1 dinner is at 19:00。" in say and "照旧留着：对花生过敏。" in say and "。。" not in say
 
 
 def test_a_host_cannot_mark_its_own_withdrawal_as_the_services(trip):
