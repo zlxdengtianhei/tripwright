@@ -1,0 +1,10 @@
+# Tells Tripwright about the MOTIS in compose.transit.yaml: copy to ../../transit/sources.yaml and fill in.
+sources:
+  - id: local                      # lower-case letters, digits and '-'
+    name: {en: "My region (own MOTIS)", zh: "我的地区（自托管 MOTIS）"}
+    api: http://motis:8080/api     # the motis service on the compose network
+    datasets: [local]              # the dataset tag(s) in config.yml; stop IDs start with "<tag>_"
+    bbox: [5.9, 50.6, 6.5, 50.95]  # west, south, east, north: python -m tripwright.providers.sources bbox region.gtfs.zip
+    match: [aachen]                # words of trip areas this source covers (lower case)
+    realtime: false                # true only when config.yml gives the dataset a working rt feed
+    attribution: "Timetable: <publisher>, <licence>; map data © OpenStreetMap contributors"

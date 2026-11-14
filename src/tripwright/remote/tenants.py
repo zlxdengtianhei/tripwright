@@ -69,11 +69,11 @@ class PersonalRepository:
 
         if self.providers != "live":
             return QueryRouter(store, mode=self.providers)
-        from tripwright.providers.transitous import TransitousProvider
+        from tripwright.providers.sources import transit
 
         # The 720-a-day counter lives on the data volume: the root file system may be read-only, and /tmp forgets it.
         usage = os.environ.get("TRIPWRIGHT_TRANSITOUS_USAGE") or self.config.data_dir / "transitous-routing.log"
-        return QueryRouter(store, mode="live", transit=TransitousProvider(usage_file=usage))
+        return QueryRouter(store, mode="live", transit=transit(usage_file=usage))
 
     def open(self):
         if self.service is not None:

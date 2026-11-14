@@ -65,7 +65,7 @@ regions:
     match: [salzkammergut, hallstatt, bad ischl, gosau, st. wolfgang, obertraun, 湖区]
     languages: [de]
     realtime:
-      - {id: vao, zh: "奥地利 VAO（全境实时，要本人签约）", en: "Austria VAO (nationwide real time; needs your own contract)"}
+      - {id: vao, zh: "奥地利 VAO（全境实时，要本人签约；还没有适配器）", en: "Austria VAO (nationwide real time; needs your own contract; no adapter yet)"}
 
   - id: at-rural
     name: 奥地利其他乡村与区域巴士
@@ -78,7 +78,7 @@ regions:
     match: [austria, österreich, oesterreich, 奥地利, salzburg, graz, innsbruck, linz, 萨尔茨堡, 格拉茨]
     languages: [de]
     realtime:
-      - {id: vao, zh: "奥地利 VAO（全境实时，要本人签约）", en: "Austria VAO (nationwide real time; needs your own contract)"}
+      - {id: vao, zh: "奥地利 VAO（全境实时，要本人签约；还没有适配器）", en: "Austria VAO (nationwide real time; needs your own contract; no adapter yet)"}
     notes:
       - {zh: "奥地利周日多数超市和商店不开门，车站与加油站的店除外", en: "In Austria most supermarkets and shops close on Sundays, except at stations and petrol stations", status: inferred}
 
@@ -93,8 +93,8 @@ regions:
     match: [wien, vienna, 维也纳]
     languages: [de]
     realtime:
-      - {id: wiener-linien, zh: "维也纳 Wiener Linien 实时", en: "Vienna Wiener Linien real time"}
-      - {id: vao, zh: "奥地利 VAO（全境实时，要本人签约）", en: "Austria VAO (nationwide real time; needs your own contract)"}
+      - {id: wiener-linien, zh: "维也纳 Wiener Linien 实时（自有接口，还没有适配器）", en: "Vienna Wiener Linien real time (its own API; no adapter yet)"}
+      - {id: vao, zh: "奥地利 VAO（全境实时，要本人签约；还没有适配器）", en: "Austria VAO (nationwide real time; needs your own contract; no adapter yet)"}
     notes:
       - {zh: "奥地利周日多数超市和商店不开门，车站与加油站的店除外", en: "In Austria most supermarkets and shops close on Sundays, except at stations and petrol stations", status: inferred}
 

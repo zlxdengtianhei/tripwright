@@ -2,7 +2,7 @@
 
 **默认真实数据来自 Transitous、Open-Meteo 和 Nominatim。** 交通主要是时刻表，覆盖与日期都有边界；没有查到某班车不等于没有车。能查明的稳定事实由 agent 查好，无法取得的实时信息才在回答末尾给出 App、搜索内容、操作与链接。
 
-**English.** Tripwright uses Transitous for transport, Open-Meteo for weather, and Nominatim for geocoding. Transport results are timetable-based unless a leg is explicitly marked as live. Coverage and validity checks are partial, not worldwide guarantees. Extra Wiener Linien and VAO adapters are not implemented; there is no one-click realtime setup. Provider terms apply independently of the project's MIT license.
+**English.** Tripwright uses Transitous for transport, Open-Meteo for weather, and Nominatim for geocoding. Transport results are timetable-based unless a leg is explicitly marked as live. Coverage and validity checks are partial, not worldwide guarantees. Where Transitous has no data or no real time for a region, a deployment can run its own MOTIS with that region's GTFS and GTFS-RT ([transit-sources.md](transit-sources.md)); Wiener Linien and VAO adapters are not implemented. Provider terms apply independently of the project's MIT license.
 
 MCP 服务只有设置 `TRIPWRIGHT_PROVIDERS=live` 才使用这些真实来源；未设置时是虚构数据。命令行 `tripwright query` 默认选择 `live`。所有结果都应保留来源与是否虚构的说明。
 
@@ -55,13 +55,15 @@ MCP 服务只有设置 `TRIPWRIGHT_PROVIDERS=live` 才使用这些真实来源�
 
 **地名：** Nominatim 使用 OpenStreetMap 数据，保留 © OpenStreetMap contributors 与 [ODbL 署名](https://www.openstreetmap.org/copyright)。公共接口要求识别用的 User-Agent、缓存与不超过每秒一次请求；本实现单实例串行并至少间隔一秒。多实例部署还需控制合计用量。详见 [Nominatim 使用政策](https://operations.osmfoundation.org/policies/nominatim/)。它用于地名解析，不是自动补全或批量抓取入口。
 
-## 额外实时来源：尚未接入
+## 额外实时来源
 
-Wiener Linien 与 VAO 是拟扩展的来源，当前没有对应适配器，也没有设置页可粘贴密钥。服务可以询问并记录用户对来源的选择，但记录选择不等于已完成连接。
+Transitous 没有某地区的数据或没有实时时，部署可以自己跑一个 MOTIS，喂这个地区的 GTFS 与 GTFS-RT，用 `TRIPWRIGHT_TRANSIT_SOURCES` 指过去；两端都在它范围里的查询走它，其余照旧走 Transitous。做法见 [transit-sources.zh-CN.md](transit-sources.zh-CN.md)。做计划时，没接实时源的地区会被点名问一次要不要配，附上这份做法。
+
+Wiener Linien 与 VAO 自己的接口不是 GTFS-RT，MOTIS 读不了；当前没有对应适配器，也没有设置页可粘贴密钥。服务可以询问并记录用户对来源的选择，但记录选择不等于已完成连接。
 
 - **Wiener Linien：** 可作为维也纳的额外实时来源候选；本项目目前不提供“说要就开”的功能，接入前再核接口、覆盖与条款。
 - **VAO：** 如需接入，由用户本人向服务商确认合同、资格、接口和申请凭据；agent 不代用户签约。当前未验证它在本项目中的实时覆盖、请求额度或开通时长，不作承诺。
-- **其他地区：** 可由开发者实现替代 provider，但不能据此宣称已有全球实时数据。
+- **其他地区：** 有公开 GTFS-RT 的，照上面的做法自己接；不能据此宣称已有全球实时数据。
 
 Google 数据 API 和非官方 HAFAS 接口当前没有接入。回答中的 Google 地图导航链接只是链接，不表示调用了 Google 的数据接口。
 

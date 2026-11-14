@@ -11,7 +11,7 @@ imported from the profile and not refused), then the product's region table (ren
 default stability, how many entries each scenario lists and the language names are data (consider.yaml); a user's
 `stability:<kind>` setting overrides a kind's default.
 
-`asks` gives what the answer must ask (R-58 must-go places; R-67 real-time data; once, the save mode), `defaults` what
+`asks` gives what the answer must ask (R-58 must-go places; R-67 real-time data, with the setup guide; once, the save mode), `defaults` what
 the next message settles when the user did not answer (no must-go places; no real-time source; the deployment's save
 mode), and `offer` the one line that offers to draft a question for someone on site (D-61 four) with the drafting spec.
 """
@@ -21,6 +21,8 @@ from functools import cache
 from importlib.resources import files
 
 import yaml
+
+from tripwright.providers import sources as transit_sources
 
 SETTING = "setting"
 # Whose an entry is (METHOD 2.9, S5): the bases of the user's layer (said, set or confirmed by the user); every other
@@ -35,7 +37,9 @@ WORDS = {
                ask_next="ask 里的问题照问。", people="{id}：{name}", destination="{areas}（{start}—{end}）",
                priority={"must": "必去（计划里标的）", "recommended": "推荐"},
                must_go="有没有必须要去的地方或必须守的时间？没提就当没有。",
-               realtime="这趟要不要配实时数据（例：{options}）？不配就用免费的 Transitous，按时刻表。",
+               realtime="{regions}没接实时交通源：班次只能按时刻表给，晚点和停运要到当地 App 查。要不要给你的部署配一个（例：{options}）？"
+                        "配法见 {doc}，有的源要你本人申请 key。不配就照现在用免费的 Transitous，按时刻表。",
+               trip_places="这趟去的地方", any_feed="当地交通方公开的 GTFS-RT",
                must_go_default="用户没提必须去的地方，按没有算", realtime_default="这趟不配实时数据，用 Transitous（按时刻表）",
                save_mode="改计划时碰到没核过的事实（例：营业时间），你要哪种？① 主动：我直接存，回答里说清哪条没核，回“撤回”就恢复上一版；"
                          "② 谨慎：先问你，你回话后再存。不回就按{default}；以后随时一句话能改。",
@@ -50,7 +54,10 @@ WORDS = {
                ask_next="Ask the questions in ask.", people="{id}: {name}", destination="{areas} ({start} to {end})",
                priority={"must": "must-see (marked in the plan)", "recommended": "recommended"},
                must_go="Is there any place you must go to, or a time you must keep? If you don't say, I take it there is none.",
-               realtime="Do you want real-time data on this trip (e.g. {options})? Without it I use the free Transitous timetable.",
+               realtime="{regions}: no real-time transport source is connected, so departures are timetable only and delays and "
+                        "cancellations have to be checked in the local app. Do you want one set up on your deployment (e.g. {options})? "
+                        "How: {doc}; some sources need a key you apply for yourself. Without it I keep using the free Transitous timetable.",
+               trip_places="The places on this trip", any_feed="the local operator's open GTFS-RT feed",
                must_go_default="The user named no must-go place; taken as none", realtime_default="No real-time data on this trip; Transitous timetable",
                save_mode="When a change brings in facts nobody has checked (e.g. opening hours), which do you want? 1 Proactive: I save it "
                          "and say which facts are unchecked; reply “undo” to get the previous version back. 2 Cautious: I ask first and "
@@ -126,11 +133,17 @@ def stable_plan_paths(overridden: dict[str, str] | None = None) -> dict[str, str
 
 # --- this trip's sources and notes ----------------------------------------------------------------------------------
 
-def regions_of(plan: dict | None) -> list[dict]:
-    """The region-table rows this trip touches: rows whose words occur in the trip's or a day's area; else the default."""
+def areas_of(plan: dict | None) -> list[str]:
+    """The trip's and its days' areas, lower case: what the region table and the transit sources match words in."""
+    return [str(area).casefold() for area in [*((plan or {}).get("areas") or []), *(day.get("area") for day in (plan or {}).get("days", []))]
+            if area]
+
+
+def regions_of(plan: dict | None, areas: list[str] | None = None) -> list[dict]:
+    """The region-table rows this trip (or these `areas`) touches: rows whose words occur in an area; else the default."""
     from tripwright.render.regions import table as regions
 
-    said = " ".join([*((plan or {}).get("areas") or []), *(str(day.get("area") or "") for day in (plan or {}).get("days", []))]).casefold()
+    said = " ".join(areas_of(plan) if areas is None else areas)
     rows = [row for row in regions()["regions"] if any(word.casefold() in said for word in row.get("match") or [])]
     return rows or [next(row for row in regions()["regions"] if row["id"] == "default")]
 
@@ -242,8 +255,18 @@ def sources(store, owner: str, plan: dict | None, *, at: str, language: str = "z
             add(item["id"], setting_kind(item["key"]), item["text"], origin(item), **status_of(item, store, owner))
     options = list({option["id"]: option for row in rows for option in row.get("realtime") or []}.values())
     configured = any(item["key"].startswith("source:") for item in entries)
+    connected = transit_sources.for_areas(" ".join(areas_of(plan)))
+    for source in connected:
+        add(f"source:{source['id']}", "source", f"{source['name'][key]}：{w['source_on']}" if key == "zh" else
+            f"{source['name'][key]}: {w['source_on']}", {"table": transit_sources.ENV, "row": source["id"]})
+    # The areas no deployment source with real time covers, and the region rows they fall in (R-07: those are named).
+    live = [word for source in connected if source["realtime"] for word in source["match"]]
+    missing = [area for area in areas_of(plan) if not any(word in area for word in live)]
+    named = [row.get("name_en", row["name"]) if key == "en" else row["name"]
+             for row in (regions_of(plan, missing) if missing else []) if row["id"] != "default"]
     return dict(regions=[dict(id=row["id"], name=row["name"]) for row in rows], entries=found, languages=codes, apps=apps,
-                reports=reports, realtime=dict(configured=configured, options=[option[key] for option in options]))
+                reports=reports, realtime=dict(configured=configured, options=[option[key] for option in options],
+                                               live=not missing, missing=named, doc=transit_sources.DOC[key]))
 
 
 def status_of(item: dict, store, owner: str) -> dict:
@@ -404,7 +427,8 @@ def must_go_answered(store, owner: str, scope: dict | None, *, at: str) -> bool:
 def asks(store, owner: str, plan: dict | None, *, scenario: str, scope: dict | None, at: str, language: str = "zh",
          known: dict | None = None) -> list[dict]:
     """The questions this answer must ask: must-go places when it plans a range not asked about yet (R-58); real-time
-    data when the destination is set and this trip has no source setting (R-67); once, when a plan is changed, whether
+    data when the destination is set, this trip has no source setting and no transit source of the deployment with
+    real time covers its areas (R-67; the question names the regions and links the setup guide, R-07); once, when a plan is changed, whether
     to save changes with unverified facts before the user answers (save mode, 2026-11-13). Each says how to record
     the answer."""
     w = words(language)
@@ -417,9 +441,14 @@ def asks(store, owner: str, plan: dict | None, *, scenario: str, scope: dict | N
                                                   source={"event": "this", "basis": "user_explicit"})]),
                           then="Places the user names as musts become user decisions with must: true (propose)."))
     known = known or sources(store, owner, plan, at=at, language=language)
-    if plan and planning and not known["realtime"]["configured"] and not any(entry["id"] == "realtime" for entry in settled(store, owner)):
-        options = w["join"].join(known["realtime"]["options"]) or "Wiener Linien、VAO"
-        found.append(dict(id="realtime", say=w["realtime"].format(options=options), default=w["realtime_default"],
+    realtime = known["realtime"]
+    if plan and planning and not realtime["configured"] and not realtime.get("live") \
+            and not any(entry["id"] == "realtime" for entry in settled(store, owner)):
+        options = w["join"].join(realtime["options"]) or w["any_feed"]
+        found.append(dict(id="realtime", say=w["realtime"].format(regions=w["join"].join(realtime["missing"]) or w["trip_places"],
+                                                                  options=options,
+                                                                  doc=realtime["doc"]),
+                          doc=realtime["doc"], default=w["realtime_default"],
                           record=dict(items=[dict(kind=SETTING, key="source:realtime", value={"on": "true or false", "which": "<id>"},
                                                   subject=["*"], strength="prefer", quote="<the user's words>", text="<one sentence>",
                                                   source={"event": "this", "basis": "user_explicit"})])))

@@ -1,0 +1,28 @@
+# Optional: the deployment's own MOTIS for a region Transitous lacks or has without real time (docs/transit-sources.md).
+# Off unless named: `docker compose -f compose.yaml -f compose.transit.yaml up -d`, or COMPOSE_FILE in deploy/.env.
+# Everything for it lives in one folder beside the data folder, ../../transit: the OSM extract, the GTFS zip, MOTIS's
+# config.yml and imported data/, and sources.yaml, which tells Tripwright where the server is and which area it covers.
+services:
+  tripwright:
+    environment:
+      TRIPWRIGHT_TRANSIT_SOURCES: /transit/sources.yaml
+    volumes:
+      - ../../transit:/transit:ro
+
+  motis:
+    image: ghcr.io/motis-project/motis:2.11.4
+    container_name: tripwright-motis
+    restart: unless-stopped
+    working_dir: /data
+    command: ["/motis", "server", "/data/data"]
+    volumes:
+      - ../../transit:/data
+    expose:
+      - "8080"
+    networks:
+      - backend
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

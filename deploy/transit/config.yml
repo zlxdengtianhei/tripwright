@@ -1,0 +1,21 @@
+# MOTIS settings for one region (MOTIS 2.11.4): copy to ../../transit/config.yml and change the two file names.
+# Only what Tripwright asks MOTIS for is on: stop names (geocoding), walking (street_routing) and the timetable.
+server:
+  port: 8080
+osm: region.osm.pbf
+timetable:
+  first_day: TODAY
+  num_days: 60
+  railviz: false
+  with_shapes: false
+  datasets:
+    local:
+      path: region.gtfs.zip
+      # A real-time feed, when the region has one (GTFS-RT; SIRI Lite with protocol: siri):
+      # rt:
+      #   - url: https://example.org/gtfs-rt/trip-updates.pb
+      #     headers:
+      #       Authorization: YOUR_KEY
+street_routing: true
+geocoding: true
+reverse_geocoding: false

@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 from tripwright.providers.base import Place
 from tripwright.providers.common import gather_cancel, request_scope
-from tripwright.providers.transitous import TransitousProvider
+from tripwright.providers.sources import transit as live_transit
 
 MAX_CANDIDATES = 5
 SOLVER_NODE_LIMIT = 300000
@@ -384,7 +384,7 @@ async def solve_day(day: dict, alternatives=2, fresh=False, *, provider=None, ti
     cancelled = threading.Event()
     deadline = time.monotonic() + timeout
     owned = provider is None
-    provider = provider or TransitousProvider()
+    provider = provider or live_transit()
     try:
         with request_scope(priority=1):
             async with asyncio.timeout(timeout):

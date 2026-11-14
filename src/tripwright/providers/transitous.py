@@ -140,10 +140,17 @@ def end_view(payload_end: dict | None, resolved: dict) -> dict:
 
 
 class TransitousProvider(HTTPProvider):
-    def __init__(self, base_url=None, *, timezone_name=None, routing_per_day=None, usage_file=None, **kwargs):
-        super().__init__("transitous", base_url or os.environ.get("TRIPWRIGHT_TRANSITOUS_API", "https://api.transitous.org/api"),
-                         attribution=ATTRIBUTION, **kwargs)
+    """Transitous's public MOTIS API; with `source` other than "transitous", a deployment's own MOTIS (sources.py):
+    same API, its own attribution, and no Transitous route-search limit (its terms cover only their server)."""
+
+    def __init__(self, base_url=None, *, timezone_name=None, routing_per_day=None, usage_file=None, source="transitous",
+                 attribution=ATTRIBUTION, **kwargs):
+        super().__init__(source, base_url or os.environ.get("TRIPWRIGHT_TRANSITOUS_API", "https://api.transitous.org/api"),
+                         attribution=attribution, **kwargs)
         self.timezone_name = timezone_name
+        if source != "transitous":
+            self.routing = None
+            return
         limit = routing_per_day or int(os.environ.get("TRIPWRIGHT_TRANSITOUS_ROUTING_PER_DAY") or ROUTING_PER_DAY)
         # Shared across processes when this instance talks to the real network (it made its own client) or a file is named.
         shared = usage_file or (usage_path() if self.owns_client or os.environ.get("TRIPWRIGHT_TRANSITOUS_USAGE") else None)
@@ -217,7 +224,7 @@ class TransitousProvider(HTTPProvider):
                 return replace(hits, value={"place": chosen.id, "label": chosen.name, "lat": chosen.lat, "lon": chosen.lon,
                                             "how": why, "said": text, "alternatives": [place.name for place, _ in order[1:]]})
         value.setdefault("said", str(location.name if isinstance(location, Place) else location).strip())
-        return Sourced(value, self.source, stamp, None, notes=[ATTRIBUTION])
+        return Sourced(value, self.source, stamp, None, notes=[self.attribution])
 
     @budgeted
     async def walk_minutes(self, origin: Place, destinations: list[Place], *, fresh=False, max_min=60):
@@ -242,7 +249,7 @@ class TransitousProvider(HTTPProvider):
 
         if not destinations:
             stamp = self.clock()
-            return Sourced([], self.source, stamp, None, notes=[ATTRIBUTION])
+            return Sourced([], self.source, stamp, None, notes=[self.attribution])
         return await self.cached("walk", params, fetch, ttl=timedelta(days=30), retention=timedelta(days=60), fresh=fresh)
 
     async def _search(self, kind, origin, destination, when, *, arrive_by, limit, fresh, walk_min, extra, tz):

@@ -59,7 +59,7 @@ def offline_live(monkeypatch):
         def __init__(self, *arguments, **options):
             super().__init__(client=httpx.AsyncClient(transport=httpx.MockTransport(timetable.handle)), min_interval=0)
 
-    monkeypatch.setattr(query_module, "TransitousProvider", Transitous)
+    monkeypatch.setattr(query_module, "live_transit", lambda **options: Transitous())
     monkeypatch.setattr(query_module, "PageReader", page_reader)
     monkeypatch.delenv("TRIPWRIGHT_PROVIDERS", raising=False)
     return timetable

@@ -38,6 +38,12 @@ with `aclose()` (or an async context manager).
   most of the typed words, in the place named, a station or hub first; the plan
   says which stop it searched (`Sourced.meta`). Headsigns that name nothing
   ("0") are dropped. Times are the timetable unless a leg says `realTime`.
+- **A deployment's own MOTIS (R-08):** `sources.py`. `TRIPWRIGHT_TRANSIT_SOURCES` (a YAML file, or the list
+  itself) names MOTIS servers with one region's GTFS and GTFS-RT, each with a `bbox`; `sources.transit()` then
+  returns a `RoutedTransit` that sends a search to the server whose area holds both ends and everything else to
+  Transitous. A server's results carry its own source name (`motis:<id>`) and attribution; Transitous's route
+  limit and coverage notes do not apply to it. Unset, `transit()` is the plain `TransitousProvider`. Setup:
+  `docs/transit-sources.md`.
 - **Nominatim:** the public OpenStreetMap endpoint allows at most one request
   per second, requires an identifying User-Agent, attribution and cached
   results. No autocomplete or bulk systematic queries. This implementation

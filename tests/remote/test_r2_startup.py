@@ -44,6 +44,17 @@ def test_tenants_serve_live_data_unless_synthetic_is_named(remote_config, monkey
         assert service.query_router.transit.routing.path == remote_config.data_dir / "transitous-routing.log"
     finally:
         closed(registry)
+    # R-08: with the deployment's own transit sources set, the service routes between them and Transitous; the
+    # Transitous counter stays on the volume.
+    monkeypatch.setenv("TRIPWRIGHT_TRANSIT_SOURCES", '[{id: avv, api: "http://motis:8080/api", bbox: [5.9, 50.6, 6.5, 50.95], attribution: AVV}]')
+    registry = PersonalRepository(remote_config.model_copy(update={"data_dir": remote_config.data_dir.with_name("routed")}))
+    try:
+        transit = registry.open().query_router.transit
+        assert [local.provider.source for local in transit.sources] == ["motis:avv"]
+        assert transit.default.routing.path == remote_config.data_dir.with_name("routed") / "transitous-routing.log"
+    finally:
+        closed(registry)
+    monkeypatch.delenv("TRIPWRIGHT_TRANSIT_SOURCES")
     monkeypatch.setenv("TRIPWRIGHT_PROVIDERS", "synthetic")
     registry = PersonalRepository(remote_config.model_copy(update={"data_dir": remote_config.data_dir.with_name("other")}))
     try:

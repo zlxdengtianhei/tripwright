@@ -135,7 +135,7 @@ uv run python -m tripwright.site.example examples/trip-2026-10-central-europe.ya
 - **另外测过：** Codex 命令行加 GPT 模型；在测试用的聊天宿主里测 GPT、GLM 和 Kimi；MCP 官方的一致性检查；约 1600 个自动测试。
 - **部署。** 一次测试里，由低成本模型只照 SETUP.md 操作，从第一条 Docker 命令到服务就绪用了约 13 秒。在 Railway 上，用真账号跑过，上传后 59 秒就绪。用部署钥匙连私有 GitHub 仓、把旧版装好的服务升级到新版，都在真实服务器上做过。
 - **行程页。** 扫描会把人名换成代号，住处只写到城区；扫到订单号之类的内容，这一版就整版不发。连上公开仓后，默认每趟行程都发；要停发某一趟，在这趟行程的 `share.yaml` 里写 `off: true`。
-- **交通数据** 来自 [Transitous](https://transitous.org/sources/)、[Open-Meteo](https://open-meteo.com/) 和 [Nominatim / OpenStreetMap](https://www.openstreetmap.org/copyright)，主要是时刻表，不是实时数据。覆盖范围不是全球；时刻表数据何时到期，只有奥地利能识别。服务默认每滚动 24 小时最多向 Transitous 发 720 次路线请求。详见 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md)。
+- **交通数据** 来自 [Transitous](https://transitous.org/sources/)、[Open-Meteo](https://open-meteo.com/) 和 [Nominatim / OpenStreetMap](https://www.openstreetmap.org/copyright)，主要是时刻表，不是实时数据；Transitous 没有的地区，可以自己跑一个 MOTIS 喂这个地区的时刻表（[docs/transit-sources.zh-CN.md](docs/transit-sources.zh-CN.md)，[English](docs/transit-sources.md)）。覆盖范围不是全球；时刻表数据何时到期，只有奥地利能识别。服务默认每滚动 24 小时最多向 Transitous 发 720 次路线请求。详见 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md)。
 - **隐私。** 你的行程和消息存在你的部署里。Git 托管方、客户端 App 和各数据来源，按各自的条款处理数据。日志里可能留有消息正文，要限制谁能读日志。不要把没审过的个人行程或密钥放进公开仓。
 
 ## 文档索引

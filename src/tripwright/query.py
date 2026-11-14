@@ -15,7 +15,7 @@ from tripwright.evidence import WEB_TYPES, locate, outdoor, request_for, snapsho
 from tripwright.providers import connections as views
 from tripwright.providers.common import request_scope
 from tripwright.providers.pages import PageReader, PageUnavailable, public_url, quote_on
-from tripwright.providers.transitous import TransitousProvider
+from tripwright.providers.sources import LIVE, transit as live_transit
 from tripwright.providers.openmeteo import OpenMeteoProvider
 from datetime import date as Date
 from typing import Annotated, Literal
@@ -1529,7 +1529,7 @@ class QueryRouter:
         if self.mode == "live":
             from tripwright.providers.nominatim import NominatimProvider
 
-            self.transit = transit or TransitousProvider()
+            self.transit = transit or live_transit()
             self.weather = weather or OpenMeteoProvider()
             self.geocode = geocode or NominatimProvider()
             self.pages = pages or PageReader()
@@ -1616,7 +1616,7 @@ class QueryRouter:
                     for end, where in (("origin", origin), ("destination", destination))}
         if asked != arguments["destination"]:
             resolved["destination"].update(said=asked, boarding=True)
-        extra = {"timezone_name": name} if isinstance(self.transit, TransitousProvider) else {}
+        extra = {"timezone_name": name} if isinstance(self.transit, LIVE) else {}
         try:
             found, sources = await self._pages(origin, destination, start, bound, extra)
             self._boarding_or_deadline(arguments, target, found, tz)
@@ -1707,7 +1707,7 @@ class QueryRouter:
                     for end, where in (("origin", origin), ("destination", destination))}
         if step:
             resolved["origin"].update(said=asked, next_step=step)
-        extra = {"timezone_name": name} if isinstance(self.transit, TransitousProvider) else {}
+        extra = {"timezone_name": name} if isinstance(self.transit, LIVE) else {}
         try:
             found, sources, limited = await self._window(origin, destination, start, until, extra, pages=LAST_PAGES)
         except ProviderUnavailable as error:
@@ -2200,7 +2200,7 @@ class QueryRouter:
                     sourced = await self.transit.stops(arguments["text"], limit=min(20, max(1, arguments.get("limit", 8))))
                 else:
                     name = self._zone(arguments, plan, zone)
-                    live = isinstance(self.transit, TransitousProvider)
+                    live = isinstance(self.transit, LIVE)
                     extra = {"timezone_name": name} if name and live else {}
                     if arguments.get("until") is not None:
                         when = aware(arguments["when"])
