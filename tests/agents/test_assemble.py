@@ -170,8 +170,12 @@ def test_main_skill_stays_within_its_pre_latest_byte_budget(outputs):
     # 2026-11-19 (round 4 review): the road question with no first part opens with one or two short sentences before any
     # lookup, and the walk or the answer comes before propose/commit (baseline: 13 of 15 questions waited 4 to 19
     # minutes, 8 of 15 saved before their first text); the pin is raised to that deliberate 895-byte growth.
-    assert len(text.encode()) <= 13076
-    assert len((text + "y" * 13077).encode()) > 13076
+    # 2026-11-19 (round 4 review 3): that short message must carry one thing to act on, plan times go as archived and
+    # unchecked, the second part is its own message and every message is the answer itself (baseline: 5 of 10 short
+    # messages gave nothing to act on, one read a stored 23:53 as the last service, 5 merged both parts, one opened with
+    # “I'll start by recording your message.”); the pin is raised to that deliberate 806-byte growth.
+    assert len(text.encode()) <= 13882
+    assert len((text + "y" * 13883).encode()) > 13882
 
 
 def test_a9_instructions_and_examples_are_generated_for_every_host(outputs):

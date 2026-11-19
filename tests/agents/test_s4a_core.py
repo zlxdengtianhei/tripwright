@@ -81,7 +81,9 @@ def test_the_main_skill_did_not_grow(outputs):
     # 2026-11-13: 12,245 bytes, the turn-first rule says reading the plan needs only state (analysis item 19)
     # 2026-11-19 (round 4 review): 13,076 bytes, the road question with no first part opens with a short message before
     # any lookup and the answer comes before the save (baseline: 13 of 15 waited 4 to 19 minutes for their first text)
-    assert len(outputs[MAIN].encode()) <= 13076
+    # 2026-11-19 (round 4 review 3): 13,882 bytes, that short message must give one thing to act on, plan times are
+    # archived and unchecked, the first message holds one part only, and every message is the answer itself
+    assert len(outputs[MAIN].encode()) <= 13882
 
 
 def test_sources_load_the_core_from_the_checkout():

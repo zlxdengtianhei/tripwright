@@ -11,7 +11,7 @@ How to do a role:
 
 ## On the road (`scenario: "quick"`)
 
-1. Main: `turn` with the user's words, a stable `request_id`, `scenario: "quick"`, the named things in `points`, and in `record` what the message states. Send `first_part` as `next` says and end the reply. With no `first_part`, send one or two short sentences now instead, before any lookup: what you can tell for certain, and what is not checked yet and about to be looked up.
+1. Main: `turn` with the user's words, a stable `request_id`, `scenario: "quick"`, the named things in `points`, and in `record` what the message states. Send `first_part` as `next` says and end the reply. With no `first_part`, send one short message now instead, before any lookup: it gives at least one thing to act on (a walk, place or time), not just “I'll check”, and times or services from the plan go as “the plan stores X, not checked yet”; with nothing certain, say so and give a fallback. It is the first part only, and the second part is its own message.
    - A voice-typed message can mishear a word: when one makes no sense in context, do not act on it as written; guess the word meant and ask one short question (“你说的‘X’是指‘Y’吗？”).
    - Leave out the dimensions the user said not to consider (`exclude_keys` in `turn`). When conditions contradict each other or the new message, go on with the default reading, say so and list it as a question.
 2. Main: check what the user will act on yourself, with `query` and the host's web search. Here the researcher is optional by design (the user asks and gets an answer directly); read its steps only when a lookup is unclear. What you cannot check goes into the same reply as an unchecked limit with its consequence; do not ask for another message to finish it.

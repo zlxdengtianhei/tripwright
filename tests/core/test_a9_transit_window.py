@@ -156,10 +156,10 @@ def test_stored_last_train_claims_are_marked_archived_in_turn(make):
     assert "latest_departure" in turn["next"] and "window" in turn["next"]
     # pack 里同样标存档
     assert "计划里写过" in turn["pack"]["markdown"] and "存档" in turn["pack"]["markdown"]
-    # 没有存档句的对照：next 不提
+    # 没有存档句的对照：next 不带那条存档话（服务里写“存档写 X，还没核”的通用指引不算）
     plain = make(Night(), at="21:01", anchors=[dict(id="hn-flight", time="07:05", text="证件柜台关", subject=["p1"],
                                                     place="airport", consequence="误机。", alternative="改签。", deadline="external")])
-    assert "存档" not in plain.turn("local", "最晚几点出发去机场？", "q1")["next"]
+    assert "计划里写过“" not in plain.turn("local", "最晚几点出发去机场？", "q1")["next"]
 
 
 def test_a_later_departure_found_this_session_voids_the_stored_claim(make):

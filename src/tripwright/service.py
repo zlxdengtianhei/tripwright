@@ -39,15 +39,31 @@ ALONGSIDE = dict(zh="同一个 key 下已有一条禁止在生效：“{old}”�
                     "{alongside}, and the service asks the user which one stays.")
 FIRST_TITLES = dict(zh="按存的计划先说（时刻还没核）", en="From the stored plan first (times not checked yet)")
 SECOND_TITLES = dict(zh="核过之后", en="After checking")
+# Every message to the user is the answer itself, never a note about what the host is doing (baseline 2026-11-19: the first
+# message of one run read “I'll start by recording your message.”).
+WORK_NOTES = dict(
+    zh="发给用户的每条消息都是答话本身，不写“我先记录消息”“我这就去查”这类工作注记。",
+    en="Every message to the user is the answer itself, never a work note.")
 # A road question the service cannot draft a first part for (baseline 2026-11-19: 13 of 15 real questions had none, and
-# the first text came 4 to 19 minutes later). The host sends a short message before any lookup instead of going silent
-# (the user, 2026-10-29: “你先给我终端输出我现在的走法”).
+# the first text came 4 to 19 minutes later; the model's own short messages then gave nothing to act on in 5 of 10, and one
+# read a stored “last service 23:53” as the conclusion, which was wrong). So the short message must carry one thing to act
+# on, plan times and services go as archived and unchecked, and the second part is its own message (the user, 2026-10-29:
+# “你先给我终端输出我现在的走法”).
+SEPARATE_PARTS = dict(zh="第二段另发一条，两段标题不并进一条。", en="The second part is its own message.")
+FIRST_ARCHIVED = dict(
+    zh="第一段里的存档时刻与车次（末班、最晚、硬节点）一律写“存档写 X，还没核”，不当结论；问最晚、末班时第一段只给存档值加“没核”，"
+       "结论放第二段。",
+    en="Stored times and services in the first part go as “the plan stores X, not checked yet”, never as a conclusion; for "
+       "a latest question the first part gives only the stored value.")
 ROAD_OPENING = dict(
-    zh="路上急问、服务没有可起草的第一段：先在查任何东西之前发一条短消息，一两句能从存的计划、这句和常识确定的就走法说清，"
-       "明说哪几项还没核、马上去查什么；查完再发第二段，先说和那条短消息的不同。不造 first_part 那份草稿。",
-    en="No first part to send: before any lookup, send one or two sentences you can tell for certain from the stored plan "
-       "and this message, naming what is not checked and what you will look up; then check, and send the second part, "
-       "differences first. Do not draft a first_part.")
+    zh="路上急问、服务没有可起草的第一段：在查任何东西之前先发一条短消息，只放第一段，发出去再查；第二段另发一条，两段标题不并进一条。"
+       "这条至少给一条能照着走的内容——从存的计划、这句话或常识能确定的走法、地点或时刻；只说“我去查”不算，什么都不确定就直说"
+       "“存的计划里没有这一段，先给你一个保底：……”，再给保底。计划里的时刻与车次（末班、最晚、硬节点）一律写“存档写 X，还没核”，"
+       "不当结论；问最晚、末班时这条只给存档值加“没核”，结论放第二段。" + WORK_NOTES["zh"] + "不造 first_part 那份草稿。",
+    en="No first part: send one short message before any lookup, then check; part two is its own message, never both "
+       "headings in one. Give one thing to act on (a walk, place or time), not just “I'll check”; nothing certain: say so and "
+       "give a fallback. Plan times: “the plan stores X, not checked yet”, no conclusion. Do not draft a first_part. "
+       + WORK_NOTES["en"])
 # Answer before saving (the user, 2026-10-29: “你先给我终端输出我现在的走法，然后再去更新网站”; baseline 2026-11-19: 8 of 15
 # saves came before the first text). The order of the messages and calls, not a claim that a save already happened.
 SAY_BEFORE_SAVE = dict(
@@ -74,12 +90,14 @@ REPLY_IN_ENGLISH = "Reply in English: translate the stored text you use; keep pl
 # of 2026-11-11). What comes after waits in after_first_part.
 SEND_AND_END = dict(
     zh="先把 first_part.text 原样发出，作为这一条回复的第一条、也是唯一一条消息，末行是 first_part.later，然后结束这一条；"
-       "发之前不调别的工具、不写别的字。能在后台派 researcher 的：唯一可以先做的是在后台派它去查，然后照样原样发出 "
-       "first_part.text（不加 later 那一行），不另写“正在查”这类话；它的报告回来后写第二段。",
+       "发之前不调别的工具、不写别的字。第二段另发一条，两段标题不并进一条。" + WORK_NOTES["zh"] +
+       "能在后台派 researcher 的：唯一可以先做的是在后台派它去查，然后照样原样发出 first_part.text（不加 later 那一行），"
+       "不另写“正在查”这类话；它的报告回来后写第二段。",
     en="Send first_part.text as it is as this reply's first and only message, its last line first_part.later, then end the "
-       "reply; before sending it call no other tool and write nothing else. If you can dispatch a background researcher: "
-       "the one thing you may do first is dispatch it in the background; then send first_part.text as it is all the same "
-       "(without the later line) and add no “still checking” sentence; when its report returns, write the second part.")
+       "reply; call no other tool and write nothing else first. The second part is its own message; both headings never in one. "
+       + WORK_NOTES["en"] +
+       " A background researcher, if you can dispatch one, goes first; then send first_part.text as it is all the same and "
+       "add no “still checking” sentence; its report starts the second part.")
 # A first part quotes stored text as written. On a trip stored in Chinese an English one came out half Chinese
 # (2026-11-11), so the host translates that one; every other first part is still sent as it is.
 SEND_IN_ENGLISH = SEND_AND_END["en"].replace("as it is all the same", "that way all the same").replace(
@@ -938,9 +956,12 @@ class Tripwright:
             parts.append(f"After checking, write {second_title!r} as the second heading; first say what differs "
                          "from first_part, or 'Same as above, checked.'" if en else
                          f"核完后写第二段标题“{second_title}”；标题下先讲和第一段的不同，没有不同就写“和上面一样，已核”。")
+            parts.append(SEPARATE_PARTS["en" if en else "zh"] + FIRST_ARCHIVED["en" if en else "zh"])
+            parts.append(WORK_NOTES["en" if en else "zh"])
         else:
             parts.append("Answer this message directly after its necessary lookups; do not invent a first part."
                          if en else "完成必要的查询后直接答这一问，不造第一段。")
+            parts.append(WORK_NOTES["en" if en else "zh"])
         if options and scenario in ("plan", "compare"):
             parts.append("These preferences compete: record the user's words, but do not change the plan until the user chooses "
                          "an option." if en else "这些偏好互相挤：这一条只记用户说的偏好，不改计划；等用户选了一套再改。")

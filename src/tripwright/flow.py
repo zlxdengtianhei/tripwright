@@ -49,31 +49,36 @@ SHORT = {
 # A road turn the service drafted no first part for (round 4 review; baseline 2026-11-19: 13 of 15 real questions): the
 # user gets a short message before any lookup, not silence for 4 to 19 minutes.
 SHORT_ROAD = dict(
-    zh="路上急问，这次没有可起草的第一段：先发一两句短消息（在查任何东西之前），说能确定的走法和还没核、马上要查什么；"
-       "要核的自己查（宿主能开后台 worker 时才派查询员），查完再发第二段。",
-    en="On the road with no first part to send: send a one- or two-sentence message now, before any lookup, giving the walk you "
-       "can tell for certain and what is not checked yet and about to be looked up; check it yourself (the researcher only "
-       "when the host runs background workers), then send the second part.")
+    zh="路上急问，这次没有可起草的第一段：在查任何东西之前先发一条短消息，只放第一段，给一条能照着走的内容（能确定的走法、地点或时刻），"
+       "计划里的时刻与车次写“存档写 X，还没核”；要核的自己查（宿主能开后台 worker 时才派查询员），查完另发一条第二段，先说和那条的不同。",
+    en="On the road with no first part to send: before any lookup send one short message — the first part only — with one "
+       "thing to act on (a walk, place or time you can tell for certain); plan times go as “the plan stores X, not checked "
+       "yet”. Check it yourself (the researcher only when the host runs background workers), then send the second part as "
+       "its own message, differences first.")
 FULL = {
-    "zh": dict(quick="路上即时问答：①turn 记下原话；②原样发 first_part；③要核的事实自己查，宿主能开后台 worker 时才派查询员；"
-                     "④第二段标题照给的写，先说和第一段的不同；⑤不派核对员。flow.dispatch 点了谁就派谁；不能派子代理时，先取 state(view=\"role\", role=\"single\") 的编排，按它依次取各角色的步骤自己做。",
-               quick_road="路上即时问答（这次服务没给可发的 first_part）：①turn 记下原话；②在查任何东西之前先发一条短消息："
-                           "一两句能从存的计划、这句和常识确定的就走法说清，明说哪几项还没核、马上去查什么；③要核的事实自己查，"
-                           "宿主能开后台 worker 时才派查询员；④查完发第二段，先说和那条短消息的不同；⑤不派核对员。"
+    "zh": dict(quick="路上即时问答：①turn 记下原话；②原样发 first_part，只放第一段；③要核的事实自己查，宿主能开后台 worker 时才派查询员；"
+                     "④第二段另发一条，标题照给的写，先说和第一段的不同；⑤不派核对员。flow.dispatch 点了谁就派谁；不能派子代理时，先取 state(view=\"role\", role=\"single\") 的编排，按它依次取各角色的步骤自己做。",
+               quick_road="路上即时问答（这次服务没给可发的 first_part）：①turn 记下原话；②在查任何东西之前先发一条短消息，只放第一段：至少给一条能照着走的内容"
+                           "（存的计划、这句话或常识能确定的走法、地点或时刻），只说“我去查”不算；计划里的时刻与车次（末班、最晚、硬节点）写“存档写 X，还没核”，"
+                           "问最晚、末班时只给存档值加“没核”，结论放第二段；什么都不确定就说“存的计划里没有这一段，先给你一个保底：……”再给保底；"
+                           "每条消息都是答话本身，不写工作注记；③要核的事实自己查，宿主能开后台 worker 时才派查询员；"
+                           "④查完另发一条第二段，先说和那条短消息的不同，两段标题不并进一条；⑤不派核对员。"
                            "flow.dispatch 点了谁就派谁；不能派子代理时，先取 state(view=\"role\", role=\"single\") 的编排，按它依次取各角色的步骤自己做。",
                plan="做计划：①turn 带原话，把这句里的要求、事实、决定放进 record（引文照抄这条消息、source.event 用 'this'），要求先落账；"
                     "②先 query(kind='saved') 用存的资料，缺的派查询员查；③propose 计划改动（同一个 ctx_id 与 base_version；这条消息的条目已经在 record 里，不要在 propose 里再带一遍）；"
                     "④草稿改了计划就派核对员核，通过才 commit；propose 返回 ask_user（谨慎模式，新带来的没核事实）时照它的 options 问用户（每个一句后果、标推荐、说不回按哪个），等回话再 commit；"
                     "主动模式直接 commit，不等仓库与页面更新；⑤回答里说改了什么、为什么，commit 返回 tell_user 时末尾原样带上它的 say。turn 返回的 records 里有现行条目、决定、依赖与 review，不用再取 state(view='ledger')、state(view='graph')；review 里的决定自己核依赖，要问的列进回答。"
                     "flow.dispatch 点了谁就派谁；不能派子代理时，先取 state(view=\"role\", role=\"single\") 的编排，按它依次取各角色的步骤自己做。"),
-    "en": dict(quick="On the road: (1) record the words with turn; (2) send first_part as given; (3) check the facts yourself, and dispatch the researcher only "
-                     "when the host runs background workers; (4) write the given second heading and lead with what differs; (5) no verifier. Dispatch whom flow.dispatch names; "
+    "en": dict(quick="On the road: (1) record the words with turn; (2) send first_part as given, the first part only; (3) check the facts yourself, and dispatch the researcher only "
+                     "when the host runs background workers; (4) send the second part as its own message, with the given heading and what differs first; (5) no verifier. Dispatch whom flow.dispatch names; "
                      "without subagents, read the order with state(view=\"role\", role=\"single\"), then do each role's steps yourself in turn.",
-               quick_road="On the road (the service gave no first_part to send): (1) record the words with turn; (2) before any lookup, send one or two "
-                           "sentences you can tell for certain, naming what is not checked and what you will look up; (3) check the facts yourself, and "
-                           "dispatch the researcher only when the host runs background workers; (4) after checking, send the second part, leading with what "
-                           "differs from that message; (5) no verifier. Dispatch whom flow.dispatch names; without subagents, read the order with "
-                           "state(view=\"role\", role=\"single\"), then do each role's steps yourself in turn.",
+               quick_road="On the road (the service gave no first_part to send): (1) record the words with turn; (2) before any lookup send one short message, "
+                           "the first part only, with at least one thing to act on (a walk, place or time you can tell for certain), not just “I'll check”; "
+                           "plan times and services go as “the plan stores X, not checked yet”, and for a latest question give the stored value marked not checked, "
+                           "with the conclusion waiting for part two; with nothing certain say so and give a fallback; every message is the answer itself, no work "
+                           "notes; (3) check the facts yourself, and dispatch the researcher only when the host runs background workers; (4) after checking, send the "
+                           "second part as its own message, leading with what differs, never both headings in one; (5) no verifier. Dispatch whom flow.dispatch names; "
+                           "without subagents, read the order with state(view=\"role\", role=\"single\"), then do each role's steps yourself in turn.",
                plan="Planning: (1) turn with the words, and put what this message states in record (quotes copied from it, source.event 'this'), so the "
                     "requirements are recorded first; (2) use query(kind='saved') first and dispatch the researcher for what is missing; (3) propose the plan "
                     "change (same ctx_id and base_version; this message's entries are already in record, so do not send them again in propose); (4) when the draft changes the plan, "
