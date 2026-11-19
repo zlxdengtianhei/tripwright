@@ -50,7 +50,7 @@ FULL = {
     "zh": dict(quick="路上即时问答：①turn 记下原话；②原样发 first_part；③要核的事实自己查，宿主能开后台 worker 时才派查询员；"
                      "④第二段标题照给的写，先说和第一段的不同；⑤不派核对员。flow.dispatch 点了谁就派谁；不能派子代理时，先取 state(view=\"role\", role=\"single\") 的编排，按它依次取各角色的步骤自己做。",
                plan="做计划：①turn 带原话，把这句里的要求、事实、决定放进 record（引文照抄这条消息、source.event 用 'this'），要求先落账；"
-                    "②先 query(kind='saved') 用存的资料，缺的派查询员查；③propose 计划改动（同一个 ctx_id 与 base_version，服务会把 record 的条目一起算进这份草稿）；"
+                    "②先 query(kind='saved') 用存的资料，缺的派查询员查；③propose 计划改动（同一个 ctx_id 与 base_version；这条消息的条目已经在 record 里，不要在 propose 里再带一遍）；"
                     "④草稿改了计划就派核对员核，通过才 commit；propose 返回 ask_user（谨慎模式，新带来的没核事实）时照它的 options 问用户（每个一句后果、标推荐、说不回按哪个），等回话再 commit；"
                     "主动模式直接 commit，不等仓库与页面更新；⑤回答里说改了什么、为什么，commit 返回 tell_user 时末尾原样带上它的 say。turn 返回的 records 里有现行条目、决定、依赖与 review，不用再取 state(view='ledger')、state(view='graph')；review 里的决定自己核依赖，要问的列进回答。"
                     "flow.dispatch 点了谁就派谁；不能派子代理时，先取 state(view=\"role\", role=\"single\") 的编排，按它依次取各角色的步骤自己做。"),
@@ -59,7 +59,7 @@ FULL = {
                      "without subagents, read the order with state(view=\"role\", role=\"single\"), then do each role's steps yourself in turn.",
                plan="Planning: (1) turn with the words, and put what this message states in record (quotes copied from it, source.event 'this'), so the "
                     "requirements are recorded first; (2) use query(kind='saved') first and dispatch the researcher for what is missing; (3) propose the plan "
-                    "change (same ctx_id and base_version; the service counts the record's entries in the same draft); (4) when the draft changes the plan, "
+                    "change (same ctx_id and base_version; this message's entries are already in record, so do not send them again in propose); (4) when the draft changes the plan, "
                     "dispatch the verifier and commit only after it passes; when propose returns ask_user (cautious mode, unverified facts the change brings in), "
                     "ask with its options (one consequence each, the recommended one marked, what happens without an answer) and commit after the answer; in the "
                     "proactive mode commit at once, without waiting for the repository or the page; (5) say what changed and why, and end with the tell_user.say "
@@ -97,7 +97,6 @@ class Seen:
     named: set = field(default_factory=set)
     did: set = field(default_factory=set)  # steps seen since the last turn: query, verify
     committed_since_turn: bool = False
-    text: str | None = None
     lines: list = field(default_factory=list)
 
 
@@ -116,10 +115,11 @@ class Flow:
         seen.lines = [*seen.lines[-10:], line if given else None]
         return line if given else None
 
-    def turn(self, owner: str, at: datetime, *, text: str, scenario: str, language: str, nature: str,
-             second: bool, latest: bool, unknown: bool, ids: dict | None = None) -> dict:
+    def turn(self, owner: str, at: datetime, *, scenario: str, language: str,
+             second: bool, latest: bool, unknown: bool, ids: dict | None = None, line: str | None = None) -> dict:
         """flow for a turn. Nothing here names a recorder: since round 4 the main agent records what the message states
-        itself, in `turn`'s `record`, and only a lookup or a check of a draft is dispatched."""
+        itself, in `turn`'s `record`, and only a lookup or a check of a draft is dispatched. `line` replaces this turn's
+        reminder: an undo is done in `turn`, so asking for a draft in the same receipt would contradict its `next`."""
         language = "en" if language == "en" else "zh"
         seen = self.seen.setdefault(owner, Seen())
         mode = mode_of(scenario)
@@ -137,15 +137,17 @@ class Flow:
         # a missed step brings the whole flow back, but not on every turn of a host that never dispatches
         full = (seen.last_turn is None or at - seen.last_turn > FULL_AFTER_IDLE or seen.mode != mode
                 or seen.turns_since_full >= FULL_AFTER_TURNS or missed and seen.turns_since_full >= MISSED_FULL_EVERY - 1)
-        seen.last_turn, seen.mode, seen.text = at, mode, text
+        seen.last_turn, seen.mode = at, mode
         seen.named = {entry["role"] for entry in dispatch if not entry.get("optional")}  # an optional role is never missed
         dispatch = [packet(entry, ids, language) for entry in dispatch]
         seen.did, seen.committed_since_turn = set(), False
         if full:
             seen.last_full, seen.turns_since_full = at, 0
-            return dict(dispatch=dispatch, full=FULL[language][mode])
-        seen.turns_since_full += 1
-        line = SHORT[language][mode]  # a turn always carries its line; other tools skip it when just said
+            if line is None:
+                return dict(dispatch=dispatch, full=FULL[language][mode])
+        else:
+            seen.turns_since_full += 1
+        line = line or SHORT[language][mode]  # a turn always carries its line; other tools skip it when just said
         seen.lines = [*seen.lines[-10:], line]
         return dict(dispatch=dispatch, reminder=line)
 

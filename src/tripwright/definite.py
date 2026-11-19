@@ -238,10 +238,6 @@ def judge_value(field: str, old, new, words: str, *, said_on: date | None = None
 # of that record, or as the answer to the service's own question naming it (ledger._withdraw, D-21, 2026-11-14).
 TAKE_BACK = re.compile(r"撤|取消|删|去掉|作废|\bremove\b|\bcancel\b|\bdrop\b|\bwithdraw\b|\bdelete\b|\btake (?:it|that|this) back\b",
                        re.IGNORECASE)
-# A plain yes to a question (“好的”, “可以”, “ok”).
-AFFIRM = re.compile(r"^\s*(?:好|可以|行|是|对|嗯|同意|没问题|yes|yep|yeah|ok|okay|sure)(?:的|啊|吧|呀)?(?:[\s，,。.!！~～]|$)", re.IGNORECASE)
-
-
 # A yes or a “drop it” that turns or keeps something (“好的，不过……先留着”, “可以，但先别撤”, “对，留着吧”, “OK, but keep
 # it”) cannot be read for certain as agreeing to drop the record: it counts as neither (2026-11-14, round 4 review).
 HEDGE = re.compile(r"不过|但是|但|可是|只是|然而|留着|留下|先别|别撤|别删|不撤|不删|保留|\bbut\b|\bhowever\b|\bthough\b|\bkeep\b"
@@ -254,10 +250,6 @@ def hedged(words: str) -> bool:
 
 def takes_back(words: str) -> bool:
     return bool(TAKE_BACK.search(words or "")) and not hedged(words)
-
-
-def affirms(words: str) -> bool:
-    return bool(AFFIRM.search(words or "")) and not declines(words) and not hedged(words)
 
 
 # What an object of the trip is called, by kind (a withdrawal's words must point at the record's own object, not only

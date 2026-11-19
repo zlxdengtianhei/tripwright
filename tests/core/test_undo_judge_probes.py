@@ -1,11 +1,12 @@
 """Round 4 (2026-11-19): nothing holds an undo. The reviewers' probes of round 3 (2026-11-14) are kept where they still
 describe the service: an undo takes back everything the undone turns recorded (D-21 then kept what did not conflict), and
 it goes through even when a requirement older than those turns disagrees with the restored plan; the answer names the
-older one only as still in force. Taking back a single record (`changes.withdraw`, not a whole version) still needs the
-user's own words that name it, as D-21 reads them."""
+older one as still in force and leaves changing it to the user. Taking back a single record (`changes.withdraw`, not a
+whole version) still needs the user's own words that name it, as D-21 reads them."""
 import pytest
 
 from tripwright.adapters.mcp import create_server
+from tripwright.service import RESTORED_SAY, UNDO_LINE
 from test_ask_before_saving import call, day_with, trip  # noqa: F401
 
 MOVE = "把第一天的晚饭改到 19:00，晚饭必须 19:00。"
@@ -71,7 +72,7 @@ def test_p2_a_must_item_from_the_same_message_goes_with_the_undo_too(trip):
 
 def test_p4_a_must_from_an_earlier_message_does_not_hold_the_undo(trip):
     """Round 4: the plan goes back even when a record older than the undone turns disagrees with it; that record stays
-    active, and the answer does not claim it was taken back (it is not from those turns)."""
+    active, and the answer names it as still in force (not as taken back) and leaves changing it to the user."""
     server = create_server(trip, local_user="alice", manage_jobs=False)
     turn = call(server, "turn", text="第一天晚饭必须 19:00。", scenario="replan", speaker="p1")
     ledger = call(server, "propose", ctx_id=turn["ctx_id"],
@@ -83,7 +84,33 @@ def test_p4_a_must_from_an_earlier_message_does_not_hold_the_undo(trip):
     back = undo(server)
     lock = next(d for d in trip.store.all("decisions", "alice") if d.get("question") == "晚饭时间")
     assert back["restore_version"] == 2 and dinner(trip) == "17:00"
-    assert lock["status"] == "active" and "晚饭时间" not in back["say"]
+    assert lock["status"] == "active"
+    assert "晚饭时间：19:00" in back["say"] and RESTORED_SAY["zh"]["still"].format(what="晚饭时间：19:00") in back["say"]
+    assert "随撤回一起撤掉" not in back["say"] and not back.get("taken_back")
+
+
+def test_p6_a_must_item_older_than_the_undone_turns_is_named_as_still_in_force(trip):
+    """The judge's scenario (a): a must item recorded before the undone turns (no locked path) is met by the plan the
+    undo takes away and not by the restored one. The undo still goes through in one call, asks nothing, and the answer
+    names the item as still in force and says the user decides whether to change it."""
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    turn = call(server, "turn", text="晚饭必须 19:00。", scenario="replan", speaker="p1")
+    ledger = call(server, "propose", ctx_id=turn["ctx_id"], changes=dict(items=[dict(
+        kind="constraint", key="dinner-1900", text="晚饭必须 19:00", quote="晚饭必须 19:00", subject=["p1"], strength="must",
+        source={"event": "this", "basis": "user_explicit"})]))
+    call(server, "commit", draft_id=ledger["draft_id"])
+    turn = call(server, "turn", text="把第一天的晚饭改到 19:00。", scenario="replan", speaker="p1")
+    plan = call(server, "propose", ctx_id=turn["ctx_id"], days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
+    call(server, "commit", draft_id=plan["draft_id"], accept_unverified=True)
+    assert dinner(trip) == "19:00"
+    back = call(server, "turn", text="撤回", scenario="replan", speaker="p1")
+    assert back["undo"]["done"] and dinner(trip) == "17:00"
+    assert not back["ask"]  # nothing is asked before the undo, and nothing after it
+    assert back["flow"].get("reminder") == UNDO_LINE["zh"] and "full" not in back["flow"]
+    item = next(i for i in trip.store.all("items", "alice") if i["key"] == "dinner-1900")
+    say = back["undo"]["say"]
+    assert item["status"] == "active" and "晚饭必须 19:00" in say and "仍然有效" in say and "要不要改，你说" in say
+    assert "随撤回一起撤掉" not in say and not back["undo"].get("taken_back")
 
 
 def test_p3_the_same_words_sent_again_add_no_version(trip):
@@ -92,8 +119,12 @@ def test_p3_the_same_words_sent_again_add_no_version(trip):
     back = undo(server)
     numbers = [version["number"] for version in trip.store.all("versions", "alice")]
     again = undo(server)
-    assert numbers == [1, 2, 3, 4] and again["version"] == back["version"] and again["say"] == back["say"]
+    assert numbers == [1, 2, 3, 4] and again["version"] == back["version"]
     assert [version["number"] for version in trip.store.all("versions", "alice")] == numbers
+    # the once-only cautious-mode offer is not said a second time; the rest of the answer is the first one
+    offer = RESTORED_SAY["zh"]["offer"]
+    assert offer in back["say"] and offer not in again["say"]
+    assert again["say"] == back["say"].replace(offer, "").rstrip()
 
 
 # --- taking back one record still needs the user's own words that name it (D-21) ------------------------------------

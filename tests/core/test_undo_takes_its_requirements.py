@@ -82,7 +82,7 @@ def test_the_answer_names_one_taken_entry_without_a_list_separator(trip):
     assert "。。" not in back["say"] and "；" not in back["say"].split("随撤回一起撤掉：")[1].split("。")[0]
 
 
-def test_an_earlier_must_no_longer_holds_the_undo_and_is_not_claimed_taken(trip):
+def test_an_earlier_must_no_longer_holds_the_undo_and_is_named_as_still_in_force(trip):
     server = create_server(trip, local_user="alice", manage_jobs=False)
     turn = call(server, "turn", text="第一天晚饭必须 19:00。", scenario="replan", speaker="p1")
     ledger = call(server, "propose", ctx_id=turn["ctx_id"], changes=dict(decisions=[must_dinner(turn)]))
@@ -93,7 +93,8 @@ def test_an_earlier_must_no_longer_holds_the_undo_and_is_not_claimed_taken(trip)
     _, back = undo(server)
     lock = next(entry for entry in trip.store.all("decisions", "alice") if entry.get("must"))
     assert back["restore_version"] == 2 and dinner(trip) == "17:00" and lock["status"] == "active"
-    assert "晚饭时间" not in back["say"] and "第一天晚饭几点" not in back["say"]
+    # round 4 review: not taken back, but not silent either: named as still in force, the user decides whether to change it
+    assert "第一天晚饭几点：19:00" in back["say"] and "仍然有效" in back["say"] and "随撤回一起撤掉" not in back["say"]
 
 
 def test_a_fact_from_the_undone_turn_goes_with_the_undo_too(trip):
