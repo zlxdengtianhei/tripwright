@@ -129,11 +129,13 @@ PROACTIVE_SAY = dict(zh=dict(page="当前是主动模式：改动已存，现在
 RESTORED_SAY = dict(zh=dict(page="已撤回：计划回到第 {restored} 版，页面也在更新。", plain="已撤回：计划回到第 {restored} 版。",
                             taken="随撤回一起撤掉：{what}。", join="；",
                             keep="其中哪条要留，再说一次就行。",
+                            tickets="这些票和预订也随撤回撤了：{what}；票本身要你自己去退或留。",
                             offer="另外我们有谨慎模式：改计划前先把改动给你看，你同意了再存。建议考虑；想用就回“以后先问我”。"),
                     en=dict(page="Undone: the plan is back to version {restored}, and the page is being updated.",
                             plain="Undone: the plan is back to version {restored}.",
                             taken="Taken back with it: {what}.", join="; ",
                             keep="If you want to keep one of them, say it again.",
+                            tickets="These bookings went with the undo: {what}; the tickets themselves are yours to cancel or keep.",
                             offer="We also have a cautious mode: I show you a change first and save it only after you agree. "
                                   "Worth considering; to switch, reply “ask me first from now on”."))
 SAY_HOW = dict(zh="回答末尾原样带上 say。", en="End the answer with say as it is.")
@@ -1451,12 +1453,28 @@ class Tripwright:
                 # the user can say which to keep instead of being asked before the undo.
                 say += gap + words["taken"].format(what=words["join"].join(entry["text"].rstrip("。.；;，, ") for entry in taken))
                 say += gap + words["keep"]
+            gone = self._bookings_gone(owner, draft, version)
+            if gone:
+                # the boundary the design names: a ticket bought in those turns is not the service's to cancel
+                say += gap + words["tickets"].format(what=words["join"].join(gone))
             say += gap + words["offer"] if offer else ""
             return dict(say=say, how=SAY_HOW[language], **({"taken_back": taken} if taken else {}),
                         **({"offer": "cautious_mode"} if offer else {}))
         if not proactive:
             return None
         return dict(say=PROACTIVE_SAY[language][page], how=SAY_HOW[language], restore_version=version["base_version"])
+
+    def _bookings_gone(self, owner: str, draft: dict, version: dict) -> list[str]:
+        """The bought or booked arrangements the version this undo goes back to did not have: the record of them went
+        with the undo, but the ticket itself is the user's to cancel or keep (round 4, 2.1)."""
+        before = next((entry for entry in self.store.all("versions", owner) if entry["number"] == draft.get("base_version")), None)
+        if before is None:
+            return []
+        now = {booking["id"] for booking in (version.get("plan") or {}).get("bookings", [])}
+        return [f"{booking.get('what') or booking['id']}（{booking.get('date')}）" if self._reply_language(owner) != "en"
+                else f"{booking.get('what') or booking['id']} ({booking.get('date')})"
+                for booking in (before.get("plan") or {}).get("bookings", [])
+                if booking["id"] not in now and booking.get("status") in ("bought", "booked")]
 
     def _taken_back(self, owner: str, draft: dict) -> list[dict]:
         """What this commit withdrew (changes.withdraw), each with the words the answer names it by."""

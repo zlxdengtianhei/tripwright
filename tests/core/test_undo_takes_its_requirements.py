@@ -155,3 +155,5 @@ def test_a_booked_item_from_the_undone_turn_does_not_hold_the_undo_and_is_named(
     _, back = undo(server)
     assert dinner(trip) == "17:00"
     assert [booking["id"] for booking in trip.versions.current("alice")["plan"]["bookings"]] == before
+    # the ticket itself is not the service's to cancel: the answer names it and says so
+    assert "19:00 的车" in back["say"] and "票本身要你自己去退或留" in back["say"]
