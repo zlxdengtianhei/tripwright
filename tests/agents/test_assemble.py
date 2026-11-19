@@ -167,8 +167,11 @@ def test_main_skill_stays_within_its_pre_latest_byte_budget(outputs):
     pin once: step 1's wait-for-the-tools sentence (never write about connections) is a deliberate 54-byte growth."""
     text = outputs[MAIN]
     # 2026-11-13 (analysis item 19): the turn-first rule names when state alone is enough, a deliberate 20-byte growth.
-    assert len(text.encode()) <= 12245
-    assert len((text + "y" * 12246).encode()) > 12245
+    # 2026-11-19 (round 4 review): the road question with no first part opens with one or two short sentences before any
+    # lookup, and the walk or the answer comes before propose/commit (baseline: 13 of 15 questions waited 4 to 19
+    # minutes, 8 of 15 saved before their first text); the pin is raised to that deliberate 895-byte growth.
+    assert len(text.encode()) <= 13076
+    assert len((text + "y" * 13077).encode()) > 13076
 
 
 def test_a9_instructions_and_examples_are_generated_for_every_host(outputs):

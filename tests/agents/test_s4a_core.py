@@ -79,7 +79,9 @@ def test_the_main_skill_did_not_grow(outputs):
     # S4a: 12,130 bytes before; the core steps replaced the skill's own steps and check section
     # S4h-b: 12,225 bytes, step 1's wait-for-the-tools sentence (a deliberate growth, pinned once)
     # 2026-11-13: 12,245 bytes, the turn-first rule says reading the plan needs only state (analysis item 19)
-    assert len(outputs[MAIN].encode()) <= 12245
+    # 2026-11-19 (round 4 review): 13,076 bytes, the road question with no first part opens with a short message before
+    # any lookup and the answer comes before the save (baseline: 13 of 15 waited 4 to 19 minutes for their first text)
+    assert len(outputs[MAIN].encode()) <= 13076
 
 
 def test_sources_load_the_core_from_the_checkout():

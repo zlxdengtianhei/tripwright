@@ -10,20 +10,20 @@ How to do a role:
 
 ## On the road (`scenario: "quick"`)
 
-1. Main: `turn` with the user's words, a stable `request_id`, `scenario: "quick"`, the named things in `points`, and in `record` what the message states. Send `first_part` as `next` says and end the reply.
+1. Main: `turn` with the user's words, a stable `request_id`, `scenario: "quick"`, the named things in `points`, and in `record` what the message states. Send `first_part` as `next` says and end the reply. With no `first_part`, send one or two short sentences now instead, before any lookup: what you can tell for certain, and what is not checked yet and about to be looked up.
    - A voice-typed message can mishear a word: when one makes no sense in context, do not act on it as written; guess the word meant and ask one short question (“你说的‘X’是指‘Y’吗？”).
    - Leave out the dimensions the user said not to consider (`exclude_keys` in `turn`). When conditions contradict each other or the new message, go on with the default reading, say so and list it as a question.
 2. Main: check what the user will act on yourself, with `query` and the host's web search. Here the researcher is optional by design (the user asks and gets an answer directly); read its steps only when a lookup is unclear. What you cannot check goes into the same reply as an unchecked limit with its consequence; do not ask for another message to finish it.
-3. Main: the second part under `second_part_title`, first line what differs from the first part.
+3. Main: the second part under `second_part_title`, first line what differs from the first part (or from the road's short message).
 4. When the message also changes the plan, go on with “Change the plan” from step 2.
 
 ## Change the plan (a replan, planning from scratch, or one change such as “move dinner to 19:00”)
 
 1. Main: `turn` with the words, and in `record` what the message states — exact quotes, one record per point, linked to what `turn.records` lists (`depends_on`, `same_object_as`, `exclusive_with`). The requirements are in the ledger before the plan changes, so a refused plan change does not lose them. Keep the questions in the answer.
 2. Researcher, when the plan needs facts nobody stored: `query(kind="saved")` first, then the lookups its steps name.
-3. Main: `propose` the change on the same `ctx_id` and `base_version` (`blocks` or `days` for a small change).
+3. Main: first give the walk or the answer in the conversation (what you are changing and why), then `propose` the change on the same `ctx_id` and `base_version` (`blocks` or `days` for a small change); nothing is saved by a proposal.
 4. Verifier, when `propose` names it: check the draft from `state(view="pack", draft_id=...)` and hand the verdict back with `result(job_id, report=...)`; `report.next` says whether to commit.
-5. Main: `commit` as the save mode says. Cautious (`ask_user`): ask once with its options and commit after the user's answer. Proactive (`tell_user`): commit now. Then answer: what changed and why, from the receipt's `changelog`, and end with the receipt's `tell_user.say` when there is one. The service updates the repository and the page in the background; do not wait for them. A commit refused because the version or the ledger changed: start again from step 1 with a new `turn`; never force it.
+5. Main: `commit` after the answer, as the save mode says; the page update follows the answer. Cautious (`ask_user`): ask once with its options and commit after the user's answer. Proactive (`tell_user`): commit now, after the answer. Read the receipt's `changelog` and `tell_user.say` and say them right after the commit (a short follow-up when the answer is already sent). The service updates the repository and the page in the background; do not wait for them. A commit refused because the version or the ledger changed: start again from step 1 with a new `turn`; never force it.
 
 ## Undo (“撤回”, “undo”, “改回去”)
 

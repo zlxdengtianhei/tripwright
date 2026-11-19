@@ -46,9 +46,21 @@ SHORT = {
                turn_first="Record the user's message with turn (their words) first, then go on.",
                unturned="This user message has not gone through turn: call turn(text=the user's words, scenario='quick') first, then go on with the lookup."),
 }
+# A road turn the service drafted no first part for (round 4 review; baseline 2026-11-19: 13 of 15 real questions): the
+# user gets a short message before any lookup, not silence for 4 to 19 minutes.
+SHORT_ROAD = dict(
+    zh="路上急问，这次没有可起草的第一段：先发一两句短消息（在查任何东西之前），说能确定的走法和还没核、马上要查什么；"
+       "要核的自己查（宿主能开后台 worker 时才派查询员），查完再发第二段。",
+    en="On the road with no first part to send: send a one- or two-sentence message now, before any lookup, giving the walk you "
+       "can tell for certain and what is not checked yet and about to be looked up; check it yourself (the researcher only "
+       "when the host runs background workers), then send the second part.")
 FULL = {
     "zh": dict(quick="路上即时问答：①turn 记下原话；②原样发 first_part；③要核的事实自己查，宿主能开后台 worker 时才派查询员；"
                      "④第二段标题照给的写，先说和第一段的不同；⑤不派核对员。flow.dispatch 点了谁就派谁；不能派子代理时，先取 state(view=\"role\", role=\"single\") 的编排，按它依次取各角色的步骤自己做。",
+               quick_road="路上即时问答（这次服务没给可发的 first_part）：①turn 记下原话；②在查任何东西之前先发一条短消息："
+                           "一两句能从存的计划、这句和常识确定的就走法说清，明说哪几项还没核、马上去查什么；③要核的事实自己查，"
+                           "宿主能开后台 worker 时才派查询员；④查完发第二段，先说和那条短消息的不同；⑤不派核对员。"
+                           "flow.dispatch 点了谁就派谁；不能派子代理时，先取 state(view=\"role\", role=\"single\") 的编排，按它依次取各角色的步骤自己做。",
                plan="做计划：①turn 带原话，把这句里的要求、事实、决定放进 record（引文照抄这条消息、source.event 用 'this'），要求先落账；"
                     "②先 query(kind='saved') 用存的资料，缺的派查询员查；③propose 计划改动（同一个 ctx_id 与 base_version；这条消息的条目已经在 record 里，不要在 propose 里再带一遍）；"
                     "④草稿改了计划就派核对员核，通过才 commit；propose 返回 ask_user（谨慎模式，新带来的没核事实）时照它的 options 问用户（每个一句后果、标推荐、说不回按哪个），等回话再 commit；"
@@ -57,6 +69,11 @@ FULL = {
     "en": dict(quick="On the road: (1) record the words with turn; (2) send first_part as given; (3) check the facts yourself, and dispatch the researcher only "
                      "when the host runs background workers; (4) write the given second heading and lead with what differs; (5) no verifier. Dispatch whom flow.dispatch names; "
                      "without subagents, read the order with state(view=\"role\", role=\"single\"), then do each role's steps yourself in turn.",
+               quick_road="On the road (the service gave no first_part to send): (1) record the words with turn; (2) before any lookup, send one or two "
+                           "sentences you can tell for certain, naming what is not checked and what you will look up; (3) check the facts yourself, and "
+                           "dispatch the researcher only when the host runs background workers; (4) after checking, send the second part, leading with what "
+                           "differs from that message; (5) no verifier. Dispatch whom flow.dispatch names; without subagents, read the order with "
+                           "state(view=\"role\", role=\"single\"), then do each role's steps yourself in turn.",
                plan="Planning: (1) turn with the words, and put what this message states in record (quotes copied from it, source.event 'this'), so the "
                     "requirements are recorded first; (2) use query(kind='saved') first and dispatch the researcher for what is missing; (3) propose the plan "
                     "change (same ctx_id and base_version; this message's entries are already in record, so do not send them again in propose); (4) when the draft changes the plan, "
@@ -116,10 +133,12 @@ class Flow:
         return line if given else None
 
     def turn(self, owner: str, at: datetime, *, scenario: str, language: str,
-             second: bool, latest: bool, unknown: bool, ids: dict | None = None, line: str | None = None) -> dict:
+             second: bool, latest: bool, unknown: bool, ids: dict | None = None, line: str | None = None,
+             full_line: str | None = None, whole: bool = True) -> dict:
         """flow for a turn. Nothing here names a recorder: since round 4 the main agent records what the message states
         itself, in `turn`'s `record`, and only a lookup or a check of a draft is dispatched. `line` replaces this turn's
-        reminder: an undo is done in `turn`, so asking for a draft in the same receipt would contradict its `next`."""
+        short reminder, `full_line` the whole flow; `whole=False` gives `line` instead of the whole flow at all (an undo
+        is done in `turn`, so asking for a draft in the same receipt would contradict its `next`)."""
         language = "en" if language == "en" else "zh"
         seen = self.seen.setdefault(owner, Seen())
         mode = mode_of(scenario)
@@ -141,11 +160,10 @@ class Flow:
         seen.named = {entry["role"] for entry in dispatch if not entry.get("optional")}  # an optional role is never missed
         dispatch = [packet(entry, ids, language) for entry in dispatch]
         seen.did, seen.committed_since_turn = set(), False
-        if full:
+        if full and whole:
             seen.last_full, seen.turns_since_full = at, 0
-            if line is None:
-                return dict(dispatch=dispatch, full=FULL[language][mode])
-        else:
+            return dict(dispatch=dispatch, full=full_line or FULL[language][mode])
+        if not full:
             seen.turns_since_full += 1
         line = line or SHORT[language][mode]  # a turn always carries its line; other tools skip it when just said
         seen.lines = [*seen.lines[-10:], line]

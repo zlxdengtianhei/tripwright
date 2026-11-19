@@ -154,8 +154,8 @@ def test_a_place_not_recognized_is_said_and_never_taken_for_the_plans(make):
     service = make(at="21:52", places=(NORTH, SOUTH, *STATION_FOOD))
     found = service.turn("local", SECOND, "q2", scenario="quick",
                          points=[dict(kind="at", said="在一家没存的咖啡馆", place="Café Nirgendwo"), dict(kind="do", said="万圣节活动", place="Prater")])
-    # Unknown names remain visible, but never force a second turn.
-    assert found["next"].startswith("完成必要的查询和写入后直接答这一问")
+    # Unknown names remain visible, but never force a second turn; the road's short opening goes before any lookup.
+    assert "路上急问、服务没有可起草的第一段" in found["next"]
     assert "points 里这些地方没认出：“Prater”、“Café Nirgendwo”。不用再调 turn" in found["next"]
     # No stored point is answered, so there is no placeholder first part.
     assert found["first_part"] is None

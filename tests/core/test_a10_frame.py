@@ -303,7 +303,8 @@ def test_first_part_and_next_reach_a_host_over_mcp(tmp_path):
 
     turn = asyncio.run(scenario())
     assert turn["first_part"] is None
-    assert turn["next"].startswith("完成必要的查询和写入后直接答这一问")
+    # no plan for that day, so no first part: the host opens with a short message before any lookup (round 4 review)
+    assert "路上急问、服务没有可起草的第一段" in turn["next"]
 
 
 # --- 5. synthetic data says so ----------------------------------------------------------------------------------------------

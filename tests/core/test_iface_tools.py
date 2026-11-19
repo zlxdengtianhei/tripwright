@@ -91,7 +91,8 @@ def test_first_part_only_for_a_quick_question_with_a_stored_answer(seeded, monke
     assert {"do_first", "steps", "always", "write_back", "answer", "second_part_due"}.isdisjoint(quick)
     assert "写法（对话里的回答）" not in quick["pack"]["markdown"]
     empty = seeded.turn("alice", "Anything else?", scenario="quick", points=[dict(kind="other", said="anything else")])
-    assert empty["first_part"] is None and empty["second_part_title"] is None
+    # a road question with no first part still has a second part: the checked answer after the short opening message
+    assert empty["first_part"] is None and empty["second_part_title"] == "After checking"
     planned = seeded.turn("alice", "What about this place?", scenario="plan", points=[point])
     assert planned["first_part"] is None
 
