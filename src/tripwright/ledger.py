@@ -299,12 +299,6 @@ def describe_record(table: str, record: dict) -> str:
     return f"{record['question']}：{record['choice']}" if table == "decisions" else str(record.get("text") or record["id"])
 
 
-# The words that take something back. A user's record is withdrawn only on the user's own message saying so: the
-# service cannot read what is meant, so it asks for one of these words, as it asks a must's words for the new value.
-WITHDRAW_WORDS = re.compile(r"撤|取消|不要|别要|删|去掉|算了|作废|不算|改回|恢复|undo|revert|remove|cancel|drop|withdraw|forget|delete|"
-                            r"never ?mind|take (?:it|that) back", re.IGNORECASE)
-
-
 class Changes(Model):
     items: list[Item] = Field(default_factory=list)
     facts: list[Fact] = Field(default_factory=list)
@@ -1159,16 +1153,14 @@ class Ledger:
     def _user_says_withdraw(self, owner: str, table: str, record: dict, answered: str, words: str):
         """Whether the user's message takes this record back, read only where it can be told for certain (D-21,
         2026-11-14): the words say to drop something (撤、取消、删、去掉、remove…) and give a value of this record
-        (its locked time, its value: the same reading as a must's change, D-19); or they answer, with a yes or a word
-        that takes it back, the question the service itself asked in reply to the user's message before, naming this
-        record. Anything else is refused with how to ask."""
-        from tripwright.definite import affirms, declines, takes_back
+        (its locked time, its value: the same reading as a must's change, D-19). Anything else is refused with how to
+        ask. An undo of a whole version does not come through here: the service takes those entries back itself
+        (`_withdraw`, filled_by=service)."""
+        from tripwright.definite import declines, takes_back
 
         values = record_values(table, record)
         if takes_back(words) and not declines(words) and values and self.names_value(owner, answered, words, values) \
                 and self._points_at(owner, table, record, answered, words, values):
-            return
-        if self._asked_to_withdraw(owner, answered, record["id"]) and not declines(words) and (affirms(words) or takes_back(words)):
             return
         shown_as = describe_record(table, record)
         raise ValueError(f"withdraw: {record['id']} ({shown_as}) is the user's, and this message ({words!r}) does not take it back for "
@@ -1217,42 +1209,28 @@ class Ledger:
                     return False
         return True
 
-    def _asked_to_withdraw(self, owner: str, answered: str, record_id: str) -> bool:
-        """The service asked, in its reply to the user's message just before this one, whether to drop this record
-        (a draft of that message lists it in ask_withdraw: an undo it held, or one that kept a must)."""
-        messages = [event["id"] for event in self.store.all("events", owner)
-                    if (event.get("received") or {}).get("nature") in USER_NATURES]
-        if answered not in messages or messages.index(answered) == 0:
-            return False
-        before = messages[messages.index(answered) - 1]
-        return any(draft.get("source_event") == before and record_id in (draft.get("ask_withdraw") or [])
-                   for draft in self.store.all("drafts", owner))
-
     def _withdraw(self, owner: str, entry: Withdrawal, answered: str | None) -> dict:
-        """Take back one active item or decision (changes.withdraw). The agent's own reading goes on its word; a record
+        """Take back one active item, decision or fact (changes.withdraw). The agent's own reading goes on its word; a record
         from the user's words needs this proposal's message to be the user's own, from a person of the trip, with a word
-        that takes something back. A decision's locks go with it (the commit's lock check reads `withdrawn`)."""
-        table = next((name for name in ("decisions", "items") if any(record["id"] == entry.id for record in self.store.all(name, owner))), None)
+        that takes something back. A decision's locks go with it (the commit's lock check reads `withdrawn`). What the
+        service takes back with an undo (`filled_by: service`) needs no words of its own: the message was already read
+        as an undo of that turn (round 4, 2.1)."""
+        table = next((name for name in ("decisions", "items", "facts") if any(record["id"] == entry.id for record in self.store.all(name, owner))), None)
         if table is None:
-            raise ValueError(f"withdraw: no item or decision {entry.id!r}; state(view='ledger') lists them")
+            raise ValueError(f"withdraw: no item, decision or fact {entry.id!r}; state(view='ledger') lists them")
         record = self.store.get(table, owner, entry.id)
         if record.get("status") != "active":
             raise ValueError(f"withdraw: {entry.id} is {record.get('status')}, not active")
-        users = (record.get("decided_by") == "user" or "user" in (record.get("parts") or {}).values()) if table == "decisions" \
-            else user_layer(record["source"]["basis"])
+        users = entry.filled_by != "service" and (
+            (record.get("decided_by") == "user" or "user" in (record.get("parts") or {}).values()) if table == "decisions"
+            else user_layer(record["source"]["basis"]))
         if users:
             message = self._message(owner, answered or "") if answered else {}
             received = message.get("received") or {}
             people = {person["id"] for person in self._plan(owner).get("people", [])}
-            # what the service takes back with an undo needs no more than the undone change did: the user's words saying so
-            speaker_ok = entry.filled_by == "service" or received.get("speaker") in people
-            if received.get("nature") not in USER_NATURES or not speaker_ok:
+            if received.get("nature") not in USER_NATURES or received.get("speaker") not in people:
                 raise ValueError(f"withdraw: {entry.id} is the user's; only the user's own message (turn with the speaker) takes it back")
-            if entry.filled_by == "service":
-                if not WITHDRAW_WORDS.search(received.get("text") or ""):
-                    raise ValueError(f"withdraw: {entry.id}: the undo message does not say to take anything back")
-            else:
-                self._user_says_withdraw(owner, table, record, answered, received.get("text") or "")
+            self._user_says_withdraw(owner, table, record, answered, received.get("text") or "")
         record.update(status="superseded", withdrawn=dict(event=answered, reason=entry.reason))
         self.store.put(table, owner, record)
         self._audit(owner, answered or record["source"]["event"], "withdraw", entry.id, {"reason": entry.reason})

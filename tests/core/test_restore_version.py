@@ -1,6 +1,6 @@
-"""One sentence takes a change back (analysis 5.13, 2026-11-13): propose(restore_version=N) makes version N's whole plan
-the draft, through the same checks; the ledger is not touched and the change log says which version was restored. The
-proactive save mode rests on it: a change saved without asking can be undone."""
+"""One sentence takes a change back: `propose(restore_version=N)` puts version N's whole plan back, with the records the
+turns after it made, through the same commit `turn` uses for an undo (round 4, 2.1: `turn` does an undo itself, and this
+argument stays for a host that still sends it, e.g. when the words reach it another way)."""
 import pytest
 from test_flow_dispatch import seeded
 
@@ -28,7 +28,8 @@ def test_restoring_version_one_gives_its_day_back_and_leaves_the_ledger(service,
     assert service.commit("alice", draft["draft_id"], accept_unverified=True)["number"] == 2
     assert day_json(service) != before
 
-    undo = service.turn("alice", "撤回", "undo", scenario="replan")
+    undo = service.turn("alice", "回到刚改之前那版吧。", "undo", scenario="replan")
+    assert "undo" not in undo  # not the undo words: this path is the host's own call
     back = service.propose("alice", ctx_id=undo["ctx_id"], restore_version=1)
     assert back["status"] != "rejected", back
     saved = service.commit("alice", back["draft_id"], accept_unverified=True)
@@ -48,10 +49,11 @@ def test_restore_refuses_an_unknown_version_and_a_plan_sent_with_it(service, pla
         service.propose("alice", ctx_id=turn["ctx_id"], restore_version=1, plan=service.state("alice")["plan"])
 
 
-def test_the_proactive_hint_says_how_to_undo_with_restore_version():
+def test_the_proactive_hint_says_the_service_undoes_in_turn():
     from tripwright.service import TELL_USER
 
-    assert "restore_version" in TELL_USER["zh"] and "restore_version" in TELL_USER["en"]
+    assert "turn" in TELL_USER["zh"] and "turn" in TELL_USER["en"]
+    assert "propose(restore_version" not in TELL_USER["zh"] and "propose with" not in TELL_USER["en"]
 
 
 def test_the_propose_tool_says_what_restore_version_does(service):

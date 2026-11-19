@@ -9,7 +9,7 @@ import yaml
 
 from tripwright.agents.assemble import CLAUDE_FIELDS, GENERATED
 
-SUBAGENTS = ("tripwright-requirements", "tripwright-verifier", "tripwright-researcher")
+SUBAGENTS = ("tripwright-verifier", "tripwright-researcher")
 # Codex: name, description and developer_instructions are required; model settings, features and skills are optional.
 # sandbox_mode, approval_policy, model_provider and mcp_servers do not override the parent, so a file must not rely on them.
 CODEX_REQUIRED = {"name", "description", "developer_instructions"}

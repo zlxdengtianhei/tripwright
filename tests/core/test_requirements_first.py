@@ -75,13 +75,31 @@ def test_a_context_moves_only_over_its_own_ledger_commits(service, plan, monkeyp
         service.propose("alice", ctx_id=old["ctx_id"], base_version=old["base_version"], plan=edited(plan), idempotency_key="old")
 
 
-def test_a_plan_draft_with_nothing_of_the_message_recorded_names_the_requirements_role_first(service, plan, monkeypatch):
+def test_a_plan_draft_names_the_verifier_and_no_recorder(service, plan, monkeypatch):
+    """Round 4: the recording step is the main agent's own (turn's record); only the verifier is dispatched."""
     seeded(service, plan, monkeypatch)
     turn = service.turn("alice", "10 号晚饭后那段咖啡不要了。", "bare", scenario="replan")
     draft = service.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], plan=edited(plan), idempotency_key="bare")
-    assert [entry["role"] for entry in draft["flow"]["dispatch"]][:2] == ["tripwright-requirements", "tripwright-verifier"]
+    assert [entry["role"] for entry in draft["flow"]["dispatch"]] == ["tripwright-verifier"]
     turn2, recorded = ask(service, plan, "with")
-    assert [entry["role"] for entry in recorded["flow"]["dispatch"]][0] == "tripwright-verifier"
+    assert [entry["role"] for entry in recorded["flow"]["dispatch"]] == ["tripwright-verifier"]
+
+
+def test_one_message_with_its_record_in_turn_and_one_plan_draft_makes_one_version(service, plan, monkeypatch):
+    """Round 4's target reading: ≤5 calls and one new version. turn records what the message states in its own receipt
+    transaction (no version), then one plan draft is committed."""
+    seeded(service, plan, monkeypatch)
+    before = service.versions.current("alice")["number"]
+    item = dict(kind="preference", key="evening:one", quote="咖啡不要了", text="10 号晚饭后不要咖啡", subject=["p1"],
+                strength="prefer", source=dict(event="this", basis="user_explicit"))
+    turn = service.turn("alice", "10 号晚饭后那段咖啡不要了。", "one", scenario="replan", record=dict(items=[item]))
+    assert turn["recorded"]["changed"], turn["recorded"]
+    draft = service.propose("alice", ctx_id=turn["ctx_id"], base_version=turn["base_version"], plan=edited(plan), idempotency_key="one")
+    assert "recorded_first" not in draft  # the records are already in the ledger: nothing is split off
+    version = service.commit("alice", draft["draft_id"], "one", accept_unverified=True)
+    assert version["number"] == before + 1
+    assert len([entry for entry in service.store.all("versions", "alice")]) == before + 1
+    assert [entry["key"] for entry in service.ledger.current("alice")["items"] if entry["key"] == "evening:one"] == ["evening:one"]
 
 
 def test_the_same_propose_sent_again_returns_the_same_draft(service, plan, monkeypatch):

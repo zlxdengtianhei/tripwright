@@ -507,9 +507,8 @@ def test_propose_says_how_to_undo_without_a_version_number_and_the_receipt_has_t
         assert not re.search(r"\d", next(option["then"] for option in tell["options"] if option["id"] == "undo"))
         version = trip.commit("alice", draft["draft_id"], f"commit-{key}", accept_unverified=True)
         back = trip.turn("alice", "撤回" if key == "zh" else "undo", f"undo-{key}", scenario="replan")
-        restored = trip.propose("alice", ctx_id=back["ctx_id"], restore_version=back["undo"]["restore_version"])
-        receipt = trip.commit("alice", restored["draft_id"], f"undo-{key}", accept_unverified=True)
-        assert re.search(rf"\b{back['undo']['restore_version']}\b", receipt["tell_user"]["say"]), receipt["tell_user"]["say"]
+        # round 4: turn itself restores the version and says which one; the number is in turn's undo, not guessed
+        assert back["undo"]["done"] and re.search(rf"\b{back['undo']['restore_version']}\b", back["undo"]["say"])
         assert version["number"] > back["undo"]["restore_version"]
 
 

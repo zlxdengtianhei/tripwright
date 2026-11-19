@@ -517,9 +517,14 @@ class Versions:
         return refused, record
 
     def propose(self, owner: str, *, ctx_id: str, base_version: int | None = None, plan: dict | None = None,
-                changes: dict | None = None, usages: list[dict] | None = None, idempotency_key: str | None = None) -> dict:
+                changes: dict | None = None, usages: list[dict] | None = None, idempotency_key: str | None = None,
+                restore_from: int | None = None) -> dict:
         """`base_version` and `idempotency_key` may be left out (G16): the version is then the one the context was
-        issued on, the key `proposal_key` of the input."""
+        issued on, the key `proposal_key` of the input.
+
+        `restore_from`: this draft puts version N's plan back (an undo, round 4, 2.1). Nothing holds an undo: the
+        checks run and are stored with the version, but their conflicts are no reason to refuse the draft or to ask
+        the user, because the plan was saved once already with the records that were in force then."""
         request = dict(ctx_id=ctx_id, base_version=base_version, plan=plan, changes=changes or {}, usages=usages)
         idempotency_key = idempotency_key or proposal_key(request)
         # When the proposal was made: a correction it opens is asked at this time, also when committed or replayed (D-50).
@@ -602,6 +607,8 @@ class Versions:
             if filled:
                 changes_model = changes_model.model_copy(update=dict(revisions=[*changes_model.revisions, *filled]))
             refused = refusals(operations) + guard + unexplained
+            if restore_from is not None:
+                report = dict(report, conflicts=[])
             draft_id = identifier("DR")
             draft = dict(id=draft_id, ctx_id=ctx_id, base_version=base_version, base_version_id=current["id"], revision=context["revision"],
                          snapshot=context.get("snapshot"),
@@ -610,13 +617,17 @@ class Versions:
                          ask=[] if without_plan else brought_in(known, report),
                          not_recorded=not_recorded, require_usage=not without_plan, idempotency_key=idempotency_key, request=deepcopy(request),
                          lock_changes=dict(lock_receipt(operations, committed=False), **(dict(refused=guard) if guard else {})),
-                         refused=refused, status="rejected" if (report["conflicts"] and not without_plan) or refused else "proposed",
-                         changelog=changelog, created_at=made)
+                         refused=[] if restore_from is not None else refused,
+                         status="proposed" if restore_from is not None else
+                                ("rejected" if (report["conflicts"] and not without_plan) or refused else "proposed"),
+                         changelog=changelog, created_at=made,
+                         **(dict(restored_from=restore_from) if restore_from is not None else {}))
             self.store.put("drafts", owner, draft, insert=True)
-            job = self.jobs.enqueue(owner, "deep_check", {"draft_id": draft_id}, base_version, f"deep:{draft_id}",
-                                    snapshot=context.get("snapshot"))
-            draft["job_id"] = job["id"]
-            self.store.put("drafts", owner, draft)
+            if restore_from is None:  # an undo needs no deep check: the plan it puts back was checked when it was saved
+                job = self.jobs.enqueue(owner, "deep_check", {"draft_id": draft_id}, base_version, f"deep:{draft_id}",
+                                        snapshot=context.get("snapshot"))
+                draft["job_id"] = job["id"]
+                self.store.put("drafts", owner, draft)
             return draft
 
     async def deep_check(self, owner: str, payload: dict) -> dict:
@@ -727,6 +738,12 @@ class Versions:
             checks = self._check(owner, plan, usages=draft["request"]["usages"], require_usage=draft["require_usage"],
                                  sourced=sourced(applied["locks"]))
             unchanged_plan = ledger_only(draft)
+            restoring = draft.get("restored_from") is not None
+            if restoring:
+                # Round 4, 2.1: nothing holds an undo. The plan was saved once already with the records in force then;
+                # the records the undone turns made went with it, so a lock, a booked item, a hard node or an
+                # unexplained change of a user decision is no reason to keep the user on the broken version.
+                checks = dict(checks, conflicts=[])
             # D-52: the commit's own check against the version it is based on, whatever the ledger recorded; it refuses
             # what the current locks no longer see, also in a ledger-only proposal. Its reasons follow the comparator's.
             guard, authorized = self._guard(owner, event=draft["source_event"], base=base, before=before, plan=plan.model_dump(mode="json"),
@@ -735,19 +752,21 @@ class Versions:
             changelog, unexplained = self._changelog(owner, event=draft["source_event"], flexible=flexible, before=before,
                                                      plan=plan.model_dump(mode="json"), operations=applied["locks"], changes=draft["changes"])
             conflicts = [check["id"] + lock_reason(check) for check in checks["conflicts"]] if not unchanged_plan else []
+            if restoring:
+                conflicts, guard, unexplained = [], [], []
             if conflicts or guard or unexplained:
                 raise ValueError("Commit refused: " + "; ".join(conflicts + guard + unexplained))
-            brought = [] if unchanged_plan else brought_in(known, checks)
+            brought = [] if unchanged_plan or restoring else brought_in(known, checks)
             asking = bool(brought) and ask_first and not replaying
             waiting, reply = self.unanswered(owner, brought) if asking else ([], None)
             if waiting or (brought and not accept_unverified):
                 raise ValueError(not_saved(waiting or brought, asks=ask_first, answered=asking and not waiting))
             if asking:
                 answered = dict(event=reply["id"], unverified=[check["id"] for check in brought])
-            verifier = draft.get("verifier_report") if not unchanged_plan else None
+            verifier = draft.get("verifier_report") if not unchanged_plan and not restoring else None
             verifier_reply = self._verifier_gate(owner, draft, verifier, accept_unverified=accept_unverified,
                                                  ask_first=ask_first) if verifier and not replaying else None
-            if not unchanged_plan and not replaying:
+            if not unchanged_plan and not restoring and not replaying:
                 later = self.unsettled(owner, draft)
                 replies = [event for event in (reply if asking else None, verifier_reply) if event is not None]
                 if replies:
@@ -763,7 +782,8 @@ class Versions:
                            base_version_id=self.current(owner)["id"],
                            source_event=draft["source_event"], plan=plan.model_dump(mode="json"), checks=checks,
                            ctx_id=draft["ctx_id"], usages=checks["usages"], draft_id=draft_id,
-                           needs_replan=bool(checks["conflicts"]), planning_status="needs_replan" if checks["conflicts"] else "current",
+                           needs_replan=bool(checks["conflicts"]),
+                           planning_status="needs_replan" if checks["conflicts"] else "current",
                            warnings=checks["conflicts"] if unchanged_plan else [],
                            ledger_revision=self.ledger.revision(owner), idempotency_key=idempotency_key,
                            accept_unverified=accept_unverified, committed_at=now(), submitted_by=owner, changelog=changelog,

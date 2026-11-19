@@ -1,9 +1,11 @@
-"""“撤回” takes back what the undone turns recorded when it stands in the way (D-20, 2026-11-14). In ChatGPT on the web
-the user moved dinner to 19:00; the host recorded a must (“晚饭必须 19:00”) in a ledger-only commit, then the plan
-(version 1 → 3). The undo then could not be saved: the restored plan broke that must, and the host made up an “undo
-draft”. Now the version to go back to is the one before that message's first commit, and a requirement those turns
-recorded that the restored plan breaks is taken back with it, in the same commit; one that does not conflict (an
-allergy said in the same message) stays."""
+"""“撤回” takes back everything the undone turns recorded, in the same call (round 4, 2.1, 2026-11-19).
+
+In ChatGPT on the web (2026-11-14) the user moved dinner to 19:00; the host recorded a must (“晚饭必须 19:00”) in a
+ledger-only commit, then the plan (version 1 → 3). The undo then could not be saved: the restored plan broke that must,
+and the host made up an “undo draft”. Round 3 took back only what the service could tell broke something; round 4 takes
+back every requirement, decision and fact of those turns — a judgement made on a wrong plan must not stand, and the
+answer names each one so the user can say which to keep. The version to go back to is still the one before that
+message's first commit."""
 import pytest
 
 from tripwright.adapters.mcp import create_server
@@ -49,118 +51,65 @@ def dinner(service):
 
 def undo(server):
     turn = call(server, "turn", text="撤回", scenario="replan", speaker="p1")
-    back = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=turn["undo"]["restore_version"])
-    return turn, back
+    assert turn["undo"]["done"], turn["undo"]
+    return turn, turn["undo"]
 
 
-def test_undo_goes_back_before_the_messages_first_commit_and_takes_its_must_along(trip):
+def test_undo_goes_back_before_the_messages_first_commit_and_takes_its_requirements_along(trip):
     server = create_server(trip, local_user="alice", manage_jobs=False)
-    first, second = as_chatgpt(server, trip)
+    first, second = as_chatgpt(server, trip, text=MOVE + "我对花生过敏。", items=[allergy()])
     assert (first["number"], second["number"]) == (2, 3) and dinner(trip) == "19:00"
     turn, back = undo(server)
-    assert turn["undo"]["restore_version"] == 1
-    assert back["status"] == "proposed", back
-    version = call(server, "commit", draft_id=back["draft_id"], accept_unverified=True)
-    assert version["number"] == 4 and dinner(trip) == "17:00"
+    assert back["restore_version"] == 1 and back["version"] == 4 and dinner(trip) == "17:00"
     active = [entry for entry in trip.store.all("decisions", "alice") if entry["status"] == "active" and entry.get("must")]
     assert not any("/blocks/d1-dinner/start" in entry["locked_paths"] for entry in active)
-    taken = version["tell_user"]["taken_back"]
-    assert [entry["text"] for entry in taken] == ["第一天晚饭几点：19:00"]
-    assert "随撤回一起撤掉" in version["tell_user"]["say"] and "第一天晚饭几点：19:00" in version["tell_user"]["say"]
+    assert sorted(entry["text"] for entry in back["taken_back"]) == sorted(["第一天晚饭几点：19:00", "对花生过敏"])
+    assert "随撤回一起撤掉" in back["say"] and "第一天晚饭几点：19:00" in back["say"] and "对花生过敏" in back["say"]
+    assert "其中哪条要留，再说一次就行" in back["say"]
+    # no propose and no commit: the turn did it
+    assert "不要再调 propose 或 commit" in turn["next"]
 
 
-def test_an_allergy_said_in_the_same_message_stays(trip):
+def test_the_answer_names_one_taken_entry_without_a_list_separator(trip):
     server = create_server(trip, local_user="alice", manage_jobs=False)
-    as_chatgpt(server, trip, text=MOVE + "我对花生过敏。", items=[allergy()])
+    turn = call(server, "turn", text="第一天晚饭挪到 19:00。我对花生过敏。", scenario="replan", speaker="p1")
+    ledger = call(server, "propose", ctx_id=turn["ctx_id"], changes=dict(items=[allergy()]))
+    call(server, "commit", draft_id=ledger["draft_id"])
+    plan = call(server, "propose", ctx_id=turn["ctx_id"], days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
+    call(server, "commit", draft_id=plan["draft_id"], accept_unverified=True)
     _, back = undo(server)
-    call(server, "commit", draft_id=back["draft_id"], accept_unverified=True)
-    assert dinner(trip) == "17:00"
-    assert [item["key"] for item in trip.ledger.current("alice")["items"] if item["key"] == "diet:peanut"] == ["diet:peanut"]
+    assert back["say"].startswith("已撤回：计划回到第 1 版。随撤回一起撤掉：对花生过敏。")
+    assert "。。" not in back["say"] and "；" not in back["say"].split("随撤回一起撤掉：")[1].split("。")[0]
 
 
-def older_must(server, service):
-    """The must comes from one message (version 2, ledger only), the move from the next (version 3)."""
+def test_an_earlier_must_no_longer_holds_the_undo_and_is_not_claimed_taken(trip):
+    server = create_server(trip, local_user="alice", manage_jobs=False)
     turn = call(server, "turn", text="第一天晚饭必须 19:00。", scenario="replan", speaker="p1")
     ledger = call(server, "propose", ctx_id=turn["ctx_id"], changes=dict(decisions=[must_dinner(turn)]))
     call(server, "commit", draft_id=ledger["draft_id"])
     turn = call(server, "turn", text=MOVE, scenario="replan", speaker="p1")
-    plan = call(server, "propose", ctx_id=turn["ctx_id"], days=[day_with(service, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
+    plan = call(server, "propose", ctx_id=turn["ctx_id"], days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
     assert call(server, "commit", draft_id=plan["draft_id"], accept_unverified=True)["number"] == 3
+    _, back = undo(server)
+    lock = next(entry for entry in trip.store.all("decisions", "alice") if entry.get("must"))
+    assert back["restore_version"] == 2 and dinner(trip) == "17:00" and lock["status"] == "active"
+    assert "晚饭时间" not in back["say"] and "第一天晚饭几点" not in back["say"]
 
 
-def test_a_must_from_an_earlier_message_still_holds_the_undo_and_the_refusal_says_what_to_ask(trip):
-    from mcp.server.mcpserver.exceptions import ToolError
-
+def test_a_fact_from_the_undone_turn_goes_with_the_undo_too(trip):
+    """The design's list is requirements, decisions and facts: a fact recorded with the wrong plan is a judgement too."""
     server = create_server(trip, local_user="alice", manage_jobs=False)
-    older_must(server, trip)
-    turn, back = undo(server)
-    assert turn["undo"]["restore_version"] == 2
-    with pytest.raises(ToolError) as refusal:
-        call(server, "commit", draft_id=back["draft_id"], accept_unverified=True)
-    text = str(refusal.value)
-    assert "Not undone: the plan is still the current version" in text and "第一天晚饭几点: 19:00" in text
-    assert "ask whether to drop that requirement too" in text and "withdraw" in text
-    assert dinner(trip) == "19:00"
-
-
-def test_when_the_user_says_to_drop_it_too_withdraw_and_restore_go_through(trip):
-    server = create_server(trip, local_user="alice", manage_jobs=False)
-    older_must(server, trip)
-    lock = next(entry for entry in trip.store.all("decisions", "alice") if entry["status"] == "active" and entry.get("must"))
-    turn = call(server, "turn", text="对，把晚饭必须 19:00 那条也撤了，恢复原来的 17:00。", scenario="replan", speaker="p1")
-    back = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=2,
-                changes=dict(withdraw=[dict(id=lock["id"], reason="用户说那条也撤了")]))
-    version = call(server, "commit", draft_id=back["draft_id"], accept_unverified=True)
-    assert dinner(trip) == "17:00" and trip.store.get("decisions", "alice", lock["id"])["status"] == "superseded"
-    assert trip.store.get("decisions", "alice", lock["id"])["withdrawn"]["reason"] == "用户说那条也撤了"
-    assert [entry["id"] for entry in version["tell_user"]["taken_back"]] == [lock["id"]]
-
-
-def test_a_users_must_is_not_withdrawn_on_words_that_do_not_say_so_or_without_the_speaker(trip):
-    from mcp.server.mcpserver.exceptions import ToolError
-
-    server = create_server(trip, local_user="alice", manage_jobs=False)
-    older_must(server, trip)
-    lock = next(entry for entry in trip.store.all("decisions", "alice") if entry["status"] == "active" and entry.get("must"))
-    for words, speaker, message in (("好的。", "p1", "does not take it back for certain: ask the user"), ("把那条撤了。", None, "only the user's own message")):
-        turn = call(server, "turn", text=words, scenario="replan", **({"speaker": speaker} if speaker else {}))
-        with pytest.raises(ToolError, match=message):
-            call(server, "propose", ctx_id=turn["ctx_id"], changes=dict(withdraw=[dict(id=lock["id"], reason="x")]))
-    assert trip.store.get("decisions", "alice", lock["id"])["status"] == "active"
-
-
-def test_a_must_item_stays_after_the_undo_and_is_named_with_the_allergy_and_asked_about(trip):
-    """GLM, 2026-11-14: the must was recorded as an item (“Day 1 dinner is at 19:00”, strength must) and the undo turn
-    had no speaker; the answer said the item went when it had not. D-21: the service does not test an item's words
-    against the plan, so the item stays; the receipt names it in the user's words and asks, and names the allergy as kept."""
-    server = create_server(trip, local_user="alice", manage_jobs=False)
-    turn = call(server, "turn", text=MOVE + "我对花生过敏。", scenario="replan", speaker="p1")
-    must = dict(kind="constraint", key="d1-dinner-time", text="Day 1 dinner is at 19:00.", quote="第一天的晚饭挪到 19:00",
-                subject=["p1"], strength="must", source={"event": "this", "basis": "user_explicit"})
-    ledger = call(server, "propose", ctx_id=turn["ctx_id"], changes=dict(items=[must, allergy()]))
+    fact = dict(key="energy", value="low", text="今天一个人", subject=["p1"],
+                true_from="2030-06-10T09:00:00+02:00", invalidated_by="明天两个人",
+                source={"event": "this", "basis": "user_explicit"})
+    turn = call(server, "turn", text=MOVE + "今天一个人。", scenario="replan", speaker="p1")
+    ledger = call(server, "propose", ctx_id=turn["ctx_id"], changes=dict(facts=[fact]))
     call(server, "commit", draft_id=ledger["draft_id"])
     plan = call(server, "propose", ctx_id=turn["ctx_id"], days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
     call(server, "commit", draft_id=plan["draft_id"], accept_unverified=True)
-    back_turn = call(server, "turn", text="撤回", scenario="replan")  # no speaker, as GLM sent it
-    back = call(server, "propose", ctx_id=back_turn["ctx_id"], restore_version=back_turn["undo"]["restore_version"])
-    version = call(server, "commit", draft_id=back["draft_id"], accept_unverified=True)
-    active = {item["key"] for item in trip.ledger.current("alice")["items"]}
-    assert dinner(trip) == "17:00" and "d1-dinner-time" in active and "diet:peanut" in active
-    say = version["tell_user"]["say"]
-    assert "随撤回一起撤掉" not in say and "照旧留着的必须项：“第一天的晚饭挪到 19:00”。要不要也撤掉？" in say
-    assert "照旧留着：对花生过敏。" in say and "。。" not in say
-    assert [entry["key"] for entry in version["tell_user"]["kept_musts"]] == ["d1-dinner-time"]
-
-
-def test_a_host_cannot_mark_its_own_withdrawal_as_the_services(trip):
-    from mcp.server.mcpserver.exceptions import ToolError
-
-    server = create_server(trip, local_user="alice", manage_jobs=False)
-    older_must(server, trip)
-    lock = next(entry for entry in trip.store.all("decisions", "alice") if entry["status"] == "active" and entry.get("must"))
-    turn = call(server, "turn", text="把那条撤了。", scenario="replan")  # no speaker
-    with pytest.raises(ToolError, match="only the user's own message"):
-        call(server, "propose", ctx_id=turn["ctx_id"], changes=dict(withdraw=[dict(id=lock["id"], reason="x", filled_by="service")]))
+    _, back = undo(server)
+    assert any(entry["text"] == "今天一个人" for entry in back["taken_back"])
+    assert [entry["status"] for entry in trip.store.all("facts", "alice") if entry["key"] == "energy"] == ["superseded"]
 
 
 def test_the_plan_may_name_the_version_its_own_ledger_commit_made_and_the_undo_goes_back_before_both(trip):
@@ -174,10 +123,8 @@ def test_the_plan_may_name_the_version_its_own_ledger_commit_made_and_the_undo_g
                 days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
     assert plan["status"] == "proposed", plan
     assert call(server, "commit", draft_id=plan["draft_id"], accept_unverified=True)["number"] == 3
-    back_turn, back = undo(server)
-    assert back_turn["undo"]["restore_version"] == 1
-    call(server, "commit", draft_id=back["draft_id"], accept_unverified=True)
-    assert dinner(trip) == "17:00"
+    turn, back = undo(server)
+    assert back["restore_version"] == 1 and dinner(trip) == "17:00"
 
 
 def test_a_turn_sent_again_with_the_same_words_is_the_same_message_for_the_undo(trip):
@@ -189,7 +136,22 @@ def test_a_turn_sent_again_with_the_same_words_is_the_same_message_for_the_undo(
     again = call(server, "turn", text=MOVE, scenario="replan", speaker="p1")
     plan = call(server, "propose", ctx_id=again["ctx_id"], days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
     assert call(server, "commit", draft_id=plan["draft_id"], accept_unverified=True)["number"] == 3
-    back_turn, back = undo(server)
-    assert back_turn["undo"]["restore_version"] == 1
-    call(server, "commit", draft_id=back["draft_id"], accept_unverified=True)
+    turn, back = undo(server)
+    assert back["restore_version"] == 1 and dinner(trip) == "17:00"
+
+
+def test_a_booked_item_from_the_undone_turn_does_not_hold_the_undo_and_is_named(trip):
+    """Boundary of the design: a ticket bought in those turns goes with the undo; the answer says the record went and
+    that the ticket itself is the user's to cancel or keep."""
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    before = [booking["id"] for booking in trip.versions.current("alice")["plan"]["bookings"]]
+    turn = call(server, "turn", text="我买了 6 月 10 日晚上 19:00 那班车的票。", scenario="replan", speaker="p1")
+    plan = call(server, "propose", ctx_id=turn["ctx_id"], days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))],
+                bookings=[dict(id="b1", kind="transport", what="19:00 的车", date="2030-06-10", subject=["p1"], status="bought",
+                               fares=[dict(id="f1", segment="d1", ticket="t1", subject=["p1"], amount_per_person=12.5, currency="EUR")])])
+    assert plan["status"] == "proposed", plan
+    call(server, "commit", draft_id=plan["draft_id"], accept_unverified=True)
+    assert any(booking["status"] == "bought" for booking in trip.versions.current("alice")["plan"]["bookings"])
+    _, back = undo(server)
     assert dinner(trip) == "17:00"
+    assert [booking["id"] for booking in trip.versions.current("alice")["plan"]["bookings"]] == before

@@ -93,7 +93,7 @@ def test_the_small_requirements_the_user_said_before_are_in_the_guides(outputs):
     ids = {"voice-typed-words-are-asked", "unmentioned-is-no-no", "cards-and-passes-priced", "planning-days", "english-place-names"}
     chosen = tuple(promise for promise in PROMISES if promise.id in ids)
     assert {promise.id for promise in chosen} == ids and promise_problems(outputs, chosen) == []
-    # bad sample: the requirements skill without the voice-typing line
-    path = "skills/tripwright-requirements/SKILL.md"
+    # bad sample: the single-agent page without the voice-typing line
+    path = "skills/tripwright-main/references/single-agent.md"
     stripped = dict(outputs, **{path: outputs[path].replace("voice-typed message can mishear a word", "message")})
     assert any("voice-typed-words-are-asked" in problem for problem in promise_problems(stripped, chosen))

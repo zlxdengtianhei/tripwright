@@ -32,7 +32,7 @@ def test_upgrade_removes_retired_tool_files_in_the_same_commit_and_keeps_user_fi
     assert all(not (root / path).exists() for path in OLD_FILES)
     assert all(not (root / path).parent.exists() for path in OLD_FILES if "/skills/" in path)
     assert all((root / path).read_bytes() == data for path, data in user_repo_files().items())
-    assert len(user_repo_files()) == 30
+    assert len(user_repo_files()) == 26  # three roles since 2026-11-19 (the recorder was folded into the main agent)
     assert all((root / path).read_text(encoding="utf-8") == text for path, text in USER_FILES.items())
     deleted = {line.split("\t", 1)[1] for line in git(root, "diff-tree", "--no-commit-id", "--name-status", "-r", "HEAD").splitlines()
                if line.startswith("D\t")}

@@ -45,12 +45,14 @@ def test_a_missing_or_unknown_role_is_refused_with_the_choices(service, role, me
 
 
 def test_a_named_role_carries_its_ids_what_it_returns_and_where_its_steps_are(service, plan, monkeypatch):
+    """Round 4: only the researcher and the verifier are named; a researcher gets the context and the draft."""
     seeded(service, plan, monkeypatch)
-    turn = service.turn("alice", SHOTS, "shots", nature="screenshot_extraction", scenario="requirements")
+    turn = service.turn("alice", SHOTS + "\n今晚回酒店最晚一班车几点？", "shots", nature="screenshot_extraction",
+                        scenario="replan")
     [entry] = turn["flow"]["dispatch"]
-    assert entry["role"] == "tripwright-requirements"
-    assert entry["read"] == dict(event_id=turn["receipt"]["event_id"], ctx_id=turn["ctx_id"], base_version=turn["base_version"])
-    assert entry["steps"] == 'state(view="role", role="tripwright-requirements")' and entry["returns"]
+    assert entry["role"] == "tripwright-researcher"
+    assert entry["read"]["ctx_id"] == turn["ctx_id"] and set(entry["read"]) <= {"ctx_id", "draft_id"}
+    assert entry["steps"] == 'state(view="role", role="tripwright-researcher")' and entry["returns"]
 
 
 def test_the_verifier_named_after_a_draft_gets_the_draft_and_its_job(service, plan, monkeypatch):

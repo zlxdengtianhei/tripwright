@@ -26,9 +26,9 @@ def host_change(server, service, key, dinner=("19:00", "20:00"), text=MOVE):
 
 
 def host_undo(server, words="撤回"):
+    """Round 4: turn itself goes back; there is no propose or commit to make. `back` is what turn returned as undo."""
     turn = call(server, "turn", text=words, scenario="replan")
-    back = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=turn["undo"]["restore_version"])
-    return turn, back, call(server, "commit", draft_id=back["draft_id"], accept_unverified=True)
+    return turn, turn.get("undo"), turn.get("undo") or {}
 
 
 def test_without_a_choice_a_host_change_is_saved_in_its_turn_and_the_receipt_ends_the_answer(trip):
@@ -59,18 +59,18 @@ def test_a_ledger_only_commit_and_a_cautious_commit_say_nothing(trip, monkeypatc
     assert "tell_user" not in call(server, "commit", draft_id=draft["draft_id"], accept_unverified=True)
 
 
-def test_undo_names_the_version_restores_it_and_offers_the_cautious_mode_once(trip):
+def test_undo_restores_the_version_in_the_same_turn_and_offers_the_cautious_mode_once(trip):
     server = create_server(trip, local_user="alice", manage_jobs=False)
     host_change(server, trip, "a")
-    turn, back, version = host_undo(server)
-    assert turn["undo"]["restore_version"] == 1 and turn["next"].startswith("用户要撤回上一次改动：propose(ctx_id, restore_version=1)")
-    assert turn["flow"]["dispatch"] == []  # an undo is no new requirement for the requirements role
-    assert version["number"] == 3 and version["restored_from"] == 1
-    assert version["tell_user"]["say"] == "已撤回：计划回到第 1 版。" + OFFER and version["tell_user"]["offer"] == "cautious_mode"
+    turn, back, _ = host_undo(server)
+    assert back["restore_version"] == 1 and back["version"] == 3 and back["done"]
+    assert turn["next"].startswith("撤回已经做好了（服务在 turn 里回到第 1 版")
+    assert turn["flow"]["dispatch"] == []  # an undo is no new requirement
+    assert back["say"] == "已撤回：计划回到第 1 版。" + OFFER and back["offer"] == "cautious_mode"
     # a second change and a second undo: the plan comes back, the offer does not
     host_change(server, trip, "b", dinner=("18:30", "19:30"))
-    _, _, again = host_undo(server, "撤销")
-    assert again["restored_from"] == 3 and again["tell_user"]["say"] == "已撤回：计划回到第 3 版。" and "offer" not in again["tell_user"]
+    _, again, _ = host_undo(server, "撤销")
+    assert again["restore_version"] == 3 and again["say"] == "已撤回：计划回到第 3 版。" and "offer" not in again
 
 
 def test_a_user_who_chose_the_proactive_mode_is_not_offered_the_cautious_one(trip):
@@ -79,18 +79,21 @@ def test_a_user_who_chose_the_proactive_mode_is_not_offered_the_cautious_one(tri
     mode_said(trip, "proactive", "以后直接改，不用问我。", "mode")
     server = create_server(trip, local_user="alice", manage_jobs=False)
     host_change(server, trip, "a")
-    _, _, version = host_undo(server)
-    assert version["tell_user"]["say"] == "已撤回：计划回到第 1 版。" and "offer" not in version["tell_user"]
+    _, back, _ = host_undo(server)
+    assert back["say"] == "已撤回：计划回到第 1 版。" and "offer" not in back
 
 
-def test_undo_keeps_what_the_undone_turn_recorded_in_the_ledger(trip):
+def test_what_an_earlier_message_recorded_stays_when_a_later_change_is_taken_back(trip):
+    """Round 4 takes back what the undone turns recorded; a requirement of the message before them stays, because the
+    undo goes back to the version that message ended on (the allergy was said before the change)."""
     server = create_server(trip, local_user="alice", manage_jobs=False)
     record = dict(items=[dict(kind="constraint", key="diet:peanut", text="对花生过敏", quote="我对花生过敏", subject=["p1"],
                               strength="forbid", source={"event": "this", "basis": "user_explicit"})])
     call(server, "turn", text=MOVE + "我对花生过敏。", scenario="quick", speaker="p1", record=record)
     host_change(server, trip, "a")
-    host_undo(server)
+    _, back, _ = host_undo(server)
     assert [item["key"] for item in trip.ledger.current("alice")["items"] if item["key"] == "diet:peanut"] == ["diet:peanut"]
+    assert "对花生过敏" not in (back["say"] or "")
 
 
 @pytest.mark.parametrize("words", ["撤回", "撤回吧。", "  改回去！", "undo", "Undo that.", "revert", "change it back"])
@@ -113,8 +116,8 @@ def test_with_a_public_page_the_sentence_says_the_page_is_being_updated(trip, mo
     server = create_server(trip, local_user="alice", manage_jobs=False)
     _, _, version = host_change(server, trip, "page")
     assert version["tell_user"]["say"] == "当前是主动模式：改动已存，现在开始更新页面；想撤回，直接回复“撤回”。"
-    _, _, back = host_undo(server)
-    assert back["tell_user"]["say"].startswith("已撤回：计划回到第 1 版，页面也在更新。")
+    _, back, _ = host_undo(server)
+    assert back["say"].startswith("已撤回：计划回到第 1 版，页面也在更新。")
 
 
 def test_on_the_road_the_optional_researcher_says_looking_it_up_yourself_is_the_design(trip):

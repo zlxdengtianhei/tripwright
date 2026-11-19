@@ -26,10 +26,11 @@ def roles(flow):
     return [entry["role"] for entry in flow["dispatch"]]
 
 
-def test_screenshots_name_the_requirements_role_and_its_own_record_turn_names_nobody_again(service, plan, monkeypatch):
+def test_screenshots_name_nobody_since_the_main_agent_records_them(service, plan, monkeypatch):
+    """Round 4: the recording step is the main agent's own, so a screenshot message dispatches no recorder."""
     seeded(service, plan, monkeypatch)
     first = service.turn("alice", SHOTS, "shots", nature="screenshot_extraction", scenario="requirements")
-    assert roles(first["flow"]) == ["tripwright-requirements"]
+    assert first["flow"]["dispatch"] == []
     item = dict(kind="preference", key="food:fish_soup", quote="港口边的鱼汤店", text="想去港口边的鱼汤店",
                 subject=["p1"], strength="prefer", source=dict(event="this"))
     again = service.turn("alice", SHOTS, "shots", nature="screenshot_extraction", scenario="requirements", record=dict(items=[item]))
@@ -54,10 +55,15 @@ def test_the_whole_flow_comes_once_then_one_short_line_and_again_when_the_mode_c
 
 
 def test_a_missed_step_brings_the_whole_flow_back_but_not_on_every_turn(service, plan, monkeypatch):
-    """Named the requirements role and nothing was recorded since: the whole flow again, at most once in 3 turns."""
+    """The researcher was named for a latest time and no query followed: the whole flow again, at most once in 3 turns."""
     seeded(service, plan, monkeypatch)
-    kinds = ["full" if "full" in service.turn("alice", f"第 {n} 件：慢一点。", f"m{n}", scenario="plan")["flow"] else "short"
-             for n in range(5)]
+
+    def kind(n):
+        flow = service.turn("alice", "今晚最晚几点出发回住处？", f"m{n}", scenario="replan")["flow"]
+        assert "tripwright-researcher" in [entry["role"] for entry in flow["dispatch"]]
+        return "full" if "full" in flow else "short"
+
+    kinds = [kind(n) for n in range(5)]
     assert kinds[:2] == ["short", "short"] and kinds[2] == "full" and kinds[3:] == ["short", "short"]
 
 
@@ -123,13 +129,15 @@ def test_a_decision_whose_upstream_was_replaced_needs_review_and_shows_in_the_gr
     service.store.put("items", "alice", dict(old, status="superseded"))  # however it was replaced
     third = service.turn("alice", "明天的行程呢？", "next", scenario="status")
     assert [entry["decision"] for entry in third["review"]] == ["D-dinner-near"]
-    assert "tripwright-requirements" in roles(third["flow"])
+    # round 4: the review comes with the turn itself, links and all; no role is dispatched for it
+    assert "D-dinner-near" in third["records"]["links"] and [entry["decision"] for entry in third["records"]["review"]] == ["D-dinner-near"]
+    assert roles(third["flow"]) == []
     assert "! review D-dinner-near" in service.state("alice", view="graph")["text"]
     fourth = service.turn("alice", "后天呢？", "later", scenario="status")
-    assert "tripwright-requirements" not in roles(fourth["flow"])  # named once, not on every turn
+    assert roles(fourth["flow"]) == []
 
 
-def test_a_transcription_the_requirements_role_returns_is_recorded_as_screenshots_without_naming_it_again(service, plan, monkeypatch):
+def test_a_transcription_the_main_agent_makes_is_recorded_as_screenshots(service, plan, monkeypatch):
     """Images read from files are recorded as their own message: the quote must be in it, and the records take its
     nature. The turn that carries the transcription and its record names nobody again."""
     seeded(service, plan, monkeypatch)
@@ -143,23 +151,18 @@ def test_a_transcription_the_requirements_role_returns_is_recorded_as_screenshot
     assert found["nature"] == "screenshot_extraction"
 
 
-def test_while_planning_the_first_instruction_names_whom_to_dispatch(service, plan, monkeypatch):
-    seeded(service, plan, monkeypatch)
-    turn = service.turn("alice", "10 号晚饭后的咖啡不要了，改成去公园散步。", "edit", scenario="replan")
-    assert turn["next"].startswith("先派 tripwright-requirements") and len(turn["next"]) <= 600
-    road = service.turn("alice", "我在车站，下一班车几点？", "road", scenario="quick")
-    assert "先派" not in road["next"][:10]
-
-
-def test_while_planning_the_requirements_role_is_named_with_or_without_record(service, plan, monkeypatch):
-    """One recorder while planning: the main agent's own record does not stop the requirements role from being
-    named to record and link the message (review of 2026-11-12, block 1)."""
+def test_a_planning_turn_names_no_recorder_and_carries_the_records_to_link_against(service, plan, monkeypatch):
+    """Round 4, 2.2: the main agent records the message itself, so a planning turn dispatches nobody and hands it the
+    entries, decisions and links in force instead of making it call state(view='ledger') and state(view='graph')."""
     seeded(service, plan, monkeypatch)
     item = dict(kind="preference", key="dinner:old_town", quote="晚饭想在老城吃", text="晚饭想在老城吃", subject=["p1"],
                 strength="prefer", source=dict(event="this"))
-    with_record = service.turn("alice", "晚饭想在老城吃。", "a", scenario="plan", record=dict(items=[item]))
-    without = service.turn("alice", "晚饭想在老城吃，别太晚。", "b", scenario="plan")
-    assert "tripwright-requirements" in roles(with_record["flow"]) and "tripwright-requirements" in roles(without["flow"])
+    turn = service.turn("alice", "晚饭想在老城吃，别太晚。", "a", scenario="plan", record=dict(items=[item]))
+    assert roles(turn["flow"]) == []
+    records = turn["records"]
+    assert [entry["key"] for entry in records["items"] if entry["key"] == "dinner:old_town"] == ["dinner:old_town"]
+    assert {"links", "review", "decisions"} <= set(records)
+    assert "先派" not in turn["next"][:10]
 
 
 def test_a_ticket_still_to_buy_names_the_researcher_for_fares(service, plan, monkeypatch):
@@ -189,7 +192,7 @@ def test_screenshots_the_main_agent_transcribed_and_recorded_still_name_the_rese
                 strength="prefer", source=dict(event="this"))
     turn = service.turn("alice", SHOTS + "\n今晚回酒店最晚一班车几点？", "own", nature="screenshot_extraction", scenario="quick",
                         record=dict(items=[item]))
-    assert "tripwright-researcher" in roles(turn["flow"]) and "tripwright-requirements" not in roles(turn["flow"])
+    assert "tripwright-researcher" in roles(turn["flow"])
 
 
 def test_on_the_road_the_researcher_is_optional_and_not_dispatching_it_is_no_missed_step(service, plan, monkeypatch):

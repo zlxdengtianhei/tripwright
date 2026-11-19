@@ -2,7 +2,7 @@
 
 ## Sources and generation
 
-`SKILL.md`, `references/records.md`, `references/single-agent.md`, `references/tools.md`, `references/writing.md` and the other three role skills (`skills/tripwright-requirements/`, `skills/tripwright-verifier/`, `skills/tripwright-researcher/`) are generated. Edit the sources and rebuild from the repository root:
+`SKILL.md`, `references/records.md`, `references/single-agent.md`, `references/tools.md`, `references/writing.md` and the other two role skills (`skills/tripwright-verifier/`, `skills/tripwright-researcher/`) are generated. Edit the sources and rebuild from the repository root:
 
 - Role text: `src/tripwright/agents/roles/<role>.md`. Whole-line directives choose what each target gets (`only`, `include`, `reference`); see the docstring of `src/tripwright/agents/assemble.py`.
 - One agent doing the roles in turn (by scenario, each role by its own steps): `src/tripwright/agents/single-agent.md`. It replaced the six single-agent steps (`steps/<n>-<name>.md`, with versions for chat apps without tools) on 2026-11-14, which repeated the roles' rules in a second text.

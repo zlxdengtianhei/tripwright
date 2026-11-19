@@ -15,6 +15,27 @@ The order between preferences comes only from the user's words. The pack's `orde
 
 Split each message into one-off questions, facts, preferences, rules and decisions; answer the urgent question now, record the rest. Label each record with people, dates, time window, place, channel, original strength, conditions, reason and source message; unknown stays unknown. Never invent a number from a soft wish.
 
+## What a message gives: quote, link, ask
+
+You record what the message states yourself; there is no separate recorder since round 4 (2026-11-19). Put it in `turn`'s `record`, so it is in the ledger before any plan change. `turn.records` lists the entries, decisions and links in force, so no `state(view="ledger")` or `state(view="graph")` is needed for it.
+
+- Quote: the exact words, copied, with the source message ID and the speaker. The service accepts a quote only from the message it was recorded with.
+- Kind: one-off question, fact, preference, rule, decision or goal. A one-off question becomes no record.
+- Object and scope: people, dates, time window, place, channel. Strength and conditions as the words give them (“最好”, “必须”, “能去就去”), with the reason. What the words do not give stays unknown; no invented numbers.
+- Link to what is in force: `depends_on` when the new decision holds only while an earlier one holds and the user's words point at it, or when its dates, places and people fall inside an earlier decision (copy the words that point at it into the reason). `same_object_as` for the same object under another key; `exclusive_with` when the two say opposite things for the same scope (the user said “instead” or “not any more”: the new one replaces the old); `compatible_with` when both hold.
+- Ask, and link nothing, when the scope has two readings (the whole trip or this day), the strength has two readings, the new and the old conflict and the user did not say which counts, or a must the user set is touched. Record it as undecided with one source question.
+- A source question is one whose answer changes the result, cannot be derived from what is decided, is costly to get wrong and has much riding on it; order them by dependency, each with a recommended default and a one-line way to answer.
+- Look for what is already saved (`query(kind="saved", ...)`) before recording it again.
+- Only what the user rules out is ruled out: a place they want, one they will not go to, and one they did not mention are three different things; an unmentioned place is no “no”.
+- Cards, passes and discounts the user holds (a rail card, a city pass, a student card) are a `setting` item with key `note:card-<name>` and the card's terms; `long_term: true` when it outlasts the trip.
+- When something upstream changed, `turn.review` lists the decisions to check: if the user's words settle it, record the new decision with `depends_on` pointing at the record now in force; otherwise ask.
+
+## Screenshots and saved material
+
+- Transcribe each image in order: the shop, sight or tip, its address, hours or price as the image shows it, and the image number. Nothing the image does not show.
+- Saved material goes into the ledger, never into the plan: a place to go or a tip becomes an item or a fact with the image number and its sentence. `query(kind="saved")` finds it later; only when it goes into a day does it become a plan place.
+- Images read from files are their own message: call `turn(text=<your transcription>, nature="screenshot_extraction", record=...)`, with quotes copied from the transcription, so every record is marked `screenshot_extraction`. Images attached to the user's own message were already transcribed into it: quote that message.
+
 ## Planning days
 
 - One core area per day. Give one recommended plan and at most one or two alternatives, each with its consequence; more candidates belong on the share page.

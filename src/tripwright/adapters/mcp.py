@@ -49,7 +49,7 @@ PlanArguments = Annotated[Any, WithJsonSchema({"type": "object"})]
 ObjectList = Annotated[Any, WithJsonSchema({"type": "array", "items": {"type": "object"}})]
 # view="role" (G1, 2026-11-13): a role's steps for a host without the skill files; the tool description has no room for it
 RoleArgument = Annotated[str | None, WithJsonSchema({"type": ["string", "null"], "description": (
-    "view='role' only: tripwright-main, tripwright-requirements, tripwright-researcher or tripwright-verifier, "
+    "view='role' only: tripwright-main, tripwright-researcher or tripwright-verifier, "
     "<role>/<file> for a reference it lists, or single. Returns that role's steps, to do a role flow.dispatch names yourself "
     "when you cannot dispatch it; single returns the order in which one agent does the roles.")})]
 # the verifier's verdict handed back to the service (analysis 5.14, 2026-11-13)
@@ -68,9 +68,9 @@ BlocksArgument = Annotated[Any, WithJsonSchema({"type": ["array", "null"], "desc
     "applied after days."), "items": {"type": "object", "properties": {"id": {"type": "string"}, "delete": {"type": "boolean"}}}})]
 # "undo" (analysis 5.13, 2026-11-13); the propose description has no room left for it
 RestoreArgument = Annotated[int | None, WithJsonSchema({"type": ["integer", "null"], "description": (
-    "When the user says undo or change it back: the version number whose whole plan becomes the draft (state(view='history') "
-    "lists them; tell_user.say names the one before a change). Send no plan or patches with it; the ledger is not changed, "
-    "the change log says which version was restored, and the draft goes through the same checks before commit.")})]
+    "The host's own way to take a change back (turn does an undo itself when the user says so): the version number whose "
+    "whole plan becomes the draft, with everything the turns after it recorded taken back. Send no plan or patches with "
+    "it; nothing holds it, the change log says which version was restored.")})]
 UsageArguments = Annotated[Any, WithJsonSchema({
     "type": "array", "items": {
         "type": "object", "additionalProperties": False, "required": ["item_id", "status"],

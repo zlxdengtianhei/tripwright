@@ -57,7 +57,7 @@ PROMISES = (
     Promise("turn-records-this-message", MAIN_TEXTS,
             must=(r"`record`", r'`source\.event: "this"`')),
     # S4 after the third verdict: declarations hold only on overlap; undeclared overlap gives a non-blocking notice.
-    Promise("declarations-hold-only-on-overlap", (RECORDS, "skills/tripwright-requirements/SKILL.md"),
+    Promise("declarations-hold-only-on-overlap", (RECORDS,),
             must=(r"[Aa] declaration holds only where (?:the two records' )?people, dates and time windows overlap",
                   r"(?:both stay active|both stay)", r"both readings and the default", r"`?compatible_with`?"),
             must_not=(r"[Uu]ndeclared[^.\n]*(?:become|are made|turn) pending", r"[Uu]ndeclared[^.\n]*(?:\b(?<!non-)(?<!never )(?<!not )block(?:s|ed)?\b|refused)"),
@@ -150,7 +150,7 @@ PROMISES = (
             must=(r"`stale`: report only “已过期，需重算”", r"Give no conclusion from the old draft")),
     # 2026-11-12: the service names whom to dispatch; the guides say to follow it, so a role written is a role used.
     Promise("follow-flow-dispatch", ALL_MAIN, must=(r"`flow\.dispatch`",)),
-    Promise("requirements-links-and-keeps-saved-material-out-of-the-plan", ("skills/tripwright-requirements/SKILL.md",),
+    Promise("requirements-links-and-keeps-saved-material-out-of-the-plan", (RECORDS,),
             must=(r"never into the plan", r"`depends_on`", r"screenshot_extraction", r"one source question",
                   r"quote only from the message it was recorded with")),
     Promise("researcher-fares-on-request", RESEARCHER, must=(r"`focus: fares`", r"do not book or buy")),
@@ -177,9 +177,9 @@ PROMISES = (
     Promise("blocked-write-and-local-backup", MAIN_TEXTS + (RECORDS,),
             must=(r"write\.blocked", r"hint", r"storage\.kind", r"back up the data directory")),
     # A11: an online check-in stored as a node at the airport became “要 05:45 前到”; the plan's writers mark it
-    Promise("online-deadline-anchor", (RECORDS, "skills/tripwright-requirements/SKILL.md"),
+    Promise("online-deadline-anchor", (RECORDS,),
             must=(r"`where: online`", r"no latest departure")),
-    Promise("subagents-never-commit", VERIFIER + RESEARCHER + ("skills/tripwright-requirements/SKILL.md",),
+    Promise("subagents-never-commit", VERIFIER + RESEARCHER,
             must=(r"`commit`",), must_not=(r"[Yy]ou (?:may|can|should) call `commit`",),
             bad_sample="When the check passes, you may call `commit` yourself."),
     # A12 (quality judge 6): the first part was the plan's template whatever was asked (A); a stored ticket went unused
@@ -189,11 +189,10 @@ PROMISES = (
     Promise("tickets-as-stored", ALL_MAIN, must=(r"(?:票照 `tickets`|tickets as the result's stored tickets)",)),
     # G9 (analysis 2026-11-13): small things the user said before that no guide carried
     # 2026-11-14 (a review): on the road one agent reads the single-agent page, and the main agent its writing page
-    Promise("voice-typed-words-are-asked", ("skills/tripwright-requirements/SKILL.md", SINGLE,
-                                            "skills/tripwright-main/references/writing.md"),
+    Promise("voice-typed-words-are-asked", (SINGLE, "skills/tripwright-main/references/writing.md"),
             must=(r"voice-typed message can mishear a word", r"你说的‘X’是指‘Y’吗")),
-    Promise("unmentioned-is-no-no", ("skills/tripwright-requirements/SKILL.md",), must=(r"an unmentioned place is no “no”",)),
-    Promise("cards-and-passes-priced", ("skills/tripwright-requirements/SKILL.md",) + RESEARCHER, must=(r"`note:card-",)),
+    Promise("unmentioned-is-no-no", (RECORDS,), must=(r"an unmentioned place is no “no”",)),
+    Promise("cards-and-passes-priced", (RECORDS,) + RESEARCHER, must=(r"`note:card-",)),
     Promise("planning-days", (RECORDS,), must=(r"One core area per day", r"better forecast", r"`due_at` before that day")),
     Promise("english-place-names", ("skills/tripwright-main/references/writing.md",), must=(r"followed by its English name",)),
 )

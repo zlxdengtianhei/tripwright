@@ -9,7 +9,6 @@ non_triggers:
   - {query: "Write a fictional travel poem.", route: normal writing}
   - {query: "Check draft DR-300715-b8d against job J-300715-k2m before the second response.", route: tripwright-verifier}
   - {query: "Find whether the lakeside path at Seeufer Süd is open on 2030-07-15, with a source.", route: tripwright-researcher}
-  - {query: "Split these six voice messages into proposed records without planning.", route: tripwright-requirements}
 cold_read:
   - query: "The host paraphrases: the user prefers a relaxed morning."
     expected: "turn with host_restatement; preserve the soft wording without inventing a time or distance limit."
@@ -32,7 +31,7 @@ cold_read:
   - query: "The host is Claude Code and is about to send the first part for a replan it proposed."
     expected: "Dispatch tripwright-verifier in the background with draft_id, job_id and ctx_id (and one researcher for the live facts); do not hand it the first part's unchecked lines as its checklist; write nothing when the first of two reports arrives; only the main agent commits."
   - query: "The host cannot dispatch subagents; the user writes 'move dinner to 19:00' while planning."
-    expected: "Reads state(view='role', role='single'); then turn (words only), the requirements role's steps (ledger-only propose and commit), propose the change, the verifier's steps with result(report=...), commit; the answer says what changed and ends with the receipt's tell_user.say."
+    expected: "Reads state(view='role', role='single'); then turn with the words and the record (quotes copied, links declared), propose the change, the verifier's steps with result(report=...), commit; the answer says what changed and ends with the receipt's tell_user.say."
   - query: "The user says: 下个月去瑞士，帮我开一趟新的。Earlier trips stored preferences, a companion and a standing rule."
     expected: "Starting a new trip: list the long-term records grouped, one line each with the gist and the trip it came from; ask which still apply; never ask the user to read files; until answered, use them marked 待确认."
   - query: "The user reports being alone today, without requesting a replacement plan."
