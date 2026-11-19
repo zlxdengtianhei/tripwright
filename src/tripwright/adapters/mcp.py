@@ -91,9 +91,10 @@ TURN_DESCRIPTION = (
     "Returns the stored requirements and decisions that apply (pack, consider), the current time, and next and flow: "
     "the steps for this message. For a quick question on the road (scenario='quick', with the message's points) it "
     "also returns first_part, an answer drafted from the stored plan with unchecked times marked, and "
-    "second_part_title, the heading for the answer after lookups. record stores what the message states "
-    "(preferences, facts, decisions) with the user's exact words. A message that only continues an unfinished second "
-    "part needs no new turn.\n"
+    "second_part_title, the heading for the answer after lookups. On a road turn with no draft it returns "
+    "opening_material, the nearest stored facts for the short first message, each archived and unchecked. record "
+    "stores what the message states (preferences, facts, decisions) with the user's exact words. A message that "
+    "only continues an unfinished second part needs no new turn.\n"
     "Args: points={kind:at|go|eat|do|ticket|other,said,place?}[]; record={items,facts,relate,carry,pending_checks}, "
     "source.event='this'; request_id optional.")
 

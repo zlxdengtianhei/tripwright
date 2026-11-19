@@ -19,6 +19,7 @@ from tripwright.jobs import Jobs
 from tripwright.ledger import Carry, Changes, Fact, Item, Ledger, PendingCheck, Proposal, Relation
 from tripwright.query import QueryRouter, checked_arguments, lookup_failed
 from tripwright.render import first_part
+from tripwright.render.opening import material as opening_material
 from tripwright.repo import files as repo_files, memory, notices, replay
 from tripwright.repo.outbox import Outbox
 from tripwright.storage import Store, clock, encode, identifier, now
@@ -56,14 +57,9 @@ FIRST_ARCHIVED = dict(
     en="Stored times and services in the first part go as “the plan stores X, not checked yet”, never as a conclusion; for "
        "a latest question the first part gives only the stored value.")
 ROAD_OPENING = dict(
-    zh="路上急问、服务没有可起草的第一段：在查任何东西之前先发一条短消息，只放第一段，发出去再查；第二段另发一条，两段标题不并进一条。"
-       "这条至少给一条能照着走的内容——从存的计划、这句话或常识能确定的走法、地点或时刻；只说“我去查”不算，什么都不确定就直说"
-       "“存的计划里没有这一段，先给你一个保底：……”，再给保底。计划里的时刻与车次（末班、最晚、硬节点）一律写“存档写 X，还没核”，"
-       "不当结论；问最晚、末班时这条只给存档值加“没核”，结论放第二段。" + WORK_NOTES["zh"] + "不造 first_part 那份草稿。",
-    en="No first part: send one short message before any lookup, then check; part two is its own message, never both "
-       "headings in one. Give one thing to act on (a walk, place or time), not just “I'll check”; nothing certain: say so and "
-       "give a fallback. Plan times: “the plan stores X, not checked yet”, no conclusion. Do not draft a first_part. "
-       + WORK_NOTES["en"])
+    zh="先不调任何工具，用 `opening_material` 和常识写一两句能照着走的话发出去（时刻写“存档写 X，还没核”），再去查。",
+    en="First call no tool: write one or two lines you can act on from `opening_material` and common sense and send them "
+       "(times go as “the plan stores X, not checked yet”), then check.")
 # Answer before saving (the user, 2026-10-29: “你先给我终端输出我现在的走法，然后再去更新网站”; baseline 2026-11-19: 8 of 15
 # saves came before the first text). The order of the messages and calls, not a claim that a save already happened.
 SAY_BEFORE_SAVE = dict(
@@ -654,6 +650,7 @@ class Tripwright:
             # for the walk, not for the lookups. "Road" is the quick scenario or the words of a latest/missed question.
             road = bool(not first and (scenario == "quick" or first_part.asks_latest(text)
                                       or first_part.MISSED.search(text or "")))
+            opening = opening_material(plan or {}, at, language) if road else None
             second_title = SECOND_TITLES[language] if first or road else None
             context.update(points=packs.point_record(told),
                            frame=dict(scenario=scenario, asks_latest=first_part.asks_latest(text)),
@@ -672,6 +669,8 @@ class Tripwright:
                                 after_first_part=AFTER_FIRST[language] + instructions, **response)
             else:
                 response = dict(next=instructions, first_part=first, second_part_title=second_title, **response)
+            if road:
+                response["opening_material"] = opening
             mode = consider.save_mode(self.store, owner, at=at)
             response.update(consider={key: considered[key] for key in ("entries", "more", "more_how") if key in considered},
                             ask=asked, offer=consider.offer(known["languages"], language),
@@ -944,19 +943,23 @@ class Tripwright:
         if first and self._reply_flow() == "one":
             parts.append("Send first_part.text to the user now (the user is waiting); call query only after sending it." if en else
                          "现在就把 first_part.text 发给用户（用户在等这第一段）；发出去之后再调 query。")
+        if road:
+            # round 4 review: no first part on the road is no reason to go silent through the lookups (baseline
+            # 2026-11-19: the first text came 4 to 19 minutes after the question in 13 of 15 runs). Review 4: the one
+            # sentence comes first, and its material is stored data, not a lookup.
+            parts.append(ROAD_OPENING["en" if en else "zh"])
         if en:
             parts.append(REPLY_IN_ENGLISH)
         # Round 4 review, the user's order (2026-10-29): the answer first, then the save; the page follows the answer.
         parts.append(SAY_BEFORE_SAVE["en" if en else "zh"])
-        if road:
-            # round 4 review: no first part on the road is no reason to go silent through the lookups (baseline
-            # 2026-11-19: the first text came 4 to 19 minutes after the question in 13 of 15 runs)
-            parts.append(ROAD_OPENING["en" if en else "zh"])
-        elif first:
+        if first:
             parts.append(f"After checking, write {second_title!r} as the second heading; first say what differs "
                          "from first_part, or 'Same as above, checked.'" if en else
                          f"核完后写第二段标题“{second_title}”；标题下先讲和第一段的不同，没有不同就写“和上面一样，已核”。")
             parts.append(SEPARATE_PARTS["en" if en else "zh"] + FIRST_ARCHIVED["en" if en else "zh"])
+            parts.append(WORK_NOTES["en" if en else "zh"])
+        elif road:
+            parts.append(SEPARATE_PARTS["en" if en else "zh"])
             parts.append(WORK_NOTES["en" if en else "zh"])
         else:
             parts.append("Answer this message directly after its necessary lookups; do not invent a first part."

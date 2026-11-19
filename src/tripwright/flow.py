@@ -47,21 +47,20 @@ SHORT = {
                unturned="This user message has not gone through turn: call turn(text=the user's words, scenario='quick') first, then go on with the lookup."),
 }
 # A road turn the service drafted no first part for (round 4 review; baseline 2026-11-19: 13 of 15 real questions): the
-# user gets a short message before any lookup, not silence for 4 to 19 minutes.
+# user gets a short message before any lookup, not silence for 4 to 19 minutes. Review 4 gives the host the service's
+# stored `opening_material`, so that short message needs no lookup.
 SHORT_ROAD = dict(
-    zh="路上急问，这次没有可起草的第一段：在查任何东西之前先发一条短消息，只放第一段，给一条能照着走的内容（能确定的走法、地点或时刻），"
-       "计划里的时刻与车次写“存档写 X，还没核”；要核的自己查（宿主能开后台 worker 时才派查询员），查完另发一条第二段，先说和那条的不同。",
-    en="On the road with no first part to send: before any lookup send one short message — the first part only — with one "
-       "thing to act on (a walk, place or time you can tell for certain); plan times go as “the plan stores X, not checked "
-       "yet”. Check it yourself (the researcher only when the host runs background workers), then send the second part as "
-       "its own message, differences first.")
+    zh="路上急问，这次服务没给可发的 first_part：先不调任何工具，用 opening_material 和常识写一两句能照着走的话发出去"
+       "（时刻写“存档写 X，还没核”），再去查；第二段另发一条。",
+    en="On the road with no first part to send: first call no tool, write one or two lines you can act on from "
+       "opening_material and common sense and send them (times go as “the plan stores X, not checked yet”), then check; "
+       "the second part is its own message.")
 FULL = {
     "zh": dict(quick="路上即时问答：①turn 记下原话；②原样发 first_part，只放第一段；③要核的事实自己查，宿主能开后台 worker 时才派查询员；"
                      "④第二段另发一条，标题照给的写，先说和第一段的不同；⑤不派核对员。flow.dispatch 点了谁就派谁；不能派子代理时，先取 state(view=\"role\", role=\"single\") 的编排，按它依次取各角色的步骤自己做。",
-               quick_road="路上即时问答（这次服务没给可发的 first_part）：①turn 记下原话；②在查任何东西之前先发一条短消息，只放第一段：至少给一条能照着走的内容"
-                           "（存的计划、这句话或常识能确定的走法、地点或时刻），只说“我去查”不算；计划里的时刻与车次（末班、最晚、硬节点）写“存档写 X，还没核”，"
-                           "问最晚、末班时只给存档值加“没核”，结论放第二段；什么都不确定就说“存的计划里没有这一段，先给你一个保底：……”再给保底；"
-                           "每条消息都是答话本身，不写工作注记；③要核的事实自己查，宿主能开后台 worker 时才派查询员；"
+               quick_road="路上即时问答（这次服务没给可发的 first_part）：①turn 记下原话；②先不调任何工具，用 opening_material 和常识写一两句能照着走的话"
+                           "发出去（时刻写“存档写 X，还没核”），再去查；只放第一段，第二段另发一条，每条消息都是答话本身；"
+                           "③要核的事实自己查，宿主能开后台 worker 时才派查询员；"
                            "④查完另发一条第二段，先说和那条短消息的不同，两段标题不并进一条；⑤不派核对员。"
                            "flow.dispatch 点了谁就派谁；不能派子代理时，先取 state(view=\"role\", role=\"single\") 的编排，按它依次取各角色的步骤自己做。",
                plan="做计划：①turn 带原话，把这句里的要求、事实、决定放进 record（引文照抄这条消息、source.event 用 'this'），要求先落账；"
@@ -72,13 +71,12 @@ FULL = {
     "en": dict(quick="On the road: (1) record the words with turn; (2) send first_part as given, the first part only; (3) check the facts yourself, and dispatch the researcher only "
                      "when the host runs background workers; (4) send the second part as its own message, with the given heading and what differs first; (5) no verifier. Dispatch whom flow.dispatch names; "
                      "without subagents, read the order with state(view=\"role\", role=\"single\"), then do each role's steps yourself in turn.",
-               quick_road="On the road (the service gave no first_part to send): (1) record the words with turn; (2) before any lookup send one short message, "
-                           "the first part only, with at least one thing to act on (a walk, place or time you can tell for certain), not just “I'll check”; "
-                           "plan times and services go as “the plan stores X, not checked yet”, and for a latest question give the stored value marked not checked, "
-                           "with the conclusion waiting for part two; with nothing certain say so and give a fallback; every message is the answer itself, no work "
-                           "notes; (3) check the facts yourself, and dispatch the researcher only when the host runs background workers; (4) after checking, send the "
-                           "second part as its own message, leading with what differs, never both headings in one; (5) no verifier. Dispatch whom flow.dispatch names; "
-                           "without subagents, read the order with state(view=\"role\", role=\"single\"), then do each role's steps yourself in turn.",
+               quick_road="On the road (the service gave no first_part to send): (1) record the words with turn; (2) first call no tool: write one or two "
+                           "lines you can act on from opening_material and common sense and send them (times go as “the plan stores X, not checked yet”), "
+                           "then check; the first part only, the second part its own message, every message the answer itself; (3) check the facts yourself, "
+                           "and dispatch the researcher only when the host runs background workers; (4) after checking, send the second part as its own "
+                           "message, leading with what differs, never both headings in one; (5) no verifier. Dispatch whom flow.dispatch names; without "
+                           "subagents, read the order with state(view=\"role\", role=\"single\"), then do each role's steps yourself in turn.",
                plan="Planning: (1) turn with the words, and put what this message states in record (quotes copied from it, source.event 'this'), so the "
                     "requirements are recorded first; (2) use query(kind='saved') first and dispatch the researcher for what is missing; (3) propose the plan "
                     "change (same ctx_id and base_version; this message's entries are already in record, so do not send them again in propose); (4) when the draft changes the plan, "

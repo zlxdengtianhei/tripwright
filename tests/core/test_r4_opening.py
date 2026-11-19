@@ -25,10 +25,10 @@ def default_mode(monkeypatch):
 def test_a_road_question_with_no_first_part_opens_with_a_short_message_before_any_lookup(seeded):
     turn = seeded.turn("alice", "我饿了，现在去哪吃？", "r4-opening-1", scenario="quick")
     assert turn["first_part"] is None
-    assert ROAD_OPENING["zh"] in turn["next"] and "在查任何东西之前" in turn["next"]
+    assert turn["next"].startswith(ROAD_OPENING["zh"]) and "opening_material" in turn["next"]
     # the same order in the flow field, so the two fields of one receipt cannot contradict each other: the whole flow
     # (the first turn) says it too, and later turns carry the short line
-    assert turn["flow"]["full"] == FULL["zh"]["quick_road"] and "在查任何东西之前" in turn["flow"]["full"]
+    assert turn["flow"]["full"] == FULL["zh"]["quick_road"] and "opening_material" in turn["flow"]["full"]
     again = seeded.turn("alice", "现在去咖啡馆怎么走？", "r4-opening-2", scenario="quick")
     assert again["flow"]["reminder"] == SHORT_ROAD["zh"]
     # the second part the short message promised has its heading
@@ -66,23 +66,26 @@ def test_the_answer_comes_before_propose_and_commit_in_every_scenario(seeded):
 def test_the_short_message_must_carry_one_thing_to_act_on(seeded):
     turn = seeded.turn("alice", "我饿了，现在去哪吃？", "r4-useful-1", scenario="quick")
     assert turn["first_part"] is None
-    assert "至少给一条能照着走的内容" in turn["next"] and "只说“我去查”不算" in turn["next"]
-    assert "存的计划里没有这一段，先给你一个保底" in turn["next"]
+    assert "能照着走" in turn["next"] and "opening_material" in turn["next"]
     # the whole flow of the first turn says the same, so the two fields of one receipt cannot contradict each other
-    assert "只说“我去查”不算" in turn["flow"]["full"]
+    assert "opening_material" in turn["flow"]["full"]
     english = seeded.turn("alice", "I'm hungry, where can I eat now?", "r4-useful-1-en", scenario="quick")
-    assert "one thing to act on" in english["next"] and "not just “I'll check”" in english["next"]
-    assert "fallback" in english["next"]
+    assert "one or two lines you can act on" in english["next"] and "opening_material" in english["next"]
 
 
-def test_plan_times_in_the_opening_stay_archived_and_unchecked(seeded):
+def test_plan_times_in_the_opening_stay_archived_and_unchecked(seeded, monkeypatch):
+    import time
+    # the seeded trip's day is 2030-06-10: put the clock on it so the stored place is the opening material
+    monkeypatch.setenv("TRIPWRIGHT_NOW", "2030-06-10T12:00:00+02:00")
+    monkeypatch.setenv("TRIPWRIGHT_NOW_SET_AT", str(time.time()))
     latest = seeded.turn("alice", "今晚最晚几点回车站？", "r4-archived-1", scenario="quick")
     assert "存档写 X，还没核" in latest["next"]
-    # a latest or last-service question: the opening gives the stored value and keeps the conclusion for part two
-    assert "问最晚、末班时这条只给存档值加“没核”，结论放第二段" in latest["next"]
+    # the material is marked as archived and unchecked; the conclusion stays in part two
+    assert latest["opening_material"] and all("存档，没核" in item["text"] for item in latest["opening_material"])
     assert "存档写 X，还没核" in latest["flow"]["full"]
     english = seeded.turn("alice", "What is the last train back tonight?", "r4-archived-1-en", scenario="quick")
-    assert "“the plan stores X, not checked yet”" in english["next"] and "no conclusion" in english["next"]
+    assert "“the plan stores X, not checked yet”" in english["next"]
+    assert english["opening_material"] and all("archived, not checked" in item["text"] for item in english["opening_material"])
 
 
 def test_the_first_part_goes_alone_and_the_plan_times_in_it_stay_archived(service, plan):
