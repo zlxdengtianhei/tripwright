@@ -108,10 +108,11 @@ def test_query_result_keeps_both_parts_in_front_of_a_host_that_skipped_the_first
     assert "start the final response with this text" in result["reply_begins_with"]["instruction"]
     monkeypatch.delenv("TRIPWRIGHT_REPLY_FLOW")  # the default flow is two messages
     two = seeded.turn("alice", "What about this place?", scenario="quick", points=[point])
-    assert "first and only message" in two["next"] and "After checking" not in two["next"]
-    assert two["first_part"]["later"] and "without calling turn again" in two["after_first_part"]
-    assert list(two)[:4] == ["next", "first_part", "second_part_title", "after_first_part"]
-    assert len(two["next"]) <= 600
+    # trip60: the host writes the first message from first_part before any other tool, then goes on by itself
+    assert "Write the first message before any other tool" in two["next"] and "After checking" not in two["next"]
+    assert "later" not in two["first_part"] and two["after_first_part"].startswith("After the first message is sent")
+    assert list(two)[:5] == ["next", "first_part", "opening_material", "second_part_title", "after_first_part"]
+    assert len(two["next"]) <= 1100
     result = asyncio.run(seeded.query("alice", "saved", dict(text="gallery")))
     assert "reply_begins_with" not in result
 

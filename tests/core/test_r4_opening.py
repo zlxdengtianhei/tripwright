@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 
 from tripwright.flow import FULL, SHORT_ROAD
-from tripwright.service import FIRST_ARCHIVED, ROAD_OPENING, SAY_BEFORE_SAVE, SECOND_TITLES, SEPARATE_PARTS, WORK_NOTES
+from tripwright.service import FIRST_ARCHIVED, OPEN_FIRST, ROAD_OPENING, SAY_BEFORE_SAVE, SECOND_TITLES, SEPARATE_PARTS, WORK_NOTES
 
 
 @pytest.fixture(autouse=True)
@@ -25,7 +25,9 @@ def default_mode(monkeypatch):
 def test_a_road_question_with_no_first_part_opens_with_a_short_message_before_any_lookup(seeded):
     turn = seeded.turn("alice", "我饿了，现在去哪吃？", "r4-opening-1", scenario="quick")
     assert turn["first_part"] is None
-    assert turn["next"].startswith(ROAD_OPENING["zh"]) and "opening_material" in turn["next"]
+    # trip60: every trip message opens with the first message before any other tool (OPEN_FIRST replaces ROAD_OPENING)
+    assert turn["next"].startswith(OPEN_FIRST["zh"]) and "opening_material" in turn["next"]
+    assert ROAD_OPENING["zh"] not in turn["next"]
     # the same order in the flow field, so the two fields of one receipt cannot contradict each other: the whole flow
     # (the first turn) says it too, and later turns carry the short line
     assert turn["flow"]["full"] == FULL["zh"]["quick_road"] and "opening_material" in turn["flow"]["full"]
@@ -39,11 +41,11 @@ def test_a_road_question_with_no_first_part_opens_with_a_short_message_before_an
 def test_the_road_opening_and_the_order_in_english(seeded):
     turn = seeded.turn("alice", "I'm hungry, where can I eat now?", "r4-opening-en", scenario="quick")
     assert turn["first_part"] is None
-    assert ROAD_OPENING["en"] in turn["next"] and SAY_BEFORE_SAVE["en"] in turn["next"]
+    assert OPEN_FIRST["en"] in turn["next"] and SAY_BEFORE_SAVE["en"] in turn["after_first_part"]
     assert turn["flow"]["full"] == FULL["en"]["quick_road"]
     again = seeded.turn("alice", "How do I walk to the cafe?", "r4-opening-en-2", scenario="quick")
     assert again["flow"]["reminder"] == SHORT_ROAD["en"]
-    assert len(turn["next"]) <= 600
+    assert len(turn["next"]) <= 1100  # trip60: the first message's rules and notes
 
 
 def test_the_answer_comes_before_propose_and_commit_in_every_scenario(seeded):
@@ -53,7 +55,7 @@ def test_the_answer_comes_before_propose_and_commit_in_every_scenario(seeded):
                                                ("看看现在的计划。", "status")]):
         turn = seeded.turn("alice", text, f"r4-order-{number}", scenario=scenario)
         assert turn["first_part"] is None
-        assert SAY_BEFORE_SAVE["zh"] in turn["next"]
+        assert SAY_BEFORE_SAVE["zh"] in turn["after_first_part"] and turn["next"].startswith(OPEN_FIRST["zh"])
         assert "完成必要的查询和写入后" not in turn["next"]  # the old wording had the save before the answer
         assert len(turn["next"]) <= 600
 
@@ -70,7 +72,7 @@ def test_the_short_message_must_carry_one_thing_to_act_on(seeded):
     # the whole flow of the first turn says the same, so the two fields of one receipt cannot contradict each other
     assert "opening_material" in turn["flow"]["full"]
     english = seeded.turn("alice", "I'm hungry, where can I eat now?", "r4-useful-1-en", scenario="quick")
-    assert "one or two lines you can act on" in english["next"] and "opening_material" in english["next"]
+    assert "lines you can act on" in english["next"] and "opening_material" in english["next"]
 
 
 def test_plan_times_in_the_opening_stay_archived_and_unchecked(seeded, monkeypatch):

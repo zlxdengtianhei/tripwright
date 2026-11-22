@@ -5,7 +5,7 @@ Fictional times; public station names. Each transport line below is supplied ver
 
 “最晚几点出发去机场？” Bad: “按计划，最晚 22:43 出门，坐 22:53 的车；存在计划里，还没核。” An unchecked stored time still reads as the answer when it leads the first line.
 
-The first part is `turn.first_part.text`, sent as it is (the plan stores the 22:53 REX 7 at Wien Hauptbahnhof and a 05:45 queue at the airport). Good first part, before lookups:
+The first part is written from `turn.first_part.text` (the plan stores the 22:53 REX 7 at Wien Hauptbahnhof and a 05:45 queue at the airport). Good first part, before lookups:
 ```text
 按现在 22:14 算：几点出发要查，第二段给。
 计划里写过：22:53 在 Wien Hauptbahnhof 坐 REX 7 去 Flughafen Wien（存档，没核）

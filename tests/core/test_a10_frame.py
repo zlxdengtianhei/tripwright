@@ -304,7 +304,7 @@ def test_first_part_and_next_reach_a_host_over_mcp(tmp_path):
     turn = asyncio.run(scenario())
     assert turn["first_part"] is None
     # no plan for that day, so no first part: the host opens with a short message from stored material (round 4)
-    assert turn["next"].startswith("先不调任何工具") and "opening_material" in turn["next"]
+    assert turn["next"].startswith("先写第一条消息") and "opening_material" in turn["next"]  # trip60
 
 
 # --- 5. synthetic data says so ----------------------------------------------------------------------------------------------

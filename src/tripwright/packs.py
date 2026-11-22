@@ -861,6 +861,22 @@ def place_conflicts(plan: dict | None, points: list[dict]) -> list[str]:
     return found
 
 
+def placed_by_words(plan: dict | None, points: list[dict]) -> tuple[list[dict], list[str]]:
+    """The points with each `place` that place_conflicts refuses replaced by the stored place the user's words name (the
+    user's words decide, S4h-a), and one note per replacement. turn uses this so a conflict never refuses the message
+    (trip60, 2026-11-22: a refused turn delays the first message by minutes)."""
+    fixed, notes = [], []
+    for index, point in enumerate(points):
+        if point.get("place") and point["kind"] in ("at", "go", "do"):
+            given, said = resolve_place(plan, point["place"]), resolve_place(plan, None, point["said"])
+            if given and said and given["id"] != said["id"]:
+                notes.append(f"points.{index}: place {point['place']!r} replaced by {said['id']!r}, the place its said "
+                             f"“{point['said']}” names (the user's words decide)")
+                point = dict(point, place=said["id"])
+        fixed.append(point)
+    return fixed, notes
+
+
 def stored_destination(plan: dict | None, anchors: list[dict], word: str | None) -> dict | None:
     """The place a go point names when its `place` is no place of the trip (a12b replay: “机场”): the one place the
     upcoming hard nodes go to or are at whose stored name holds that word; None when there is none or several."""

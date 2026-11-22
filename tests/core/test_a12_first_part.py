@@ -24,6 +24,7 @@ from test_a8_transit_facts import NIGHT, local
 from test_a10_frame import DESK, QUEUE, REX, Evening, airport_plan, fixed, query
 from tripwright.providers.transitous import TransitousProvider
 from tripwright.query import QueryRouter
+from tripwright.render import first_part
 from tripwright.render.first_part import draft
 from tripwright.service import Tripwright
 from tripwright.storage import Store
@@ -139,12 +140,19 @@ def test_stored_times_and_prices_are_marked(make):
     assert any(line.startswith("票：") for line in turn["first_part"]["lines"])
 
 
-def test_points_are_refused_with_their_path(make):
+def test_bad_points_never_refuse_the_turn_and_say_what_was_left_out(make):
+    """trip60 (2026-11-22 replays): a turn refused for its points left the host without the answer material, and the
+    first message came minutes later. What passes is kept; points_note names what was left out and why."""
     service = make()
+    kind = service.turn("local", SECOND, "q7", points=[dict(kind="hungry", said="饿"), dict(kind="eat", said="饿")])
+    assert kind["receipt"]["event_id"] and "points.0 left out" in kind["points_note"][0] and "'at', 'go'" in kind["points_note"][0]
+    two = service.turn("local", SECOND, "q8", points=[dict(kind="at", said="这里"), dict(kind="at", said="那里")])
+    assert two["points_note"] == ["points.1 left out: only one 'at'"]
+    many = service.turn("local", SECOND, "q9", points=[dict(kind="other", said=f"第{n}件") for n in range(9)])
+    assert [note for note in many["points_note"]] == ["points.7 left out: at most 7 points", "points.8 left out: at most 7 points"]
+    # the command line keeps its strict check: it records nothing, so a refusal costs no message
     with pytest.raises(ValueError, match=r"Invalid points: points\.0\.kind: Input should be 'at', 'go'"):
-        service.turn("local", SECOND, "q7", points=[dict(kind="hungry", said="饿")])
-    with pytest.raises(ValueError, match="at most 7 points with one 'at'"):
-        service.turn("local", SECOND, "q8", points=[dict(kind="at", said="这里"), dict(kind="at", said="那里")])
+        first_part.checked_points([dict(kind="hungry", said="饿")])
 
 
 def test_points_reach_the_service_over_mcp(tmp_path):

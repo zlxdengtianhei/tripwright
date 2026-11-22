@@ -56,7 +56,7 @@ SHORT_ROAD = dict(
        "opening_material and common sense and send them (times go as “the plan stores X, not checked yet”), then check; "
        "the second part is its own message.")
 FULL = {
-    "zh": dict(quick="路上即时问答：①turn 记下原话；②原样发 first_part，只放第一段；③要核的事实自己查，宿主能开后台 worker 时才派查询员；"
+    "zh": dict(quick="路上即时问答：①turn 记下原话；②照 turn 的 next 先写第一条消息（first_part 是材料），只放第一段；③要核的事实自己查，宿主能开后台 worker 时才派查询员；"
                      "④第二段另发一条，标题照给的写，先说和第一段的不同；⑤不派核对员。flow.dispatch 点了谁就派谁；不能派子代理时，先取 state(view=\"role\", role=\"single\") 的编排，按它依次取各角色的步骤自己做。",
                quick_road="路上即时问答（这次服务没给可发的 first_part）：①turn 记下原话；②先不调任何工具，用 opening_material 和常识写一两句能照着走的话"
                            "发出去（时刻写“存档写 X，还没核”），再去查；只放第一段，第二段另发一条，每条消息都是答话本身；"
@@ -64,11 +64,11 @@ FULL = {
                            "④查完另发一条第二段，先说和那条短消息的不同，两段标题不并进一条；⑤不派核对员。"
                            "flow.dispatch 点了谁就派谁；不能派子代理时，先取 state(view=\"role\", role=\"single\") 的编排，按它依次取各角色的步骤自己做。",
                plan="做计划：①turn 带原话，把这句里的要求、事实、决定放进 record（引文照抄这条消息、source.event 用 'this'），要求先落账；"
-                    "②先 query(kind='saved') 用存的资料，缺的派查询员查；③propose 计划改动（同一个 ctx_id 与 base_version；这条消息的条目已经在 record 里，不要在 propose 里再带一遍）；"
+                    "照 turn 的 next 先写第一条消息（一到五行答最急的事），再往下做；②先 query(kind='saved') 用存的资料，缺的派查询员查；③propose 计划改动（同一个 ctx_id 与 base_version；这条消息的条目已经在 record 里，不要在 propose 里再带一遍）；"
                     "④草稿改了计划就派核对员核，通过才 commit；propose 返回 ask_user（谨慎模式，新带来的没核事实）时照它的 options 问用户（每个一句后果、标推荐、说不回按哪个），等回话再 commit；"
                     "主动模式直接 commit，不等仓库与页面更新；⑤回答里说改了什么、为什么，commit 返回 tell_user 时末尾原样带上它的 say。turn 返回的 records 里有现行条目、决定、依赖与 review，不用再取 state(view='ledger')、state(view='graph')；review 里的决定自己核依赖，要问的列进回答。"
                     "flow.dispatch 点了谁就派谁；不能派子代理时，先取 state(view=\"role\", role=\"single\") 的编排，按它依次取各角色的步骤自己做。"),
-    "en": dict(quick="On the road: (1) record the words with turn; (2) send first_part as given, the first part only; (3) check the facts yourself, and dispatch the researcher only "
+    "en": dict(quick="On the road: (1) record the words with turn; (2) write the first message as turn's next says (first_part is material), the first part only; (3) check the facts yourself, and dispatch the researcher only "
                      "when the host runs background workers; (4) send the second part as its own message, with the given heading and what differs first; (5) no verifier. Dispatch whom flow.dispatch names; "
                      "without subagents, read the order with state(view=\"role\", role=\"single\"), then do each role's steps yourself in turn.",
                quick_road="On the road (the service gave no first_part to send): (1) record the words with turn; (2) first call no tool: write one or two "
@@ -78,7 +78,7 @@ FULL = {
                            "message, leading with what differs, never both headings in one; (5) no verifier. Dispatch whom flow.dispatch names; without "
                            "subagents, read the order with state(view=\"role\", role=\"single\"), then do each role's steps yourself in turn.",
                plan="Planning: (1) turn with the words, and put what this message states in record (quotes copied from it, source.event 'this'), so the "
-                    "requirements are recorded first; (2) use query(kind='saved') first and dispatch the researcher for what is missing; (3) propose the plan "
+                    "requirements are recorded first, then write the first message as turn's next says (one to five lines on the most urgent thing); (2) use query(kind='saved') first and dispatch the researcher for what is missing; (3) propose the plan "
                     "change (same ctx_id and base_version; this message's entries are already in record, so do not send them again in propose); (4) when the draft changes the plan, "
                     "dispatch the verifier and commit only after it passes; when propose returns ask_user (cautious mode, unverified facts the change brings in), "
                     "ask with its options (one consequence each, the recommended one marked, what happens without an answer) and commit after the answer; in the "
