@@ -34,6 +34,8 @@ def iso_time(value: str) -> str:
 IsoTime = Annotated[str, AfterValidator(iso_time)]
 
 
+STANDING_KEY = "interaction:said-"  # standing.KEY; kept here so the ledger needs no import of standing
+
 class Scope(Model):
     start: date | None = None
     end: date | None = None
@@ -1479,6 +1481,15 @@ class Ledger:
                     item["status"] = "superseded"
                     self.store.put("items", owner, item)
                     self._audit(owner, audit_event(root), "retract_interpretation", item_id)
+            # trip60: a standing rule the service recorded from the user's words (standing.py) gives way to the host's
+            # own record of the same words, whichever tool it comes through (turn, or propose and commit)
+            quotes = [item.quote for item in changes.items if item.quote and not item.key.startswith(STANDING_KEY)]
+            if quotes:
+                for item in self.store.all("items", owner):
+                    if (item.get("key", "").startswith(STANDING_KEY) and item.get("status") == "active"
+                            and any(quote in item["quote"] or item["quote"] in quote for quote in quotes)):
+                        self.store.put("items", owner, dict(item, status="superseded"))
+                        changed.append(item["id"])
         return {"changed": changed, "revision": self.revision(owner), "crowding": crowding, "alongside": alongside,
                 "possible_contradictions": self.possible_contradictions(owner),
                 "locks": {part: entries for part, entries in operations.items() if entries}}
