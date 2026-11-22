@@ -1,0 +1,307 @@
+{
+  "client": "ChatGPT (web)",
+  "seen": "2026-11-14",
+  "about": "One message moving day 1 dinner saved as two commits: the must first (ledger only), then the plan. Before 27d581c the undo went back one version only and the restored plan broke that must, so it could not be saved.",
+  "setup": {
+    "trip": "fjord_demo",
+    "now": "2030-06-10T16:00:00+02:00"
+  },
+  "messages": [
+    "第一天的晚饭挪到 19:00。",
+    "撤回"
+  ],
+  "steps": [
+    {
+      "tool": "turn",
+      "args": {
+        "text": "第一天的晚饭挪到 19:00。",
+        "scenario": "replan",
+        "speaker": "p1"
+      }
+    },
+    {
+      "tool": "propose",
+      "args": {
+        "ctx_id": {
+          "$from": 1,
+          "path": "ctx_id"
+        },
+        "changes": {
+          "decisions": [
+            {
+              "question": "第一天晚饭几点",
+              "options": [
+                "19:00"
+              ],
+              "choice": "19:00",
+              "decided_by": "user",
+              "must": true,
+              "subject": [
+                "p1"
+              ],
+              "source": {
+                "event": "this",
+                "basis": "user_explicit"
+              },
+              "reason": "用户说晚饭挪到 19:00",
+              "locked_paths": {
+                "/blocks/d1-dinner/start": "19:00"
+              }
+            }
+          ]
+        }
+      },
+      "expect": [
+        {
+          "path": "status",
+          "equals": "proposed"
+        }
+      ]
+    },
+    {
+      "tool": "commit",
+      "args": {
+        "draft_id": {
+          "$from": 2,
+          "path": "draft_id"
+        }
+      },
+      "expect": [
+        {
+          "path": "number",
+          "equals": 2
+        }
+      ]
+    },
+    {
+      "tool": "propose",
+      "args": {
+        "ctx_id": {
+          "$from": 1,
+          "path": "ctx_id"
+        },
+        "days": [
+          {
+            "anchors": [],
+            "area": "Oslo",
+            "base": null,
+            "candidates": {},
+            "date": "2030-06-10",
+            "notes": null,
+            "pace": "relaxed",
+            "plans": [
+              {
+                "id": "P1",
+                "name": "Recommended",
+                "note": null,
+                "tracks": [
+                  {
+                    "blocks": [
+                      {
+                        "app": null,
+                        "baggage_holder": null,
+                        "booking": null,
+                        "certainty": "estimated",
+                        "critical_facts": [],
+                        "destination": null,
+                        "end": "11:00",
+                        "equipment": [],
+                        "evidence_ids": [],
+                        "fare": null,
+                        "id": "d1-art",
+                        "kind": "visit",
+                        "line": null,
+                        "mode": null,
+                        "note": null,
+                        "options": [],
+                        "origin": null,
+                        "place": "oslo-art",
+                        "source": null,
+                        "start": "10:00",
+                        "text": null,
+                        "transfer_minutes": null,
+                        "walk_minutes": null
+                      },
+                      {
+                        "app": null,
+                        "baggage_holder": null,
+                        "booking": null,
+                        "certainty": "estimated",
+                        "critical_facts": [],
+                        "destination": null,
+                        "end": "20:00",
+                        "equipment": [],
+                        "evidence_ids": [],
+                        "fare": null,
+                        "id": "d1-dinner",
+                        "kind": "meal",
+                        "line": null,
+                        "mode": null,
+                        "note": null,
+                        "options": [],
+                        "origin": null,
+                        "place": "oslo-cafe",
+                        "source": null,
+                        "start": "19:00",
+                        "text": null,
+                        "transfer_minutes": 15,
+                        "walk_minutes": null
+                      },
+                      {
+                        "app": "Maps search Havnekafé — fictional",
+                        "baggage_holder": null,
+                        "booking": null,
+                        "certainty": "estimated",
+                        "critical_facts": [],
+                        "destination": null,
+                        "end": "21:30",
+                        "equipment": [],
+                        "evidence_ids": [],
+                        "fare": null,
+                        "id": "d1-coffee",
+                        "kind": "flex",
+                        "line": null,
+                        "mode": null,
+                        "note": null,
+                        "options": [],
+                        "origin": null,
+                        "place": "oslo-cafe",
+                        "source": null,
+                        "start": "20:30",
+                        "text": "Agreed café after dinner",
+                        "transfer_minutes": null,
+                        "walk_minutes": null
+                      }
+                    ],
+                    "subject": [
+                      "p1",
+                      "p2",
+                      "p3"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "rain_plan": null,
+            "sunset": null,
+            "title": "Oslo — art and an agreed café"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "path": "status",
+          "equals": "proposed"
+        }
+      ]
+    },
+    {
+      "tool": "commit",
+      "args": {
+        "draft_id": {
+          "$from": 4,
+          "path": "draft_id"
+        },
+        "accept_unverified": true
+      },
+      "expect": [
+        {
+          "path": "number",
+          "equals": 3
+        }
+      ]
+    },
+    {
+      "tool": "turn",
+      "args": {
+        "text": "撤回",
+        "scenario": "replan",
+        "speaker": "p1"
+      },
+      "expect": [
+        {
+          "path": "undo.restore_version",
+          "equals": 1
+        },
+        {
+          "path": "undo.done",
+          "equals": true
+        },
+        {
+          "path": "undo.version",
+          "equals": 4
+        },
+        {
+          "path": "undo.taken_back.*.text",
+          "includes": "第一天晚饭几点：19:00"
+        }
+      ]
+    },
+    {
+      "tool": "propose",
+      "args": {
+        "ctx_id": {
+          "$from": 6,
+          "path": "ctx_id"
+        },
+        "restore_version": {
+          "$from": 6,
+          "path": "undo.restore_version"
+        }
+      },
+      "refused": "Stale version"
+    },
+    {
+      "tool": "commit",
+      "args": {
+        "draft_id": {
+          "$from": 7,
+          "path": "draft_id"
+        },
+        "accept_unverified": true
+      },
+      "not_sent": "step 7 was refused, so the client had no draft_id"
+    }
+  ],
+  "after": [
+    {
+      "tool": "state",
+      "args": {
+        "view": "current"
+      },
+      "expect": [
+        {
+          "path": "number",
+          "equals": 4
+        }
+      ]
+    },
+    {
+      "tool": "state",
+      "args": {
+        "view": "day",
+        "date": "2030-06-10"
+      },
+      "expect": [
+        {
+          "path": "json.plans.*.tracks.*.blocks.id=d1-dinner.start",
+          "equals": [
+            "17:00"
+          ]
+        }
+      ]
+    },
+    {
+      "tool": "state",
+      "args": {
+        "view": "decisions"
+      },
+      "expect": [
+        {
+          "path": "decisions.question=第一天晚饭几点.status",
+          "equals": "superseded"
+        }
+      ]
+    }
+  ]
+}
