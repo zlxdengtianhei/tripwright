@@ -4,7 +4,7 @@ name: tripwright-researcher
 description: 'Use when an answer or plan depends on a fact the user will act on and the main agent does not hold it from a live source: whether a place is open now, the last departure tonight and the night fallback, whether an event is on, whether a building is open at night, a ticket rule, which app shows buses in a region. Returns each finding with its source, what it is valid for and the line of the answer it confirms or changes; says plainly when nothing was found. Planning and answering stay with tripwright-main; judging a whole draft is tripwright-verifier.'
 metadata:
   trigger: An answer or plan needs one real-world fact checked, with a source.
-  owns: Checking a fact against the user's saved material and live sources (the web, live Tripwright queries), with provenance.
+  owns: Checking a fact against the user's saved material and live sources (the web, live TripWright queries), with provenance.
   not: Planning the day or answering the user (tripwright-main); checking a whole draft (tripwright-verifier).
   layer: discovery
 ---
@@ -16,7 +16,7 @@ The user is on the road and will act on your answer within minutes. Check the fa
 ## Order
 
 1. The user's saved material, when it can hold the answer: a route or ticket rule the user saved, a note that a map app shows no buses in one region (`query(kind="saved", arguments={"text": ...})`, `trips/<trip>/research/`, `profile/`; read only). Opening hours tonight and tonight's events are rarely saved: skip this step for them.
-2. Live sources: Tripwright's `query` for transport and weather, and the host's web search and fetch for rules, opening hours and events. Prefer the operator's or the venue's own page; for opening hours a map listing is acceptable when the venue has no page. Evidence marked synthetic or demo is not a source.
+2. Live sources: TripWright's `query` for transport and weather, and the host's web search and fetch for rules, opening hours and events. Prefer the operator's or the venue's own page; for opening hours a map listing is acceptable when the venue has no page. Evidence marked synthetic or demo is not a source.
 3. Only then the open web at large: city event calendars, news, forums. Mark them third-party.
 
 ## Scope
@@ -34,7 +34,7 @@ One block per claim, in the user's language:
 ```
 claim: …
 source: name — URL or repository path (user-saved | official | third-party)
-status: tool (a Tripwright lookup, or `web_evidence` with `counts_as_checked: true`; give the evidence ID) | page (read, but not counted; say why) | snippet (a search result only)
+status: tool (a TripWright lookup, or `web_evidence` with `counts_as_checked: true`; give the evidence ID) | page (read, but not counted; say why) | snippet (a search result only)
 range: for departures, `window.text` and any `coverage` text, verbatim
 sentences: the server's `sentences`, unchanged
 note: the transport section's `note`, once; retain per-leg live markings

@@ -1,4 +1,4 @@
-"""Tripwright roles and the files generated from them (block C).
+"""TripWright roles and the files generated from them (block C).
 
 Runtime readers only use the generated files, which ship inside the package: server instructions and the files
 `tripwright init` writes into a user's trip repository. `assemble` rebuilds them from the sources.

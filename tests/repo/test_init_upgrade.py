@@ -1,4 +1,4 @@
-"""Upgrade removes retired Tripwright host files without touching the repository owner's files."""
+"""Upgrade removes retired TripWright host files without touching the repository owner's files."""
 from __future__ import annotations
 
 from fnmatch import fnmatch

@@ -2,7 +2,7 @@
 
 [English](transit-sources.md)
 
-**简单说。** Tripwright 的时刻表来自 [Transitous](https://transitous.org/)。某个地区 Transitous 没有数据，或者有数据但没有实时，你可以在 Tripwright 旁边自己跑一个 [MOTIS](https://github.com/motis-project/motis)（Transitous 用的就是它），喂这个地区的 GTFS 时刻表，有 GTFS-RT 实时数据就一起喂，再用一个设置告诉 Tripwright 它在哪。之后两端都在这个地区里的查询走你的服务器，别的照旧走 Transitous。不配，什么都不变。
+**简单说。** TripWright 的时刻表来自 [Transitous](https://transitous.org/)。某个地区 Transitous 没有数据，或者有数据但没有实时，你可以在 TripWright 旁边自己跑一个 [MOTIS](https://github.com/motis-project/motis)（Transitous 用的就是它），喂这个地区的 GTFS 时刻表，有 GTFS-RT 实时数据就一起喂，再用一个设置告诉 TripWright 它在哪。之后两端都在这个地区里的查询走你的服务器，别的照旧走 Transitous。不配，什么都不变。
 
 做计划时碰到没接实时源的地区，助手会说一次，问你要不要配，并附上本页链接。你说不配，这趟就不再问。
 
@@ -35,13 +35,13 @@ key 和合同归你。助手不能替你申请、签约或付款。
 
 ## 2. 三条接法
 
-1. **交给 Transitous**（对所有人最好，对你最慢）。Transitous 的源放在 [public-transport/transitous](https://github.com/public-transport/transitous) 仓里，一个地区一份 JSON（`feeds/<ISO 代码>.json`，例：`feeds/at.json`）。加一条（时刻表写 `"type": "http"` 和 GTFS 地址；实时写 `"type": "url"`、`"spec": "gtfs-rt"`），开 PR；仓里的检查会抓取并测这个源，也可以先用 `./src/fetch.py feeds/<代码>.json` 只试一个地区（[做法](https://transitous.org/doc)）。维护者收下之后，所有 Tripwright 都能用，你的部署不用改。文档没写审核要多久（**没测**）。两条限制：要 key 的源，key 要先加密给维护者（`AGE-ENCRYPTED:`，[做法](https://github.com/public-transport/transitous/blob/main/docs/docs/index.md#private-api-keys)）才能加进去，之后 Transitous 拿这个 key 给所有人用，先核 key 的条款允不允许；Transitous 自己的条款对所有用它的人都适用：客户端要开源、带能识别的 User-Agent、不许商用（[API 条款](https://transitous.org/api)）。同时把源加进 [Mobility Database](https://github.com/MobilityData/mobility-database-catalogs)（表单或 PR，它的 README 说一周内回应），别的项目也找得到。
+1. **交给 Transitous**（对所有人最好，对你最慢）。Transitous 的源放在 [public-transport/transitous](https://github.com/public-transport/transitous) 仓里，一个地区一份 JSON（`feeds/<ISO 代码>.json`，例：`feeds/at.json`）。加一条（时刻表写 `"type": "http"` 和 GTFS 地址；实时写 `"type": "url"`、`"spec": "gtfs-rt"`），开 PR；仓里的检查会抓取并测这个源，也可以先用 `./src/fetch.py feeds/<代码>.json` 只试一个地区（[做法](https://transitous.org/doc)）。维护者收下之后，所有 TripWright 都能用，你的部署不用改。文档没写审核要多久（**没测**）。两条限制：要 key 的源，key 要先加密给维护者（`AGE-ENCRYPTED:`，[做法](https://github.com/public-transport/transitous/blob/main/docs/docs/index.md#private-api-keys)）才能加进去，之后 Transitous 拿这个 key 给所有人用，先核 key 的条款允不允许；Transitous 自己的条款对所有用它的人都适用：客户端要开源、带能识别的 User-Agent、不许商用（[API 条款](https://transitous.org/api)）。同时把源加进 [Mobility Database](https://github.com/MobilityData/mobility-database-catalogs)（表单或 PR，它的 README 说一周内回应），别的项目也找得到。
 2. **自己跑 MOTIS**（这里的缺省做法，见第 3—5 节）。当天就能用，只对你的部署有效。
-3. **接地区自己的 API**（例：奥地利的 Wiener Linien、VAO；没有开放 GTFS 的地区，地图厂商的接口）。就我们查到的，它们的实时是各自的接口，不是 MOTIS 读得了的 GTFS-RT；每个都要在 Tripwright 里另写适配器，有的还要用你的名义签约或实名。现在还没有这类适配器。以你名义申请、条款只许你自己用的 key，留在你自己的服务器上。
+3. **接地区自己的 API**（例：奥地利的 Wiener Linien、VAO；没有开放 GTFS 的地区，地图厂商的接口）。就我们查到的，它们的实时是各自的接口，不是 MOTIS 读得了的 GTFS-RT；每个都要在 TripWright 里另写适配器，有的还要用你的名义签约或实名。现在还没有这类适配器。以你名义申请、条款只许你自己用的 key，留在你自己的服务器上。
 
 ## 3. 准备文件
 
-所有东西放一个文件夹 `transit/`，和放 Tripwright 数据的文件夹并排（compose 部署：从 `deploy/` 看是 `../../transit`）。里面放：
+所有东西放一个文件夹 `transit/`，和放 TripWright 数据的文件夹并排（compose 部署：从 `deploy/` 看是 `../../transit`）。里面放：
 
 - 这个地区的 GTFS zip；
 - 覆盖这个地区的 OpenStreetMap 区域文件，`.osm.pbf` 格式（[Geofabrik](https://download.geofabrik.de/) 按国家和地区提供；MOTIS 用它查站名、算步行）；
@@ -96,7 +96,7 @@ docker compose run --rm --no-deps --user "$(id -u):$(id -g)" motis /motis import
 docker compose up -d
 ```
 
-[deploy/compose.transit.yaml](../deploy/compose.transit.yaml) 在私有网络上加一个 `motis` 服务，把 `../../transit` 只读挂进 Tripwright，并设好 `TRIPWRIGHT_TRANSIT_SOURCES=/transit/sources.yaml`。要关掉：删掉 `COMPOSE_FILE` 那一行，跑 `docker compose up -d --remove-orphans`（`motis` 容器也一起停掉）。
+[deploy/compose.transit.yaml](../deploy/compose.transit.yaml) 在私有网络上加一个 `motis` 服务，把 `../../transit` 只读挂进 TripWright，并设好 `TRIPWRIGHT_TRANSIT_SOURCES=/transit/sources.yaml`。要关掉：删掉 `COMPOSE_FILE` 那一行，跑 `docker compose up -d --remove-orphans`（`motis` 容器也一起停掉）。
 
 ### 用 SETUP.md 里 `docker run` 部署的
 
@@ -133,7 +133,7 @@ avv (http://motis:8080/api): Aachen, Bushof [avv_000000100101] -> Aachen West [a
   09:13 -> 09:20  bus 33  (timetable)
 ```
 
-再经 Tripwright 本身查一次；结果里的 `evidence.source`，走你的服务器是 `motis:<id>`，否则是 `transitous`：
+再经 TripWright 本身查一次；结果里的 `evidence.source`，走你的服务器是 `motis:<id>`，否则是 `transitous`：
 
 ```bash
 docker exec -e HOME=/tmp tripwright tripwright query transit --from "Aachen Bushof" --to "Aachen West" \
@@ -144,4 +144,4 @@ docker exec -e HOME=/tmp tripwright tripwright query transit --from "Aachen Bush
 
 ## 6. 找不到源的时候
 
-那就没有可接的。有印刷版时刻表的，可以自己把它录成 GTFS，照第 3 节喂进去（**没测**）。Tripwright 在 Transitous 有数据的地方照常回答，说明结果是不是只按时刻表，回答末尾给出查实时晚点、站台和停运的当地 App。查不到是“没查到”，不是“没车”。
+那就没有可接的。有印刷版时刻表的，可以自己把它录成 GTFS，照第 3 节喂进去（**没测**）。TripWright 在 Transitous 有数据的地方照常回答，说明结果是不是只按时刻表，回答末尾给出查实时晚点、站台和停运的当地 App。查不到是“没查到”，不是“没车”。

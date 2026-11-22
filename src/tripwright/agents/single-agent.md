@@ -1,6 +1,6 @@
 # One agent, the roles in turn
 
-Tripwright runs three roles: the main agent answers and records what the message states, `tripwright-researcher` looks things up and `tripwright-verifier` checks a draft. When your host cannot dispatch subagents (a chat app, or a host without workers), you do each role yourself, one after another, in the order below. The service returns this page as `state(view="role", role="single")`.
+TripWright runs three roles: the main agent answers and records what the message states, `tripwright-researcher` looks things up and `tripwright-verifier` checks a draft. When your host cannot dispatch subagents (a chat app, or a host without workers), you do each role yourself, one after another, in the order below. The service returns this page as `state(view="role", role="single")`.
 
 How to do a role:
 - Read its steps once in the conversation with `state(view="role", role="<role>")` (in a repository: `skills/<role>/SKILL.md`). Read them again after the conversation was compacted. They are the same steps a subagent follows.

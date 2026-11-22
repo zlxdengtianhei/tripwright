@@ -1,5 +1,5 @@
 # MOTIS settings for one region (MOTIS 2.11.4): copy to ../../transit/config.yml and change the two file names.
-# Only what Tripwright asks MOTIS for is on: stop names (geocoding), walking (street_routing) and the timetable.
+# Only what TripWright asks MOTIS for is on: stop names (geocoding), walking (street_routing) and the timetable.
 server:
   port: 8080
 osm: region.osm.pbf

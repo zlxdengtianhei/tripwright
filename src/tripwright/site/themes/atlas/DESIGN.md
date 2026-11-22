@@ -1,7 +1,7 @@
 ---
 version: alpha
-name: Tripwright·图册
-description: Tripwright 分享页（服务按一次行程生成的首页与日页）的设计取值。方向“图册”：行程是在地上走出来的，图与清单用同一套图钉编号。
+name: TripWright·图册
+description: TripWright 分享页（服务按一次行程生成的首页与日页）的设计取值。方向“图册”：行程是在地上走出来的，图与清单用同一套图钉编号。
 colors:
   ground: "#F4F5F3"
   paper: "#FFFFFF"
@@ -113,7 +113,7 @@ components:
     textColor: "{colors.ink}"
 ---
 
-# Tripwright·图册
+# TripWright·图册
 
 > 状态：现行（web_ui_spec D-14 选定“图册”，11-13；取值与“修订记号”“地图”两节对齐定稿第 1 版，`wus-twf` 11-13 03:52 交回）。用在服务生成的分享页：首页、每天一页、实录页。开头的取值表是准的：程序把它导出成样式变量（`tripwright.site.theme`），样式表只经变量取值；表里没有的颜色、字号、圆角、间距，不要用。
 

@@ -1,8 +1,8 @@
 ---
 name: tripwright-verifier
-title: Independent deep check of a Tripwright draft
+title: Independent deep check of a TripWright draft
 description: >-
-  Use when Tripwright's `flow.dispatch` names tripwright-verifier: while planning, the main agent proposed a draft
+  Use when TripWright's `flow.dispatch` names tripwright-verifier: while planning, the main agent proposed a draft
   that changes the plan, and it is checked from independent input before it is committed and shown as the checked plan. Returns a verdict (passed, conflict or incomplete), one line per check and a
   disposition for every required item; a stale job returns only “已过期，需重算”. Changing or committing the plan
   stays with tripwright-main; an open question of fact goes to tripwright-researcher.

@@ -1,4 +1,4 @@
-# Deploy Tripwright: reference
+# Deploy TripWright: reference
 
 A first deployment belongs in [SETUP.md](SETUP.md), a short runbook for the user's agent. Add clients with [CLIENTS.md](CLIENTS.md). This page is the Docker and configuration reference; [RAILWAY.md](RAILWAY.md) covers Railway-specific settings and costs.
 
@@ -6,7 +6,7 @@ The service runs no model and needs no model key: it keeps the words, the ledger
 
 ## Data and repository
 
-Run one instance with one persistent volume at `/data`. Tripwright keeps its state under `/data/remote`:
+Run one instance with one persistent volume at `/data`. TripWright keeps its state under `/data/remote`:
 
 - `url-key`: the generated connector credential, mode 600;
 - `tenants/personal/mirror`: the local trip repository;
@@ -51,7 +51,7 @@ The image starts as root so its entrypoint can give a named or platform volume t
 
 Only the complete `/mcp/<key>` address opens MCP. Missing and wrong keys both return 404. Host headers are not compared with `TRIPWRIGHT_PUBLIC_URL`, so localhost and tunnel addresses work together. The key never appears in `/healthz`, `/readyz` or the service log; `tripwright address` is the command that deliberately prints it.
 
-Cloudflare documents no SSE support on Quick Tunnels. Tripwright returns JSON, and an MCP `initialize` returned 200 through a Quick Tunnel in the maintainer's test; their changing addresses still make Funnel or Railway the stable choices.
+Cloudflare documents no SSE support on Quick Tunnels. TripWright returns JSON, and an MCP `initialize` returned 200 through a Quick Tunnel in the maintainer's test; their changing addresses still make Funnel or Railway the stable choices.
 
 The address is a password. Paste it only into the user's own AI apps. Replace a leaked key with the one-line rotation command in SETUP, then update each client.
 
@@ -126,6 +126,6 @@ ssh <server> 'docker run --rm --user 10001:10001 --env-file /opt/tripwright/trip
 | `branch` | Select the branch that exists, or connect an empty remote and let the service push it. |
 | `network` | Check outbound access. GitHub uses port 443 by default. |
 | `key_file` | Keep `ssh/deploy_key` private and mode 600; use `repo key` rather than a private-key variable. |
-| `config` | Check that the remote is empty or a Tripwright repository. `repo connect` protects two nonempty trip histories. |
+| `config` | Check that the remote is empty or a TripWright repository. `repo connect` protects two nonempty trip histories. |
 | `protected` | Let the deploy key push the branch. |
 | `behind`, `commit`, `other` | Read `hint` and the log; writes stay pending while replay or local commit recovery continues. |

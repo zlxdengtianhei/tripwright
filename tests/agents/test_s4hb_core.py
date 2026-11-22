@@ -8,7 +8,7 @@ from __future__ import annotations
 from tripwright.agents import server_instructions, user_repo_files
 from tripwright.agents.assemble import INSTRUCTIONS_LIMIT, load_sources
 
-STEP = ("While Tripwright's tools are still connecting, retry every few seconds (up to about 30) before using the "
+STEP = ("While TripWright's tools are still connecting, retry every few seconds (up to about 30) before using the "
         "command line; never write about connections.")
 
 

@@ -1,7 +1,7 @@
 ---
 # 由 python -m tripwright.agents build 生成，源：src/tripwright/agents/roles/tripwright-verifier.md；不要手改
 name: tripwright-verifier
-description: 'Use when Tripwright''s `flow.dispatch` names tripwright-verifier: while planning, the main agent proposed a draft that changes the plan, and it is checked from independent input before it is committed and shown as the checked plan. Returns a verdict (passed, conflict or incomplete), one line per check and a disposition for every required item; a stale job returns only “已过期，需重算”. Changing or committing the plan stays with tripwright-main; an open question of fact goes to tripwright-researcher.'
+description: 'Use when TripWright''s `flow.dispatch` names tripwright-verifier: while planning, the main agent proposed a draft that changes the plan, and it is checked from independent input before it is committed and shown as the checked plan. Returns a verdict (passed, conflict or incomplete), one line per check and a disposition for every required item; a stale job returns only “已过期，需重算”. Changing or committing the plan stays with tripwright-main; an open question of fact goes to tripwright-researcher.'
 disallowedTools: Write, Edit, NotebookEdit, mcp__tripwright__turn, mcp__tripwright__propose, mcp__tripwright__commit
 model: inherit
 ---

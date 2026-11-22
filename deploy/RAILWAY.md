@@ -1,4 +1,4 @@
-# Deploy Tripwright on Railway
+# Deploy TripWright on Railway
 
 Use Railway when no computer stays on. The agent's short CLI runbook is [SETUP.md](SETUP.md); this page is the dashboard and settings reference. With an always-on computer, [Docker](README.md) is simpler.
 
@@ -15,7 +15,7 @@ Only the user creates the Railway account, confirms `railway login`, verifies or
 
 ## One-click template
 
-The **Deploy on Railway** button in the [README](../README.md) opens the Tripwright template. It creates one service built from this repository's `main` branch, a volume at `/data`, a Railway domain and the `/healthz` health check, and it sets two variables:
+The **Deploy on Railway** button in the [README](../README.md) opens the TripWright template. It creates one service built from this repository's `main` branch, a volume at `/data`, a Railway domain and the `/healthz` health check, and it sets two variables:
 
 | Variable | Value at deploy time |
 | --- | --- |
@@ -30,7 +30,7 @@ To change the key later, set a new `TRIPWRIGHT_URL_KEY` (at least 32 letters, di
 
 ## Dashboard sequence
 
-1. **New Project → Deploy from GitHub repo** and select Tripwright or the user's fork.
+1. **New Project → Deploy from GitHub repo** and select TripWright or the user's fork.
 2. **Attach Volume** with mount path `/data`.
 3. **Settings → Networking → Generate Domain**.
 4. Set **Settings → Deploy → Healthcheck Path** to `/healthz`.

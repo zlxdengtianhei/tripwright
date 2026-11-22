@@ -202,9 +202,9 @@ class Opening:
 
     def get(self) -> "Tripwright":
         if not self.done.wait(self.wait):
-            raise ValueError(f"Tripwright is still opening the trip repository after {self.wait:.0f} s; try again")
+            raise ValueError(f"TripWright is still opening the trip repository after {self.wait:.0f} s; try again")
         if self.service is None:
-            raise ValueError(f"Tripwright could not open the trip repository, so its tools cannot answer in this session: {self.error}")
+            raise ValueError(f"TripWright could not open the trip repository, so its tools cannot answer in this session: {self.error}")
         return self.service
 
     async def get_async(self) -> "Tripwright":
@@ -239,7 +239,7 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
     # format and asks to run its flow first" (2026-11-12): turn's description then repeated the six chat rules, and
     # commit's told the model when it may set accept_unverified. What a host does for a message is said in each
     # result (next, flow), and what must hold is checked by the service (commit's refusals).
-    server = MCPServer("tripwright", title="Tripwright", version=version("tripwright"), instructions=server_instructions(), lifespan=lifespan)
+    server = MCPServer("tripwright", title="TripWright", version=version("tripwright"), instructions=server_instructions(), lifespan=lifespan)
 
     def identity() -> str:
         owner = request_user.get() or local_user

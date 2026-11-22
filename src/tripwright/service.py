@@ -945,7 +945,7 @@ class Tripwright:
 
     def draft_first_part(self, owner: str, text: str, *, points: list | None = None, speaker: str | None = None,
                          subject: list[str] | None = None) -> dict:
-        """turn's first part without turn, for a host whose Tripwright tools are down (A16, quality judge 8, off_r1: the
+        """turn's first part without turn, for a host whose TripWright tools are down (A16, quality judge 8, off_r1: the
         host wrote its own from the plan's files, with the stored “最晚 21:50 出门” and “23:53 末班” on its first line). It
         reads the trip and records nothing: the message is not received, no context is kept. Returns the clock, the
         draft (`first_part`, as turn's) and what to do with it (`next`)."""
