@@ -18,6 +18,7 @@ from tripwright.events import Events
 from tripwright.jobs import Jobs
 from tripwright.ledger import Carry, Changes, Fact, Item, Ledger, PendingCheck, Proposal, Relation
 from tripwright.query import QueryRouter, checked_arguments, lookup_failed
+from tripwright import standing
 from tripwright.render import first_part
 from tripwright.render.opening import material as opening_material
 from tripwright.repo import files as repo_files, memory, notices, replay
@@ -590,6 +591,20 @@ class Tripwright:
                                                             language=language)
                     except ValueError as error:
                         refused_record = str(error)
+                # trip60: a standing rule the user says in passing is recorded with the user's words even when the host
+                # records none of it (standing.py); the reply says what was recorded, and an undo takes it back.
+                own = [item.get("quote") for item in self.store.all("items", owner)
+                       if (item.get("source") or {}).get("event") == event_id]
+                said = standing.items(text, event_id, recorded_quotes=own)
+                if said:
+                    try:
+                        with self.store.attempt():
+                            _, kept = self._record(owner, dict(items=said), event_id, language=language)
+                        recorded = dict(recorded, changed=[*recorded["changed"], *kept["changed"]],
+                                        standing=[dict(id=item["id"], quote=item["quote"]) for item in self.store.all("items", owner)
+                                                  if item["id"] in kept["changed"] and item["key"].startswith(standing.KEY)])
+                    except ValueError:
+                        pass  # the ledger refused it (e.g. a stable entry): the host's own record path still applies
                 if refused_record:
                     recorded = dict(recorded, not_recorded=[*recorded["not_recorded"],
                                                             self._refused_record(record, refused_record, event_id, language=language)])
@@ -693,6 +708,10 @@ class Tripwright:
                 notes = self._first_notes(considered, asked, recorded, language=language, scenario=scenario,
                                           options=bool(possible or recorded.get("crowding")))
                 lead += (" " if language == "en" else "") + notes
+                if recorded.get("standing"):
+                    quotes = "；".join(f"「{entry['quote']}」" for entry in recorded["standing"])
+                    lead += (f" End the first message with one line: recorded as a standing rule: {quotes} (say “undo” to take it back)."
+                             if language == "en" else f"第一条末尾加一行：记下了，以后照做：{quotes}（不对就回“撤回”）。")
                 if language == "en":
                     lead = REPLY_IN_ENGLISH + " " + lead
                 response = dict(next=lead, first_part=first, opening_material=opening, second_part_title=second_title,
