@@ -83,7 +83,9 @@ def test_the_main_skill_did_not_grow(outputs):
     # any lookup and the answer comes before the save (baseline: 13 of 15 waited 4 to 19 minutes for their first text)
     # 2026-11-19 (round 4 review 3): 13,882 bytes, that short message must give one thing to act on, plan times are
     # archived and unchecked, the first message holds one part only, and every message is the answer itself
-    assert len(outputs[MAIN].encode()) <= 13882
+    # 2026-11-24: 14,166 bytes, a hit's `snippet` line is copied word for word with its source (user Q20; the rule had
+    # been written only into fragments that no role includes)
+    assert len(outputs[MAIN].encode()) <= 14166
 
 
 def test_sources_load_the_core_from_the_checkout():

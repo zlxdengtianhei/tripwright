@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import subprocess
 import time
 from copy import deepcopy
@@ -505,6 +506,26 @@ def test_a_screenshot_that_names_only_its_number_keeps_the_number(tmp_path, monk
         [hit] = [entry for entry in saved(service, "Gosau 民宿 早餐") if entry["found"] == "said"]
         assert hit["source"] == "你发的截图第 3 张的转写（哪天没记下）"
         assert hit["cited_as"].startswith("你发的截图第 3 张的转写（哪天没记下），01-10 收到，")
+    finally:
+        service.jobs.stop()
+        store.close()
+
+
+def test_an_english_trip_cites_a_screenshot_in_english_only(tmp_path, monkeypatch):
+    """judge2-twsnip-d (11-23): an English trip got "…transcribed，01-10 received，… 第 12 行", the Chinese comma and
+    line word mixed into the English source line."""
+    root, repo, store, service, plan = repo_with_trip(tmp_path, monkeypatch=monkeypatch)
+    try:
+        os.environ["TRIPWRIGHT_NOW"] = "2032-01-10T10:32:00+01:00"
+        os.environ["TRIPWRIGHT_NOW_SET_AT"] = str(time.time())
+        service.language = "en"
+        service.turn(OWNER, "Gosau guesthouse, 3 nights, breakfast included, check-in after 15:00", "shot",
+                     nature="screenshot_extraction", native_ref="screenshot")
+        service.committer.flush()
+        [hit] = [entry for entry in saved(service, "Gosau guesthouse breakfast") if entry["found"] == "said"]
+        assert hit["cited_as"].startswith("your screenshot (day not recorded), transcribed, ")
+        assert hit["cited_as"].endswith(f"{hit['path']} line {hit['snippet_line']}")
+        assert not re.search(r"[，第行收到]", hit["cited_as"])
     finally:
         service.jobs.stop()
         store.close()

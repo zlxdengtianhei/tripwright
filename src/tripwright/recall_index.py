@@ -569,5 +569,10 @@ def _add_snippets(index: "Index", result: dict, candidates: list[dict], query: s
         if found:
             hit["snippet"], hit["snippet_line"], hit["snippet_exact"] = found
             if origin:
-                where = f"{entry['path']} 第 {found[1]} 行" if entry.get("path") else f"第 {found[1]} 行"
-                hit["cited_as"] = "，".join(part for part in (entry["source"], received, where) if part)
+                # judge2-twsnip-d (11-23): an English trip got "…transcribed，01-10 received，… 第 12 行"
+                if language == "en":
+                    where = f"{entry['path']} line {found[1]}" if entry.get("path") else f"line {found[1]}"
+                else:
+                    where = f"{entry['path']} 第 {found[1]} 行" if entry.get("path") else f"第 {found[1]} 行"
+                hit["cited_as"] = (", " if language == "en" else "，").join(
+                    part for part in (entry["source"], received, where) if part)
