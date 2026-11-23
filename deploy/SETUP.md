@@ -1,6 +1,6 @@
-# Set up Tripwright: instructions for the user's agent
+# Set up TripWright: instructions for the user's agent
 
-You are the agent setting up a personal Tripwright service. Do the work for the user; do not make them edit configuration files or move repositories by hand. The service has one login credential: the key in its MCP address.
+You are the agent setting up a personal TripWright service. Do the work for the user; do not make them edit configuration files or move repositories by hand. The service has one login credential: the key in its MCP address.
 
 ## 1. Ask two questions and choose
 
@@ -99,7 +99,7 @@ Check `/readyz` for `"storage":"remote"`. Other SSH Git hosts work too; set `TRI
 
 Public trip pages need GitHub: this guide publishes them through a public GitHub repository with GitHub Pages, and the service makes no public page until this step is done. A user who wants a page to share must connect it; the private repository of section 3 is not needed for it.
 
-As in section 3, `gh` must be logged in (`gh auth status`); if it is not, ask the user to run `gh auth login`. Ask the user first: this makes a public repository in their account that holds only the trip pages (it is not the private trip repository and not the Tripwright code repository), anyone with a page's link can read that trip page, and after this step every trip gets a page unless the user turns it off. The public repository receives only the trip pages, after the service's privacy scan; the trips themselves stay in the private repository, or on the service's volume when there is none. Then create a separate **empty public** repository, add the distinct public-page deploy key, connect, and turn on Pages last. GitHub refuses Pages for an empty repository (“The main branch must exist”), and `share connect` pushes the first commit:
+As in section 3, `gh` must be logged in (`gh auth status`); if it is not, ask the user to run `gh auth login`. Ask the user first: this makes a public repository in their account that holds only the trip pages (it is not the private trip repository and not the TripWright code repository), anyone with a page's link can read that trip page, and after this step every trip gets a page unless the user turns it off. The public repository receives only the trip pages, after the service's privacy scan; the trips themselves stay in the private repository, or on the service's volume when there is none. Then create a separate **empty public** repository, add the distinct public-page deploy key, connect, and turn on Pages last. GitHub refuses Pages for an empty repository (“The main branch must exist”), and `share connect` pushes the first commit:
 ```bash
 gh repo create <owner>/tripwright-pages --public
 docker exec tripwright tripwright share key | gh repo deploy-key add - --allow-write -t tripwright-pages -R <owner>/tripwright-pages
@@ -115,7 +115,7 @@ The printed address is a password: anyone holding it can read and change the tri
 
 Follow [CLIENTS.md](CLIENTS.md) for each app named in step 1. The agent configures coding clients. The user clicks **Add** or **Create** in Claude and ChatGPT. Authentication is **none**; the key is already in the address.
 
-Ask each client: “Use tripwright: which trips are stored?” Confirm that it calls a Tripwright tool.
+Ask each client: “Use tripwright: which trips are stored?” Confirm that it calls a TripWright tool.
 
 ## 5. Later
 
@@ -133,7 +133,7 @@ Ask each client: “Use tripwright: which trips are stored?” Confirm that it c
 | `/mcp` or a wrong-key URL returns 404 | Print a fresh address with `tripwright address`; do not add headers or change Host settings. |
 | `/readyz` is not ready | Read `kind` and `hint`; show them to the user and apply the matching row below. |
 | `auth` or `key_file` | Check the repository address and that the **public** key from `repo key` has write access. Never paste the private key into a variable. |
-| `branch` or `config` | Check the branch. Use an empty remote or a Tripwright repository; `repo connect` refuses destructive conflicts. |
+| `branch` or `config` | Check the branch. Use an empty remote or a TripWright repository; `repo connect` refuses destructive conflicts. |
 | `network` | Check outbound networking; GitHub SSH uses port 443. A limited Railway trial may require user verification. |
 | `protected` or `blocked` | Allow the deploy key to push the branch; saved writes retry after the fix. |
 | A changed tunnel address stops working elsewhere | Run `address --base <new-origin>` and update clients; the service itself needs no restart. |

@@ -186,7 +186,7 @@ def read_points(arguments) -> tuple[list[dict] | None, str]:
 
 
 def run_first_part(arguments) -> int:
-    """turn's first part for a host whose Tripwright tools are down (A16): the draft from the stored trip as JSON on
+    """turn's first part for a host whose TripWright tools are down (A16): the draft from the stored trip as JSON on
     stdout (`first_part.text` is what to send, `steps` and `next` what to do). Records nothing.
 
     Nothing else is printed (S4a). The text used to go to stderr as well: in the self replays without MCP (a17b, a16,
@@ -300,7 +300,7 @@ def run_share(arguments) -> int:
 
 
 def server_logging():
-    """One line per event on stderr for the operator (the container log): Tripwright's own at INFO, libraries' at
+    """One line per event on stderr for the operator (the container log): TripWright's own at INFO, libraries' at
     WARNING. Nothing logged carries a token, key or connector URL."""
     import logging
 

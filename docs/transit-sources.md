@@ -2,7 +2,7 @@
 
 [中文](transit-sources.zh-CN.md)
 
-**Short version.** Tripwright gets its timetables from [Transitous](https://transitous.org/). Where Transitous has no data for a region, or has it without real time, you can run your own [MOTIS](https://github.com/motis-project/motis) server (the engine Transitous runs) next to Tripwright, feed it that region's GTFS timetable and, if there is one, its GTFS-RT real-time feed, and tell Tripwright where it is with one setting. Searches with both ends inside that region then go to your server; everything else still goes to Transitous. Nothing changes until you set it up.
+**Short version.** TripWright gets its timetables from [Transitous](https://transitous.org/). Where Transitous has no data for a region, or has it without real time, you can run your own [MOTIS](https://github.com/motis-project/motis) server (the engine Transitous runs) next to TripWright, feed it that region's GTFS timetable and, if there is one, its GTFS-RT real-time feed, and tell TripWright where it is with one setting. Searches with both ends inside that region then go to your server; everything else still goes to Transitous. Nothing changes until you set it up.
 
 When a plan reaches a region without a real-time source, the assistant tells you so once and asks whether you want one, with a link to this page. Say no and it is not asked again on that trip.
 
@@ -35,13 +35,13 @@ The key and any contract belong to you. The assistant cannot apply, sign or pay 
 
 ## 2. Three ways to connect it
 
-1. **Give it to Transitous** (best for everyone, slowest for you). Transitous lists its sources in the [public-transport/transitous](https://github.com/public-transport/transitous) repository, one JSON file per region (`feeds/<ISO code>.json`, for example `feeds/at.json`). Add an entry (`"type": "http"` with the GTFS address, or `"type": "url"` with `"spec": "gtfs-rt"` for real time) and open a pull request; its checks fetch and test the feed, and you can try one region first with `./src/fetch.py feeds/<code>.json` ([how](https://transitous.org/doc)). Once the maintainers accept it, every Tripwright gets it with no change to your deployment. Their documentation names no review time (**not tested**). Two limits: a source that needs a key can go in only with the key encrypted for the maintainers (`AGE-ENCRYPTED:`, [how](https://github.com/public-transport/transitous/blob/main/docs/docs/index.md#private-api-keys)), and Transitous then uses that key for everyone, so check that the key's terms allow it; and Transitous's own terms apply to everyone who uses it: open-source clients, an identifying User-Agent, no commercial use ([API terms](https://transitous.org/api)). Adding the feed to [Mobility Database](https://github.com/MobilityData/mobility-database-catalogs) as well (a form or a pull request, answered within a week, says its README) helps other projects find it.
+1. **Give it to Transitous** (best for everyone, slowest for you). Transitous lists its sources in the [public-transport/transitous](https://github.com/public-transport/transitous) repository, one JSON file per region (`feeds/<ISO code>.json`, for example `feeds/at.json`). Add an entry (`"type": "http"` with the GTFS address, or `"type": "url"` with `"spec": "gtfs-rt"` for real time) and open a pull request; its checks fetch and test the feed, and you can try one region first with `./src/fetch.py feeds/<code>.json` ([how](https://transitous.org/doc)). Once the maintainers accept it, every TripWright gets it with no change to your deployment. Their documentation names no review time (**not tested**). Two limits: a source that needs a key can go in only with the key encrypted for the maintainers (`AGE-ENCRYPTED:`, [how](https://github.com/public-transport/transitous/blob/main/docs/docs/index.md#private-api-keys)), and Transitous then uses that key for everyone, so check that the key's terms allow it; and Transitous's own terms apply to everyone who uses it: open-source clients, an identifying User-Agent, no commercial use ([API terms](https://transitous.org/api)). Adding the feed to [Mobility Database](https://github.com/MobilityData/mobility-database-catalogs) as well (a form or a pull request, answered within a week, says its README) helps other projects find it.
 2. **Run your own MOTIS** (the default here; sections 3–5). Works today, for your deployment only.
-3. **The region's own API** (for example Wiener Linien or VAO in Austria, or a map company's API where there is no open GTFS). Their real-time interfaces are their own APIs, not a GTFS-RT feed MOTIS reads (as far as we found); each needs its own adapter in Tripwright, and some need a contract or a verified identity in your name. No such adapter exists yet. A key in your name whose terms allow only your own use stays on your own server.
+3. **The region's own API** (for example Wiener Linien or VAO in Austria, or a map company's API where there is no open GTFS). Their real-time interfaces are their own APIs, not a GTFS-RT feed MOTIS reads (as far as we found); each needs its own adapter in TripWright, and some need a contract or a verified identity in your name. No such adapter exists yet. A key in your name whose terms allow only your own use stays on your own server.
 
 ## 3. Prepare the files
 
-Make one folder for everything, `transit/`, beside the folder that holds your Tripwright data (for the compose setup: `../../transit` from `deploy/`). Put in it:
+Make one folder for everything, `transit/`, beside the folder that holds your TripWright data (for the compose setup: `../../transit` from `deploy/`). Put in it:
 
 - the region's GTFS zip;
 - an OpenStreetMap extract that covers the region, as `.osm.pbf` ([Geofabrik](https://download.geofabrik.de/) has countries and regions; MOTIS needs it for stop names and walking);
@@ -96,7 +96,7 @@ docker compose run --rm --no-deps --user "$(id -u):$(id -g)" motis /motis import
 docker compose up -d
 ```
 
-[deploy/compose.transit.yaml](../deploy/compose.transit.yaml) adds the `motis` service on the private network, mounts `../../transit` into Tripwright read-only and sets `TRIPWRIGHT_TRANSIT_SOURCES=/transit/sources.yaml`. To switch it off, remove the `COMPOSE_FILE` line and run `docker compose up -d --remove-orphans` (this also stops the `motis` container).
+[deploy/compose.transit.yaml](../deploy/compose.transit.yaml) adds the `motis` service on the private network, mounts `../../transit` into TripWright read-only and sets `TRIPWRIGHT_TRANSIT_SOURCES=/transit/sources.yaml`. To switch it off, remove the `COMPOSE_FILE` line and run `docker compose up -d --remove-orphans` (this also stops the `motis` container).
 
 ### With the `docker run` setup from SETUP.md
 
@@ -133,7 +133,7 @@ avv (http://motis:8080/api): Aachen, Bushof [avv_000000100101] -> Aachen West [a
   09:13 -> 09:20  bus 33  (timetable)
 ```
 
-Then ask through Tripwright itself; the result's `evidence.source` is `motis:<id>` for your server and `transitous` otherwise:
+Then ask through TripWright itself; the result's `evidence.source` is `motis:<id>` for your server and `transitous` otherwise:
 
 ```bash
 docker exec -e HOME=/tmp tripwright tripwright query transit --from "Aachen Bushof" --to "Aachen West" \
@@ -144,4 +144,4 @@ If the check finds no connections: the timetable may not cover that date (MOTIS 
 
 ## 6. When there is no source
 
-Then there is nothing to connect. If a printed timetable exists, you could type it into a GTFS yourself and load it as in section 3 (**not tested**). Tripwright keeps answering from Transitous where it has data, says when a result is timetable only, and ends the answer with the local app to check real-time delays, platforms and disruptions in. An empty result is "not found", never "no service".
+Then there is nothing to connect. If a printed timetable exists, you could type it into a GTFS yourself and load it as in section 3 (**not tested**). TripWright keeps answering from Transitous where it has data, says when a result is timetable only, and ends the answer with the local app to check real-time delays, platforms and disruptions in. An empty result is "not found", never "no service".

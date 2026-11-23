@@ -4,8 +4,8 @@
 
 <p align="center"><strong>English</strong> | <a href="README.zh-CN.md">简体中文</a> | <a href="https://zlxdengtianhei.github.io/tripwright/">Project page</a></p>
 
-<p align="center"><img src="docs/assets/hero.png" alt="Three phone screens of a real 8-day trip page made by tripwright: the route and the list of days; one day's key times and places to go; the same day's transport legs with a map" width="100%"></p>
-<p align="center"><sub>A real 8-day trip (Budapest, Vienna and the Salzkammergut, October 2026), as the page tripwright makes. Names are replaced with codes, and places to stay show only the district.</sub></p>
+<p align="center"><img src="docs/assets/hero.png" alt="Three phone screens of a real 8-day trip page made by TripWright: the route and the list of days; one day's key times and places to go; the same day's transport legs with a map" width="100%"></p>
+<p align="center"><sub>A real 8-day trip (Budapest, Vienna and the Salzkammergut, October 2026), as the page TripWright makes. Names are replaced with codes, and places to stay show only the district.</sub></p>
 
 You deploy your own copy: [three steps](#get-started), or [look at an example trip first](#see-an-example). It also remembers your preferences across chats and records every change. It works with Claude, ChatGPT, Claude Code, Codex and other apps that support MCP (the Model Context Protocol, the open standard that lets AI apps call outside tools).
 
@@ -20,7 +20,7 @@ There is no hosted service and no signup. Each person runs their own copy, for t
 - **A record of every change.** Each accepted change records what changed, who changed it and why. A result computed on an old version cannot overwrite a newer plan. Your trips live in a Git repository that you own.
 - **A trip page for your friends.** After each plan change, the service builds a day-by-day page, scans it for private data and publishes it to a public repository that you choose. This step is optional.
 
-Your assistant's model still writes the answers. The service itself (the Docker container) runs no model and makes no decisions: the app you connect (Claude Code, Claude Cowork, a ChatGPT work mode) runs the agents and their roles. tripwright supplies the memory, the sourced facts and the record.
+Your assistant's model still writes the answers. The service itself (the Docker container) runs no model and makes no decisions: the app you connect (Claude Code, Claude Cowork, a ChatGPT work mode) runs the agents and their roles. TripWright supplies the memory, the sourced facts and the record.
 
 ## How it works
 
@@ -57,7 +57,7 @@ flowchart TD
 sequenceDiagram
     participant U as You
     participant M as Main agent
-    participant S as tripwright
+    participant S as TripWright
     Note over U,S: On the road
     U->>M: I'm at the station. Can I still make the 16:30?
     M->>S: turn (scenario quick)
@@ -82,7 +82,7 @@ Three steps. You need a computer or server that can run Docker, or a Railway acc
 
 1. **Give [deploy/SETUP.md](deploy/SETUP.md) to your coding agent** (Claude Code, Codex or similar). It starts the service with Docker (three commands) or on Railway, and prints your connection address, `https://<your-host>/mcp/<key>`. This address is your only login. Anyone who has it can read and change your trips, so treat it like a password.
 2. **Recommended: connect GitHub.** These are two separate repositories. A private repository keeps the full record of your trips; without it, they are kept only on the server. A public repository holds only the scanned trip pages that you share, and nothing else; public pages need it. After you connect it, every trip gets a page; you can switch off any trip. The agent runs three commands for each repository, with no restart.
-3. **Add the address to your app.** Coding agents add it for you. In Claude and ChatGPT, the account owner clicks **Add** in the app's settings. Then ask: “Use tripwright: which trips are stored?”
+3. **Add the address to your app.** Coding agents add it for you. In Claude and ChatGPT, the account owner clicks **Add** in the app's settings. Then ask: “Use TripWright: which trips are stored?”
 
 **Or deploy on Railway in one click:** [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template/tripwright) The template builds this repository, with a volume at `/data`, a public domain and a health check. When the deploy is ready, open the service's **Variables** tab and copy `TRIPWRIGHT_ADDRESS`: that is your connection address. Then go on with steps 2 and 3. Details: [deploy/RAILWAY.md](deploy/RAILWAY.md).
 
@@ -119,7 +119,7 @@ uv sync --extra dev
 uv run python -m tripwright.site.example examples/trip-2026-10-central-europe.yaml out
 ```
 
-Open `out/index.html`. The page has an EN / 中文 switch. `out/log.html` is the trip log: what the traveler typed on the road, how it was handled then, and what tripwright does with such a message now. The [project page](https://zlxdengtianhei.github.io/tripwright/) shows more. To see the program's output for a made-up trip, run `uv run tripwright demo`.
+Open `out/index.html`. The page has an EN / 中文 switch. `out/log.html` is the trip log: what the traveler typed on the road, how it was handled then, and what TripWright does with such a message now. The [project page](https://zlxdengtianhei.github.io/tripwright/) shows more. To see the program's output for a made-up trip, run `uv run tripwright demo`.
 
 ## Testing and limits
 

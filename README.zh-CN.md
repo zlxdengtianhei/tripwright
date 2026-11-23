@@ -1,11 +1,11 @@
 <h1 align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg"><img src="docs/assets/logo.svg" alt="tripwright" width="251" height="64"></picture></h1>
 
-<p align="center">tripwright 是给 AI 助手用的开源旅行规划服务：跨对话记住行程，核查交通事实并附来源，生成可分享的网页。</p>
+<p align="center">TripWright 是给 AI 助手用的开源旅行规划服务：跨对话记住行程，核查交通事实并附来源，生成可分享的网页。</p>
 
 <p align="center"><a href="README.md">English</a> | <strong>简体中文</strong> | <a href="https://zlxdengtianhei.github.io/tripwright/">项目主页</a></p>
 
 <p align="center"><img src="docs/assets/hero.zh-CN.png" alt="tripwright 生成的一趟真实 8 天行程页，三屏手机画面：路线与逐天列表；某一天的关键时刻和要去的地方；同一天的交通与地图" width="100%"></p>
-<p align="center"><sub>一趟真实的 8 天行程（布达佩斯、维也纳、萨尔茨卡默古特，2026 年 10 月）和 tripwright 生成的中文页面。人名已换成代号，住处只写到城区。</sub></p>
+<p align="center"><sub>一趟真实的 8 天行程（布达佩斯、维也纳、萨尔茨卡默古特，2026 年 10 月）和 TripWright 生成的中文页面。人名已换成代号，住处只写到城区。</sub></p>
 
 服务由你自己部署一份：[三步开始用](#开始用)，也可以[先看一趟示例行程](#看示例)。它也会跨对话记住你的偏好，记下每一次改动。它通过 MCP（模型上下文协议，让 AI App 调用外部工具的开放标准）接进 Claude、ChatGPT、Claude Code、Codex 等支持 MCP 的客户端。
 
@@ -20,7 +20,7 @@
 - **每次改动都有记录。** 每次接受的改动都记下改了什么、谁改的、为什么。在旧版本上算出的结果，不能覆盖新计划。行程存在你自己的 Git 仓里。
 - **给朋友看的行程页。** 每次计划有改动，服务就生成逐天的网页，先扫一遍私密信息，再发到你指定的公开仓。这一步可以不做。
 
-回答仍由你的助手所用的模型来写。服务本身（Docker 容器）不调模型、不做决策：多个 agent 与各角色都由你连上的 App（Claude Code、Claude Cowork、ChatGPT 的 work 模式）来跑。tripwright 提供记忆、带来源的事实和改动记录。
+回答仍由你的助手所用的模型来写。服务本身（Docker 容器）不调模型、不做决策：多个 agent 与各角色都由你连上的 App（Claude Code、Claude Cowork、ChatGPT 的 work 模式）来跑。TripWright 提供记忆、带来源的事实和改动记录。
 
 ## 它怎样工作
 
@@ -57,7 +57,7 @@ flowchart TD
 sequenceDiagram
     participant U as 你
     participant M as 主 agent
-    participant S as tripwright
+    participant S as TripWright
     Note over U,S: 在路上
     U->>M: 我在车站，16:30 那班还赶得上吗？
     M->>S: turn（scenario quick）
@@ -82,7 +82,7 @@ sequenceDiagram
 
 1. **把 [deploy/SETUP.md](deploy/SETUP.md) 交给你的编码 agent**（Claude Code、Codex 等）。它用 Docker（三条命令）或 Railway 起服务，并给你连接地址 `https://<你的域名>/mcp/<密钥>`。这个地址是唯一的登录凭据：拿到它的人能读写你的行程，要像密码一样保管。
 2. **推荐：连 GitHub。** 这是两个分开的仓。私有仓存你行程的全部记录；不连的话，行程只存在服务器上。公开仓只放扫描过、给别人看的行程页，别的不放；要公开页就得连它。连上公开仓后，每趟行程默认都有一页，哪一趟不想公开可以单独关掉。每个仓 agent 跑三条命令，不用重启，命令在 SETUP.md 里。
-3. **把地址加进你的 App。** 编码 agent 会替你加。在 Claude 和 ChatGPT 里，由账号主人在 App 设置里点 **添加**。然后问一句：“用 tripwright：存了哪些行程？”
+3. **把地址加进你的 App。** 编码 agent 会替你加。在 Claude 和 ChatGPT 里，由账号主人在 App 设置里点 **添加**。然后问一句：“用 TripWright：存了哪些行程？”
 
 **也可以在 Railway 上一键部署：** [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template/tripwright)模板会构建这个仓，配好挂在 `/data` 的数据卷、公网域名和健康检查。部署就绪后，打开服务的 **Variables** 页，复制 `TRIPWRIGHT_ADDRESS`，它就是你的连接地址。然后接着做第 2、3 步。详见 [deploy/RAILWAY.md](deploy/RAILWAY.md)。
 
@@ -119,7 +119,7 @@ uv sync --extra dev
 uv run python -m tripwright.site.example examples/trip-2026-10-central-europe.yaml out
 ```
 
-打开 `out/index.html` 即可，页面上有 EN / 中文 切换。`out/log.html` 是旅行实录：我在路上说了什么、当时怎样处理、tripwright 现在怎样对待这类话。更多展示见[项目主页](https://zlxdengtianhei.github.io/tripwright/)。想看程序对一趟虚构行程的输出，运行 `uv run tripwright demo`。
+打开 `out/index.html` 即可，页面上有 EN / 中文 切换。`out/log.html` 是旅行实录：我在路上说了什么、当时怎样处理、TripWright 现在怎样对待这类话。更多展示见[项目主页](https://zlxdengtianhei.github.io/tripwright/)。想看程序对一趟虚构行程的输出，运行 `uv run tripwright demo`。
 
 ## 测试与限制
 

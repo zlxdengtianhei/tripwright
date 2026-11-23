@@ -155,7 +155,7 @@ PROMISES = (
                   r"quote only from the message it was recorded with")),
     Promise("researcher-fares-on-request", RESEARCHER, must=(r"`focus: fares`", r"do not book or buy")),
     Promise("researcher-saved-first-with-provenance", RESEARCHER,
-            must=(r"1\. The user's saved material, when it can hold the answer[\s\S]*2\. Live sources: (?:Tripwright's `query` for transport and weather, and )?the host's web search and fetch[\s\S]*3\. Only then the open web",
+            must=(r"1\. The user's saved material, when it can hold the answer[\s\S]*2\. Live sources: (?:TripWright's `query` for transport and weather, and )?the host's web search and fetch[\s\S]*3\. Only then the open web",
                   r"synthetic or demo is not a source", r"source", r"valid", r"Never fill a gap with a guess")),
     # v2g: these rules travel in both the skill and MCP prompts, without a host-specific hook.
     Promise("server-transport-sentences", ALL_MAIN + RESEARCHER + VERIFIER,

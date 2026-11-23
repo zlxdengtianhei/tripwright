@@ -2,15 +2,15 @@
 name: tripwright-main
 title: Answer on the road from the user's trip
 description: >-
-  Use when a user message concerns a trip managed by Tripwright: a question on the road ("最晚几点出发去机场",
+  Use when a user message concerns a trip managed by TripWright: a question on the road ("最晚几点出发去机场",
   "我饿了，想吃点东西", "我得赶紧走吗"), a status report ("I am alone today"), a replan, planning from scratch, a
   batch of new requirements, or "which of my preferences did you use". Returns two labelled parts in one reply:
   a short answer from the stored plan, then one after checking what the user will act on. Claude Code may send
-  the second part when its background researcher reports: 核过 only for a Tripwright tool result, anything read on the web with its source. You record what the message states yourself, in `turn`'s
+  the second part when its background researcher reports: 核过 only for a TripWright tool result, anything read on the web with its source. You record what the message states yourself, in `turn`'s
   `record`; sourced lookups and deep checks of a draft belong to tripwright-researcher and tripwright-verifier; travel talk without
-  Tripwright uses the host's normal tools.
+  TripWright uses the host's normal tools.
 metadata:
-  trigger: A user message concerns a trip managed by Tripwright.
+  trigger: A user message concerns a trip managed by TripWright.
   owns: The answer the user reads, in two parts; the steps for every message over the seven tools; recording what the message states; the order between preferences.
   not: Sourced lookups (tripwright-researcher), deep checks of a draft (tripwright-verifier); host prose that never reaches the tools.
   layer: discovery
@@ -34,7 +34,7 @@ Keep progress notes, tools, files and saving out of the answer.
 - 能查到且不常变的事实先查好写准，包括目的地、按时刻表的车次与换乘、营业规则；不给用户重复核查任务。没核写“什么 → 后果”，操作放在最后。
 - 吃的给 2—3 处到时开着且有来源的店，含麦当劳、超市等常见选择；营业时间不明或已关的不推荐。先 `query(kind="open_places", arguments={"near": 地点编号, "at": 到达时刻, "text": "food"})`，不够两处就读店家、车站或机场官网，用 `web_evidence`（`type: "opening_hours"`）记原句；查不到就明说，不编开门时间。规则与活动也用 `web_evidence` 记原句；只有 `counts_as_checked` 才算工具核过。
 <!-- only: skill -->
-- 核过只凭 Tripwright 的真实结果；Synthetic or demo evidence is not a source. 网页写“网上说法（来源）”，摘要写“搜索摘要”。
+- 核过只凭 TripWright 的真实结果；Synthetic or demo evidence is not a source. 网页写“网上说法（来源）”，摘要写“搜索摘要”。
 <!-- /only -->
 
 交通查询触发（Look up departures only under the triggers）：问最晚、末班用上面的 `latest_departure`；还有几班用 `transit` 的 `until` 连续查，“今晚”查到次日 `03:00`。没连续查全就照抄窗口限制，不据两次查询间的空档下结论。硬节点、点名某班、班距≥60分钟的车决定下一步时查；频繁市内交通无硬节点不逐班查，票能否用查规则。
@@ -123,7 +123,7 @@ Only use those website steps if the tool or a read page supplies them. No inquir
 
 <!-- include: core always -->
 
-Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>`.
+Without the TripWright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>`.
 - Step 1: put what the message states in `record` — on the road and while planning alike — with `source.event: "this"` and `true_from` an ISO time with offset, never "this"; the requirements are recorded before any plan change, in the same turn (`references/records.md` says what to quote and how to link it). Pass `speaker`. Subagents never call `turn`. Dispatch whom `flow.dispatch` names (text, event ID, `ctx_id`, `base_version`); a screenshot read from a file is its own message (`turn(text=<your transcription>, nature="screenshot_extraction", record=...)`); the plan is then proposed on the same `ctx_id`, `base_version`.
 - Step 3: one researcher per message (each report starts a turn), and a second one only when `flow.dispatch` names it with `focus: fares` (ticket prices and discounts); each place by its stored ID and name, not an address. When `propose` returns `flow.dispatch` naming `tripwright-verifier`, dispatch it with `draft_id`, `job_id` and `ctx_id` and commit only after its verdict; do not hand it your unchecked lines as its checklist. Write nothing when the first of two reports arrives; what a report left open goes under 没核.
 - Step 6: you alone call `commit`, after reading the reports. Do not wait for the repository or the page. Never tell the user write states; for `write.blocked` say what its `hint` says; a conflict's `user_line` in `notices` opens the answer; with `storage.kind: local` remind the user to back up the data directory. Only explicit musts lock; follow `references/records.md`.

@@ -2,13 +2,13 @@
 
 **默认真实数据来自 Transitous、Open-Meteo 和 Nominatim。** 交通主要是时刻表，覆盖与日期都有边界；没有查到某班车不等于没有车。能查明的稳定事实由 agent 查好，无法取得的实时信息才在回答末尾给出 App、搜索内容、操作与链接。
 
-**English.** Tripwright uses Transitous for transport, Open-Meteo for weather, and Nominatim for geocoding. Transport results are timetable-based unless a leg is explicitly marked as live. Coverage and validity checks are partial, not worldwide guarantees. Where Transitous has no data or no real time for a region, a deployment can run its own MOTIS with that region's GTFS and GTFS-RT ([transit-sources.md](transit-sources.md)); Wiener Linien and VAO adapters are not implemented. Provider terms apply independently of the project's MIT license.
+**English.** TripWright uses Transitous for transport, Open-Meteo for weather, and Nominatim for geocoding. Transport results are timetable-based unless a leg is explicitly marked as live. Coverage and validity checks are partial, not worldwide guarantees. Where Transitous has no data or no real time for a region, a deployment can run its own MOTIS with that region's GTFS and GTFS-RT ([transit-sources.md](transit-sources.md)); Wiener Linien and VAO adapters are not implemented. Provider terms apply independently of the project's MIT license.
 
 MCP 服务只有设置 `TRIPWRIGHT_PROVIDERS=live` 才使用这些真实来源；未设置时是虚构数据。命令行 `tripwright query` 默认选择 `live`。所有结果都应保留来源与是否虚构的说明。
 
 ## Transitous：交通时刻表
 
-[Transitous](https://transitous.org/) 汇集开放交通数据，公共 API 不需要密钥。Tripwright 使用它查询车次、发到时刻与换乘，把每一程和查询窗口写成服务端句子，供宿主照抄。车次带有明确实时标记时按标记说明；否则写“按时刻表，不是实时”，不承诺晚点、站台或临时停运信息完整。
+[Transitous](https://transitous.org/) 汇集开放交通数据，公共 API 不需要密钥。TripWright 使用它查询车次、发到时刻与换乘，把每一程和查询窗口写成服务端句子，供宿主照抄。车次带有明确实时标记时按标记说明；否则写“按时刻表，不是实时”，不承诺晚点、站台或临时停运信息完整。
 
 ### 公共 API 的条款与本项目实现
 
@@ -38,7 +38,7 @@ MCP 服务只有设置 `TRIPWRIGHT_PROVIDERS=live` 才使用这些真实来源�
 
 ## 能给什么，剩下的在哪里查
 
-| 事项 | Tripwright 当前能给什么 | 拿不到时怎样处理 |
+| 事项 | TripWright 当前能给什么 | 拿不到时怎样处理 |
 | --- | --- | --- |
 | 线路、目的地、按时刻表的车次和换乘 | 在查询窗口与数据覆盖内直接查好，逐程写准 | 覆盖不足如实说明，不把可查事实全部推给用户再核 |
 | 晚点、站台、临时停运 | 仅保留上游明确提供的标记，不保证完整实时覆盖 | 末尾给运营方 App 的搜法与链接；奥地利常用 ÖBB App，德国 DB Navigator，瑞士 SBB Mobile |

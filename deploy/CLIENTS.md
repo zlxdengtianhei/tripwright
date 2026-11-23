@@ -1,4 +1,4 @@
-# Connect a client to Tripwright
+# Connect a client to TripWright
 
 This page is step 4 of [SETUP.md](SETUP.md), one section per client. Use it again whenever the user adds another app.
 
@@ -8,7 +8,7 @@ This page is step 4 of [SETUP.md](SETUP.md), one section per client. Use it agai
 - **Where the commands below get it:** [SETUP.md step 4](SETUP.md#4-add-the-address-to-each-ai-app) prints the address with `tripwright address`. Copy it from your own terminal and paste it into the commands below. The `pbpaste` substitutions are optional conveniences, not a requirement to hide it from the terminal; use the printed address directly where that is simpler.
 - **Transport:** Streamable HTTP. Clients often call it "HTTP".
 - **Authentication:** none ("No sign-in", "No authentication"). The key is in the address.
-- **Name:** `tripwright` in coding clients (Claude Code, Codex, Cursor): the trip repository's settings and subagents expect this name. Chat apps such as Claude and ChatGPT only display the name, so `Tripwright` is fine there.
+- **Name:** `tripwright` in coding clients (Claude Code, Codex, Cursor): the trip repository's settings and subagents expect this name. Chat apps such as Claude and ChatGPT only display the name, so `TripWright` is fine there.
 
 | Client | Connects from | Who adds it | Limits |
 | --- | --- | --- | --- |
@@ -19,7 +19,7 @@ This page is step 4 of [SETUP.md](SETUP.md), one section per client. Use it agai
 | [Cursor](#cursor) | the user's computer | agent | no MCP limit in the docs |
 | [Other clients](#other-clients) | depends on the client | depends | see the section |
 
-**The first question, for every client.** Ask: "Use tripwright: which trips are stored?" It is done when the client shows that it used Tripwright and answers from it. What that looks like differs: Claude on the web shows the tool's title (“Used Tripwright: Read committed trip, day, decisions or profile”), not the tool's name; ChatGPT on the web asks to allow the first call, and in our run showed no call marker on the later messages. A new repository has no trip yet, and the answer says so.
+**The first question, for every client.** Ask: "Use tripwright: which trips are stored?" It is done when the client shows that it used TripWright and answers from it. What that looks like differs: Claude on the web shows the tool's title (“Used TripWright: Read committed trip, day, decisions or profile”), not the tool's name; ChatGPT on the web asks to allow the first call, and in our run showed no call marker on the later messages. A new repository has no trip yet, and the answer says so.
 
 ## Claude Code
 
@@ -31,7 +31,7 @@ This page is step 4 of [SETUP.md](SETUP.md), one section per client. Use it agai
 cd ~/tripwright-trips && claude mcp add --transport http tripwright "$(pbpaste)"
 ```
 
-This stores the server for the trip repository folder only (local scope, in `~/.claude.json`). Run it in the trip repository: that repository's `.mcp.json` defines its own `tripwright`, which starts a local copy of Tripwright instead of using the service, and local scope takes precedence over `.mcp.json`. The trip repository also gives Claude Code its instructions, skills and hooks, so open Claude Code there; run `git -C ~/tripwright-trips pull` first so its files match the service.
+This stores the server for the trip repository folder only (local scope, in `~/.claude.json`). Run it in the trip repository: that repository's `.mcp.json` defines its own `tripwright`, which starts a local copy of TripWright instead of using the service, and local scope takes precedence over `.mcp.json`. The trip repository also gives Claude Code its instructions, skills and hooks, so open Claude Code there; run `git -C ~/tripwright-trips pull` first so its files match the service.
 
 Optional: to use the service from every other folder too, also run the command below. Without step 2 there is no trip repository; then run only the command below.
 
@@ -39,14 +39,14 @@ Optional: to use the service from every other folder too, also run the command b
 claude mcp add --transport http --scope user tripwright "$(pbpaste)"
 ```
 
-**User does:** nothing. In the trip repository, its settings already allow the Tripwright tools. In other folders, Claude Code asks before the first call.
+**User does:** nothing. In the trip repository, its settings already allow the TripWright tools. In other folders, Claude Code asks before the first call.
 
 **Check:** `claude mcp list | grep -q '^tripwright:.*Connected' && echo connected || echo "not connected"`. In a session, `/mcp` lists `tripwright`.
 
 **Notes:**
 
 - `claude mcp list`, `claude mcp get` and `/mcp` show the full address. Do not run them on a shared screen or paste their output. `~/.claude.json` holds the address; keep it like the key.
-- If the user also added Tripwright in Claude (below) and Claude Code is signed in with that claude.ai account, the connector has the same address. Claude Code then uses the `tripwright` entry from the command above and hides the connector.
+- If the user also added TripWright in Claude (below) and Claude Code is signed in with that claude.ai account, the connector has the same address. Claude Code then uses the `tripwright` entry from the command above and hides the connector.
 - In Claude Code on the web, use the connector added in [Claude](#claude-web-desktop-mobile). Connectors reach the service without changes to the cloud environment's network allowlist.
 
 ## Codex (CLI, IDE extension, ChatGPT desktop app)
@@ -77,7 +77,7 @@ print("approval mode set")
 EOF
 ```
 
-The table then holds `url = "https://<your-domain>/mcp/<key>"` and `default_tools_approval_mode = "approve"`. Add the line by default and tell the user that Codex now calls the Tripwright tools without asking. Without it, Codex asks for approval before tools such as `query`, which is marked as writing and as reaching outside data, and non-interactive runs (`codex exec`) refuse the call: "MCP tool call requires approval, but approval policy is never" (codex-cli 0.162). Leave it out only if the user wants to approve each call in interactive sessions.
+The table then holds `url = "https://<your-domain>/mcp/<key>"` and `default_tools_approval_mode = "approve"`. Add the line by default and tell the user that Codex now calls the TripWright tools without asking. Without it, Codex asks for approval before tools such as `query`, which is marked as writing and as reaching outside data, and non-interactive runs (`codex exec`) refuse the call: "MCP tool call requires approval, but approval policy is never" (codex-cli 0.162). Leave it out only if the user wants to approve each call in interactive sessions.
 
 **User does:** nothing. In the ChatGPT desktop app, the user can instead open **Settings → MCP servers → Add server**, choose **Streamable HTTP**, paste the address, save and select **Restart**.
 
@@ -91,12 +91,12 @@ The table then holds `url = "https://<your-domain>/mcp/<key>"` and `default_tool
 
 ## Claude (web, desktop, mobile)
 
-**Needs:** a public HTTPS address. Claude connects from Anthropic's cloud for every Claude app, including Claude Desktop and Cowork, so `localhost` does not work. Plans: on Free, Pro, Max and Ultra, the user adds the connector to their own account; Free allows one custom connector. On Team and Enterprise, only an Owner can add it (**Organization settings → Connectors**), and every member then shares the same key; do not use Tripwright that way.
+**Needs:** a public HTTPS address. Claude connects from Anthropic's cloud for every Claude app, including Claude Desktop and Cowork, so `localhost` does not work. Plans: on Free, Pro, Max and Ultra, the user adds the connector to their own account; Free allows one custom connector. On Team and Enterprise, only an Owner can add it (**Organization settings → Connectors**), and every member then shares the same key; do not use TripWright that way.
 
 **Agent does:** open Claude's prefilled **Add custom connector** dialog in the user's browser:
 
 ```bash
-link=$(pbpaste | python3 -c 'import sys, urllib.parse as u; print("https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Tripwright&connectorUrl=" + u.quote(sys.stdin.read().strip(), safe=""))')
+link=$(pbpaste | python3 -c 'import sys, urllib.parse as u; print("https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=TripWright&connectorUrl=" + u.quote(sys.stdin.read().strip(), safe=""))')
 open "$link"; unset link      # Linux: xdg-open
 ```
 
@@ -107,15 +107,15 @@ The link only fills in the form; nothing is added until the user confirms. The b
 1. Check the dialog. Without the link: **Customize → Connectors → Add custom connector**, then paste the address.
 2. If the dialog asks for **Authentication**, choose **No sign-in**.
 3. Click **Add**.
-4. In a chat, click **+ → Connectors** and turn Tripwright on. Allow the first tool call, or choose **Always allow**.
+4. In a chat, click **+ → Connectors** and turn TripWright on. Allow the first tool call, or choose **Always allow**.
 
-**Check:** **Customize → Connectors** lists Tripwright; then ask the first question.
+**Check:** **Customize → Connectors** lists TripWright; then ask the first question.
 
 **Notes:**
 
 - One connector works in Claude on the web, the desktop app and the mobile apps. The documentation does not say that the mobile app can add one, so add it on the web.
 - For a new key, edit the connector's URL from its three-dot menu, or remove the connector and add it again.
-- Tested on 2026-11-12 on the web (Ultra plan, Fable 5.2, one incognito conversation in Chinese, a fictional trip). The connector was added as above. Claude read the stored trip, answered a question on the road from Tripwright without a web search, moved a dinner and recorded an allergy; the plan went to version 2. Its first reply to the question on the road already held the looked-up result and did not ask for a reply; the part headed “核过之后” (after checking) came after the user replied “继续”. It saved the moved dinner in the same reply and said afterwards that the opening hours at the new time were unchecked. Run again on 2026-11-13 (Fable 5.2, one incognito conversation) on the service that waits for the user's next message ([README, Testing and limits](../README.md#testing-and-limits)): before saving, Claude said the opening hours at 19:00 were unchecked, gave options for the coffee after dinner and asked; the plan went to version 2 only after the reply “可以，照这样存”. The question on the road was answered from the plan and checked in the same reply, without asking for “继续”.
+- Tested on 2026-11-12 on the web (Ultra plan, Fable 5.2, one incognito conversation in Chinese, a fictional trip). The connector was added as above. Claude read the stored trip, answered a question on the road from TripWright without a web search, moved a dinner and recorded an allergy; the plan went to version 2. Its first reply to the question on the road already held the looked-up result and did not ask for a reply; the part headed “核过之后” (after checking) came after the user replied “继续”. It saved the moved dinner in the same reply and said afterwards that the opening hours at the new time were unchecked. Run again on 2026-11-13 (Fable 5.2, one incognito conversation) on the service that waits for the user's next message ([README, Testing and limits](../README.md#testing-and-limits)): before saving, Claude said the opening hours at 19:00 were unchecked, gave options for the coffee after dinner and asked; the plan went to version 2 only after the reply “可以，照这样存”. The question on the road was answered from the plan and checked in the same reply, without asking for “继续”.
 - Tested on 2026-11-12 through the Claude API's MCP connector, which also connects from Anthropic's cloud: Claude Sonnet 5.5 and Opus 5.5 found the tools without any instruction about them, answered on-the-road questions in two parts, changed plans, and saved screenshots and found them again (45 of 48 Sonnet runs and 6 of 6 Opus runs passed).
 
 ## ChatGPT
@@ -124,7 +124,7 @@ The link only fills in the form; nothing is added until the user confirms. The b
 
 - **Free:** worked in our run on 2026-11-12. **Add custom MCP server** was there; ChatGPT listed the tools and ran the ones that write, asking before each. We did not record whether developer mode was on.
 - **Business, Enterprise, Edu** (from OpenAI's help article, not tested): full MCP support, with tools that read and write, on ChatGPT web. On Business, only admins and owners can add it; on Enterprise and Edu, admins can grant it to members.
-- **Pro** (from the same article, not tested): only tools marked read-only. Tripwright marks only `state` and `explain` read-only, so on Pro ChatGPT could read the trip but not look up transport or change the plan.
+- **Pro** (from the same article, not tested): only tools marked read-only. TripWright marks only `state` and `explain` read-only, so on Pro ChatGPT could read the trip but not look up transport or change the plan.
 - **Plus, Go:** the article does not say, and we have not tried. Check whether **Add custom MCP server** appears.
 
 **Agent does:** give the user the printed address and the steps below. We found no install link or interface that adds it for them.
@@ -132,19 +132,19 @@ The link only fills in the form; nothing is added until the user confirms. The b
 **User does,** on chatgpt.com in a browser (the mobile app cannot add one):
 
 1. Open **Plugins**, click **+**, then **Add custom MCP server**.
-2. Name: Tripwright. Under **Connection**, paste the address.
+2. Name: TripWright. Under **Connection**, paste the address.
 3. Authentication: **No authentication**.
 4. Tick **I understand and want to continue**, then click **Create as a plugin**.
-5. Install the plugin. In a new chat, type `@` and choose Tripwright. The choice holds for one message: choose it again when a later message needs Tripwright to look something up or record something.
+5. Install the plugin. In a new chat, type `@` and choose TripWright. The choice holds for one message: choose it again when a later message needs TripWright to look something up or record something.
 
 **Check:** after step 4, ChatGPT lists the tools it found, in two groups: five that write (`turn`, `query`, `propose`, `commit`, `result`) and two that read (`state`, `explain`). Then ask the first question.
 
 **Notes:**
 
 - ChatGPT treats every tool without the read-only mark as a write and asks before it runs. In our run the dialog offered **Always allow**, **Allow once** and **Decline**, and it came up for every such call when the user chose **Allow once**. `query` counts as a write because each lookup is saved as evidence in the trip repository.
-- In that run (2026-11-12) each dialog also carried a warning: “suspicious instructions: the tool description tries to set risk labels, approval and output format, and asks to run its flow first”. The tool descriptions then repeated Tripwright's chat rules. They have been rewritten since to say only what each tool does and returns; in the run of 2026-11-13 (one conversation) the dialogs showed no such warning.
+- In that run (2026-11-12) each dialog also carried a warning: “suspicious instructions: the tool description tries to set risk labels, approval and output format, and asks to run its flow first”. The tool descriptions then repeated TripWright's chat rules. They have been rewritten since to say only what each tool does and returns; in the run of 2026-11-13 (one conversation) the dialogs showed no such warning.
 - Tested on 2026-11-12 on the web (Free plan, one temporary chat in Chinese, a fictional trip): ChatGPT read the stored trip, answered a question on the road in two parts (the first from the stored plan, ending with the request to reply “继续”; the checked one after that reply) without a web search, moved a dinner and recorded an allergy. The plan ended at version 3. Like Claude, it saved the moved dinner before saying that the opening hours were unchecked. Run again on 2026-11-13 (Free plan, one temporary chat) on the service that waits for the user's next message: the requirement (the allergy) was recorded first as version 2, without changing the plan, as the service records a message's requirements before its plan change; ChatGPT said which fact was unchecked and asked, and the plan was saved as version 3 only after the reply “可以，照这样存”. The question on the road got no request to reply “继续”: ChatGPT gave no latest time and asked which real gallery was meant.
-- OpenAI's plugin page says that the mobile app can use the plugins of the account in Chat and Work. We have not tried this with Tripwright.
+- OpenAI's plugin page says that the mobile app can use the plugins of the account in Chat and Work. We have not tried this with TripWright.
 
 ## Cursor
 
@@ -168,7 +168,7 @@ The result has the shape `{"mcpServers": {"tripwright": {"url": "https://<your-d
 
 ## Other clients
 
-Any client that can add a remote MCP server works with the settings in [What every client needs](#what-every-client-needs). Clients that run in their provider's cloud need the public HTTPS address. Known ways, not tried with Tripwright:
+Any client that can add a remote MCP server works with the settings in [What every client needs](#what-every-client-needs). Clients that run in their provider's cloud need the public HTTPS address. Known ways, not tried with TripWright:
 
 - **VS Code with GitHub Copilot:** Command Palette → **MCP: Add Server** → **HTTP** → paste the address → server ID `tripwright` → **Global** → **Copilot Global**.
 - **Gemini CLI:** `gemini mcp add --transport http --scope user tripwright "$(pbpaste)"`. `gemini mcp list` shows the status and also prints the address.
@@ -178,9 +178,9 @@ Any client that can add a remote MCP server works with the settings in [What eve
 
 ## Helper roles in each app
 
-Tripwright has three roles: the main agent, which answers and records what the message states — screenshots transcribed, new requirements linked to earlier decisions, all in `turn`'s `record`, so they are in the ledger before any plan change; `tripwright-researcher`, which checks facts (and ticket prices and discounts on request); `tripwright-verifier`, which checks a changed plan before it is saved. The result of `turn` carries `flow`: `flow.dispatch` names the role a step needs, with one short reminder of the steps; `state`, `query`, `propose`, `commit` and `explain` repeat that reminder at most once in three results. A draft that still carries the message's records is split by the service: it commits those first, so a plan held back by the verifier does not take the requirements with it. On a quick question on the road the main agent looks the facts up itself, by design: the researcher is named only as optional there, and not dispatching it is no missed step. An app that cannot dispatch sub-agents gets the order of the roles for each situation from `state(view="role", role="single")` and each role's steps from `state(view="role", role=...)`; the same agent then does them in turn.
+TripWright has three roles: the main agent, which answers and records what the message states — screenshots transcribed, new requirements linked to earlier decisions, all in `turn`'s `record`, so they are in the ledger before any plan change; `tripwright-researcher`, which checks facts (and ticket prices and discounts on request); `tripwright-verifier`, which checks a changed plan before it is saved. The result of `turn` carries `flow`: `flow.dispatch` names the role a step needs, with one short reminder of the steps; `state`, `query`, `propose`, `commit` and `explain` repeat that reminder at most once in three results. A draft that still carries the message's records is split by the service: it commits those first, so a plan held back by the verifier does not take the requirements with it. On a quick question on the road the main agent looks the facts up itself, by design: the researcher is named only as optional there, and not dispatching it is no missed step. An app that cannot dispatch sub-agents gets the order of the roles for each situation from `state(view="role", role="single")` and each role's steps from `state(view="role", role=...)`; the same agent then does them in turn.
 
-The role count changed on 2026-11-19: the separate requirements role was folded into the main agent's turn, so the skill sets below have three files, not four; the run counts are kept as they were taken. What each app can hold is taken from the vendors' pages listed under [Sources](#sources) (read 2026-11-12); for Codex, pi and OpenCode, from the apps themselves in the 2026-11-13 runs. "Documented, not tested" means the page says it works and we have not run Tripwright's roles there. Counts come from live runs on a fictional trip, one message each unless noted, three runs per scenario; read them as "seen", not as rates.
+The role count changed on 2026-11-19: the separate requirements role was folded into the main agent's turn, so the skill sets below have three files, not four; the run counts are kept as they were taken. What each app can hold is taken from the vendors' pages listed under [Sources](#sources) (read 2026-11-12); for Codex, pi and OpenCode, from the apps themselves in the 2026-11-13 runs. "Documented, not tested" means the page says it works and we have not run TripWright's roles there. Counts come from live runs on a fictional trip, one message each unless noted, three runs per scenario; read them as "seen", not as rates.
 
 | App | What it can hold (vendor docs) | How the roles get there | How they run |
 |---|---|---|---|
@@ -188,23 +188,23 @@ The role count changed on 2026-11-19: the separate requirements role was folded 
 | Claude Code on the web | A cloud session clones the repository with its `.claude/agents/` and `.claude/skills/`; not in a Claude project's cloud threads | Open a session on the trip repository; connect the service with the connector, as in the notes under [Claude Code](#claude-code) | Documented, not tested |
 | Codex (CLI) | Project agents in `.codex/agents/`, skills in `.agents/skills/` | Written by `tripwright init` | Tested on 2026-11-13 with codex-cli 0.162.0-alpha.17.2 (GPT, `gpt-6-luna`). In this build `spawn_agent` takes `task_name`, `message`, `fork_turns` and model options only, so the files in `.codex/agents/` cannot be picked as roles. Codex starts child agents named after the roles (a copy of the main conversation, 31 of 31 spawns) in 2 of 9 single-message runs; in the others the main agent follows the role's steps itself after reading them with `state(view="role")`. The requirement was written to the ledger before any plan change in 9 of 9 runs. No run committed a plan change on one message (each stopped to ask about unchecked facts); after a one-line reply, 1 of 6 committed, without a verifier agent (the main agent ran the verifier's steps itself). |
 | Codex cloud | No page says cloud tasks can use a custom MCP server (openai/codex#4226 is open) | — | Not checked |
-| pi | No sub-agent tool; skills via `--skill` | The three `SKILL.md` files `tripwright init` writes under `.agents/skills/`, loaded with `--skill`; Tripwright through `.pi/mcp.json` (set up for the test; `tripwright init` does not write it) | Tested on 2026-11-13 with pi 1.5.2 and GLM-5.3 Flash through Magpie. One agent follows the skills; it read the role steps with `state(view="role")` in 9 of 9 single-message runs. Requirement written before any plan change in 9 of 9 single-message runs and 5 of 6 runs with a reply. No helper agents. |
-| OpenCode | A `subagent` tool with built-in types `explore` and `general`; project skills in `.agents/skills/` | The same three skills; Tripwright through the project's `opencode.jsonc` (`mcp`, type `local`; set up for the test, `tripwright init` does not write it) | Tested on 2026-11-13 with OpenCode 2.2.7 and GLM-5.3 Flash through Magpie, the user's own skills switched off. No Tripwright role types exist; the main agent starts a `general` sub-agent and names the role and its steps in the prompt; asking for `tripwright-researcher` as an agent type fails with “Unknown agent”. Single message: any helper started in 7 of 9 runs; with a one-line reply: 3 of 6, verifier in 2. |
+| pi | No sub-agent tool; skills via `--skill` | The three `SKILL.md` files `tripwright init` writes under `.agents/skills/`, loaded with `--skill`; TripWright through `.pi/mcp.json` (set up for the test; `tripwright init` does not write it) | Tested on 2026-11-13 with pi 1.5.2 and GLM-5.3 Flash through Magpie. One agent follows the skills; it read the role steps with `state(view="role")` in 9 of 9 single-message runs. Requirement written before any plan change in 9 of 9 single-message runs and 5 of 6 runs with a reply. No helper agents. |
+| OpenCode | A `subagent` tool with built-in types `explore` and `general`; project skills in `.agents/skills/` | The same three skills; TripWright through the project's `opencode.jsonc` (`mcp`, type `local`; set up for the test, `tripwright init` does not write it) | Tested on 2026-11-13 with OpenCode 2.2.7 and GLM-5.3 Flash through Magpie, the user's own skills switched off. No TripWright role types exist; the main agent starts a `general` sub-agent and names the role and its steps in the prompt; asking for `tripwright-researcher` as an agent type fails with “Unknown agent”. Single message: any helper started in 7 of 9 runs; with a one-line reply: 3 of 6, verifier in 2. |
 | WorkBuddy | No agent files | An HTTP MCP connector in `~/.workbuddy/mcp.json` | Tested on 2026-11-13 (Fast tier, GLM-5.3 Flash): one agent, no helper roles. In the third message the requirement was saved first and the plan after the user said yes; the first two messages did not call `turn` first. Helper agents were not examined. |
 | Claude (web, desktop, mobile) | Uploaded skills (a ZIP; code execution must be on); project instructions; custom remote connectors. Cowork may coordinate sub-agents itself; no page describes sub-agents a user configures | Upload `skills/tripwright-main` as a ZIP; in the project instructions write “use the tripwright skill and tools for the trip” | One agent does the roles in turn; the order and each role's steps come from `state(view="role", role="single")` and `state(view="role", role=...)`, not from that skill. Not tested |
 | ChatGPT | Project instructions; custom MCP servers on the web (documented for Business, Enterprise and Edu; one worked on Free in our run); skills on Business, Enterprise, Healthcare and Edu; workspace agents (Business, Enterprise) take skills and custom MCP, with no documented way for one agent to hand work to another | The same sentence in the project instructions; skills, where the plan has them, as for Claude | One agent follows the `flow` lines the service returns and can read the order of the roles and their steps with `state(view="role")` (`role="single"` for the order; not tested in ChatGPT). With the server alone, no project instructions, one agent did the three test messages on 2026-11-12. With project instructions or skills: not tested. Work-type modes that set up separate roles: not checked |
 
 ## Sources
 
-Read on 2026-11-03 unless a date is given. "Not tried" means we have not connected Tripwright to that client.
+Read on 2026-11-03 unless a date is given. "Not tried" means we have not connected TripWright to that client.
 
 - Our own runs on the web apps (2026-11-12): Claude on the Ultra plan with Fable 5.2 and ChatGPT on the Free plan, one conversation of three messages each, against a test deployment that held a fictional trip.
 - Helper roles (read 2026-11-12): Claude Code [Subagents](https://code.claude.com/docs/en/sub-agents), [Skills](https://code.claude.com/docs/en/skills), [Cloud environments](https://code.claude.com/docs/en/cloud-environments); Codex [Subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents), [Skills](https://learn.chatgpt.com/docs/build-skills), [openai/codex#4226](https://github.com/openai/codex/issues/4226); Claude [Use skills in Claude](https://support.claude.com/en/articles/12512180-use-skills-in-claude), [Custom connectors](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp), [Projects](https://support.claude.com/en/articles/9519177-how-can-i-create-and-manage-projects), [Cowork](https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork); ChatGPT [Projects](https://help.openai.com/en/articles/10169521-projects-in-chatgpt), [Developer mode and MCP apps](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt), [Skills](https://help.openai.com/en/articles/20001066-skills-in-chatgpt), [Workspace agents](https://help.openai.com/en/articles/20001143-chatgpt-workspace-agents-for-enterprise-and-business).
 - Claude Code: [Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp) (installation scopes, scope precedence, `claude mcp list` status, connectors from claude.ai); [Cloud environments](https://code.claude.com/docs/en/cloud-environments) (connectors bypass the network allowlist; read on 2026-11-02).
-- Codex: [Model Context Protocol](https://learn.chatgpt.com/docs/extend/mcp) (shared `config.toml`, ChatGPT desktop app steps, `default_tools_approval_mode` values `auto`, `prompt`, `writes`, `approve`, server instructions). `codex mcp add --url`, the approval error and the effect of `"approve"`: codex-cli 0.162, run by the Tripwright maintainers on 2026-11-02 and 2026-11-03.
+- Codex: [Model Context Protocol](https://learn.chatgpt.com/docs/extend/mcp) (shared `config.toml`, ChatGPT desktop app steps, `default_tools_approval_mode` values `auto`, `prompt`, `writes`, `approve`, server instructions). `codex mcp add --url`, the approval error and the effect of `"approve"`: codex-cli 0.162, run by the TripWright maintainers on 2026-11-02 and 2026-11-03.
 - Claude: [Add a connector that isn't in the directory](https://claude.com/docs/connectors/custom/add-unlisted) (plans, steps, authentication, editing); [Directory and custom connectors](https://claude.com/docs/connectors/building/directory-vs-custom) (install link); [Get started with custom connectors using remote MCP](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp) (connections come from Anthropic's cloud). This support article still says that editing means removing and adding again.
 - ChatGPT: [Connecting custom MCP servers in ChatGPT](https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt) (plans, steps, web only, Pro read only; marked "Updated: 7 days ago"); [Building MCP servers for ChatGPT](https://developers.openai.com/api/docs/guides/custom-mcp-server) (authentication options, `readOnlyHint`, confirmations); [Connect and test your plugin](https://developers.openai.com/plugins/deploy/connect-chatgpt); [Plugins](https://learn.chatgpt.com/docs/plugins) (mobile use; read on 2026-11-02).
 - Cursor: [Model Context Protocol (MCP)](https://cursor.com/docs/mcp) (`mcp.json` locations, remote server shape, tool approval, MCP Logs).
 - VS Code: [Add and manage MCP servers](https://code.visualstudio.com/docs/agent-customization/mcp-servers). Gemini CLI: [MCP servers with the Gemini CLI](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md).
-- Doubao Work: [使用插件](https://www.doubao.com/work/docs/zh-cn/articles/705018132598-plugins.md) (page dated 2026-09-28). Kimi Work, QwenWork, ZCode: their help pages, read on 2026-11-02 for the Tripwright research.
+- Doubao Work: [使用插件](https://www.doubao.com/work/docs/zh-cn/articles/705018132598-plugins.md) (page dated 2026-09-28). Kimi Work, QwenWork, ZCode: their help pages, read on 2026-11-02 for the TripWright research.
 - Page structure follows the client-by-client setup pages of the [GitHub MCP server](https://github.com/github/github-mcp-server), [Linear](https://linear.app/docs/mcp), [Notion](https://developers.notion.com/docs/get-started-with-mcp) and [Sentry](https://mcp.sentry.dev/).

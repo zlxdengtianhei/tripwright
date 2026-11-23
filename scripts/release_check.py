@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run release preflight checks against fresh, local, synthetic Tripwright servers.
+"""Run release preflight checks against fresh, local, synthetic TripWright servers.
 
 Each check seeds demo-coords at 2030-06-10T20:30:00+02:00, starts an HTTP server on
 127.0.0.1 with a random URL key, and stops it afterwards. Conformance invokes
@@ -193,7 +193,7 @@ def codex_scenario(stem: str, model: str) -> tuple[dict, str]:
             successful = [tool for item in observations for tool in item["successful_tools"]]
         if stem.startswith("s1_"):
             passed = bool(observations) and observations[0]["exit_code"] == 0 and s1_passed(observations[0])
-            reason = "requires exit 0, a successful Tripwright call and fjord-friends or its title in the reply"
+            reason = "requires exit 0, a successful TripWright call and fjord-friends or its title in the reply"
         elif stem.startswith("s2_"):
             passed = len(observations) == 2 and all(item["exit_code"] == 0 for item in observations)
             reason = "requires both messages to finish with exit code 0; tool choice is observational"

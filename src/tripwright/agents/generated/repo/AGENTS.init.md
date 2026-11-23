@@ -1,14 +1,14 @@
 <!-- 由 python -m tripwright.agents build 生成，源：src/tripwright/agents/templates/AGENTS.md.tmpl、src/tripwright/agents/core.yaml；不要手改 -->
 <!-- 由 tripwright init 生成，源：src/tripwright/agents/templates/AGENTS.md.tmpl、src/tripwright/agents/core.yaml；不要手改，升级时覆盖 -->
-# Trip repository for Tripwright
+# Trip repository for TripWright
 
-This repository holds one person's trips, one folder per trip under `trips/`. Its files are the source of truth: what the travellers said, what applies, what was decided and which plan version is current. Long-term content (stable preferences, companions, standing rules, saved material) lives in `profile/`; when a new trip starts, the main agent asks in the conversation which of it still applies. Agents read in a fixed order and change records only through Tripwright.
+This repository holds one person's trips, one folder per trip under `trips/`. Its files are the source of truth: what the travellers said, what applies, what was decided and which plan version is current. Long-term content (stable preferences, companions, standing rules, saved material) lives in `profile/`; when a new trip starts, the main agent asks in the conversation which of it still applies. Agents read in a fixed order and change records only through TripWright.
 
 ## Every user message
 
-The main agent calls `turn` first and does these steps; the `tripwright-main` skill holds the full rules. Without the Tripwright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>`; lookups go to the researcher.
+The main agent calls `turn` first and does these steps; the `tripwright-main` skill holds the full rules. Without the TripWright tools, step 1 runs `uvx --from ./tools/<wheel> tripwright --repo . first-part --text <message> --points <JSON>`; lookups go to the researcher.
 
-1. Call `turn` first with the message, `scenario: "quick"` on the road, and each named thing in `points`. While Tripwright's tools are still connecting, retry every few seconds (up to about 30) before using the command line; never write about connections. Done when: `turn` returned.
+1. Call `turn` first with the message, `scenario: "quick"` on the road, and each named thing in `points`. While TripWright's tools are still connecting, retry every few seconds (up to about 30) before using the command line; never write about connections. Done when: `turn` returned.
 2. Write the first message before any other tool, as `turn`'s `next` says: one to five lines that answer the most urgent thing the message asks, from `first_part`, `opening_material`, the preferences in `consider` and common sense (stored times go as “the plan stores X, not checked yet”). Send that alone: the second part is its own message, never both headings in one. Then go on without waiting for the user; if you can dispatch a background `tripwright-researcher`, dispatch it to check the facts. Done when: the first text answers the message's most urgent thing and came before any tool but turn.
 3. After the first message, do not call `turn` again; query every fact directly. Write the second part as its own message; when the reply ended after the first message, write it after the user's next message or the researcher's report. Done when: each actionable fact has a query result or an unchecked label, and no second turn was called.
 4. Give the walk or the answer in the conversation before `propose` and `commit`; they and the page update come after the answer. Put what this message states in `turn`'s `record`, with its exact quote, so the requirements are in the ledger before any plan change; link them (`depends_on` and the relations) as `references/records.md` says. Dispatch whom `flow.dispatch` names: facts to `tripwright-researcher`, a changed plan draft to `tripwright-verifier` before commit; without subagents, do the roles in turn as `state(view="role", role="single")` orders them. Use `query(kind="saved")` before searching, then use `propose` and `commit` for plan changes. Say what the accepted commit changed from its `changelog` right after it. Put choices the agent made in `changes.items` with basis `agent_inference`. Done when: each role `flow.dispatch` named was dispatched or its steps done, and the commit was accepted, or there was nothing to write.
@@ -34,7 +34,7 @@ Subagents (`tripwright-verifier`, `tripwright-researcher`; in Codex `tripwright_
 
 A generated file says so on its first line, or on the first line inside its frontmatter, and names its generator. The next commit or upgrade overwrites it. They are `README.md`, `trips/*/README.md`, `trips/*/views/**`, `AGENTS.md`, `CLAUDE.md`, `.mcp.json`, `.claude/settings.json`, `.claude/agents/*.md`, `.claude/skills/`, `.agents/skills/` and `.codex/agents/*.toml`. The local runtime state in `.tripwright/` is not in Git.
 
-## Records: change only through Tripwright
+## Records: change only through TripWright
 
 `tripwright.yaml`, `profile/**`, `trips/*/trip.yaml`, `trips/*/raw/**`, `trips/*/ledger/**`, `trips/*/plan/**` and `trips/*/evidence/**` are records, written by `propose` and `commit`. A file in `raw/` never changes after it is created. `trips/*/research/**` holds the user's own material: read it, never rewrite it.
 

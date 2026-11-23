@@ -10,7 +10,7 @@ from tripwright.agents.promises import promise_problems
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m tripwright.agents", description="Assemble Tripwright skills and agent files.")
+    parser = argparse.ArgumentParser(prog="python -m tripwright.agents", description="Assemble TripWright skills and agent files.")
     commands = parser.add_subparsers(dest="command", required=True)
     command = commands.add_parser("build", help="Regenerate every generated file from the role, step and fragment sources")
     command.add_argument("--check", action="store_true", help="Change nothing; exit 1 if a generated file differs from a fresh build")

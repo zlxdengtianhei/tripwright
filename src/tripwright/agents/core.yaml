@@ -3,7 +3,7 @@ intro: >-
   For each trip message: call turn; write the first message as turn's next says, before other tools; check the facts; then answer with second_part_title, differences first, in the user's language. The first message is the first part alone, and every message to the user is the answer itself, never a work note.
 steps:
   - do: >-
-      Call `turn` first with the message, `scenario: "quick"` on the road, and each named thing in `points`. While Tripwright's tools are still connecting, retry every few seconds (up to about 30) before using the command line; never write about connections.
+      Call `turn` first with the message, `scenario: "quick"` on the road, and each named thing in `points`. While TripWright's tools are still connecting, retry every few seconds (up to about 30) before using the command line; never write about connections.
     done: "`turn` returned."
   - do: >-
       Write the first message before any other tool, as `turn`'s `next` says: one to five lines that answer the most urgent thing the message asks, from `first_part`, `opening_material`, the preferences in `consider` and common sense (stored times go as “the plan stores X, not checked yet”). Send that alone: the second part is its own message, never both headings in one. Then go on without waiting for the user; if you can dispatch a background `tripwright-researcher`, dispatch it to check the facts.

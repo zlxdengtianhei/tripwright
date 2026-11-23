@@ -218,7 +218,7 @@ class Git:
         return files
 
     def log(self, rev: str, *, since: str | None = None, paths: tuple[str, ...] = ()) -> list[dict]:
-        """Commits reachable from `rev` (not from `since`), newest first, with their Tripwright trailers."""
+        """Commits reachable from `rev` (not from `since`), newest first, with their TripWright trailers."""
         span = f"{since}..{rev}" if since else rev
         text = self.run("log", "--format=%H%x1f%cI%x1f%B%x1e", span, "--", *paths) if paths else \
             self.run("log", "--format=%H%x1f%cI%x1f%B%x1e", span)
