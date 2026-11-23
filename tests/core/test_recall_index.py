@@ -396,3 +396,115 @@ def test_a_record_written_before_its_file_gets_its_line_once_the_file_is_there(t
     finally:
         service.jobs.stop()
         store.close()
+
+
+def record_line(service, text, key, when):
+    """One item whose file holds several lines, so the match's line is not the file's first one."""
+    os.environ["TRIPWRIGHT_NOW"] = when
+    os.environ["TRIPWRIGHT_NOW_SET_AT"] = str(time.time())
+    service.turn(OWNER, text, key, nature="user_verbatim", native_ref=f"fixture:{key}",
+                 record={"items": [dict(kind="preference", key=key, quote=text, text=text, subject=["p1"],
+                                        strength="prefer", source=dict(event="this"))]})
+    service.committer.flush()
+
+
+def one_snippet(service, question, root):
+    """The single item hit of a question, checked against the file it names: the snippet is that line, and the line
+    holds the word the question was about (its spelling, folded for case and accents)."""
+    hits = [hit for hit in saved(service, question) if hit["found"] == "item"]
+    assert len(hits) == 1, (question, [hit["id"] for hit in hits])
+    hit = hits[0]
+    lines = (root / hit["path"]).read_text(encoding="utf-8").splitlines()
+    assert hit["snippet"] == lines[hit["snippet_line"] - 1]
+    assert hit["snippet_exact"] is True, hit
+    return hit
+
+
+def test_the_snippet_is_the_line_of_a_capitalised_word(tmp_path, monkeypatch):
+    """Q20, first verdict: the window's first line was taken when the match spelled its word in capitals, so the hit
+    named a line the word was not on (the judge's sample: a question about Salzbergwerk, snippet `names: []`)."""
+    root, repo, store, service, plan = repo_with_trip(tmp_path, monkeypatch=monkeypatch)
+    try:
+        record_line(service, "Salzbergwerk 门票在门口买，冬天只到 15:00", "salt-mine", "2032-01-10T10:00:00+01:00")
+        hit = one_snippet(service, "Salzbergwerk", root)
+        assert "Salzbergwerk" in hit["snippet"]
+    finally:
+        service.jobs.stop()
+        store.close()
+
+
+def test_the_snippet_is_the_line_of_an_accented_word(tmp_path, monkeypatch):
+    """The same, with an accent: the index folds `ä` to `a` when it matches, so the line search must fold the same way
+    (the judge's sample: a question about gastehaus, snippet `origin: null`)."""
+    root, repo, store, service, plan = repo_with_trip(tmp_path, monkeypatch=monkeypatch)
+    try:
+        record_line(service, "Gästehaus Gosau 含早餐，入住 15:00 后", "gosau-stay", "2032-01-10T10:05:00+01:00")
+        hit = one_snippet(service, "gastehaus", root)
+        assert "Gästehaus" in hit["snippet"]
+    finally:
+        service.jobs.stop()
+        store.close()
+
+
+def test_the_snippet_is_the_line_of_a_place_name_inside_a_sentence(tmp_path, monkeypatch):
+    """The same, with a place name in the middle of a sentence (the judge's sample: Hallstatt)."""
+    root, repo, store, service, plan = repo_with_trip(tmp_path, monkeypatch=monkeypatch)
+    try:
+        record_line(service, "The ferry from Hallstatt to Obertraun stops at 18:20", "ferry", "2032-01-10T10:10:00+01:00")
+        hit = one_snippet(service, "Hallstatt", root)
+        assert "Hallstatt" in hit["snippet"]
+    finally:
+        service.jobs.stop()
+        store.close()
+
+
+def test_a_window_with_no_matched_spelling_falls_back_to_its_first_line_and_says_so():
+    """The guard behind the three tests above: when no line of the window holds a spelling, the first line is all the
+    index can say, and the hit says so instead of passing it off as the match's line."""
+    passage = "id: I-1\nquote: nothing here\nnames: []\n"
+    begin, exact = recall_index.matched_line(passage, 0, len(passage), ["Salzbergwerk"])
+    assert (passage[begin:passage.find("\n", begin)], exact) == ("id: I-1", False)
+    # the fallback is the window's first line, not the file's first line
+    begin, exact = recall_index.matched_line(passage, passage.find("quote:"), len(passage), ["SALZBERGWERK"])
+    assert (passage[begin:passage.find("\n", begin)], exact) == ("quote: nothing here", False)
+    passage = "id: I-1\nquote: Salzbergwerk 门票在门口买\nnames: []\n"
+    begin, exact = recall_index.matched_line(passage, 0, len(passage), ["salzbergwerk"])
+    assert (passage[begin:passage.find("\n", begin)], exact) == ("quote: Salzbergwerk 门票在门口买", True)
+
+
+def test_a_screenshot_without_a_day_is_not_dated_by_the_day_the_message_arrived(tmp_path, monkeypatch):
+    """Q20: the host recorded no screenshot day (`native_ref: "screenshot"`), so the hit says the day is not recorded
+    and names the raw folder's day as the day the message was received, not as the screenshot's day (first verdict:
+    the hit said `01-10 你发的截图…` because 01-10 was when the message came in)."""
+    root, repo, store, service, plan = repo_with_trip(tmp_path, monkeypatch=monkeypatch)
+    try:
+        os.environ["TRIPWRIGHT_NOW"] = "2032-01-10T10:30:00+01:00"
+        os.environ["TRIPWRIGHT_NOW_SET_AT"] = str(time.time())
+        service.turn(OWNER, "Gosau 民宿 3 晚，含早餐，入住 15:00 后", "shot", nature="screenshot_extraction",
+                     native_ref="screenshot")
+        service.committer.flush()
+        [hit] = [entry for entry in saved(service, "Gosau 民宿 早餐") if entry["found"] == "said"]
+        assert hit["source"] == "你发的截图（哪天没记下）的转写"
+        assert hit["cited_as"].startswith("你发的截图（哪天没记下）的转写，01-10 收到，")
+        assert hit["path"].startswith("trips/2032-01-alps/raw/2032-01-10/")
+    finally:
+        service.jobs.stop()
+        store.close()
+
+
+def test_a_screenshot_that_names_only_its_number_keeps_the_number(tmp_path, monkeypatch):
+    """Q20: `native_ref: "screenshot:#3"` records the third screenshot of a day it does not name; the hit keeps the
+    number and says the day is not recorded (first verdict: it said `第几张没记下` and dropped the 3)."""
+    root, repo, store, service, plan = repo_with_trip(tmp_path, monkeypatch=monkeypatch)
+    try:
+        os.environ["TRIPWRIGHT_NOW"] = "2032-01-10T10:31:00+01:00"
+        os.environ["TRIPWRIGHT_NOW_SET_AT"] = str(time.time())
+        service.turn(OWNER, "Gosau 民宿 3 晚，含早餐，入住 15:00 后", "shot", nature="screenshot_extraction",
+                     native_ref="screenshot:#3")
+        service.committer.flush()
+        [hit] = [entry for entry in saved(service, "Gosau 民宿 早餐") if entry["found"] == "said"]
+        assert hit["source"] == "你发的截图第 3 张的转写（哪天没记下）"
+        assert hit["cited_as"].startswith("你发的截图第 3 张的转写（哪天没记下），01-10 收到，")
+    finally:
+        service.jobs.stop()
+        store.close()

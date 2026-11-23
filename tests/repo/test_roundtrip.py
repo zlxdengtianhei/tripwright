@@ -104,11 +104,18 @@ def test_records_change_only_their_status_and_journals_only_grow(tmp_path):
         assert removed == []
         check = next((root / layout.trip_folder(TRIP) / "ledger/checks").glob("*.yaml"))
         changes = git(root, "log", "-p", "--format=format:COMMIT", "--", str(check.relative_to(root)))
-        changed_lines = {row[1:].split(":")[0] for row in changes.splitlines() if row[:1] in "+-" and not row.startswith(("+++", "---"))}
-        # names and asks are the host's words at ingest (Q20); they are written once, with the record
-        assert changed_lines <= {"status", "result", "id", "question", "due_at", "responsible", "subject", "scope", "source", "consequence",
-                                 "alternative", "evidence_ids", "names", "asks", "  event", "  nature", "  basis", "- p1", "  start",
-                                 "  end", "  time_from", "  time_to", "  place", "  channel"} | {""}
+        allowed = {"status", "result", "id", "question", "due_at", "responsible", "subject", "scope", "source", "consequence",
+                   "alternative", "evidence_ids", "  event", "  nature", "  basis", "- p1", "  start",
+                   "  end", "  time_from", "  time_to", "  place", "  channel"}
+        blocks = [block for block in changes.split("COMMIT") if block.strip()]  # newest first
+        assert blocks, "the check record has a history"
+        changed = lambda block: {row[1:].split(":")[0] for row in block.splitlines()
+                                 if row[:1] in "+-" and not row.startswith(("+++", "---"))}
+        # names and asks are the host's words at ingest (Q20): written once, with the record, and never edited after
+        assert changed(blocks[-1]) <= allowed | {"names", "asks", ""}
+        later = set().union(*(changed(block) for block in blocks[:-1]))
+        assert not later & {"names", "asks"}, "names and asks are written at ingest; a later edit added, changed or dropped one"
+        assert later <= allowed | {""}
     finally:
         writer.close()
 

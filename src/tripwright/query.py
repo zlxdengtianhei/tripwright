@@ -2178,7 +2178,7 @@ class QueryRouter:
             # the line the match falls on (Q20, 2026-11-23: the user could not tell which source a screenshot was)
             extra = dict(source=hit["source"], why=hit["why"], in_force=hit["in_force"], path=hit.get("path"),
                          line=hit.get("line"), commit=hit.get("commit"), snippet=hit.get("snippet"),
-                         snippet_line=hit.get("snippet_line"),
+                         snippet_line=hit.get("snippet_line"), snippet_exact=hit.get("snippet_exact"),
                          **({"cited_as": hit["cited_as"]} if hit.get("cited_as") else {}))
             if hit["found"] == "place":
                 values.append(dict(hit["value"], **extra))

@@ -50,17 +50,22 @@ WORDS = {
                lookup="{source}，{when} 查", expired="已过期，要重查", not_in_force="已不作数", plan="计划里存的",
                booking="预订里存的", checked="（{checked}）", user="你", someone="", unknown="时刻不明",
                shot="{date} 你发的截图第 {shot} 张的转写", shot_no_number="{date} 你发的截图（第几张没记下）的转写",
-               shot_no_date="你发的截图转写"),
+               shot_no_date="你发的截图（哪天没记下）的转写",
+               shot_no_date_number="你发的截图第 {shot} 张的转写（哪天没记下）", received="{date} 收到"),
     "en": dict(said="{who}words, {when}", page="{host}, read {when}", snippet="{host} search snippet, read {when} (not a check)",
                lookup="{source}, fetched {when}", expired="expired, look again", not_in_force="no longer in force",
                plan="stored in the plan", booking="stored in the bookings", checked=" ({checked})", user="your ", someone="",
                unknown="time unknown", shot="your screenshot of {date}, number {shot}, transcribed",
                shot_no_number="your screenshot of {date} (number not recorded), transcribed",
-               shot_no_date="your screenshot, transcribed"),
+               shot_no_date="your screenshot (day not recorded), transcribed",
+               shot_no_date_number="your screenshot, number {shot}, transcribed (day not recorded)",
+               received="received {date}"),
 }
 # Q20 (2026-11-23): a screenshot's transcript says which screenshot it is. The host names it in `native_ref` when it
-# sends the transcription: `screenshot:<YYYY-MM-DD>#<n>` (n counts the screenshots the user sent that day).
-SHOT_REF = re.compile(r"screenshot:(\d{4}-\d{2}-\d{2})(?:#(\d+))?")
+# sends the transcription: `screenshot:<YYYY-MM-DD>#<n>` (n counts the screenshots the user sent that day). A host that
+# knows only one of the two sends `screenshot:<date>` or `screenshot:#<n>`; the day it has not recorded stays unstated
+# rather than taken from the day the message arrived.
+SHOT_REF = re.compile(r"screenshot:(?:(\d{4}-\d{2}-\d{2}))?(?:#(\d+))?")
 
 
 @cache
@@ -383,10 +388,11 @@ def shot_origin(native_ref: str | None) -> dict:
 
 
 def shot_phrase(origin: dict, language: str = "zh") -> str:
-    """The source of a transcript as a person reads it: which day's screenshots, which one."""
+    """The source of a transcript as a person reads it: which day's screenshots, which one; a part the host did not
+    record is said to be missing, never filled in from the day the message arrived."""
     w = WORDS["en" if language == "en" else "zh"]
     if not origin.get("date"):
-        return w["shot_no_date"]
+        return w["shot_no_date_number"].format(shot=origin["shot"]) if origin.get("shot") else w["shot_no_date"]
     if origin.get("shot"):
         return w["shot"].format(date=origin["date"], shot=origin["shot"])
     return w["shot_no_number"].format(date=origin["date"])

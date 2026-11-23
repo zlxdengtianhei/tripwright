@@ -102,6 +102,22 @@ def match_expression(phrases: list[str]) -> str:
     return " OR ".join('"' + phrase.replace('"', '""') + '"' for phrase in phrases)
 
 
+def matched_line(passage: str, start: int, stop: int, phrases: list[str]) -> tuple[int, bool]:
+    """Where the line of `passage[start:stop]` that holds a matched spelling begins, as the index folds it (lower case,
+    no accents), and whether one does. `start` and `False` when no line holds a spelling: the window's first line is
+    all the index can say then (Q20: a Latin word in capitals or with an accent used to fall back to it, so the hit
+    named a line the match was not on)."""
+    needles = [folded for folded in (recall.fold(unspace_cjk(phrase).strip()) for phrase in phrases) if folded]
+    begin = start
+    while begin <= stop:
+        finish = passage.find("\n", begin)
+        finish = len(passage) if finish < 0 else finish
+        if needles and any(needle in recall.fold(passage[begin:finish]) for needle in needles):
+            return begin, True
+        begin = finish + 1
+    return start, False
+
+
 class Index:
     def __init__(self, repository):
         self.repository = repository
@@ -335,9 +351,10 @@ class Index:
             return text.rstrip("\n"), 1
         return self.block(text, line)
 
-    def snippet(self, key: str, passage: str, passage_line: int, phrases: list[str]) -> tuple[str, int] | None:
+    def snippet(self, key: str, passage: str, passage_line: int, phrases: list[str]) -> tuple[str, int, bool] | None:
         """The line of the record's file the match falls on, cut by FTS5's `snippet()` and read whole from the passage
-        so it is the file's own line; and that line's number. None when nothing in the passage matches a phrase."""
+        so it is the file's own line; that line's number; and whether the line holds a spelling of the match (True) or
+        is the window's first line because none of them is there (False). None when nothing in the passage matches."""
         if not passage or not phrases:
             return None
         try:
@@ -352,19 +369,15 @@ class Index:
         at = passage.find(window) if window else -1
         if at < 0:
             return None
-        # which of the matched spellings the window holds, to point at the line it falls on
-        hits = [window.find(unspace_cjk(phrase).strip()) for phrase in phrases]
-        hits = [position for position in hits if position >= 0]
-        position = at + (min(hits) if hits else 0)
-        begin = passage.rfind("\n", 0, position) + 1
-        finish = passage.find("\n", position)
+        # the window's lines, read from the passage so each is the file's own line; the first one that holds a matched
+        # spelling is the match's line, and only when none does is the window's first line the answer
+        begin, exact = matched_line(passage, passage.rfind("\n", 0, at) + 1, at + len(window), phrases)
+        finish = passage.find("\n", begin)
         finish = len(passage) if finish < 0 else finish
-        if begin > finish:
-            return None
         line = passage[begin:finish]
         if len(line) > SNIPPET_CHARS:
             line = line[:SNIPPET_CHARS - 1] + "…"
-        return line, (passage_line + passage[:begin].count("\n")) if passage_line else 0
+        return line, (passage_line + passage[:begin].count("\n")) if passage_line else 0, exact
 
     def rebuild(self, entries: list[dict], plan: dict | None, *, zone: str | None, language: str, owner: str):
         """The rows for every entry, cut again; the commit and the file of each come from the working tree."""
@@ -541,19 +554,20 @@ def _add_snippets(index: "Index", result: dict, candidates: list[dict], query: s
             matched |= {term for term in query - matched if not term.startswith("§") and recall.fold(term) in folded}
         passage, passage_line = entry.pop("passage", ""), entry.pop("passage_line", 0)
         origin = entry.get("origin")
+        received = ""
         if origin and not origin.get("date") and entry.get("path"):
+            # Q20: the raw folder's day is the day the message came in, not the day of the screenshot; when the host
+            # gave no screenshot day, say only that the message was received then, and never pass it off as the day
             date = re.search(r"/raw/(\d{4}-\d{2}-\d{2})/", entry["path"])
             if date:
-                origin["date"] = date.group(1)[5:]
-                entry["source"] = recall.shot_phrase(origin, language)
-                hit["source"] = entry["source"]
+                received = recall.WORDS["en" if language == "en" else "zh"]["received"].format(date=date.group(1)[5:])
         found = index.snippet(f"{entry['found']}:{entry['id']}", passage, passage_line, snippet_phrases(matched, plan))
         if found is None:
             # a match the passage spells in no form this build can look up (a record whose file does not hold its
             # text yet): the id's own line is still the record's own line of the file
             found = index.snippet(f"{entry['found']}:{entry['id']}", passage, passage_line, snippet_phrases({entry['id']}, plan))
         if found:
-            hit["snippet"], hit["snippet_line"] = found[0], found[1]
+            hit["snippet"], hit["snippet_line"], hit["snippet_exact"] = found
             if origin:
-                hit["cited_as"] = (f"{entry['source']}，{entry['path']} 第 {found[1]} 行" if entry.get("path")
-                                   else f"{entry['source']} 第 {found[1]} 行")
+                where = f"{entry['path']} 第 {found[1]} 行" if entry.get("path") else f"第 {found[1]} 行"
+                hit["cited_as"] = "，".join(part for part in (entry["source"], received, where) if part)
