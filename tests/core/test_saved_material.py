@@ -38,9 +38,15 @@ def test_a_preference_from_a_screenshot_and_a_recorded_web_check_are_found_again
 
 
 def test_places_are_found_as_before(service, plan, monkeypatch):
+    """A place named in the question still comes first; entries that carry it (the plan's visit of it) come too, each
+    with where it comes from. Before the word cut (2026-11-23) only the places came back: character pairs diluted the
+    coverage, so the day block that names the place was dropped."""
     seeded(service, plan, monkeypatch)
     values = saved(service, "Example Oslo Gallery")
-    assert values and all("found" not in value for value in values) and values[0]["id"] == "oslo-art"
+    assert values and values[0]["id"] == "oslo-art"
+    places = [value["id"] for value in values if "found" not in value]
+    assert {"oslo-art", "oslo-park", "bergen-view", "bergen-food"} <= set(places)
+    assert all(value.get("source") for value in values)
 
 
 def test_an_earlier_transit_or_weather_lookup_is_found_again_and_says_when_it_expired(service, plan, monkeypatch):

@@ -9,6 +9,12 @@ decision exists, stores the question in the user's repository (ledger/questions,
 by when it must be decided. The user's next message is taken as the answer (as for a draft's unchecked facts,
 versions.unanswered): the turn that receives it names the question in `decided`, and the agent changes the plan as the
 user chose, or keeps the default when the message does not choose; it does not ask again.
+
+One question is open at a time (11-23, after the first review: two questions were open, the user answered one of them,
+and both were marked answered — the agent then applied the default to a question the user never answered). A second
+conflict found while one is open is stored as `pending`: its `say` and options are ready, the agent holds it, and the
+turn that receives the answer to the open question moves the earliest pending one to open (`opened`) so the agent asks
+it in that same answer. The message that answers one question is read as the answer to that question only.
 """
 from __future__ import annotations
 
@@ -101,7 +107,7 @@ def record(store, owner: str, plan: dict | None, arguments: dict, *, evidence: d
     plan_says = str(arguments.get("plan_says") or found_at["text"]).strip()
     for question in store.all("undecided", owner):
         conflict = question.get("conflict") or {}
-        if question.get("kind") == KIND and question.get("status") == "open" and conflict.get("target") == {key: value} \
+        if question.get("kind") == KIND and question.get("status") in ("open", "pending") and conflict.get("target") == {key: value} \
                 and same(conflict.get("found", ""), found):
             return dict(question, reused=True)
     by = arguments.get("by") or (f"{found_at['date'][5:]} {found_at['time']}" if found_at.get("date") and found_at.get("time") else None)
@@ -114,11 +120,13 @@ def record(store, owner: str, plan: dict | None, arguments: dict, *, evidence: d
                           found=found, source=source, options=listed, recommended=marks[recommended], why=why,
                           default=w["default_keep"] if default is None else w["default_option"].format(mark=marks[default]),
                           by=w["by"].format(by=by) if by else "")
+    waiting = open_questions(store, owner)
     question = dict(id=identifier("Q"), kind=KIND, subject=found_at["subject"], scope=dict(start=found_at.get("date"), end=found_at.get("date")),
                     item_ids=[], question=w["question"].format(plan_says=plan_says, found=found), say=say, options=options,
                     recommendation=f"{options[recommended]}: {why}", recommended=recommended,
                     default=w["default_keep"] if default is None else options[default], default_index=default, by=by,
-                    source_event=source_event, asked=dict(at=now(), via="query"), since=now(), status="open",
+                    source_event=source_event, asked=dict(at=None if waiting else now(), via="query"), since=now(),
+                    status="pending" if waiting else "open", **({"queued_after": waiting[0]["id"]} if waiting else {}),
                     conflict=dict(target={key: value}, date=found_at.get("date"), plan_says=plan_says, found=found,
                                   evidence_ids=[evidence["id"]] if evidence else [], said_by_user=bool(arguments.get("said_by_user"))))
     store.put("undecided", owner, question, insert=True)
@@ -129,14 +137,31 @@ def open_questions(store, owner: str) -> list[dict]:
     return [question for question in store.all("undecided", owner) if question.get("kind") == KIND and question.get("status") == "open"]
 
 
-def answer(store, owner: str, event_id: str, received_at: str, aware) -> list[dict]:
-    """The user's next message after a question was asked is its answer: mark each open after-decision question asked
-    before `received_at` as answered by this message. Returns them (for the turn's `decided`)."""
-    answered = []
+def pending_questions(store, owner: str) -> list[dict]:
+    return sorted((question for question in store.all("undecided", owner)
+                   if question.get("kind") == KIND and question.get("status") == "pending"),
+                  key=lambda question: question.get("since") or "")
+
+
+def answer(store, owner: str, event_id: str, received_at: str, aware) -> dict:
+    """The user's next message after a question was asked is the answer to the one question that is open: mark that
+    question answered by this message, and move the earliest pending question to open so the same turn asks it — one
+    question at a time, so a message that answers one thing does not settle another. Returns
+    {answered: [...], opened: [...]} (for the turn's `decided` and `ask`)."""
+    answered, opened = [], []
     for question in open_questions(store, owner):
         asked = (question.get("asked") or {}).get("at") or question.get("since")
         if asked and aware(asked) < aware(received_at):
             question.update(status="answered", answer_event=event_id, answered_at=received_at)
             store.put("undecided", owner, question)
             answered.append(question)
-    return answered
+    if answered:
+        waiting = pending_questions(store, owner)
+        if waiting:
+            question = waiting[0]
+            question.update(status="open", asked=dict(at=received_at, via="turn"), since=question.get("since") or received_at)
+            question.pop("queued_after", None)
+            question.update(opened_at=received_at)
+            store.put("undecided", owner, question)
+            opened.append(question)
+    return dict(answered=answered, opened=opened)

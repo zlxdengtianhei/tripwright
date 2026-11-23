@@ -8,10 +8,13 @@ Each hit says where it comes from and when (the user's words and when said; the 
 and when fetched, and whether that has expired), so the answer can name its source.
 
 Matching is lexical and has no model: words in Latin script (case and accents folded), numbers and clock times, and
-character pairs of Chinese, Japanese or Korean text; a small table of travel words joins the user's language to the
-local one (机场 = Flughafen = airport); a place of the plan named by any of its names brings all its names. A short
-question (up to six informative words) keeps the entries that cover at least half of it, as the old all-words match
-did for one or two words; a long one (a whole message) keeps the best entries by weight. Entries no longer in force
+the words Chinese, Japanese and Korean text cuts into (segments.py: a word table, not a model, not character pairs —
+a long Chinese message used to make hundreds of pairs, most meaningless, so entries matched by accident); a table of
+travel words joins the user's language to the local one (机场 = Flughafen = airport); a table of general place names
+joins the two spellings of a far-away city or country (慕尼黑 = Munich = München, no name of any one trip); a place of
+the plan named by any of its names brings all its names. A short question (up to six informative words) keeps the
+entries that cover at least half of it, or that share a travel word or a general place name with it; a long one (a
+whole message) keeps the best entries by weight, at least a fifth of the best score. Entries no longer in force
 (superseded, withdrawn, expired) come after the ones in force and say so.
 """
 from __future__ import annotations
@@ -26,10 +29,13 @@ from zoneinfo import ZoneInfo
 
 import yaml
 
+from tripwright import segments
+
 SHORT = 6  # informative words up to which a question is short (coverage rule) rather than long (best weight)
 COVERAGE = 0.5
 LONG_SHARE = 0.2
 CHECKED_BOOST = 1.3
+PLACE_SCALE = 1.5  # naming a place of the plan counts more than a common word
 KIND_CAP = 3  # a turn's recall: entries of one kind before the others get a place
 TEXT_LIMIT = 240
 QUOTE_LIMIT = 60  # a record's quote counts as words of the record only when short; a long one is the whole message
@@ -53,6 +59,16 @@ def table() -> dict:
     return yaml.safe_load(files("tripwright").joinpath("recall.yaml").read_text(encoding="utf-8"))
 
 
+def scale(term: str) -> float:
+    """How much a matched term counts: a date alone never scores (it narrows, it does not rank); a place of the plan
+    counts more than a common word the entry and the question happen to share."""
+    if term.startswith("§day:"):
+        return 0.0
+    if term.startswith("§place:"):
+        return PLACE_SCALE
+    return 1.0
+
+
 def fold(text: str) -> str:
     """Lower case without accents (ö → o, ß → ss), the full-width forms made plain."""
     text = unicodedata.normalize("NFKC", str(text)).casefold().replace("ß", "ss")
@@ -60,12 +76,15 @@ def fold(text: str) -> str:
 
 
 def tokens(text: str) -> set[str]:
+    """The words and numbers a text is searched by: Latin words over two letters (a place name or a topic word), and
+    the words the CJK text cuts into (segments.py). A one-character CJK word is dropped like a two-letter Latin one:
+    too common to tell entries apart. Character pairs are not used: a long Chinese message made hundreds of them and
+    most meant nothing, so an entry could match by accident and a real word could not be seen."""
     folded = fold(text)
     stop = set(table()["stop"])
     found = {word for word in LATIN.findall(folded) if word not in stop and (len(word) > 2 or word.isdigit() or ":" in word or "-" in word)}
     for run in CJK.findall(folded):
-        pairs = {run[i:i + 2] for i in range(len(run) - 1)} if len(run) > 1 else {run}
-        found |= {pair for pair in pairs if pair not in stop}
+        found |= {word for word in segments.words(run) if len(word) > 1 and word not in stop}
     return found
 
 
@@ -83,13 +102,29 @@ def groups_in(text: str) -> set[str]:
     return hits
 
 
-def without_group_words(text: str) -> str:
-    """The text with the Chinese forms of the travel-word groups taken out: in a question they count once, as their
-    group, not again as character pairs (车站 行李寄存 is two things, station and luggage, not five pairs); the words
-    for today and tomorrow count as the day they name."""
+def names_in(text: str) -> set[str]:
+    """The general place names (recall.yaml `names`) a text names, in any of its languages, as tokens `§name:<key>`:
+    慕尼黑 and Munich are the same hit, so an entry that says one answers a question that says the other."""
     folded = fold(text)
-    forms = sorted({fold(form) for forms in [*table()["groups"].values(), table()["today"]["zh"], table()["tomorrow"]["zh"]]
-                    for form in forms if CJK.search(form)}, key=len, reverse=True)
+    words = set(LATIN.findall(folded))
+    hits = set()
+    for name, forms in (table().get("names") or {}).items():
+        for form in forms:
+            form = fold(form)
+            if (CJK.search(form) and form in folded) or (not CJK.search(form) and (form in words or " " in form and form in folded)):
+                hits.add(f"§name:{name}")
+                break
+    return hits
+
+
+def without_table_words(text: str) -> str:
+    """The text with the Chinese forms of the tables taken out: in a question they count once, as their group or name,
+    not again as words (车站 行李寄存 is two things, station and luggage, not five); the words for today and tomorrow
+    count as the day they name."""
+    folded = fold(text)
+    forms = sorted({fold(form) for groups in [*table()["groups"].values(), *((table().get("names") or {}).values()),
+                                             table()["today"]["zh"], table()["tomorrow"]["zh"]]
+                    for form in groups if CJK.search(form)}, key=len, reverse=True)
     for form in forms:
         folded = folded.replace(form, " ")
     return folded
@@ -257,21 +292,26 @@ def search(store, owner: str, plan: dict | None, text: str, *, at: datetime, zon
            kind_cap: int | None = None) -> dict:
     """The entries that best answer `text`, best first: {found: [...], terms, rule}. Empty text: nothing (say what to
     look for). `exclude_events`: messages whose own records are left out (a turn's own message: what it recorded is
-    not something the repository already held)."""
+    not something the repository already held).
+
+    A short question (up to SHORT informative terms) keeps entries covering half of it, or naming one of its travel
+    words or general place names; a long one (a whole message) keeps the best by weight, at least LONG_SHARE of the
+    best. A date in the question never scores by itself: it narrows, it does not rank."""
     entries = [entry for entry in corpus(store, owner, plan, at=at, zone=zone, language=language)
                if (not kinds or entry["found"] in kinds) and not (exclude_events and entry.get("event") in exclude_events)]
-    query = tokens(without_group_words(text)) | groups_in(text) | places_in(text, plan) | dates_in(text, at, zone)
+    query = (tokens(without_table_words(text)) | groups_in(text) | names_in(text) | places_in(text, plan)
+             | dates_in(text, at, zone))
     if not query:
         return dict(found=[], terms=[], rule="empty")
     for entry in entries:
-        entry["terms"] = (tokens(entry["haystack"]) | groups_in(entry["haystack"]) | places_in(entry["haystack"], plan)
-                          | dates_in(entry["haystack"], None, zone) | entry.get("days", set()))
+        entry["terms"] = (tokens(entry["haystack"]) | groups_in(entry["haystack"]) | names_in(entry["haystack"])
+                          | places_in(entry["haystack"], plan) | dates_in(entry["haystack"], None, zone)
+                          | entry.get("days", set()))
         if entry["found"] == "place":
             entry["terms"].add(f"§place:{entry['id']}")
     count = len(entries) or 1
     frequency = {term: sum(term in entry["terms"] for entry in entries) for term in query}
-    weight = {term: math.log(1 + count / (1 + frequency[term])) * (1.5 if term.startswith("§place:") else 1.0) for term in query}
-    total = sum(weight.values()) or 1.0
+    weight = {term: math.log(1 + count / (1 + frequency[term])) * scale(term) for term in query}
     informative = [term for term in query if not term.startswith("§day:")]
     rule = "short" if len(informative) <= SHORT else "long"
     scored = []
@@ -280,10 +320,15 @@ def search(store, owner: str, plan: dict | None, text: str, *, at: datetime, zon
         if not matched:
             continue
         score = sum(weight[term] for term in matched)
-        # coverage counts words, not their weights: "half of what was asked" (a rare word must not outweigh the rest)
-        if rule == "short" and len([term for term in matched if not term.startswith("§day:")]) / max(1, len(informative)) < COVERAGE:
+        # coverage counts words, not their weights: "half of what was asked" (a rare word must not outweigh the rest).
+        # A travel-word topic the entry shares with the question is itself a match (民宿 车票: the place the question
+        # names is spelled differently in the repository, or is not stored at all); a place name or a plan place alone
+        # is not enough (the plan's day blocks carry the plan's place IDs).
+        topics = [term for term in matched if term.startswith("§") and not term.startswith(("§day:", "§name:", "§place:"))]
+        if rule == "short" and len([term for term in matched if not term.startswith("§day:")]) / max(1, len(informative)) < COVERAGE \
+                and not topics:
             continue
-        if rule == "long" and len(matched) < 2 and not any(term.startswith("§") and not term.startswith("§day:") for term in matched):
+        if rule == "long" and len(matched) < 2 and not topics:
             continue
         # what was checked (a web page, a lookup) and is still valid answers before what the plan restates
         boost = CHECKED_BOOST if entry["found"] in ("web", "lookup") and entry["in_force"] else 1.0
