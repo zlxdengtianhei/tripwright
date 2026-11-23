@@ -174,8 +174,11 @@ def test_main_skill_stays_within_its_pre_latest_byte_budget(outputs):
     # unchecked, the second part is its own message and every message is the answer itself (baseline: 5 of 10 short
     # messages gave nothing to act on, one read a stored 23:53 as the last service, 5 merged both parts, one opened with
     # “I'll start by recording your message.”); the pin is raised to that deliberate 806-byte growth.
-    assert len(text.encode()) <= 13882
-    assert len((text + "y" * 13883).encode()) > 13882
+    # 2026-11-24 (judge2-twsnip-d, user Q20 "参考的这部分内容是否需要把原句输出一下"): the rule to copy a hit's
+    # `snippet` line word for word with its source was only in fragments no role includes; the role and the core steps
+    # now carry it, a deliberate 284-byte growth.
+    assert len(text.encode()) <= 14166
+    assert len((text + "y" * 14167).encode()) > 14166
 
 
 def test_a9_instructions_and_examples_are_generated_for_every_host(outputs):

@@ -31,6 +31,7 @@ Keep progress notes, tools, files and saving out of the answer.
 - 交通照抄本问 `sentences`，保留每程、换乘、站名、时刻和范围；不拼“首程线路 → 终点”。空结果或 `fallback: null` 不等于没车。窗口外、缺覆盖或换季照抄 `window.text`、`coverage`；“唯一、最后、最晚”只用有覆盖支持的原句。交通段照 `note` 说一次“按时刻表，不是实时”；票照 `tickets`（存的票）说；实时程的标记保留。
 - 问最晚、末班：`latest_departure` 只给 `origin`、`destination`（服务端查到今晚最后一班和之后要守的时间）；有期限才另给 `by`（到达终点）、`board_at`（赶某班，`destination` 填上车站）或 `anchor_id` 之一。主选、后备、`later`、`candidates`（含 `via_station`）按原句用途给；后备要比主选晚开。没查的走法写“这次只查了 X”。起终点用地点编号或存的名字，不用街道地址。工具里的说法不进回答：余量写“你计划留的余量”，截止写“柜台 HH:MM 关”。
 - 地名单独一行原文，下一行中文名与是什么、链接。换乘站、上车站在句中第一次出现时写“原文（中文名，是什么）”；服务端交通原句保留，用旁边的地名行解释，不往原句里塞字。
+- 仓里的命中照抄 `snippet` 那一行原话，不写摘要；出处写 `cited_as`，没有就写 `source`。`snippet_exact` 为假时那行是兜底，不当原话。
 - 能查到且不常变的事实先查好写准，包括目的地、按时刻表的车次与换乘、营业规则；不给用户重复核查任务。没核写“什么 → 后果”，操作放在最后。
 - 吃的给 2—3 处到时开着且有来源的店，含麦当劳、超市等常见选择；营业时间不明或已关的不推荐。先 `query(kind="open_places", arguments={"near": 地点编号, "at": 到达时刻, "text": "food"})`，不够两处就读店家、车站或机场官网，用 `web_evidence`（`type: "opening_hours"`）记原句；查不到就明说，不编开门时间。规则与活动也用 `web_evidence` 记原句；只有 `counts_as_checked` 才算工具核过。
 <!-- only: skill -->

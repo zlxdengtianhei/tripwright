@@ -8,6 +8,11 @@ from __future__ import annotations
 from importlib.resources import files
 
 NAMES = ("writing", "skeleton", "transit", "triggers", "rules")
+# Which fragments reach a host. Only `writing` does: every pack inlines it. The other four are kept for explicit
+# `<!-- include: fragment … -->` lines, and no role includes them today, so editing them changes nothing a host reads;
+# a rule meant for hosts goes into `agents/roles/*.md` or `agents/core.yaml` (11-23: a rule added to `rules` and
+# `skeleton` never reached a host). tests/agents/test_rules_reach_hosts.py keeps this tuple true.
+SHIPPED = ("writing",)
 LANGUAGES = ("zh", "en")
 
 
