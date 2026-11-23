@@ -52,14 +52,17 @@ def test_a_bought_or_booked_ticket_is_material_and_the_next_place_carries_its_ad
     assert "Example Street 1" in place["address"]
 
 
-def test_an_empty_plan_gives_an_empty_list(service, plan, monkeypatch):
+def test_an_empty_plan_gives_no_plan_lines(service, plan, monkeypatch):
+    """No day plan, anchor or booking: nothing of the plan to open with. Lines may still come from what the repository
+    already holds (Q19, 2026-11-23: a stored place is the database, `recall`), and each says it is archived and unchecked."""
     plan["days"][0]["plans"] = []
     plan["days"][0]["anchors"] = []
     plan["bookings"] = []
     seeded_with(service, plan, monkeypatch)
     turn = service.turn("alice", "我饿了，现在去哪吃？", "opening-empty", scenario="quick")
 
-    assert turn["opening_material"] == []
+    assert not [item for item in turn["opening_material"] if item["kind"] != "recall"]
+    assert all("存档，没核" in item["text"] for item in turn["opening_material"])
 
 
 def test_the_road_next_opens_with_the_one_sentence_in_both_languages(service, plan, monkeypatch):

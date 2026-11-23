@@ -6,6 +6,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
+  "jieba>=0.42",  # CJK word cut (segments.py): a bundled word table, no model, no download
   "mcp>=2.3",
   "httpx>=0.28",
   "pydantic>=2.14",

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
 import subprocess
 import sys
 
@@ -94,10 +95,14 @@ def over_mcp(path, kind, arguments):
 def test_the_command_line_prints_what_the_mcp_tool_returns(tmp_path, offline_live, capsys, kind):
     database = tmp_path / "a5.sqlite3"
     seeded(database)
+    # the command line runs on its own copy of the seeded trip: on the same one, a second identical web check is the
+    # record already there (reused, tripret 2026-11-23), not a second lookup to compare
+    line_database = tmp_path / "a5-line.sqlite3"
+    shutil.copy(database, line_database)
     arguments, flags = CASES[kind]
     error, _, over_tool = over_mcp(database, kind, arguments)
     assert not error and over_tool["status"] in ("sourced", "recorded")
-    assert main(["--db", str(database), "query", kind, *flags]) == 0
+    assert main(["--db", str(line_database), "query", kind, *flags]) == 0
     printed = capsys.readouterr()
     on_line = json.loads(printed.out)
     # A host's lookup that no turn led to opens with next (turn first; analysis item 19); the command line never does.

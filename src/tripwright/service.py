@@ -18,7 +18,7 @@ from tripwright.events import Events
 from tripwright.jobs import Jobs
 from tripwright.ledger import Carry, Changes, Fact, Item, Ledger, PendingCheck, Proposal, Relation
 from tripwright.query import QueryRouter, checked_arguments, lookup_failed
-from tripwright import standing
+from tripwright import decide, recall, standing
 from tripwright.render import first_part
 from tripwright.render.opening import material as opening_material
 from tripwright.repo import files as repo_files, memory, notices, replay
@@ -267,7 +267,45 @@ OPEN_FIRST = dict(
        "stored as not checked. With two or three options, mark the recommended one. That message is the first part only; "
        "after it is sent, go on: check, save, then send the second part (heading second_part_title, what differs first) "
        "without waiting for the user. " + SEPARATE_PARTS["en"] + " " + WORK_NOTES["en"])
+RECALL_LIMIT = 6  # entries a turn's `recall` lists
+RECALL_TEXT = 140  # characters of each entry's text in a turn
+# After query(kind="conflict") (decide.py): what the host does with the question, and with the next message.
+DECIDE_HOW = dict(
+    zh="把 say 原样放进这次回答（第二段开头），只问这一问；计划先不改。用户下一句话就是回答：照他选的那项 propose；没选就照默认，不再问。"
+       "同一时段只开一问：这一问回来 queued=true 时先别问，turn 会在那一问答完后把它放到 ask 里。",
+    en="Put `say` into this answer as it is (at the start of the second part) and ask only this; do not change the plan "
+       "yet. The user's next message is the answer: propose the option they chose, or keep the default if they chose none; "
+       "do not ask again. One question is open at a time: when this one comes back queued=true, do not ask it; turn puts "
+       "it in ask after the open one is answered.")
+DECIDED_LEAD = dict(
+    zh="这句话是在回之前那一问（decided）：照用户选的那项改计划（propose），回答里说清选的是哪项；这句话没选就照默认，不再问。",
+    en="This message answers the earlier question (decided): change the plan to the option the user chose (propose) and "
+       "say which one; if the message chooses none, keep the default and do not ask again.")
+# One question is open at a time (decide.py): a second conflict waited; this answer asks it, once.
+ASK_OPEN = dict(
+    zh="另有一问刚才在排队，这一问现在问（ask 里的 {id}）：把它的 say 原样放进这次回答，只问这一问；下一句再算它的回答。",
+    en="One question was waiting its turn; ask it now (ask: {id}): put its say into this answer as it is and ask only "
+       "this one; the next message is its answer.")
+QUESTION_WAITS = dict(
+    zh="还有一问没回（{id}）：这一问先别问，把它的 say 和选项留着；等那一问定了，turn 会把它放到 ask 里，那时再问。",
+    en="A question is still unanswered ({id}): do not ask this one yet; keep its say and options. Once that one is "
+       "settled, turn puts this one in ask; ask it then.")
+# A finding that contradicts the decided plan: how to hand it to the user (decide.py).
+CONFLICT_USE = dict(
+    zh="查到或用户说的事和已定的计划、预订、决定对不上：不自己改计划，调一次 query(kind='conflict')（参数见工具说明），把它给的 say 问用户一次。",
+    en="When something found or said contradicts the decided plan, a booking or a decision: do not change the plan yourself; "
+       "call query(kind='conflict') once (arguments in the tool description) and ask its `say` once.")
 AFTER_OPEN = dict(zh="第一条发出去以后照这里做：", en="After the first message is sent: ")
+# Q19 (2026-11-23): the user's repository is the database. `recall` lists what it already holds for this message;
+# what it lacks is looked up, and what is looked up goes back into it.
+RECALL_USE = dict(
+    zh="recall 与 opening_material 里“仓里存的”是仓里已有的：没过期的直接用、写出处，不重查。"
+       "仓里找别的用 query(kind='saved', arguments={text: 用户的词加当地语言词})——地名只写中文常对不上仓里的当地拼法；"
+       "网上读到、写进回答的事实，一页一次 query(kind='web_evidence') 记进仓。",
+    en="recall and the “In the repository” lines are what the repository already holds: use what has not expired, with its "
+       "source, without looking again. To find more, query(kind='saved', arguments={text: the user's words and the "
+       "local-language words}) — a place named only in Chinese often does not match the local spelling in the repository; "
+       "a fact read on the web that goes into the answer is recorded with query(kind='web_evidence'), once per page.")
 AFTER_FIRST = dict(zh="用户回了话、或 researcher 的报告回来之后照这里做，不再调 turn：",
                    en="After the user replies or the researcher's report returns, do this without calling turn again: ")
 # explain(record_id) (S5): the ledger tables a record ID is looked up in, and the fields each adds to the record
@@ -691,11 +729,28 @@ class Tripwright:
             # 2026-11-22: two of three drafts sent as they were did not answer the question).
             opens = bool(not undo and scenario != "system" and self._reply_flow() == "two")
             opening = opening_material(plan or {}, at, language) if road or opens else None
+            recalled = self._recall(owner, plan or None, text, points, at, event_id, language)
+            held = bool(recalled["found"])  # the repository held something for this message (in recall or the opening)
+            decision = (decide.answer(self.store, owner, event_id, receipt["received_at"], aware) if not undo
+                        else dict(answered=[], opened=[]))
+            decided, opened = decision["answered"], decision["opened"]
+            for question in opened:  # the question that waited its turn is asked in this answer, once
+                asked.append(dict(id=question["id"], say=question["say"], default=question["default"],
+                                  options=question.get("options"), recommended=question.get("recommended"),
+                                  then=DECIDED_LEAD[language]))
+            if opening is not None and recalled["found"]:
+                # what the repository holds beyond the ledger (the ledger is in consider): places, plan, bookings, checks
+                shown = recall.lines(recalled, language, limit=2, kinds=("place", "plan", "booking", "web", "lookup", "said"))
+                opening = opening + shown
+                # what the opening lines carry is not listed twice
+                recalled = dict(found=[entry for entry in recalled["found"] if entry["id"] not in {line["id"] for line in shown}])
             second_title = SECOND_TITLES[language] if first or road or opens else None
             context.update(points=packs.point_record(told),
                            frame=dict(scenario=scenario, asks_latest=first_part.asks_latest(text)),
                            request_id=request_id, promises_second=bool(first), first_text=first["text"] if first else None,
-                           continues=None)
+                           continues=None,
+                           asked=[*(context.get("asked") or []),
+                                  *[dict(id=question["id"], scope=question.get("scope", {})) for question in opened]])
             self.store.put("contexts", owner, context)
             instructions = self._next(considered, asked, recorded, first=first, second_title=second_title,
                                       latest=first_part.asks_latest(text),
@@ -725,6 +780,19 @@ class Tripwright:
                 response = dict(next=instructions, first_part=first, second_part_title=second_title, **response)
             if road and not opens:
                 response["opening_material"] = opening
+            if decided:
+                response["decided"] = [{key: question.get(key) for key in ("id", "say", "options", "recommended", "default", "by")}
+                                       for question in decided]
+                response["next"] = whole_sentences(DECIDED_LEAD[language] + (" " if language == "en" else "") + response["next"], 1100)
+            if opened:
+                lead = ASK_OPEN[language].format(id=opened[0]["id"])
+                response["next"] = whole_sentences(lead + (" " if language == "en" else "") + response["next"], 1100)
+            if recalled["found"]:
+                response["recall"] = recalled
+            if "after_first_part" in response:
+                use = (RECALL_USE[language] if held else "") + CONFLICT_USE[language]
+                response["after_first_part"] = response["after_first_part"].replace(AFTER_OPEN[language], AFTER_OPEN[language] + use, 1) \
+                    if response["after_first_part"].startswith(AFTER_OPEN[language]) else response["after_first_part"] + use
             mode = consider.save_mode(self.store, owner, at=at)
             response.update(consider={key: considered[key] for key in ("entries", "more", "more_how") if key in considered},
                             ask=asked, offer=consider.offer(known["languages"], language),
@@ -857,6 +925,18 @@ class Tripwright:
         words = (WAITING_STALE if stale else WAITING)["en" if language == "en" else "zh"]
         return dict(draft_id=draft["id"], unverified=[check["id"] for check in draft["ask"]], stale=stale,
                     say=words.format(draft=draft["id"], n=len(draft["ask"])))
+
+    def _recall(self, owner: str, plan: dict | None, text: str, points, at: str, event_id: str, language: str) -> dict:
+        """What the repository already holds for this message (recall.search over its text and the points' words),
+        without what this message itself recorded; compact entries for the turn's `recall`."""
+        words = " ".join([text or ""] + [str(point.get("said") or "") + " " + str(point.get("place") or "")
+                                         for point in points or [] if isinstance(point, dict)])
+        zone = (plan or {}).get("timezone") or (self.repository.timezone() if self.repository is not None else None)
+        found = recall.search(self.store, owner, plan, words, at=aware(at), zone=zone, language=language, limit=RECALL_LIMIT,
+                              exclude_events={event_id}, kind_cap=recall.KIND_CAP)
+        return dict(found=[dict({key: entry[key] for key in ("found", "id", "source") if key in entry},
+                                text=recall.short(entry["text"], None, RECALL_TEXT), **({} if entry["in_force"] else dict(in_force=False)))
+                           for entry in found["found"]])
 
     def _quick_first(self, text: str, scenario: str, clock: dict, anchors: list[dict], plan: dict | None,
                      told: dict | None, *, language: str | None = None) -> dict | None:
@@ -1204,6 +1284,8 @@ class Tripwright:
         self.bound(owner)
         language = self._reply_language(owner)
         plan = self.versions.current(owner)["plan"]
+        if kind == "conflict":
+            return self._conflict(owner, arguments, plan, language)
         arguments = checked_arguments(kind, arguments, plan)
         if kind == "transit" and arguments.get("action") == "plan_day":
             from tripwright.solver import prepare
@@ -1276,6 +1358,41 @@ class Tripwright:
                          f"{f'; {arguments[key]!r} is hard node {node!r}' if key != 'anchor_id' else ''}). The result gives "
                          f"tonight's last connection and the next time to keep after it with when to leave for it (hard_node); "
                          f"the second part opens with its first_line.")
+
+    def _conflict(self, owner: str, arguments, plan: dict | None, language: str) -> dict:
+        """query(kind="conflict") (decide.py): one question for a conflict found after the plan was decided, stored in
+        the repository like evidence (an outbox operation carries it), with `say` ready to send."""
+        if not isinstance(arguments, dict):
+            raise ValueError(f"arguments must be an object, got {json_type(arguments)}")
+        evidence = None
+        if arguments.get("evidence_id"):
+            evidence = self.store.get("evidence", owner, arguments["evidence_id"])
+        written = [context for context in self.store.all("contexts", owner)]
+        latest = max(written, key=lambda context: aware(context["created_at"]), default=None)
+        zone = (plan or {}).get("timezone") or (self.repository.timezone() if self.repository is not None else None)
+
+        def local(value):
+            if not value:
+                return None
+            moment = aware(value)
+            return (moment.astimezone(ZoneInfo(zone)) if zone else moment).strftime("%m-%d %H:%M")
+
+        question = decide.record(self.store, owner, plan, arguments, evidence=evidence,
+                                 source_event=(latest or {}).get("source_event"), language=language, local=local)
+        if self.committer is not None and not question.get("reused"):
+            self.take_in()
+            with self.store.transaction():
+                self.outbox.add(owner, kind="job", tool="job", key=f"conflict:{question['id']}", records=[question["id"]],
+                                replay=dict(undecided=[question]))
+            self.committer.poke()
+        how = DECIDE_HOW["en" if language == "en" else "zh"]
+        queued = question.get("status") == "pending"
+        if queued:
+            how = QUESTION_WAITS["en" if language == "en" else "zh"].format(id=question["queued_after"])
+        return dict(status="recorded", kind="conflict", id=question["id"], say=question["say"], options=question["options"],
+                    recommended=question["recommended"], default=question["default"], by=question.get("by"),
+                    reused=bool(question.get("reused")), queued=queued, ask_now=not queued,
+                    **({"queued_after": question["queued_after"]} if queued else {}), next=how)
 
     def record_evidence(self, owner: str, before: set[str], *, key: str):
         """Evidence written by a lookup or a deep job is canonical (evidence/); an outbox operation carries it so a

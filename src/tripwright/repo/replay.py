@@ -35,6 +35,10 @@ def replay(service, scratch, owner: str, op: dict) -> dict | None:
             for record in data.get("evidence", []):
                 if record["id"] not in present:
                     scratch.put("evidence", owner, record, insert=True)
+            asked = {record["id"] for record in scratch.all("undecided", owner)}
+            for record in data.get("undecided", []):  # a conflict question (decide.py) travels like evidence
+                if record["id"] not in asked:
+                    scratch.put("undecided", owner, record, insert=True)
         return None
     if op["kind"] == "commit":
         return _commit(scratch, owner, op, data)

@@ -1,0 +1,340 @@
+# What recall.py reads as one word across languages, and what it never matches on.
+# groups: travel words that name the same thing in the user's language and the local one (any form found in a
+# question or an entry counts as the group). Forms in Latin script match a whole word, folded (Flughafen = flughafen);
+# Chinese forms match anywhere in the text. Only general travel words: names of places come from the plan itself
+# (recall.places_in), so the table holds no city, sight or operator of any one trip.
+# stop: Latin words and Chinese character pairs too common to tell entries apart.
+groups:
+  airport: [机场, 航站楼, airport, flughafen, terminal]
+  station: [火车站, 车站, 中央车站, 总站, hbf, hauptbahnhof, bahnhof, station, bahnhst]
+  train: [火车, 列车, 车次, 班次, 末班, train, zug, bahn]
+  ticket: [车票, 票价, 补票, 买票, 门票, ticket, tickets, fahrkarte, karte, fare, eintritt, einzeleintritt]
+  climbing: [岩馆, 攀岩, 抱石, climbing, bouldering, boulder, kletterhalle, klettern]
+  church: [教堂, 大教堂, church, kirche, dom, cathedral]
+  museum: [博物馆, 美术馆, 画廊, 展览, museum, galerie, gallery, exhibition, ausstellung]
+  food: [吃饭, 吃点, 饿, 餐厅, 饭, 外卖, 打包, food, restaurant, essen, kitchen, imbiss, eat]
+  stay: [民宿, 青旅, 酒店, 入住, 住宿, 过夜, 夜里, 夜间, 通宵, 停留, 睡, hostel, hotel, unterkunft, check-in, checkin, overnight, sleep, night]
+  luggage: [行李, 箱子, 寄存, 储物柜, luggage, baggage, gepack, locker, schliessfach]
+  opening: [营业, 开门, 关门, 几点开, 开放, opening, hours, offnungszeiten, open, closes, geoffnet]
+  price: [价格, 多少钱, 便宜, 省钱, 优惠, 折扣, price, prices, preise, discount, ermassigung, cheap]
+  discount_card: [优惠卡, 客人卡, gastekarte, guest card]
+  weather: [天气, 下雨, 晴天, weather, wetter, rain, sunny]
+  flight: [航班, 飞机, 值机, 登机, flight, boarding, gate]
+  missed: [错过, 误车, 误了, 没赶上, 赶不上, 下一趟, 下一班, 改乘, 改坐, 改签, 晚点, 延误, 取消, verpasst, missed, delay, delayed, cancelled, next train]
+  latest: [最晚, 末班, 最后一班, 最后一趟, 最迟, 最后开, latest, last train, last connection, letzte]
+  how_to_go: [怎么走, 怎么去, 走法, 路线, 换乘, 坐车, route, directions, connection, verbindung]
+  walk: [走路, 步行, 走过去, walk, walking, fussweg]
+  taxi: [打车, 出租车, taxi, uber, bolt]
+  lake: [湖区, 湖边, 湖上, lake, see]
+# the words for today and tomorrow in a question (a day the question is about)
+today:
+  zh: [今天, 今晚, 现在, 今早, 今日, 刚刚, 这会儿]
+  en: [today, tonight, now, heute]
+tomorrow:
+  zh: [明天, 明早, 明晚, 明日]
+  en: [tomorrow, morgen]
+# Latin words too common in place names to tell one place from another by a loose prefix
+generic_names: [station, kirche, church, flughafen, airport, hauptbahnhof, platz, strasse, gasse]
+# names: a general place name and what it is called in the local language, so a question that says 慕尼黑 finds an
+# entry that says Munich (one hit as `§name:munich`, matched on both sides like the groups above). Only general names:
+# big cities, countries and the sights travellers ask about by name. No name of any one trip lives here — the plan
+# brings its own places and their local names (recall.places_in), and the test on this file names the example trip's
+# places, operators and area, so a city, a sight or an operator of that trip cannot creep back in.
+names:
+  munich: [慕尼黑, munich, munchen]
+  berlin: [柏林, berlin]
+  frankfurt: [法兰克福, frankfurt]
+  cologne: [科隆, cologne, koln]
+  hamburg: [汉堡, hamburg]
+  stuttgart: [斯图加特, stuttgart]
+  nuremberg: [纽伦堡, nuremberg, nurnberg]
+  dresden: [德累斯顿, dresden]
+  leipzig: [莱比锡, leipzig]
+  dusseldorf: [杜塞尔多夫, dusseldorf]
+  zurich: [苏黎世, zurich]
+  geneva: [日内瓦, geneva, genf, geneve]
+  basel: [巴塞尔, basel]
+  lucerne: [卢塞恩, 琉森, lucerne, luzern]
+  bern: [伯尔尼, bern]
+  interlaken: [因特拉肯, interlaken]
+  paris: [巴黎, paris]
+  lyon: [里昂, lyon]
+  marseille: [马赛, marseille]
+  strasbourg: [斯特拉斯堡, strasbourg]
+  bordeaux: [波尔多, bordeaux]
+  rome: [罗马, rome, roma]
+  milan: [米兰, milan, milano]
+  venice: [威尼斯, venice, venezia]
+  florence: [佛罗伦萨, 翡冷翠, florence, firenze]
+  naples: [那不勒斯, naples, napoli]
+  turin: [都灵, turin, torino]
+  bologna: [博洛尼亚, bologna]
+  verona: [维罗纳, verona]
+  barcelona: [巴塞罗那, barcelona]
+  madrid: [马德里, madrid]
+  seville: [塞维利亚, seville, sevilla]
+  valencia: [瓦伦西亚, valencia]
+  granada: [格拉纳达, granada]
+  lisbon: [里斯本, lisbon, lisboa]
+  porto: [波尔图, porto]
+  amsterdam: [阿姆斯特丹, amsterdam]
+  rotterdam: [鹿特丹, rotterdam]
+  brussels: [布鲁塞尔, brussels, brussel, bruxelles]
+  bruges: [布鲁日, bruges, brugge]
+  ghent: [根特, ghent, gent]
+  london: [伦敦, london]
+  edinburgh: [爱丁堡, edinburgh]
+  manchester: [曼彻斯特, manchester]
+  dublin: [都柏林, dublin]
+  copenhagen: [哥本哈根, copenhagen, kobenhavn]
+  stockholm: [斯德哥尔摩, stockholm]
+  oslo: [奥斯陆, oslo]
+  bergen: [卑尔根, bergen]
+  helsinki: [赫尔辛基, helsinki]
+  reykjavik: [雷克雅未克, reykjavik]
+  athens: [雅典, athens, athina]
+  santorini: [圣托里尼, santorini]
+  istanbul: [伊斯坦布尔, istanbul]
+  cappadocia: [卡帕多奇亚, cappadocia, kapadokya]
+  prague: [布拉格, prague, praha]
+  warsaw: [华沙, warsaw, warszawa]
+  krakow: [克拉科夫, krakow, krakau]
+  bratislava: [布拉迪斯拉发, bratislava]
+  ljubljana: [卢布尔雅那, ljubljana]
+  zagreb: [萨格勒布, zagreb]
+  dubrovnik: [杜布罗夫尼克, dubrovnik]
+  belgrade: [贝尔格莱德, belgrade, beograd]
+  bucharest: [布加勒斯特, bucharest, bucuresti]
+  sofia: [索菲亚, sofia]
+  moscow: [莫斯科, moscow, moskva]
+  newyork: [纽约, new york, newyork, nyc]
+  losangeles: [洛杉矶, los angeles]
+  sanfrancisco: [旧金山, 三藩市, san francisco]
+  seattle: [西雅图, seattle]
+  chicago: [芝加哥, chicago]
+  boston: [波士顿, boston]
+  washington: [华盛顿, washington]
+  miami: [迈阿密, miami]
+  lasvegas: [拉斯维加斯, las vegas]
+  honolulu: [檀香山, 火奴鲁鲁, honolulu]
+  vancouver: [温哥华, vancouver]
+  toronto: [多伦多, toronto]
+  montreal: [蒙特利尔, montreal, montréal]
+  mexicocity: [墨西哥城, mexico city, ciudad de mexico]
+  rio: [里约热内卢, rio de janeiro, rio]
+  saopaulo: [圣保罗, sao paulo]
+  buenosaires: [布宜诺斯艾利斯, buenos aires]
+  santiago: [圣地亚哥, santiago]
+  lima: [利马, lima]
+  bogota: [波哥大, bogota]
+  tokyo: [东京, tokyo, tokio]
+  kyoto: [京都, kyoto]
+  osaka: [大阪, osaka]
+  sapporo: [札幌, sapporo]
+  fukuoka: [福冈, fukuoka]
+  okinawa: [冲绳, okinawa]
+  seoul: [首尔, 汉城, seoul]
+  busan: [釜山, busan, pusan]
+  beijing: [北京, beijing, peking]
+  shanghai: [上海, shanghai]
+  guangzhou: [广州, guangzhou]
+  shenzhen: [深圳, shenzhen]
+  chengdu: [成都, chengdu]
+  xian: [西安, xian]
+  hangzhou: [杭州, hangzhou]
+  suzhou: [苏州, suzhou]
+  taipei: [台北, taipei]
+  kaohsiung: [高雄, kaohsiung]
+  hongkong: [香港, hong kong, hongkong]
+  macau: [澳门, macau, macao]
+  bangkok: [曼谷, bangkok]
+  chiangmai: [清迈, chiang mai]
+  phuket: [普吉, phuket]
+  hanoi: [河内, hanoi, ha noi]
+  hochiminh: [胡志明市, 西贡, ho chi minh, saigon]
+  danang: [岘港, da nang, danang]
+  hoian: [会安, hoi an]
+  kualalumpur: [吉隆坡, kuala lumpur]
+  bali: [巴厘岛, 峇里岛, bali]
+  jakarta: [雅加达, jakarta]
+  manila: [马尼拉, manila]
+  delhi: [德里, delhi]
+  mumbai: [孟买, mumbai, bombay]
+  jaipur: [斋浦尔, jaipur]
+  dubai: [迪拜, dubai]
+  abudhabi: [阿布扎比, abu dhabi]
+  doha: [多哈, doha]
+  telaviv: [特拉维夫, tel aviv]
+  jerusalem: [耶路撒冷, jerusalem]
+  cairo: [开罗, cairo]
+  marrakech: [马拉喀什, marrakech, marrakesh]
+  capetown: [开普敦, cape town]
+  nairobi: [内罗毕, nairobi]
+  sydney: [悉尼, 雪梨, sydney]
+  melbourne: [墨尔本, melbourne]
+  brisbane: [布里斯班, brisbane]
+  perth: [珀斯, perth]
+  auckland: [奥克兰, auckland]
+  queenstown: [皇后镇, queenstown]
+  # countries
+  germany: [德国, germany, deutschland]
+  switzerland: [瑞士, switzerland, schweiz, suisse]
+  france: [法国, france]
+  italy: [意大利, italy, italia]
+  spain: [西班牙, spain, espana]
+  portugal: [葡萄牙, portugal]
+  netherlands: [荷兰, netherlands, holland, niederlande]
+  belgium: [比利时, belgium, belgique, belgien]
+  britain: [英国, 英格兰, britain, england, uk, united kingdom, grossbritannien]
+  ireland: [爱尔兰, ireland, irland]
+  scotland: [苏格兰, scotland, schottland]
+  usa: [美国, usa, united states, america, amerika]
+  canada: [加拿大, canada, kanada]
+  mexico: [墨西哥, mexico, mexiko]
+  brazil: [巴西, brazil, brasilien]
+  argentina: [阿根廷, argentina, argentinien]
+  chile: [智利, chile]
+  peru: [秘鲁, peru]
+  colombia: [哥伦比亚, colombia, kolumbien]
+  japan: [日本, japan]
+  korea: [韩国, korea, south korea, sudkorea]
+  china: [中国, china]
+  taiwan: [台湾, taiwan]
+  thailand: [泰国, thailand]
+  vietnam: [越南, vietnam, viet nam]
+  malaysia: [马来西亚, malaysia]
+  singapore: [新加坡, singapore, singapur]
+  indonesia: [印度尼西亚, 印尼, indonesia, indonesien]
+  india: [印度, india, indien]
+  czechia: [捷克, czechia, czech republic, tschechien]
+  hungary: [匈牙利, hungary, ungarn]
+  poland: [波兰, poland, polen]
+  croatia: [克罗地亚, croatia, kroatien]
+  slovenia: [斯洛文尼亚, slovenia, slowenien]
+  slovakia: [斯洛伐克, slovakia, slowakei]
+  romania: [罗马尼亚, romania, rumanien]
+  bulgaria: [保加利亚, bulgaria, bulgarien]
+  greece: [希腊, greece, griechenland]
+  turkey: [土耳其, turkey, turkei]
+  egypt: [埃及, egypt, agypten]
+  morocco: [摩洛哥, morocco, marokko]
+  iceland: [冰岛, iceland, ísland]
+  norway: [挪威, norway, norwegen]
+  sweden: [瑞典, sweden, schweden]
+  denmark: [丹麦, denmark, danemark]
+  finland: [芬兰, finland, finnland]
+  russia: [俄罗斯, russia, russland]
+  australia: [澳大利亚, 澳洲, australia, australien]
+  newzealand: [新西兰, new zealand, neuseeland]
+  # sights travellers name
+  eiffeltower: [埃菲尔铁塔, eiffel tower]
+  louvre: [卢浮宫, louvre]
+  britishmuseum: [大英博物馆, british museum]
+  statueliberty: [自由女神像, statue of liberty]
+  sagradafamilia: [圣家堂, 圣家族大教堂, sagrada familia]
+  colosseum: [斗兽场, 罗马斗兽场, colosseum, colosseo]
+  vatican: [梵蒂冈, 圣彼得大教堂, vatican]
+  pisatower: [比萨斜塔, leaning tower of pisa, pisa]
+  neuschwanstein: [新天鹅堡, neuschwanstein]
+  jungfrau: [少女峰, jungfrau]
+  matterhorn: [马特洪峰, matterhorn]
+  montblanc: [勃朗峰, mont blanc]
+  alps: [阿尔卑斯, alps, alpen]
+  danube: [多瑙河, danube, donau]
+  rhine: [莱茵河, rhine, rhein]
+  brandenburggate: [勃兰登堡门, brandenburg gate, brandenburger tor]
+  charlesbridge: [查理大桥, charles bridge, karlsbrucke]
+  bigben: [大本钟, big ben]
+  towerbridge: [伦敦塔桥, tower bridge]
+  notredame: [巴黎圣母院, notre-dame, notre dame]
+  versailles: [凡尔赛, versailles]
+stop:
+  - 几点
+  - 多少
+  - 哪里
+  - 哪个
+  - 哪儿
+  - 怎样
+  - 为什
+  - 什么
+  - 能不
+  - 不能
+  - 可不
+  - 是不
+  - 吗？
+  - the
+  - and
+  - for
+  - with
+  - from
+  - der
+  - die
+  - das
+  - und
+  - von
+  - mit
+  - nach
+  - zum
+  - zur
+  - den
+  - dem
+  - des
+  - ein
+  - eine
+  - 我们
+  - 我的
+  - 现在
+  - 这个
+  - 那个
+  - 一下
+  - 就是
+  - 然后
+  - 可以
+  - 的话
+  - 什么
+  - 怎么
+  - 还是
+  - 如果
+  - 一个
+  - 没有
+  - 觉得
+  - 应该
+  - 知道
+  - 是不
+  - 不是
+  - 这样
+  - 那么
+  - 因为
+  - 所以
+  - 其实
+  - 我想
+  - 你可
+  - 以后
+  - 之后
+  - 这些
+  - 那些
+  - 一些
+  - 时候
+  - 我觉
+  - 我们的
+  - 他们
+  - 自己
+  - 的时
+  - 是说
+  - 说的
+  - 了吧
+  - 我要
+  - 要是
+  - 一点
+  - 有点
+  - 有没
+  - 看看
+  - 看一
+  - 一看
+  - 是否
+  - 部分
+  - 东西
+  - 问题
+  - 原话
+  - cet
+  - cest
