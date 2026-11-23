@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Run release preflight checks against fresh, local, synthetic TripWright servers.
 
-Each check seeds demo-coords at 2030-06-10T20:30:00+02:00, starts an HTTP server on
-127.0.0.1 with a random URL key, and stops it afterwards. Conformance invokes
+Each check seeds demo-coords on the clock its scenario writes in `now` (2030-06-10T20:30:00+02:00 when the scenario
+writes none), starts an HTTP server on 127.0.0.1 with a random URL key, and stops it afterwards. Conformance invokes
 ``npx -y @modelcontextprotocol/conformance@0.1.16``; Codex checks invoke the
 separately installed, already logged-in ``codex`` CLI (model gpt-6-luna by default).
 Thus npx/network access and Codex login are prerequisites for those respective checks.
@@ -42,6 +42,7 @@ CONFORMANCE_PACKAGE = f"@modelcontextprotocol/conformance@{CONFORMANCE_VERSION}"
 CONFORMANCE_SCENARIOS = ("server-initialize", "ping", "tools-list")
 CODEX_SCENARIOS = ("s1_first_use_en", "s2_on_the_road_zh", "s3_change_and_remember_zh")
 MOMENT = datetime.fromisoformat("2030-06-10T20:30:00+02:00")
+SCENARIO_DIRECTORY = REPO / "scripts" / "chat_scenarios"
 
 
 def redact(text: str) -> str:
@@ -96,17 +97,37 @@ def observation_view(observed: dict) -> dict:
     return view
 
 
+def load_scenario(stem: str) -> dict:
+    return yaml.safe_load((SCENARIO_DIRECTORY / f"{stem}.yaml").read_text(encoding="utf-8"))
+
+
+def moment_of(scenario: dict) -> datetime:
+    """The server clock the scenario asks for; MOMENT when the scenario writes no `now`."""
+    now = scenario.get("now")
+    if not now:
+        return MOMENT
+    moment = datetime.fromisoformat(str(now))
+    if moment.tzinfo is None:
+        raise ValueError("scenario `now` needs a UTC offset, e.g. 2030-06-10T20:30:00+02:00")
+    return moment
+
+
+def service_environment(moment: datetime) -> dict:
+    """The variables that pin the synthetic service's clock, from the check's own moment."""
+    return dict(TRIPWRIGHT_PROVIDERS="synthetic", TRIPWRIGHT_NOW=moment.isoformat(),
+                TRIPWRIGHT_NOW_SET_AT=str(time.time()))
+
+
 @contextmanager
-def service():
+def service(moment: datetime = MOMENT):
     with tempfile.TemporaryDirectory(prefix="release-check-") as scratch:
         directory = Path(scratch)
-        database = seed_database(directory, "local", MOMENT, "demo-coords")
+        database = seed_database(directory, "local", moment, "demo-coords")
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))
             port = listener.getsockname()[1]
         key = secrets.token_urlsafe(32)
-        environment = dict(os.environ, TRIPWRIGHT_URL_KEY=key, TRIPWRIGHT_PROVIDERS="synthetic",
-                           TRIPWRIGHT_NOW=MOMENT.isoformat(), TRIPWRIGHT_NOW_SET_AT=str(time.time()))
+        environment = dict(os.environ, TRIPWRIGHT_URL_KEY=key, **service_environment(moment))
         process = subprocess.Popen([sys.executable, "-m", "tripwright.cli", "--db", str(database), "serve", "--http",
                                     "--host", "127.0.0.1", "--port", str(port)], cwd=REPO, env=environment,
                                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
@@ -173,9 +194,9 @@ def codex_message(url: str, model: str, cwd: Path, text: str, thread: str | None
 
 
 def codex_scenario(stem: str, model: str) -> tuple[dict, str]:
-    scenario = yaml.safe_load((REPO / "scripts/chat_scenarios" / f"{stem}.yaml").read_text(encoding="utf-8"))
+    scenario = load_scenario(stem)
     observations, raw_parts = [], []
-    with service() as url, tempfile.TemporaryDirectory(prefix="codex-release-") as scratch:
+    with service(moment_of(scenario)) as url, tempfile.TemporaryDirectory(prefix="codex-release-") as scratch:
         before = asyncio.run(state_number_async(url)) if stem.startswith("s3_") else None
         thread = None
         for text in scenario["messages"]:

@@ -2,9 +2,13 @@
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import json
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
+from datetime import datetime
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location("release_check", ROOT / "scripts/release_check.py")
@@ -68,7 +72,7 @@ def test_s3_reads_state_afterwards_even_without_a_commit(monkeypatch):
         observed.update(seconds=0.1, exit_code=0)
         return observed, ""
 
-    monkeypatch.setattr(release, "service", lambda: nullcontext("http://127.0.0.1/mcp/test"))
+    monkeypatch.setattr(release, "service", lambda moment=release.MOMENT: nullcontext("http://127.0.0.1/mcp/test"))
     monkeypatch.setattr(release, "state_number_async", fake_state)
     monkeypatch.setattr(release, "codex_message", fake_message)
     check, _ = release.codex_scenario("s3_change_and_remember_zh", "test-model")
@@ -92,7 +96,7 @@ def test_s3_continues_in_the_same_thread_when_the_first_message_does_not_commit(
         observed.update(seconds=0.1, exit_code=0)
         return observed, ""
 
-    monkeypatch.setattr(release, "service", lambda: nullcontext("http://127.0.0.1/mcp/test"))
+    monkeypatch.setattr(release, "service", lambda moment=release.MOMENT: nullcontext("http://127.0.0.1/mcp/test"))
     monkeypatch.setattr(release, "state_number_async", fake_state)
     monkeypatch.setattr(release, "codex_message", fake_message)
 
@@ -114,7 +118,7 @@ def test_s3_fails_after_continuing_when_neither_message_commits(monkeypatch):
         observed.update(seconds=0.1, exit_code=0)
         return observed, ""
 
-    monkeypatch.setattr(release, "service", lambda: nullcontext("http://127.0.0.1/mcp/test"))
+    monkeypatch.setattr(release, "service", lambda moment=release.MOMENT: nullcontext("http://127.0.0.1/mcp/test"))
     monkeypatch.setattr(release, "state_number_async", fake_state)
     monkeypatch.setattr(release, "codex_message", fake_message)
 
@@ -122,6 +126,47 @@ def test_s3_fails_after_continuing_when_neither_message_commits(monkeypatch):
 
     assert check["status"] == "failed"
     assert calls[-1] == ("继续", "thread-1") and len(check["messages"]) == 2
+
+
+def test_s3_pins_the_service_clock_to_the_scenario_moment(monkeypatch):
+    # Q19: the check must report real regressions. The scenario writes `now: 16:00`; the check used to pin 20:30 and
+    # overwrite TRIPWRIGHT_NOW, so "move the dinner from 17:00 to 19:00" arrived at an already passed hour, the model
+    # sometimes only asked and never committed, and s3 flipped between green and red.
+    seen = []
+
+    @contextmanager
+    def fake_service(moment=release.MOMENT):
+        seen.append(moment)
+        yield "http://127.0.0.1/mcp/test"
+
+    async def fake_state(url):
+        return 3
+
+    def fake_message(url, model, cwd, text, thread=None):
+        observed = release.parse_events(event("thread.started", thread_id="thread-1"))
+        observed.update(seconds=0.1, exit_code=0)
+        return observed, ""
+
+    monkeypatch.setattr(release, "service", fake_service)
+    monkeypatch.setattr(release, "state_number_async", fake_state)
+    monkeypatch.setattr(release, "codex_message", fake_message)
+
+    release.codex_scenario("s3_change_and_remember_zh", "test-model")
+
+    moment = datetime.fromisoformat("2030-06-10T16:00:00+02:00")
+    assert seen == [moment]
+    assert release.service_environment(seen[0])["TRIPWRIGHT_NOW"] == "2030-06-10T16:00:00+02:00"
+
+
+def test_a_scenario_without_now_keeps_the_fixed_moment():
+    assert release.moment_of({"messages": ["hello"]}) == release.MOMENT
+    assert release.moment_of({"now": "2030-06-10T16:00:00+02:00"}) == datetime.fromisoformat("2030-06-10T16:00:00+02:00")
+    with pytest.raises(ValueError, match="UTC offset"):
+        release.moment_of({"now": "2030-06-10T16:00"})
+
+
+def test_conformance_keeps_the_fixed_moment():
+    assert inspect.signature(release.service).parameters["moment"].default == release.MOMENT
 
 
 def test_saved_json_redacts_url_key(tmp_path):
