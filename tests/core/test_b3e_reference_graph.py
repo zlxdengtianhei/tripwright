@@ -89,7 +89,8 @@ PLAIN = {
     "Person": {"id", "name"},
     # transit_id is a stop ID in the transit provider, outside the trip document; locks compare it as a value.
     # opening_hours are rules ('Mo-Fr 06:00-22:00'); hours_source holds a page address and an evidence record's ID (A7).
-    "Place": {"id", "name", "name_local", "kind", "reason", "hours", "checked", "notes", "transit_id", "links", "opening_hours", "hours_source"},
+    "Place": {"id", "name", "name_local", "aliases", "asks", "kind", "reason", "hours", "checked", "notes", "transit_id",
+              "links", "opening_hours", "hours_source"},
     "Fare": {"id", "segment", "ticket", "currency"},
     "Booking": {"id", "kind", "what", "why_now", "where", "if_missed", "contact"},
     "Block": {"id", "start", "end", "text", "mode", "source", "app", "note", "equipment", "critical_facts", "line"},
@@ -479,7 +480,8 @@ def test_the_description_whitelist_is_the_expected_table():
     """Widening this table weakens every lock; it changes only together with this test and locks.FIELDS
     (no channel, deadline, refund terms, hours, price, rain flag, priority or people)."""
     assert {model_name: names for model_name, names in DESCRIPTION.items() if names} == {
-        "Place": {"notes", "reason", "links", "checked", "hours_source"},  # A7: where opening hours were read
+        # A7: where opening hours were read. asks (Q20): the ways the user may ask about the place, search text only.
+        "Place": {"notes", "reason", "links", "checked", "hours_source", "asks"},
         "Booking": {"why_now"},
         "Block": {"note", "evidence_ids"},
         "Plan": {"name", "note"},

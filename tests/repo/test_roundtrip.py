@@ -105,9 +105,10 @@ def test_records_change_only_their_status_and_journals_only_grow(tmp_path):
         check = next((root / layout.trip_folder(TRIP) / "ledger/checks").glob("*.yaml"))
         changes = git(root, "log", "-p", "--format=format:COMMIT", "--", str(check.relative_to(root)))
         changed_lines = {row[1:].split(":")[0] for row in changes.splitlines() if row[:1] in "+-" and not row.startswith(("+++", "---"))}
+        # names and asks are the host's words at ingest (Q20); they are written once, with the record
         assert changed_lines <= {"status", "result", "id", "question", "due_at", "responsible", "subject", "scope", "source", "consequence",
-                                 "alternative", "evidence_ids", "  event", "  nature", "  basis", "- p1", "  start", "  end", "  time_from",
-                                 "  time_to", "  place", "  channel"} | {""}
+                                 "alternative", "evidence_ids", "names", "asks", "  event", "  nature", "  basis", "- p1", "  start",
+                                 "  end", "  time_from", "  time_to", "  place", "  channel"} | {""}
     finally:
         writer.close()
 

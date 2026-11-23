@@ -276,3 +276,123 @@ def test_the_alias_table_joins_a_chinese_question_to_the_local_spelling(tmp_path
     finally:
         service.jobs.stop()
         store.close()
+
+
+def test_every_hit_carries_the_line_of_its_file_the_match_falls_on(tmp_path, monkeypatch):
+    """Q20 (2026-11-23): the user could not tell which source a hit came from. Each hit now carries `snippet`, the
+    record's own line of its file that the match falls on, and `snippet_line`; the line is in that file, unchanged."""
+    root, repo, store, service, plan = repo_with_trip(tmp_path, monkeypatch=monkeypatch)
+    try:
+        save_item(service, "圣沃尔夫冈湖畔的民宿要提前三周订，周末加价两成", "stay", "2032-01-10T10:00:00+01:00")
+        save_item(service, "哈尔施塔特盐矿冬天最后入场 15:00", "mine", "2032-01-10T10:05:00+01:00")
+        say(service, "从车站走到民宿要二十分钟，路上有一家面包店", "walk", "2032-01-10T10:10:00+01:00")
+        service.committer.flush()
+        hits = {question: saved(service, question)
+                for question in ("圣沃尔夫冈 民宿 订房", "盐矿 最后入场", "面包店 民宿 走路")}
+        checked = 0
+        for question, found in hits.items():
+            assert found, question
+            for hit in found:
+                assert hit["snippet"], (question, hit["id"])
+                assert isinstance(hit["snippet_line"], int) and hit["snippet_line"] >= 1, hit
+                lines = (root / hit["path"]).read_text(encoding="utf-8").splitlines()
+                line = lines[hit["snippet_line"] - 1]
+                core = hit["snippet"].rstrip("…")
+                assert core in line, (question, hit["id"], core, line)
+                checked += 1
+        assert checked >= 5, "the three questions together must show several lines"
+        text = next(hit for hit in hits["圣沃尔夫冈 民宿 订房"] if hit["found"] == "item")
+        assert "民宿" in text["snippet"], "the snippet is the line the matched word sits on"
+        said = next(hit for hit in hits["面包店 民宿 走路"] if hit["found"] == "said")
+        assert "面包店" in said["snippet"]
+    finally:
+        service.jobs.stop()
+        store.close()
+
+
+def test_a_screenshot_transcript_says_which_screenshot_it_is(tmp_path, monkeypatch):
+    """Q20: a screenshot often has no title, so the hit says which day's screenshot and which one, plus the raw file
+    and the line; the host names it in `native_ref` (screenshot:<date>#<n>) and the line is read from the file."""
+    root, repo, store, service, plan = repo_with_trip(tmp_path, monkeypatch=monkeypatch)
+    try:
+        os.environ["TRIPWRIGHT_NOW"] = "2032-01-10T10:30:00+01:00"
+        os.environ["TRIPWRIGHT_NOW_SET_AT"] = str(time.time())
+        service.turn(OWNER, "Gosau 民宿 3 晚，含早餐，入住 15:00 后", "shot",
+                     nature="screenshot_extraction", native_ref="screenshot:2032-01-09#2")
+        service.committer.flush()
+        [hit] = [entry for entry in saved(service, "Gosau 民宿 早餐") if entry["found"] == "said"]
+        assert hit["source"] == "01-09 你发的截图第 2 张的转写"
+        assert hit["cited_as"] == f"01-09 你发的截图第 2 张的转写，{hit['path']} 第 {hit['snippet_line']} 行"
+        lines = (root / hit["path"]).read_text(encoding="utf-8").splitlines()
+        assert "Gosau 民宿" in lines[hit["snippet_line"] - 1]
+        assert "Gosau 民宿" in hit["snippet"]
+    finally:
+        service.jobs.stop()
+        store.close()
+
+
+def test_names_and_asks_given_at_ingest_are_stored_and_searched(tmp_path, monkeypatch):
+    """Q20: the host gives the local name, the Chinese name, other names and a few ways the user may ask, at ingest;
+    the service stores them with the record and cuts them into the index, and runs no model of its own."""
+    root, repo, store, service, plan = repo_with_trip(tmp_path, monkeypatch=monkeypatch)
+    try:
+        plan = deepcopy(example()["trip"])
+        plan["id"] = TRIP
+        plan["places"] = [*plan["places"], dict(
+            id="gosau-stay", name="戈绍民宿", name_local="Gästehaus Gosau", area="Oslo", kind="stay",
+            aliases=["Gosauer Hof", "高绍的家庭旅馆"],
+            asks=["戈绍住哪儿好", "Gosau 的民宿贵不贵", "含早餐吗"])]
+        os.environ["TRIPWRIGHT_NOW"] = "2032-01-10T10:20:00+01:00"
+        turn = service.turn(OWNER, "把戈绍的民宿也存一下。", "place")
+        draft = service.propose(OWNER, ctx_id=turn["ctx_id"], base_version=None, plan=plan, idempotency_key="place")
+        service.commit(OWNER, draft["draft_id"], "place", accept_unverified=True)
+        service.committer.flush()
+        stored = service.versions.current(OWNER)["plan"]
+        place = next(entry for entry in stored["places"] if entry["id"] == "gosau-stay")
+        assert place["aliases"] == ["Gosauer Hof", "高绍的家庭旅馆"]
+        assert len(place["asks"]) == 3
+        for question in ("高绍的家庭旅馆 早餐", "Gosau 民宿 贵不贵", "含早餐吗 戈绍"):
+            hits = saved(service, question)
+            assert any(hit.get("id") == "gosau-stay" for hit in hits), (question, [hit["id"] for hit in hits])
+        # the same lists on a ledger record: the host writes them at ingest, the index cuts them
+        os.environ["TRIPWRIGHT_NOW"] = "2032-01-10T10:25:00+01:00"
+        service.turn(OWNER, "盐矿门票在门口买，冬天只到 15:00", "mine", nature="user_verbatim", native_ref="fixture:mine",
+                     record={"items": [dict(kind="preference", key="salt-mine", quote="盐矿门票在门口买，冬天只到 15:00",
+                                            text="盐矿门票在门口买，冬天只到 15:00", subject=["p1"], strength="prefer",
+                                            names=["Salzbergwerk Hallstatt", "哈尔施塔特盐矿"], asks=["盐矿几点关门", "门票在哪买"],
+                                            source=dict(event="this"))]})
+        service.committer.flush()
+        record = next(entry for entry in store.all("items", OWNER) if entry.get("key") == "salt-mine")
+        assert record["names"] == ["Salzbergwerk Hallstatt", "哈尔施塔特盐矿"]
+        assert record["asks"] == ["盐矿几点关门", "门票在哪买"]
+        local = saved(service, "Salzbergwerk Hallstatt 门票")
+        assert any(hit.get("id") == record["id"] for hit in local), [hit["id"] for hit in local]
+        assert next(hit for hit in local if hit.get("id") == record["id"])["snippet"]
+    finally:
+        service.jobs.stop()
+        store.close()
+
+
+def test_a_record_written_before_its_file_gets_its_line_once_the_file_is_there(tmp_path, monkeypatch):
+    """The turn's own recall builds the index while the committer has not written the record's file yet (line 0: the
+    line is not known). Once the file is there, the next query fills the passage and the snippet, which means the
+    snippet table is rebuilt with it; without that, the hit kept an empty line for good."""
+    root, repo, store, service, plan = repo_with_trip(tmp_path, monkeypatch=monkeypatch)
+    try:
+        os.environ["TRIPWRIGHT_NOW"] = "2032-01-10T10:30:00+01:00"
+        os.environ["TRIPWRIGHT_NOW_SET_AT"] = str(time.time())
+        text = "哈尔施塔特盐矿冬天最后入场 15:00"
+        service.turn(OWNER, text, "mine", nature="user_verbatim", native_ref="fixture:mine",
+                     record={"items": [dict(kind="preference", key="mine", quote=text, text=text, subject=["p1"],
+                                            strength="prefer", source=dict(event="this"))]})
+        early = [hit for hit in saved(service, "盐矿 入场") if hit.get("key") == "mine"]
+        assert early, "the record is in the store (its file may not be written yet)"
+        service.committer.flush()
+        lines = [hit for hit in saved(service, "盐矿 入场") if hit.get("key") == "mine"]
+        assert lines and lines[0]["snippet"], lines
+        assert "盐矿" in lines[0]["snippet"]
+        file_lines = (root / lines[0]["path"]).read_text(encoding="utf-8").splitlines()
+        assert lines[0]["snippet"] == file_lines[lines[0]["snippet_line"] - 1]
+    finally:
+        service.jobs.stop()
+        store.close()

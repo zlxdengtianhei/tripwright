@@ -13,6 +13,11 @@ line of its `id:` and the commit of the working tree that file is in. Chinese wo
 are cut, not as character n-grams: a second FTS5 table with the trigram tokenizer holds the raw text and answers only
 when the word table finds nothing (a place name the word table splits differently still matches).
 
+Q20 (2026-11-23): every hit also carries the line of the file its match falls on (`snippet`, cut by FTS5's
+`snippet()` from that line, and `snippet_line`). The third table holds each record's own text as its file has it, with
+a space between two adjacent CJK characters so `unicode61` cuts Chinese into characters and a two-character word stays
+a phrase; the snippet is that match's line read back from the file, so it is the record's own words, not a summary.
+
 The index is derived: deleting it rebuilds the same rows from the repository's files and store, and the entries of a
 query, their order and their scores are the same as the scan's. Each query compares the entries with the rows it holds
 and cuts again only the entries that changed (one new record is one new entry); the commit and file of unchanged rows
@@ -36,13 +41,17 @@ from pathlib import Path
 from tripwright import recall
 from tripwright.repo import layout
 
-SCHEMA = 1
+SCHEMA = 2
 FILE = "search.sqlite"
 CANDIDATES = 8000  # more than a trip's repository holds today; the index is not the limit on a query's cost
 ID_LINE = re.compile(r"^\s{0,8}id:\s*['\"]?([^'\"\s]+)['\"]?\s*$")
 JSON_ID = re.compile(r'"id"\s*:\s*"([^"]+)"')
 NOTE_LINE = re.compile(r"^\s{0,8}notes:")
 FTS_TOKEN = re.compile(r"[^0-9a-z]+")
+CJK = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]")
+CJK_GAP = "\x01"  # between two adjacent CJK characters in the snippet table, so a two-character word is a phrase
+SNIPPET_TOKENS = 60  # a snippet's window; the line it falls on is then read whole from the passage
+SNIPPET_CHARS = 200  # a line longer than this is cut, so one hit does not carry a whole message
 
 
 def index_path(repository) -> Path:
@@ -61,6 +70,38 @@ def plan_mark(plan: dict | None) -> str:
     return layout.plan_digest(plan) or "none"
 
 
+def space_cjk(text: str) -> str:
+    """The text with a separator between two adjacent CJK characters, so `unicode61` cuts them into one token each and
+    a two-character Chinese word is a phrase the snippet table can match. The separator is U+0001, a control character
+    `unicode61` treats like a space and no message carries, so `unspace_cjk` restores the text exactly (a plain space
+    cannot: a text may hold one between two Chinese characters)."""
+    out = []
+    for before, after in zip(text, text[1:]):
+        out.append(before + CJK_GAP if CJK.match(before) and CJK.match(after) else before)
+    return "".join(out) + (text[-1:] if text else "")
+
+
+def unspace_cjk(text: str) -> str:
+    """`space_cjk` undone: every separator it put in is taken out, the text's own characters stay."""
+    return text.replace(CJK_GAP, "")
+
+
+def snippet_phrases(terms: set[str], plan: dict | None) -> list[str]:
+    """The FTS5 phrases that find a match in the snippet table: every spelling a matched term can take, spaced so a
+    Chinese word is a phrase. Empty when the matched terms can only be dates (which never make a hit alone)."""
+    phrases = []
+    for term in sorted(terms):
+        for form in recall.term_forms(term, plan):
+            spaced = space_cjk(str(form))
+            if spaced.strip() and spaced not in phrases:
+                phrases.append(spaced)
+    return phrases[:40]
+
+
+def match_expression(phrases: list[str]) -> str:
+    return " OR ".join('"' + phrase.replace('"', '""') + '"' for phrase in phrases)
+
+
 class Index:
     def __init__(self, repository):
         self.repository = repository
@@ -74,13 +115,25 @@ class Index:
             CREATE TABLE IF NOT EXISTS docs (
                 id INTEGER PRIMARY KEY, key TEXT UNIQUE NOT NULL, found TEXT NOT NULL, record_id TEXT NOT NULL,
                 path TEXT NOT NULL, line INTEGER NOT NULL, revision TEXT NOT NULL, digest TEXT NOT NULL,
-                terms TEXT NOT NULL, words TEXT NOT NULL, body TEXT NOT NULL);
+                terms TEXT NOT NULL, words TEXT NOT NULL, body TEXT NOT NULL,
+                passage TEXT NOT NULL DEFAULT '', passage_line INTEGER NOT NULL DEFAULT 0, snip TEXT NOT NULL DEFAULT '');
             CREATE VIRTUAL TABLE IF NOT EXISTS docs_fts USING fts5(terms, content='docs', content_rowid='id', tokenize='unicode61');
             CREATE VIRTUAL TABLE IF NOT EXISTS docs_tri USING fts5(body, content='docs', content_rowid='id', tokenize='trigram');
+            CREATE VIRTUAL TABLE IF NOT EXISTS docs_snip USING fts5(snip, content='docs', content_rowid='id', tokenize='unicode61');
             CREATE TABLE IF NOT EXISTS doc_terms (doc_id INTEGER NOT NULL, term TEXT NOT NULL, PRIMARY KEY(doc_id, term)) WITHOUT ROWID;
             CREATE INDEX IF NOT EXISTS doc_terms_term ON doc_terms(term);
         """)
+        self._upgrade()
         self.db.commit()
+
+    def _upgrade(self):
+        """An index written by the first schema (no passage) gains its columns; its rows keep empty passages and the
+        next query refills them (the schema mark moves, so the query rebuilds the rows)."""
+        columns = {row[1] for row in self.db.execute("PRAGMA table_info(docs)").fetchall()}
+        for name, declaration in (("passage", "TEXT NOT NULL DEFAULT ''"), ("passage_line", "INTEGER NOT NULL DEFAULT 0"),
+                                  ("snip", "TEXT NOT NULL DEFAULT ''")):
+            if name not in columns:
+                self.db.execute(f"ALTER TABLE docs ADD COLUMN {name} {declaration}")
 
     def close(self):
         self.db.close()
@@ -94,21 +147,22 @@ class Index:
         self.db.executemany("INSERT INTO meta(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                             list(values.items()))
 
-    def rows(self) -> dict[str, tuple[str, str, int]]:
-        return {key: (digest, path, line) for key, digest, path, line
-                in self.db.execute("SELECT key, digest, path, line FROM docs").fetchall()}
+    def rows(self) -> dict[str, tuple[str, str, int, int]]:
+        return {key: (digest, path, line, passage_line) for key, digest, path, line, passage_line
+                in self.db.execute("SELECT key, digest, path, line, passage_line FROM docs").fetchall()}
 
     def replace(self, key: str, found: str, record_id: str, digest: str, terms: set[str], body: str,
-                path: str, line: int, commit: str):
+                path: str, line: int, commit: str, passage: str = "", passage_line: int = 0):
         old = self.db.execute("SELECT id FROM docs WHERE key=?", (key,)).fetchone()
         if old:
             self.db.execute("DELETE FROM doc_terms WHERE doc_id=?", (old[0],))
             self.db.execute("DELETE FROM docs WHERE id=?", (old[0],))
-        cursor = self.db.execute("INSERT INTO docs(key, found, record_id, path, line, revision, digest, terms, words, body) "
-                                 "VALUES(?,?,?,?,?,?,?,?,?,?)",
+        cursor = self.db.execute("INSERT INTO docs(key, found, record_id, path, line, revision, digest, terms, words, body, "
+                                 "passage, passage_line, snip) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                                  (key, found, record_id, path, line, commit, digest,
                                   " ".join(sorted(codeword(term) for term in terms)),
-                                  json.dumps(sorted(terms), ensure_ascii=False), body))
+                                  json.dumps(sorted(terms), ensure_ascii=False), body,
+                                  passage, passage_line, space_cjk(passage)))
         self.db.executemany("INSERT INTO doc_terms(doc_id, term) VALUES(?, ?)", [(cursor.lastrowid, term) for term in terms])
 
     def remove(self, key: str):
@@ -120,6 +174,7 @@ class Index:
     def reindex(self):
         self.db.execute("INSERT INTO docs_fts(docs_fts) VALUES('rebuild')")
         self.db.execute("INSERT INTO docs_tri(docs_tri) VALUES('rebuild')")
+        self.db.execute("INSERT INTO docs_snip(docs_snip) VALUES('rebuild')")
 
     def clear(self):
         self.db.execute("DELETE FROM doc_terms")
@@ -219,6 +274,98 @@ class Index:
         return sha256(json.dumps([entry["haystack"], entry.get("text") or "", entry.get("source") or "",
                                   bool(entry.get("in_force", True))], ensure_ascii=False).encode()).hexdigest()
 
+    # --- the passage a snippet is cut from ------------------------------------------
+
+    def block(self, text: str, line: int) -> tuple[str, int]:
+        """The lines of one record inside a YAML file, so a snippet is cut from the record's own text and not from a
+        neighbour's: the list item that holds the `id:` line (the item's first line may be above the id, keys are
+        sorted), a `notes` entry from its key to the next top-level key, and a file holding one record as a whole."""
+        lines = text.splitlines()
+        if not lines:
+            return "", 0
+        start = min(max(line - 1, 0), len(lines) - 1)
+        raw = lines[start]
+        stripped = raw.lstrip()
+        indent = len(raw) - len(stripped)
+        if stripped.startswith("- "):
+            item = True
+        elif NOTE_LINE.match(raw):
+            item = False  # a day's notes: from their key to the next top-level key
+        elif indent > 0:
+            item = False
+            for above in range(start - 1, -1, -1):
+                other = lines[above]
+                other_stripped = other.lstrip()
+                other_indent = len(other) - len(other_stripped)
+                if other_stripped.startswith("- ") and other_indent < indent:
+                    item, start, indent = True, above, other_indent
+                    break
+            if not item:
+                return text.rstrip("\n"), 1  # no list item above it: the whole file is this record
+        else:
+            return text.rstrip("\n"), 1  # one record per file: the whole file is its text
+        end = start + 1
+        while end < len(lines):
+            other = lines[end]
+            other_stripped = other.strip()
+            if other_stripped:
+                this = len(other) - len(other.lstrip())
+                if other_stripped == "---" or this < indent:
+                    break
+                if this == indent and other_stripped.startswith("- "):
+                    break
+                if this == indent and not item and re.match(r"[A-Za-z_]+:", other_stripped):
+                    break  # a top-level key ends a notes block
+            end += 1
+        return "\n".join(lines[start:end]), start + 1
+
+    def passage(self, entry: dict, path: str, text: str | None, line: int) -> tuple[str, int]:
+        """The record's own text as its file holds it, and the file line it starts on: a message's body without the
+        front matter, a Markdown record's whole file, a YAML record's block. Empty when the file is not there."""
+        if text is None or not path or not line:
+            # no file, or the record's line in it is not known yet (`line: 0`: written but not committed): a line of
+            # that file would be a guess at another record's text, so this row carries no snippet until it is known
+            return "", 0
+        if entry["found"] == "said":
+            head_end = text.find("\n---\n", 4)
+            if text.startswith("---\n") and head_end >= 0:
+                return text[head_end + 5:].rstrip("\n"), text[:head_end + 5].count("\n") + 1
+            return text.rstrip("\n"), 1
+        if path.endswith(".md"):
+            return text.rstrip("\n"), 1
+        return self.block(text, line)
+
+    def snippet(self, key: str, passage: str, passage_line: int, phrases: list[str]) -> tuple[str, int] | None:
+        """The line of the record's file the match falls on, cut by FTS5's `snippet()` and read whole from the passage
+        so it is the file's own line; and that line's number. None when nothing in the passage matches a phrase."""
+        if not passage or not phrases:
+            return None
+        try:
+            row = self.db.execute("SELECT snippet(docs_snip, 0, '', '', '', ?) FROM docs_snip WHERE docs_snip MATCH ? AND "
+                                  "rowid = (SELECT id FROM docs WHERE key=?)",
+                                  (SNIPPET_TOKENS, match_expression(phrases), key)).fetchone()
+        except sqlite3.OperationalError:
+            return None
+        if not row or not row[0]:
+            return None
+        window = unspace_cjk(row[0]).strip()
+        at = passage.find(window) if window else -1
+        if at < 0:
+            return None
+        # which of the matched spellings the window holds, to point at the line it falls on
+        hits = [window.find(unspace_cjk(phrase).strip()) for phrase in phrases]
+        hits = [position for position in hits if position >= 0]
+        position = at + (min(hits) if hits else 0)
+        begin = passage.rfind("\n", 0, position) + 1
+        finish = passage.find("\n", position)
+        finish = len(passage) if finish < 0 else finish
+        if begin > finish:
+            return None
+        line = passage[begin:finish]
+        if len(line) > SNIPPET_CHARS:
+            line = line[:SNIPPET_CHARS - 1] + "…"
+        return line, (passage_line + passage[:begin].count("\n")) if passage_line else 0
+
     def rebuild(self, entries: list[dict], plan: dict | None, *, zone: str | None, language: str, owner: str):
         """The rows for every entry, cut again; the commit and the file of each come from the working tree."""
         files = self.repository.working()
@@ -231,8 +378,10 @@ class Index:
             for entry in entries:
                 path, line = self.location_of(entry, plan, located, files, raw)
                 commit = head if path and path in committed else ""
+                passage, passage_line = self.passage(entry, path, files.get(path) if path else None, line)
                 self.replace(f"{entry['found']}:{entry['id']}", entry["found"], entry["id"], self.digest_of(entry),
-                             recall.entry_terms(entry, plan, zone=zone), entry["haystack"], path, line, commit)
+                             recall.entry_terms(entry, plan, zone=zone), entry["haystack"], path, line, commit,
+                             passage, passage_line)
             self.reindex()
             self.set_meta(dict(schema=str(SCHEMA), owner=owner, language=language, zone=zone or "",
                                plan=plan_mark(plan), words=recall.word_tables_digest(), head=head,
@@ -245,7 +394,7 @@ class Index:
         current = {f"{entry['found']}:{entry['id']}": entry for entry in entries}
         changed = [key for key, entry in current.items() if key not in rows or rows[key][0] != self.digest_of(entry)]
         # an entry written while its file was not there yet (the turn records before the commit writes it): find it now
-        relocate = [key for key in current if key in rows and (not rows[key][1] or rows[key][2] == 0)]
+        relocate = [key for key in current if key in rows and (not rows[key][1] or rows[key][2] == 0 or rows[key][3] == 0)]
         removed = [key for key in rows if key not in current]
         meta = self.meta()
         if not changed and not removed and not relocate and meta.get("head") == head:
@@ -265,15 +414,22 @@ class Index:
                 entry = current[key]
                 path, line = self.location_of(entry, plan, located, files, raw)
                 commit = head if path and path in committed else ""
+                passage, passage_line = self.passage(entry, path, files.get(path) if path else None, line)
                 self.replace(key, entry["found"], entry["id"], self.digest_of(entry),
-                             recall.entry_terms(entry, plan, zone=zone), entry["haystack"], path, line, commit)
+                             recall.entry_terms(entry, plan, zone=zone), entry["haystack"], path, line, commit,
+                             passage, passage_line)
             for key in relocate:
                 if key in changed:
                     continue
-                path, line = self.location_of(current[key], plan, located, files, raw)
+                entry = current[key]
+                path, line = self.location_of(entry, plan, located, files, raw)
                 commit = head if path and path in committed else ""
-                self.db.execute("UPDATE docs SET path=?, line=?, revision=? WHERE key=?", (path, line, commit, key))
-            if changed or removed:
+                passage, passage_line = self.passage(entry, path, files.get(path) if path else None, line)
+                self.db.execute("UPDATE docs SET path=?, line=?, revision=?, passage=?, passage_line=?, snip=? WHERE key=?",
+                                (path, line, commit, passage, passage_line, space_cjk(passage), key))
+            if changed or removed or relocate:
+                # a relocated row's passage and snippet source were just filled in; the snippet table reads the
+                # content table, so it must be rebuilt with them
                 self.reindex()
             if head != meta.get("head"):
                 # the commit of unchanged rows follows the working tree's head; a file not in the head keeps none
@@ -336,7 +492,9 @@ def _frequency(index: Index, query: set[str]) -> dict[str, int]:
 def search(repository, store, owner: str, plan: dict | None, text: str, *, at, zone: str | None,
            language: str = "zh", limit: int = 8, kinds: tuple[str, ...] | None = None,
            exclude_events: set[str] | None = None, kind_cap: int | None = None) -> dict:
-    """`recall.search` through the index: the same entries, order and scores, with `path`, `line` and `commit`."""
+    """`recall.search` through the index: the same entries, order and scores, with `path`, `line` and `commit`, and
+    for each hit the line of its file the match falls on (`snippet`, `snippet_line`) and a source a person can read
+    back to the screenshot a transcript came from (`cited_as`)."""
     index = Index(repository)
     try:
         entries = index.ensure(store, owner, plan, at=at, zone=zone, language=language)
@@ -349,16 +507,53 @@ def search(repository, store, owner: str, plan: dict | None, text: str, *, at, z
         widen = not keys
         if widen:
             keys = [key for key in _trigram(index, text) if key in pool]
-        rows = {key: (words, path, line, revision) for key, words, path, line, revision in index.db.execute(
-            f"SELECT key, words, path, line, revision FROM docs WHERE key IN ({','.join('?' for _ in keys)})", keys).fetchall()} if keys else {}
+        rows = {key: (words, path, line, revision, passage, passage_line) for key, words, path, line, revision, passage, passage_line in
+                index.db.execute(f"SELECT key, words, path, line, revision, passage, passage_line FROM docs WHERE key IN "
+                                 f"({','.join('?' for _ in keys)})", keys).fetchall()} if keys else {}
         candidates = []
         for key in keys:
             entry = dict(pool[key])
             entry["terms"] = set(json.loads(rows[key][0])) if key in rows else recall.entry_terms(entry, plan, zone=zone)
             entry["path"], entry["line"], entry["commit"] = rows[key][1], rows[key][2], rows[key][3]
+            entry["passage"], entry["passage_line"] = (rows[key][4], rows[key][5]) if key in rows else ("", 0)
             candidates.append(entry)
         frequency = _frequency(index, query) if widen else {term: sum(term in entry["terms"] for entry in candidates) for term in query}
-        return recall.rank(candidates, query, plan=plan, at=at, zone=zone, language=language, limit=limit,
-                           kind_cap=kind_cap, total=len(pool), frequency=frequency, widen=widen)
+        result = recall.rank(candidates, query, plan=plan, at=at, zone=zone, language=language, limit=limit,
+                            kind_cap=kind_cap, total=len(pool), frequency=frequency, widen=widen)
+        _add_snippets(index, result, candidates, query, plan=plan, language=language, widen=widen)
+        return result
     finally:
         index.close()
+
+
+def _add_snippets(index: "Index", result: dict, candidates: list[dict], query: set[str], *,
+                  plan: dict | None, language: str, widen: bool) -> None:
+    """Put each hit's own line of its file on the hit: `snippet` and `snippet_line`, from FTS5's `snippet()`; and for
+    a screenshot's transcript, `cited_as`: which day's screenshot, which one, and the raw file and line."""
+    by_key = {f"{entry['found']}:{entry['id']}": entry for entry in candidates}
+    for hit in result.get("found", []):
+        entry = by_key.get(f"{hit['found']}:{hit['id']}")
+        if entry is None:
+            continue
+        matched = query & entry["terms"]
+        if widen:
+            folded = recall.fold(entry["haystack"])
+            matched |= {term for term in query - matched if not term.startswith("§") and recall.fold(term) in folded}
+        passage, passage_line = entry.pop("passage", ""), entry.pop("passage_line", 0)
+        origin = entry.get("origin")
+        if origin and not origin.get("date") and entry.get("path"):
+            date = re.search(r"/raw/(\d{4}-\d{2}-\d{2})/", entry["path"])
+            if date:
+                origin["date"] = date.group(1)[5:]
+                entry["source"] = recall.shot_phrase(origin, language)
+                hit["source"] = entry["source"]
+        found = index.snippet(f"{entry['found']}:{entry['id']}", passage, passage_line, snippet_phrases(matched, plan))
+        if found is None:
+            # a match the passage spells in no form this build can look up (a record whose file does not hold its
+            # text yet): the id's own line is still the record's own line of the file
+            found = index.snippet(f"{entry['found']}:{entry['id']}", passage, passage_line, snippet_phrases({entry['id']}, plan))
+        if found:
+            hit["snippet"], hit["snippet_line"] = found[0], found[1]
+            if origin:
+                hit["cited_as"] = (f"{entry['source']}，{entry['path']} 第 {found[1]} 行" if entry.get("path")
+                                   else f"{entry['source']} 第 {found[1]} 行")

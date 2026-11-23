@@ -16,7 +16,9 @@ my-travel/
 └─ trips/<trip>/                one folder per trip, the folder name is the plan's `id` (e.g. 2031-05-wien)
    ├─ README.md                 generated front screen of the trip
    ├─ trip.yaml                 plan metadata (below); only `id` before the first plan
-   ├─ raw/<local date>/<UTC time>-<speaker>-<id suffix>.md   one message per file, never edited
+   ├─ raw/<local date>/<UTC time>-<speaker>-<id suffix>.md   one message per file, never edited; a screenshot
+   │                                                      transcript names its screenshot in `native_ref`
+   │                                                      (`screenshot:<YYYY-MM-DD>#<n>`)
    ├─ ledger/items|facts|checks|questions/<id>.yaml, ledger/decisions/<id>.md   one record per file; only status fields change
    ├─ ledger/carry/<id>.yaml    long-term entries imported into this trip: pending, confirmed or not_used
    ├─ ledger/journal/<UTC date>.jsonl   append-only: each change with the message it came from
@@ -39,7 +41,7 @@ IDs are type, UTC date and six random characters (`I-261031-k3f9qa`), so two wri
 
 The plan is a typed Trip document. `trip.yaml` contains `id`, `title`, full ISO `start`/`end`, IANA `timezone`, configurable `areas`, `people` (`id`, `name`), `default_pace` and hard group `budgets` keyed by currency. No date, region, person name or exchange rate is fixed in the implementation. Exports also carry `export_format: 1` and the committed `version`.
 
-`places.yaml` stores each place once. Required fields are `id`, `name` (a reader-facing explanation), `name_local` (the exact local search name) and `area`. Optional details include kind, intended subjects, priority, reason, coordinates, opening text, price/source details, links, checked time, weather suitability and notes. Unknown details stay absent. A day references place IDs rather than repeating fixed descriptions or prices.
+`places.yaml` stores each place once. Required fields are `id`, `name` (a reader-facing explanation), `name_local` (the exact local search name) and `area`. Optional details include kind, intended subjects, priority, reason, coordinates, opening text, price/source details, links, checked time, weather suitability and notes. Q20 (2026-11-23): `aliases` holds every other name of the place the host knows (a second local spelling, the short name people use, a translation) and `asks` holds two or three ways the user may ask about it; both are written at ingest by the host model and searched with the rest of the place. Unknown details stay absent. A day references place IDs rather than repeating fixed descriptions or prices.
 
 `bookings.yaml` stores one booking per ID, with full `date`, kind, description (`what`), holder IDs (`subject`) and status. Pending actions require `why_now`; contacts and reservations require a contact name. Optional due date, purchase channels, missed-departure rule and place reference remain here. Fares have a unique ID, segment, ticket, subject IDs, optional amount per person and currency. `included_in` and `alternative` exclude a row from totals; unknown and estimated amounts remain visible as uncertainty. Currencies are added separately and never converted using an implicit rate.
 
@@ -49,6 +51,6 @@ Hard nodes are a day's `anchors`: ID, local time, text, subjects, optional exact
 
 The old format's `from`/`to`, `type`, `sure`, `who`, `app`, `fare` and `anchors` map to these typed fields; `全组` becomes the actual participant ID set. Region enums, MM-DD dates, person-specific constants and fixed currency conversions have been removed. The former Markdown body sections become day notes, rain plans and candidate references. Publication-specific images, offers and trail cards are deferred to the views stage.
 
-The ledger records keep their stored shape: items (scope with optional ISO start/end, HH:MM time_from/time_to, hierarchical place, channel; `*` means unrestricted; quote, reason, strength, source with the message's actual nature; `always` for principles, `long_term` for lasting entries), facts, decisions (options, choice, provenance, revisit conditions, locks with their placement snapshot), pending checks and undecided questions. Contexts, drafts, jobs, results, the outbox and notices are runtime state in the database only.
+The ledger records keep their stored shape: items (scope with optional ISO start/end, HH:MM time_from/time_to, hierarchical place, channel; `*` means unrestricted; quote, reason, strength, source with the message's actual nature; `always` for principles, `long_term` for lasting entries), facts, decisions (options, choice, provenance, revisit conditions, locks with their placement snapshot), pending checks and undecided questions. Q20 (2026-11-23): items, facts, decisions and pending checks also carry `names` (other names of the thing, in the user's languages) and `asks` (ways the user may ask about it later), given by the host at ingest and cut into the search index; a web evidence record carries the same two lists. Contexts, drafts, jobs, results, the outbox and notices are runtime state in the database only.
 
 `tripwright init <folder> --from-db <db>` writes a single-database trip into a new repository, one commit per version. The older directory export (`tripwright export`) remains an audit snapshot for single-database use; import still validates its derived `verification` blocks and never certifies a candidate.

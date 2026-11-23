@@ -80,7 +80,7 @@ SPECIAL = {
     ("Place", "opening_hours"): [["Mo-Su 06:00-22:00"]],
 }
 DESCRIBED = {"evidence_ids": ["EV-b3f-described"], "links": ["https://example.invalid/b3f"], "checked": "2032-03-30",
-             "hours_source": {"url": "https://example.invalid/b3f-hours"}}
+             "hours_source": {"url": "https://example.invalid/b3f-hours"}, "asks": ["这个地儿要怎么订"]}
 
 
 def mutated(plan, model: str, name: str):

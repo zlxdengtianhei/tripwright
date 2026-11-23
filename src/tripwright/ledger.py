@@ -108,6 +108,12 @@ class Item(Model):
     long_term: bool = Field(default=False, description=(
         "The user states it as lasting beyond this trip (e.g. a standing preference or rule); it is also kept in the "
         "repository's profile and offered to the next trip, which asks the user whether to keep it."))
+    names: list[str] = Field(default_factory=list, description=(
+        "Q20 (2026-11-23): the other names of the thing this states, the host supplies them at ingest: the local "
+        "spelling, the Chinese name, the names people use for it. They are stored with the record and searched."))
+    asks: list[str] = Field(default_factory=list, description=(
+        "Q20: two or three ways the user may ask about this later, in the languages they speak; stored with the "
+        "record and searched, so a question in the user's words finds it."))
     origin: SkipJsonSchema[dict | None] = None
 
     @field_validator("check")
@@ -148,6 +154,11 @@ class Fact(Model):
     invalidated_by: str
     source: Source
     status: Literal["active", "superseded", "expired"] = "active"
+    names: list[str] = Field(default_factory=list, description=(
+        "Q20: other names of the thing this fact is about (local spelling, Chinese name, what people call it), given "
+        "by the host at ingest; stored and searched."))
+    asks: list[str] = Field(default_factory=list, description=(
+        "Q20: ways the user may ask about this fact, given by the host at ingest; stored and searched."))
 
     @model_validator(mode="after")
     def known_value(self):
@@ -162,6 +173,11 @@ class Fact(Model):
 class Decision(Model):
     id: str = Field(default_factory=lambda: identifier("D"))
     question: str
+    names: list[str] = Field(default_factory=list, description=(
+        "Q20: other names of what this decides, in the languages the user speaks, given by the host at ingest; stored "
+        "and searched."))
+    asks: list[str] = Field(default_factory=list, description=(
+        "Q20: ways the user may ask about this decision, given by the host at ingest; stored and searched."))
     options: list[dict | str] = Field(min_length=1)
     choice: str
     decided_by: Literal["user", "agent"]
@@ -195,6 +211,10 @@ class PendingCheck(Model):
     evidence_ids: list[str] = Field(default_factory=list)
     consequence: str
     alternative: str
+    names: list[str] = Field(default_factory=list, description=(
+        "Q20: other names of what this check is about (local spelling, Chinese name), given by the host at ingest."))
+    asks: list[str] = Field(default_factory=list, description=(
+        "Q20: ways the user may ask about this check, given by the host at ingest."))
 
 
 class Relation(Model):

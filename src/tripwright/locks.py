@@ -35,8 +35,9 @@ DESCRIPTION_FIELD, EXTERNAL, CHOICE = "description", "external", "choice"
 D, E, C = DESCRIPTION_FIELD, EXTERNAL, CHOICE
 FIELDS = {
     "Person": dict(id=C, name=C),
-    "Place": dict(id=C, name=C, name_local=C, area=C, kind=E, subject=C, priority=C, reason=D, coords=E, hours=E, price=E,
-                  links=D, checked=D, notes=D, rain_ok=E, transit_id=E, opening_hours=E, hours_source=D),
+    "Place": dict(id=C, name=C, name_local=C, aliases=C, asks=D, area=C, kind=E, subject=C, priority=C, reason=D,
+                  coords=E, hours=E, price=E, links=D, checked=D, notes=D, rain_ok=E, transit_id=E, opening_hours=E,
+                  hours_source=D),
     "Fare": dict(id=C, segment=C, ticket=C, subject=C, amount_per_person=E, currency=E, date=C, included_in=C,
                  alternative=C, estimated=E),
     "Booking": dict(id=C, date=C, kind=C, what=C, subject=C, status=C, place=C, due=C, why_now=D, where=C, if_missed=C,
