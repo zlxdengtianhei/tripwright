@@ -31,7 +31,7 @@ Rule 7: Say each thing once; a place line holds only the name. Put the place nam
   Café Uferblick
   Lakeside café · Google Maps: search Café Uferblick · [Google Maps](https://www.google.com/maps/dir/?api=1&destination=Caf%C3%A9%20Uferblick&travelmode=transit)
 
-Rule 8: Write each risk or open check on one line: what is not checked → consequence → how to confirm on site or what to do instead. List only items that change what the user does. A checked fact names its source; never invent a "checked at" time.
+Rule 8: Write each risk or open check on one line: what is not checked → consequence → how to confirm on site or what to do instead. List only items that change what the user does. A checked fact names its source; when the search hands back the line the match falls on, quote that line's own words instead of a summary; never invent a "checked at" time.
 - After: Not checked: today's opening hours of both places → they may be closed → check Google Maps before you leave; if the museum is closed, walk by the lake instead.
 
 Rule 9: Answer in the conversation, not by pointing to the website. Mention the website at most in the last line.

@@ -32,7 +32,8 @@ You record what the message states yourself; there is no separate recorder since
 
 ## Screenshots and saved material
 
-- Transcribe each image in order: the shop, sight or tip, its address, hours or price as the image shows it, and the image number. Nothing the image does not show.
+- Transcribe each image in order: the shop, sight or tip, its address, hours or price as the image shows it, and the image number. Nothing the image does not show. The transcription's `native_ref` says which screenshot it is: `screenshot:<YYYY-MM-DD>#<n>`, n counting the screenshots the user sent that day in the order they sent them; a hit then reads back as “11-20 你发的截图第 2 张的转写”.
+- Q20 (2026-11-23): the host supplies the names and the questions the service cannot build itself, and stores them with the record: `names` on items, facts, decisions and checks (the local spelling, the Chinese name, what people call it), `aliases` and `asks` on a plan place (other names; two or three ways the user may ask about it, in the languages they speak), `names` and `asks` on a web evidence record. A question naming the page, sight or dish in any of those words then finds the record, and the hit carries the record's own line.
 - Saved material goes into the ledger, never into the plan: a place to go or a tip becomes an item or a fact with the image number and its sentence. `query(kind="saved")` finds it later; only when it goes into a day does it become a plan place.
 - Images read from files are their own message: call `turn(text=<your transcription>, nature="screenshot_extraction", record=...)`, with quotes copied from the transcription, so every record is marked `screenshot_extraction`. Images attached to the user's own message were already transcribed into it: quote that message.
 

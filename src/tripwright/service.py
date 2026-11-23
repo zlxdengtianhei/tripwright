@@ -935,8 +935,10 @@ class Tripwright:
         zone = (plan or {}).get("timezone") or (self.repository.timezone() if self.repository is not None else None)
         found = recall.search(self.store, owner, plan, words, at=aware(at), zone=zone, language=language, limit=RECALL_LIMIT,
                               exclude_events={event_id}, kind_cap=recall.KIND_CAP, repository=self.repository)
-        return dict(found=[dict({key: entry[key] for key in ("found", "id", "source", "path", "line", "commit") if key in entry},
-                                text=recall.short(entry["text"], None, RECALL_TEXT), **({} if entry["in_force"] else dict(in_force=False)))
+        return dict(found=[dict({key: entry[key] for key in ("found", "id", "source", "path", "line", "commit", "snippet",
+                                                              "snippet_line", "snippet_exact", "cited_as") if key in entry},
+                                text=recall.short(entry["text"], None, RECALL_TEXT),
+                                **({} if entry["in_force"] else dict(in_force=False)))
                            for entry in found["found"]])
 
     def _quick_first(self, text: str, scenario: str, clock: dict, anchors: list[dict], plan: dict | None,

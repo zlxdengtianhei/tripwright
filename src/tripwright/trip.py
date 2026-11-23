@@ -204,6 +204,12 @@ class Place(Model):
     id: str
     name: str
     name_local: str
+    aliases: list[str] = Field(default_factory=list, description=(
+        "Q20 (2026-11-23): every other name the host knows for this place at ingest (a second local spelling, a short "
+        "name people use, a translation), so a question naming it any way finds it."))
+    asks: list[str] = Field(default_factory=list, description=(
+        "Q20: two or three ways the user may ask about this place, in the languages they speak, given by the host at "
+        "ingest; stored with the place and searched."))
     area: AreaName
     kind: str = "other"
     subject: list[PersonId] = Field(default_factory=list)

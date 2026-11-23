@@ -48,12 +48,24 @@ LOOKUP_KINDS = ("transit", "latest_departure", "weather")
 WORDS = {
     "zh": dict(said="{who}原话 {when}", page="{host} 页面，{when} 读", snippet="{host} 搜索摘要，{when} 读（不算核过）",
                lookup="{source}，{when} 查", expired="已过期，要重查", not_in_force="已不作数", plan="计划里存的",
-               booking="预订里存的", checked="（{checked}）", user="你", someone="", unknown="时刻不明"),
+               booking="预订里存的", checked="（{checked}）", user="你", someone="", unknown="时刻不明",
+               shot="{date} 你发的截图第 {shot} 张的转写", shot_no_number="{date} 你发的截图（第几张没记下）的转写",
+               shot_no_date="你发的截图（哪天没记下）的转写",
+               shot_no_date_number="你发的截图第 {shot} 张的转写（哪天没记下）", received="{date} 收到"),
     "en": dict(said="{who}words, {when}", page="{host}, read {when}", snippet="{host} search snippet, read {when} (not a check)",
                lookup="{source}, fetched {when}", expired="expired, look again", not_in_force="no longer in force",
                plan="stored in the plan", booking="stored in the bookings", checked=" ({checked})", user="your ", someone="",
-               unknown="time unknown"),
+               unknown="time unknown", shot="your screenshot of {date}, number {shot}, transcribed",
+               shot_no_number="your screenshot of {date} (number not recorded), transcribed",
+               shot_no_date="your screenshot (day not recorded), transcribed",
+               shot_no_date_number="your screenshot, number {shot}, transcribed (day not recorded)",
+               received="received {date}"),
 }
+# Q20 (2026-11-23): a screenshot's transcript says which screenshot it is. The host names it in `native_ref` when it
+# sends the transcription: `screenshot:<YYYY-MM-DD>#<n>` (n counts the screenshots the user sent that day). A host that
+# knows only one of the two sends `screenshot:<date>` or `screenshot:#<n>`; the day it has not recorded stays unstated
+# rather than taken from the day the message arrived.
+SHOT_REF = re.compile(r"screenshot:(?:(\d{4}-\d{2}-\d{2}))?(?:#(\d+))?")
 
 
 @cache
@@ -206,6 +218,13 @@ def place_names(place: dict) -> list[str]:
     return [name for name in names if name and len(fold(name)) >= 2]
 
 
+def place_words(place: dict) -> list[str]:
+    """What a place is searched by beyond its names: the local and other names the host supplies at ingest
+    (`name_local`, `aliases`) and the ways the user may ask about it (`asks`); both are stored in the record and cut
+    into the index."""
+    return [word for word in [*(place.get("aliases") or []), *(place.get("asks") or [])] if word]
+
+
 def places_in(text: str, plan: dict | None) -> set[str]:
     """The plan's places a text names (by any of its names or its ID), as tokens `§place:<id>`."""
     folded = fold(text)
@@ -296,7 +315,7 @@ def corpus(store, owner: str, plan: dict | None, *, at: datetime, zone: str | No
         detail = " ".join(str(place.get(key) or "") for key in ("kind", "area", "hours", "notes", "reason", "price"))
         add("place", place["id"], f"{place.get('name') or place.get('name_local')}：{detail}",
             w["plan"] + (w["checked"].format(checked=place["checked"]) if place.get("checked") else ""),
-            " ".join(place_names(place)) + " " + detail, value=place)
+            " ".join(place_names(place)) + " " + detail + " " + " ".join(place_words(place)), value=place)
     for day in (plan or {}).get("days", []):
         for anchor in day.get("anchors") or []:
             text = " ".join(str(anchor.get(key) or "") for key in ("time", "text", "alternative", "consequence", "app"))
@@ -323,7 +342,8 @@ def corpus(store, owner: str, plan: dict | None, *, at: datetime, zone: str | No
             add(found, record["id"], text, w["said"].format(who=w["user"] if source.get("basis") in ("user_explicit", None) else w["someone"], when=when)
                 + ("" if in_force else f"；{w['not_in_force']}"),
                 " ".join(str(record.get(key) or "") for key in ("key", "text", "question", "title", "what"))
-                + (f" {record['quote']}" if record.get("quote") and len(record["quote"]) <= QUOTE_LIMIT else ""),
+                + (f" {record['quote']}" if record.get("quote") and len(record["quote"]) <= QUOTE_LIMIT else "")
+                + " " + " ".join([*(record.get("names") or []), *(record.get("asks") or [])]),
                 in_force=in_force, status=record.get("status"), event=source.get("event"), **({"key": record["key"]} if record.get("key") else {}))
     for record in store.all("evidence", owner):
         expired = bool(record.get("stale")) or bool(record.get("valid_until")) and aware_utc(record["valid_until"]) <= at
@@ -331,7 +351,8 @@ def corpus(store, owner: str, plan: dict | None, *, at: datetime, zone: str | No
             host = record.get("source") or ""
             source = (w["snippet"] if record.get("read_from") == "search_snippet" else w["page"]).format(host=host, when=local(record.get("fetched_at"), zone))
             add("web", record["id"], record.get("claim") or "", source + (f"；{w['expired']}" if expired else ""),
-                " ".join(str(record.get(key) or "") for key in ("claim", "quote", "url", "type")), in_force=not expired,
+                " ".join(str(record.get(key) or "") for key in ("claim", "quote", "url", "type"))
+                + " " + " ".join([*(record.get("names") or []), *(record.get("asks") or [])]), in_force=not expired,
                 url=record.get("url"), quote=record.get("quote"), counts_as_checked=record.get("counts_as_checked", False),
                 date=record.get("date"), fetched_at=record.get("fetched_at"), valid_until=record.get("valid_until"),
                 expired=expired)
@@ -350,8 +371,31 @@ def corpus(store, owner: str, plan: dict | None, *, at: datetime, zone: str | No
             continue
         text = received.get("text") or receipt.get("received_text") or ""
         when = local(said_time(store, owner, event["id"]), zone) or w["unknown"]
-        add("said", event["id"], text, w["said"].format(who=w["user"], when=when), text, event=event["id"])
+        if receipt.get("nature") == "screenshot_extraction":
+            # Q20: the user could not tell which screenshot a source came from; a transcript now says which one
+            origin = shot_origin(receipt.get("native_ref"))
+            add("said", event["id"], text, shot_phrase(origin, language), text, event=event["id"], origin=origin)
+        else:
+            add("said", event["id"], text, w["said"].format(who=w["user"], when=when), text, event=event["id"])
     return entries
+
+
+def shot_origin(native_ref: str | None) -> dict:
+    """Which screenshot a transcript came from, as the host named it in `native_ref`; empty when it did not."""
+    match = SHOT_REF.search(str(native_ref or ""))
+    date, shot = (match.group(1), match.group(2)) if match else ("", "")
+    return dict(kind="screenshot", date=date[5:] if date else "", shot=int(shot) if shot else None)
+
+
+def shot_phrase(origin: dict, language: str = "zh") -> str:
+    """The source of a transcript as a person reads it: which day's screenshots, which one; a part the host did not
+    record is said to be missing, never filled in from the day the message arrived."""
+    w = WORDS["en" if language == "en" else "zh"]
+    if not origin.get("date"):
+        return w["shot_no_date_number"].format(shot=origin["shot"]) if origin.get("shot") else w["shot_no_date"]
+    if origin.get("shot"):
+        return w["shot"].format(date=origin["date"], shot=origin["shot"])
+    return w["shot_no_number"].format(date=origin["date"])
 
 
 def aware_utc(value: str) -> datetime:
@@ -374,6 +418,30 @@ def entry_terms(entry: dict, plan: dict | None, *, zone: str | None = None) -> s
     if entry["found"] == "place":
         terms.add(f"§place:{entry['id']}")
     return terms
+
+
+def term_forms(term: str, plan: dict | None = None) -> list[str]:
+    """The spellings a matched term can take inside an entry's text, to cut the hit's own line out of its file: a plain
+    word is itself; a general place name or a travel-word group brings every spelling of it; a plan place brings its
+    names and the ways the user asks about it. Tokens are folded, and the index's unicode61 tokenizer folds the same
+    way for case and accents."""
+    if term.startswith("§place:"):
+        place_id = term.partition(":")[2]
+        for place in (plan or {}).get("places", []):
+            if place.get("id") == place_id:
+                return [str(word) for word in [*place_names(place), *place_words(place), place_id] if word]
+        return [place_id]
+    if term.startswith("§name:"):
+        key = term.partition(":")[2]
+        forms = name_forms()
+        return ([form for form, other in forms["cjk"].items() if other == key]
+                + [form for form, other in forms["latin"].items() if other == key]
+                + [form for form, other in forms["spaced"] if other == key])
+    if term.startswith("§day:"):
+        return []
+    if term.startswith("§"):
+        return [fold(form) for form in table()["groups"].get(term[1:], [])]
+    return [term]
 
 
 def search(store, owner: str, plan: dict | None, text: str, *, at: datetime, zone: str | None = None, language: str = "zh",
@@ -458,7 +526,9 @@ def rank(entries: list[dict], query: set[str], *, plan: dict | None, at: datetim
     kept += [row for row in scored if row not in kept]
     found = []
     for score, entry, matched in kept[:limit]:
-        shown = {key: value for key, value in entry.items() if key not in ("haystack", "terms")}
+        # `passage`, `passage_line` and `origin` are the index's working copies for cutting the snippet; the hit
+        # carries the result (`snippet`, `snippet_line`, `cited_as`) instead
+        shown = {key: value for key, value in entry.items() if key not in ("haystack", "terms", "passage", "passage_line", "origin")}
         shown["text"] = short(entry["text"], matched)
         shown["why"] = sorted(term.removeprefix("§") for term in matched)[:6]
         shown["score"] = round(score, 2)

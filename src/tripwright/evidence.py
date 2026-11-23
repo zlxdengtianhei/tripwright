@@ -35,7 +35,9 @@ def web_record(arguments: dict, *, quote_found: bool | str, check: str | None, a
                   quote_found=quote_found, value=dict(url=arguments["url"], quote=arguments["quote"], claim=arguments["claim"]),
                   fetched_at=recorded.isoformat(), valid_until=(recorded + timedelta(hours=WEB_VALID_HOURS[kind])).isoformat(),
                   stale=False, synthetic=False, notes=[note for note in [check] if note],
-                  date=arguments.get("date"), place_id=None, facts=[])
+                  date=arguments.get("date"), place_id=None, facts=[],
+                  # Q20 (2026-11-23): the host names the page and the thing in the user's languages at ingest
+                  names=list(arguments.get("names") or []), asks=list(arguments.get("asks") or []))
     reason = uncounted(record)
     record.update(counts_as_checked=reason is None, **({"not_counted": reason} if reason else {}))
     return record

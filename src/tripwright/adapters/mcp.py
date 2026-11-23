@@ -85,16 +85,16 @@ UsageArguments = Annotated[Any, WithJsonSchema({
 
 
 TURN_DESCRIPTION = (
-    "Receives one user message about a trip and returns what the service holds for it. The service sees only what "
-    "arrives here: a trip message that does not pass through turn leaves no record, and none of the stored "
-    "requirements, decisions or plan details come back for it; propose takes the ctx_id and base_version it returns. "
-    "Returns the stored requirements and decisions that apply (pack, consider), the current time, and next and flow: "
-    "the steps for this message. For a quick question on the road (scenario='quick', with the message's points) it "
-    "also returns first_part, an answer drafted from the stored plan with unchecked times marked, and "
-    "second_part_title, the heading for the answer after lookups. On a road turn with no draft it returns "
-    "opening_material, the nearest stored facts for the short first message, each archived and unchecked. record "
-    "stores what the message states (preferences, facts, decisions) with the user's exact words. A message that "
-    "only continues an unfinished second part needs no new turn.\n"
+    "Receives one user message about a trip and returns what the service holds for it. Only what arrives here is "
+    "stored: a message that skips turn leaves no record; propose takes the ctx_id and base_version it returns. "
+    "Returns the stored requirements and decisions that apply (pack, consider), the time, and next and flow: this "
+    "message's steps. A quick question (scenario='quick', with the message's points) also returns "
+    "first_part, drafted from the plan with unchecked times marked, and second_part_title for after the lookups; "
+    "with no draft, opening_material, the nearest stored facts, each archived and unchecked. record stores what the "
+    "message states (preferences, facts, decisions) with the user's exact words. A message that only continues an "
+    "unfinished second part needs no new turn. A screenshot's transcription is its own turn: "
+    "nature='screenshot_extraction' and native_ref='screenshot:<YYYY-MM-DD>#<n>' (n counts that day's screenshots). "
+    "Records may carry names and asks: the local or Chinese name, and ways the user may ask later.\n"
     "Args: points={kind:at|go|eat|do|ticket|other,said,place?}[]; record={items,facts,relate,carry,pending_checks}, "
     "source.event='this'; request_id optional.")
 
@@ -273,7 +273,7 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
     async def query(kind: Literal["transit", "latest_departure", "web_evidence", "open_places", "nearby", "weather", "opening",
                                   "saved", "geocode", "conflict"],
                     arguments: dict[str, Any]) -> dict[str, Any]:
-        """Looks up travel facts; the plan is not changed. Returns sentences ready to quote, the time window searched and where the data stops. arguments is an object. transit: {origin,destination,when,offset,arrive_by?,until?}; latest_departure: {origin,destination} for tonight's latest, optional anchor_id/by/board_at for a deadline; open_places: {near,at?,km?,text?}; web_evidence: {url,quote,claim,type,read_from}; weather (only when weather is asked): {place: stored ID|stored name|{name,lat,lon},date}; origin/destination/near also accept {name,lat,lon}; nearby: {lat,lon,km?}; saved: {text} ranks what the user's repository holds, each with its source (give the user's words and their local spelling); geocode: {text}; opening: {place,date?}; conflict (a finding contradicts the decided plan): {against:{date,block_id|anchor_id|booking_id|decision_id},found,options,recommended,why} stores one question, returns say; one question at a time (a second: queued=true, hold it). Places accept IDs or stored names. Full nested shapes are validated by the service, which names any bad field. Every fact keeps its fetch time, validity and source. A fact that could not be checked comes back marked unverified."""
+        """Looks up travel facts; the plan is not changed. Returns sentences ready to quote, the time window searched and where the data stops. transit: {origin,destination,when,offset,arrive_by?,until?}; latest_departure: {origin,destination} for tonight's latest, optional anchor_id/by/board_at for a deadline; open_places: {near,at?,km?,text?}; web_evidence: {url,quote,claim,type,read_from,names?,asks?}; weather (only when asked): {place: stored ID|stored name|{name,lat,lon},date}; origin/destination/near also accept {name,lat,lon}; nearby: {lat,lon,km?}; saved: {text} ranks what the repository holds; each hit gives source, path, line, commit, snippet, snippet_line, snippet_exact and cited_as (a screenshot); give the user's words and local spelling; geocode: {text}; opening: {place,date?}; conflict (a finding contradicts the plan): {against:{date,block_id|anchor_id|booking_id|decision_id},found,options,recommended,why} stores one question, returns say; one question at a time (a second: queued). Places accept IDs or stored names; the service validates shapes and names any bad field. Every fact keeps its fetch time, validity and source; an unchecked one is marked unverified."""
         return await (await opening.get_async()).query(identity(), kind, arguments, from_host=True)
 
     @server.tool(title="Propose plan or ledger changes against a context", annotations=write, structured_output=True)
@@ -283,7 +283,7 @@ def create_server(service: "Tripwright | Opening", *, local_user: str | None = "
                 bookings: ObjectList | None = None, changes: RecordArguments | None = None,
                 usages: UsageArguments | None = None, restore_version: RestoreArgument = None,
                 blocks: BlocksArgument = None) -> dict[str, Any]:
-        """Creates a draft from turn's ctx_id; nothing is saved until commit. plan is a complete trip (shape state(view='plan').plan). days (whole days by date, as state(view='day').json returns one), places and bookings (by id) patch the current plan; plan together with patches is refused. Without them the draft changes only the ledger. changes/usages are validated by the service; records keep their IDs and cite this turn's event in source.event. With usages or revisions omitted, the service records which applicable conditions/decisions were touched (filled_by=service) and sets no precedence between preferences; so is a condition left out. Names in speaker/subject resolve to trip person IDs. A choice the user did not state is recorded in changes.items with source.basis='agent_inference'. Only a user decision with must=true locks. Refused: a changed user decision without changes.revisions; a changed must, bought/booked item or hard node that this message's words do not carry; competing preferences before the user chose. Returns draft_id, checks, refusals, and the unverified facts the change brings in (ask_user when they wait for the user's answer, else tell_user)."""
+        """Creates a draft from ctx_id; nothing is saved until commit. plan is a complete trip (shape state(view='plan').plan). days (whole days by date, as state(view='day').json returns one), places and bookings (by id) patch the plan; not with plan. Without them the draft changes only the ledger. Q20: a place may carry aliases and asks, a record names and asks (other names; ways the user may ask), stored and searched. The service validates changes/usages; records keep their IDs and cite this turn's event. With usages or revisions omitted, the service records which applicable conditions/decisions were touched (filled_by=service) and sets no precedence between preferences; so is a condition left out. Names in speaker/subject resolve to trip person IDs. A choice the user did not state goes in changes.items with source.basis='agent_inference'. Only a user decision with must=true locks. Refused: a changed user decision without changes.revisions; a changed must, booked item or hard node this message's words do not carry; competing preferences before the user chose. Returns draft_id, checks, refusals and the unverified facts it brings in (ask_user while they wait for an answer, else tell_user)."""
         return ready().propose(identity(), ctx_id=ctx_id, base_version=base_version, idempotency_key=idempotency_key,
                                plan=plan, days=days, places=places, bookings=bookings, changes=changes, usages=usages,
                                **({"restore_version": restore_version} if restore_version is not None else {}),
