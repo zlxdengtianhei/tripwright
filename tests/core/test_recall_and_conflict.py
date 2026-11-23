@@ -52,10 +52,12 @@ def test_the_turn_brings_up_what_the_repository_holds_without_this_messages_own_
     seeded(service, plan, monkeypatch)
     web(service, url="https://example.org/cafe", quote="Kitchen closes 21:00", claim="港边咖啡馆厨房 21:00 停止点餐", type="opening_hours")
     turn = service.turn("alice", "港边咖啡馆今晚几点停止点餐？", "q1", scenario="quick")
-    found = turn["recall"]["found"]
-    assert any(entry["found"] == "web" and "21:00" in entry["text"] for entry in found)
-    assert all(entry["source"] for entry in found)
-    assert any(line.get("kind") == "recall" for line in turn["opening_material"])
+    lines = [line for line in turn["opening_material"] if line.get("kind") == "recall"]
+    found = (turn.get("recall") or {}).get("found", [])
+    # the best entries open the first message (archived, not checked, with the source); the rest are listed once in recall
+    assert any(line["found"] == "web" and "21:00" in line["text"] and "存档，没核" in line["text"] for line in lines)
+    assert not {line["id"] for line in lines} & {entry["id"] for entry in found}
+    assert all(entry["source"] and len(entry["text"]) <= 140 for entry in found)
     assert "recall" in turn["after_first_part"] and "query(kind='conflict'" in turn["after_first_part"]
 
 

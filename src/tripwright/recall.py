@@ -142,15 +142,15 @@ def dates_in(text: str, at: datetime | None, zone: str | None) -> set[str]:
     return found
 
 
-def short(text: str, terms: set[str] | None = None) -> str:
-    """The entry's text in at most TEXT_LIMIT characters, around the first matched term when it is long."""
+def short(text: str, terms: set[str] | None = None, limit: int = TEXT_LIMIT) -> str:
+    """The entry's text in at most `limit` characters, around the first matched term when it is long."""
     text = re.sub(r"\s+", " ", str(text or "")).strip()
-    if len(text) <= TEXT_LIMIT:
+    if len(text) <= limit:
         return text
     folded = fold(text)
     starts = [folded.find(term) for term in terms or () if not term.startswith("§") and folded.find(term) > 0]
     start = max(0, min(starts) - 60) if starts else 0
-    return ("…" if start else "") + text[start:start + TEXT_LIMIT - 1] + "…"
+    return ("…" if start else "") + text[start:start + limit - 1] + "…"
 
 
 def local(at: str | None, zone: str | None) -> str | None:
@@ -316,7 +316,7 @@ def lines(result: dict, language: str = "zh", limit: int = 3, kinds: tuple[str, 
     """The best hits in force as opening-material lines, each with its source; only `kinds` when given."""
     out = []
     for entry in result.get("found", []):
-        if kinds and entry["found"] not in kinds or not entry["in_force"]:
+        if kinds and entry["found"] not in kinds or not entry.get("in_force", True):
             continue
         # like every opening line, a stored entry is archived and not checked now (whatever check it once had)
         lead = "仓里存的" if language != "en" else "In the repository"
