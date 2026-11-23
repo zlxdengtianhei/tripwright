@@ -271,7 +271,7 @@ def test_a_wrong_record_in_turn_still_receives_the_message_and_drafts_the_first_
     assert turn["first_part"] is None and turn["receipt"]["event_id"] and turn["next"]
     [left] = turn["recorded"]["not_recorded"]
     assert left["part"] == "record" and "record.items.0" in left["reason"] and turn["receipt"]["event_id"] in left["fix"]
-    assert "propose" in left["fix"] and "record" in turn["next"]
+    assert "propose" in left["fix"] and "record" in turn["after_first_part"]
     # an entry the ledger refuses (a quote that is not in the message) and a part turn does not take: the same
     refused = said(trip, "晚上吃什么？", record=dict(items=[recorded("preference", "food", "便宜的", basis="agent_inference", quote="想吃便宜的")],
                                                     decisions=[dict(question="晚饭", choice="A")]))

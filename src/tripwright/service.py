@@ -252,6 +252,21 @@ WAITING_STALE = dict(zh="草稿 {draft} 在等用户这句回话（{n} 条没核
                      en="Draft {draft} was waiting for this reply ({n} unverified fact(s)), but the ledger or plan changed since. If the "
                         "user agrees to save it as it is: propose the same change again, then commit(accept_unverified=true); "
                         "facts the user has answered are not asked again.")
+# trip60: the one instruction before the first message. Nothing else in it invites a lookup or a state read first
+# (replays of 2026-11-22: with “state(view='memory') 可看” and “按坐标或站名查” in the same field, hosts read the plan,
+# the memory and the files for 1 to 6 minutes before writing anything).
+OPEN_FIRST = dict(
+    zh="先写第一条消息，再调别的工具：用一到五行直接答这句话里最急的那件事（怎么走、去哪、选哪个、要不要赶），要能照着走；"
+       "材料用 first_part、opening_material、consider 里的偏好和常识；存档里的时刻写“存档写 X，还没核”，存档里没有的写“没核”。"
+       "两三个选项时标出推荐的。这一条只放第一段；发出去以后接着查、再存，然后另发第二段（标题用 second_part_title，先说和第一段的不同），"
+       "不用等用户回话。" + SEPARATE_PARTS["zh"] + WORK_NOTES["zh"],
+    en="Write the first message before any other tool: one to five lines you can act on that answer the most urgent thing "
+       "this message asks (how to go, where, which one, whether to hurry), from first_part, opening_material, the "
+       "preferences in consider and common sense; stored times go as “the plan stores X, not checked yet”, anything not "
+       "stored as not checked. With two or three options, mark the recommended one. That message is the first part only; "
+       "after it is sent, go on: check, save, then send the second part (heading second_part_title, what differs first) "
+       "without waiting for the user. " + SEPARATE_PARTS["en"] + " " + WORK_NOTES["en"])
+AFTER_OPEN = dict(zh="第一条发出去以后照这里做：", en="After the first message is sent: ")
 AFTER_FIRST = dict(zh="用户回了话、或 researcher 的报告回来之后照这里做，不再调 turn：",
                    en="After the user replies or the researcher's report returns, do this without calling turn again: ")
 # explain(record_id) (S5): the ledger tables a record ID is looked up in, and the fields each adds to the record
@@ -539,7 +554,12 @@ class Tripwright:
             record_input = (checked_record(record) if record is not None else None) or None
         except ValueError as error:
             record_input, refused_record = None, str(error)
-        points = self._checked_places(owner, first_part.checked_points(points))
+        # A bad point never refuses the message (trip60): what passes is kept, a place the user's words contradict is
+        # replaced by the one they name, and points_note says what changed.
+        points, points_note = first_part.lenient_points(points)
+        if points:
+            points, replaced_places = packs.placed_by_words(current_plan, points)
+            points_note += replaced_places
         request_id = request_id or identifier("REQ")
         prior = self.outbox.find(owner, "turn", request_id)
         nature_key = "host_restatement" if nature == "user_verbatim" and not native_ref else nature
@@ -650,8 +670,13 @@ class Tripwright:
             # for the walk, not for the lookups. "Road" is the quick scenario or the words of a latest/missed question.
             road = bool(not first and (scenario == "quick" or first_part.asks_latest(text)
                                       or first_part.MISSED.search(text or "")))
-            opening = opening_material(plan or {}, at, language) if road else None
-            second_title = SECOND_TITLES[language] if first or road else None
+            # trip60 (the user, 2026-10-30: “每次我们在旅行部分的输出你都可以考虑两个部分 一个是及时快速的……先告诉我”): every
+            # trip message opens with a short first message written before any other tool, on the road or not; the
+            # service's first_part, when there is one, is material for it, not a text to send as it is (replays of
+            # 2026-11-22: two of three drafts sent as they were did not answer the question).
+            opens = bool(not undo and scenario != "system" and self._reply_flow() == "two")
+            opening = opening_material(plan or {}, at, language) if road or opens else None
+            second_title = SECOND_TITLES[language] if first or road or opens else None
             context.update(points=packs.point_record(told),
                            frame=dict(scenario=scenario, asks_latest=first_part.asks_latest(text)),
                            request_id=request_id, promises_second=bool(first), first_text=first["text"] if first else None,
@@ -660,16 +685,26 @@ class Tripwright:
             instructions = self._next(considered, asked, recorded, first=first, second_title=second_title,
                                       latest=first_part.asks_latest(text),
                                       unknown=self._unknown_places(plan, told, language=language), language=language,
-                                      scenario=scenario, options=bool(possible or recorded.get("crowding")), road=road)
+                                      scenario=scenario, options=bool(possible or recorded.get("crowding")), road=road,
+                                      opens=opens)
             # Claude reads the first fields first: the immediate action and both service-written headings lead.
-            if first and self._reply_flow() == "two":
+            if opens:
+                lead = OPEN_FIRST["en" if language == "en" else "zh"]
+                notes = self._first_notes(considered, asked, recorded, language=language, scenario=scenario,
+                                          options=bool(possible or recorded.get("crowding")))
+                lead += (" " if language == "en" else "") + notes
+                if language == "en":
+                    lead = REPLY_IN_ENGLISH + " " + lead
+                response = dict(next=lead, first_part=first, opening_material=opening, second_part_title=second_title,
+                                after_first_part=AFTER_OPEN[language] + instructions, **response)
+            elif first and self._reply_flow() == "two":
                 first = dict(first, later=first_part.LATER[language])
                 send = SEND_IN_ENGLISH if language == "en" and message_language(first["text"]) == "zh" else SEND_AND_END[language]
                 response = dict(next=send, first_part=first, second_part_title=second_title,
                                 after_first_part=AFTER_FIRST[language] + instructions, **response)
             else:
                 response = dict(next=instructions, first_part=first, second_part_title=second_title, **response)
-            if road:
+            if road and not opens:
                 response["opening_material"] = opening
             mode = consider.save_mode(self.store, owner, at=at)
             response.update(consider={key: considered[key] for key in ("entries", "more", "more_how") if key in considered},
@@ -691,7 +726,13 @@ class Tripwright:
             # The agent acts on the instruction it reads first: whom to dispatch leads it (2026-11-12 live runs: as a
             # separate field only, a short planning edit went to the requirements role 2 times in 10).
             named = response["flow"]["dispatch"]
-            if named and scenario in PLANNING:  # on the road the first instruction stays the first part or the answer
+            if named and scenario in PLANNING and opens:
+                # whom to dispatch comes right after the first message, never before it (trip60)
+                lead = ("Then dispatch " if language == "en" else "第一条发出后先派 ") + ("; " if language == "en" else "；").join(
+                    f"{entry['role']} ({entry['why']})" if language == "en" else f"{entry['role']}（{entry['why']}）" for entry in named)
+                lead += ". " if language == "en" else "。"
+                response["after_first_part"] = AFTER_OPEN[language] + whole_sentences(lead + instructions, 700)
+            elif named and scenario in PLANNING:  # on the road the first instruction stays the first part or the answer
                 lead = ("Dispatch " if language == "en" else "先派 ") + ("; " if language == "en" else "；").join(
                     f"{entry['role']} ({entry['why']})" if language == "en" else f"{entry['role']}（{entry['why']}）" for entry in named)
                 lead += ". " if language == "en" else "。"
@@ -715,6 +756,8 @@ class Tripwright:
                     response["next"] = whole_sentences(said.format(number=undo["restore_version"]), 700)
             if told is not None:
                 response["points"] = told
+            if points_note:
+                response["points_note"] = points_note
         if self.committer is not None:
             response["sync"] = self.committer.status()
             self.committer.poke()
@@ -934,25 +977,55 @@ class Tripwright:
     def _reply_flow(self) -> str:
         return "one" if os.environ.get("TRIPWRIGHT_REPLY_FLOW", "two").lower() == "one" else "two"
 
+    def _first_notes(self, considered: dict, asked: list[dict], recorded: dict, *, language: str | None = None,
+                     scenario: str | None = None, options: bool = False) -> str:
+        """What shapes the first message itself, after OPEN_FIRST in `next` (trip60): competing preferences become
+        options, the questions in `ask` are asked, and a replaced entry is said. No lookup and no state read here; the
+        entry-by-entry weighing of consider (which in the replays sent hosts reading the ledger first) and every lookup
+        follow the first message in `after_first_part`."""
+        en = (language or self.language) == "en"
+        notes = []
+        if options and scenario in ("plan", "compare"):
+            notes.append("These preferences compete: give two or three options with the recommended one marked, record the "
+                         "user's words, but do not change the plan until the user chooses an option." if en else
+                         "这些偏好互相挤：第一条给两三套方案、标出推荐的；这一条只记用户说的偏好，不改计划；等用户选了一套再改。")
+        if recorded.get("replaced"):
+            w = consider.words(language or self.language)
+            notes.append(("Say what changed: " if en else "回答里说一句这次改了什么：")
+                         + w["join"].join(f"{line['old']} → {line['new']}" for line in recorded["replaced"]) + ("." if en else "。"))
+        if asked:
+            notes.append(consider.words(language or self.language)["ask_next"])
+        notes.extend(considered.get("hints", []))  # whose line is whose, and the user's line wins: the first message too
+        separator = " " if en else ""
+        kept = []
+        for note in notes:
+            if len(separator.join([*kept, note])) <= 420:
+                kept.append(note)
+        return separator.join(kept)
+
     def _next(self, considered: dict, asked: list[dict], recorded: dict, *, first: dict | None,
               second_title: str | None, latest: bool = False, unknown: list[str] = (), language: str | None = None,
-              scenario: str | None = None, options: bool = False, road: bool = False) -> str:
-        """Only this message's next actions, bounded for a chat tool result."""
+              scenario: str | None = None, options: bool = False, road: bool = False, opens: bool = False) -> str:
+        """Only this message's next actions, bounded for a chat tool result. With `opens` the first message's
+        instruction is turn's `next` (OPEN_FIRST), and this is what follows it."""
         en = (language or self.language) == "en"
         parts = []
         if first and self._reply_flow() == "one":
             parts.append("Send first_part.text to the user now (the user is waiting); call query only after sending it." if en else
                          "现在就把 first_part.text 发给用户（用户在等这第一段）；发出去之后再调 query。")
-        if road:
+        if road and not opens:
             # round 4 review: no first part on the road is no reason to go silent through the lookups (baseline
             # 2026-11-19: the first text came 4 to 19 minutes after the question in 13 of 15 runs). Review 4: the one
             # sentence comes first, and its material is stored data, not a lookup.
             parts.append(ROAD_OPENING["en" if en else "zh"])
-        if en:
+        if en and not opens:
             parts.append(REPLY_IN_ENGLISH)
         # Round 4 review, the user's order (2026-10-29): the answer first, then the save; the page follows the answer.
         parts.append(SAY_BEFORE_SAVE["en" if en else "zh"])
-        if first:
+        if opens:
+            parts.append(SEPARATE_PARTS["en" if en else "zh"] + FIRST_ARCHIVED["en" if en else "zh"])
+            parts.append(WORK_NOTES["en" if en else "zh"])
+        elif first:
             parts.append(f"After checking, write {second_title!r} as the second heading; first say what differs "
                          "from first_part, or 'Same as above, checked.'" if en else
                          f"核完后写第二段标题“{second_title}”；标题下先讲和第一段的不同，没有不同就写“和上面一样，已核”。")
@@ -965,9 +1038,11 @@ class Tripwright:
             parts.append("Answer this message directly after its necessary lookups; do not invent a first part."
                          if en else "完成必要的查询后直接答这一问，不造第一段。")
             parts.append(WORK_NOTES["en" if en else "zh"])
-        if options and scenario in ("plan", "compare"):
+        if options and scenario in ("plan", "compare") and not opens:
             parts.append("These preferences compete: record the user's words, but do not change the plan until the user chooses "
                          "an option." if en else "这些偏好互相挤：这一条只记用户说的偏好，不改计划；等用户选了一套再改。")
+        elif options and scenario in ("plan", "compare"):
+            parts.append("Do not change the plan until the user chooses an option." if en else "等用户选了一套再改计划。")
         elif scenario in ("plan", "replan"):
             parts.append("For an actual plan edit: state(view='day',date=...), edit its json, propose(days=[json]), commit; "
                          "do not resend the whole trip." if en else
@@ -975,7 +1050,7 @@ class Tripwright:
         refused = [line["fix"] for line in recorded.get("not_recorded", []) if line.get("part") == "record"]
         if refused:
             parts.append(("record: " if en else "record 没记：") + refused[0])
-        if recorded.get("replaced"):
+        if recorded.get("replaced") and not opens:
             w = consider.words(language or self.language)
             parts.append(("Say what changed: " if en else "回答里说一句这次改了什么：")
                          + w["join"].join(f"{line['old']} → {line['new']}" for line in recorded["replaced"]) + ("." if en else "。"))
@@ -986,12 +1061,12 @@ class Tripwright:
             optional.append("For tonight's latest, call query(kind='latest_departure', arguments={origin,destination}) and use "
                             "its first_line and window." if en else
                             "问今晚最晚：query(kind='latest_departure', arguments={origin,destination})，照它的 first_line、sentences 和 window 说。")
-        if first or road:
+        if first or road or opens:
             optional.append("Something found online: fetch its sentence with query(kind='web_evidence') first, or label it "
                             "unchecked; no process remarks." if en else
                             "网上查到的说法先用 query(kind='web_evidence') 取到原句再写，取不到就标没核；不写过程话。")
         optional.extend([*unknown, considered["next"]])
-        if asked:
+        if asked and not opens:
             optional.append(consider.words(language or self.language)["ask_next"])
         if considered.get("more_how"):
             optional.append(considered["more_how"])

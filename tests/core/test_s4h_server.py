@@ -78,13 +78,12 @@ def test_a_place_the_users_words_contradict_is_refused_before_anything_is_record
              dict(kind="go", said="是不是得赶紧去机场", place="airport")]
     # bad sample (ns_on_r1 question 2): the host sent the plan's gym for the one the user named; the first part had
     # “你在北边的岩馆（你说的“…Boulder Hall South…”）” and the last connection started there
-    received = len(service.store.all("events", "local"))
-    with pytest.raises(ValueError, match=r"Invalid points: points\.0: place 'gym-north' is the stored 'gym-north' .* names the stored "
-                                         r"'gym-south' .*send place 'gym-south'"):
-        service.turn("local", SECOND, "q2", scenario="quick", points=wrong)
-    assert len(service.store.all("events", "local")) == received  # nothing recorded: the same request_id goes again
-    right = service.turn("local", SECOND, "q2", scenario="quick", points=[dict(wrong[0], place="gym-south"), *wrong[1:]])
+    # trip60: the turn is never refused for it (a refused turn delayed the first message by minutes); the user's words
+    # decide, so the place they name replaces the one sent, and points_note says so
+    right = service.turn("local", SECOND, "q2", scenario="quick", points=wrong)
     assert right["first_part"]["lines"][2] == f"按现在 21:52 算，你在南边的岩馆（你说的“{said}”）"
+    assert right["points"]["at"]["place"] == "gym-south"
+    assert right["points_note"] and "replaced by 'gym-south'" in right["points_note"][0]
     # the command line drafts no first part for it either
     code = cli.main(["--db", str(service.db_path), "first-part", "--text", SECOND, "--points", json.dumps(wrong, ensure_ascii=False)])
     assert code == 1 and "points.0: place 'gym-north'" in capsys.readouterr().err
@@ -155,8 +154,8 @@ def test_a_place_not_recognized_is_said_and_never_taken_for_the_plans(make):
     found = service.turn("local", SECOND, "q2", scenario="quick",
                          points=[dict(kind="at", said="在一家没存的咖啡馆", place="Café Nirgendwo"), dict(kind="do", said="万圣节活动", place="Prater")])
     # Unknown names remain visible, but never force a second turn; the road's short opening opens before any lookup.
-    assert "opening_material" in found["next"] and "先不调任何工具" in found["next"]
-    assert "points 里这些地方没认出：“Prater”、“Café Nirgendwo”。不用再调 turn" in found["next"]
+    assert "opening_material" in found["next"] and found["next"].startswith("先写第一条消息")
+    assert "points 里这些地方没认出：“Prater”、“Café Nirgendwo”。不用再调 turn" in found["after_first_part"]
     # No stored point is answered, so there is no placeholder first part.
     assert found["first_part"] is None
     # control: coordinates and stored IDs are known places

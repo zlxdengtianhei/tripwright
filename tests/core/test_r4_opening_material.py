@@ -68,6 +68,8 @@ def test_the_road_next_opens_with_the_one_sentence_in_both_languages(service, pl
     english = service.turn("alice", "I am hungry, where can I eat now?", "opening-next-en", scenario="quick")
 
     assert chinese["first_part"] is None and english["first_part"] is None
-    assert chinese["next"].startswith(ROAD_ZH) and "存档写 X，还没核" in chinese["next"]
-    assert english["next"].startswith(ROAD_EN) and "the plan stores X, not checked yet" in english["next"]
-    assert len(chinese["next"]) <= 600 and len(english["next"]) <= 600
+    # trip60: the one sentence is now the first message's, for every trip message
+    assert chinese["next"].startswith("先写第一条消息，再调别的工具") and "存档写 X，还没核" in chinese["next"]
+    assert "Write the first message before any other tool" in english["next"] and "the plan stores X, not checked yet" in english["next"]
+    assert not chinese["next"].startswith(ROAD_ZH) and ROAD_EN not in english["next"]
+    assert len(chinese["next"]) <= 1100 and len(english["next"]) <= 1100

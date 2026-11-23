@@ -397,7 +397,8 @@ def build(store, owner: str, *, pack: dict | None, plan: dict | None, scenario: 
     shown, rest = kept + others[:room], others[room:] if room is not None else []
     hints = ([w["mine"]] if any(code in ("inference", "default", "agent") for entry, code in listed if entry in shown) else []) + (
         [w["yields"]] if any(entry.get(CONFLICTS_USER) for entry in shown) else [])
-    result = dict(entries=shown, more=len(rest), next=(" " if language == "en" else "").join([w["next"].format(n=len(shown)), *hints]))
+    result = dict(entries=shown, more=len(rest), next=(" " if language == "en" else "").join([w["next"].format(n=len(shown)), *hints]),
+                  hints=hints)  # the hints alone, for the first message (trip60); turn returns only entries, more, more_how
     if rest:
         result["more_how"] = w["more"].format(n=len(rest))
     return result

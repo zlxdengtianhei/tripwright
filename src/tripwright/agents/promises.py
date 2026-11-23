@@ -131,9 +131,9 @@ PROMISES = (
     Promise("routes-from-candidates", ALL_MAIN + RESEARCHER, must=(r"`?candidates`?", r"`?via_station`?")),
     Promise("food-from-stored-hours", ALL_MAIN + RESEARCHER, must=(r'kind=\\?"open_places\\?"', r'`?type`?: \\?"opening_hours\\?"')),
     Promise("first-part-before-tools", (MAIN, AGENTS_MD),
-            must=(r"first_part\.text`? and end this reply without another tool",)),
+            must=(r"Write the first message before any other tool",)),
     Promise("two-flows-without-continuation-state", (MAIN, AGENTS_MD),
-            must=(r"end this reply without another tool", r"without calling `turn`",),
+            must=(r"Write the first message before any other tool", r"without calling `turn`",),
             must_not=(r"first_part\.later", r"second_part_due"), bad_sample="first_part.later and second_part_due"),
     # D-48: the host sent true_from "this" (copied from source.event) and turn refused the record.
     Promise("record-times-with-offset", MAIN_TEXTS, must=(r'`true_from` an ISO time with offset, never "this"',)),

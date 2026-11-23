@@ -58,7 +58,7 @@ def test_a_quick_question_lists_only_what_bears_on_it_and_a_plan_lists_people_de
     entry = next(entry for entry in plan["consider"]["entries"] if entry["kind"] == "preference")
     assert entry["text"] == "喜欢安静的咖啡馆" and entry["stability"] == "changing" and entry["from"]["record"] == entry["id"]
     assert next(entry for entry in plan["consider"]["entries"] if entry["kind"] == "destination")["stability"] == "stable"
-    assert "逐条看 consider" in plan["next"]
+    assert "逐条看 consider" in plan["after_first_part"]  # trip60: after the first message
 
 
 def test_a_long_list_is_cut_at_the_scenario_limit_and_state_memory_lists_everything(vienna):
@@ -71,7 +71,8 @@ def test_a_long_list_is_cut_at_the_scenario_limit_and_state_memory_lists_everyth
     quick = said(vienna, "现在去哪？")
     limit = consider.table()["scenarios"]["quick"]["limit"]
     assert len(quick["consider"]["entries"]) == limit and quick["consider"]["more"] > 0
-    assert "state(view='memory')" in quick["consider"]["more_how"] and "state(view='memory')" in quick["next"]
+    assert "state(view='memory')" in quick["consider"]["more_how"] and "state(view='memory')" in quick["after_first_part"]
+    assert "state(view='memory')" not in quick["next"]  # trip60: no state read invited before the first message
     listed = {entry["id"] for entry in vienna.state("alice", view="memory")["consider"]}
     assert {entry["id"] for entry in quick["consider"]["entries"]} < listed
     assert sum(1 for entry in vienna.state("alice", view="memory")["consider"] if entry["kind"] == "preference") == len(words)

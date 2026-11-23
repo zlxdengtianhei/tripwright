@@ -110,6 +110,39 @@ def checked_points(points: list | None) -> list[dict] | None:
     return found
 
 
+def lenient_points(points: list | None) -> tuple[list[dict] | None, list[str]]:
+    """Turn's points, never refusing the turn (trip60 replays, 2026-11-22: a turn refused for an eighth point or a bad
+    kind left the host without the service's answer material, and the first message came 4 minutes later). The points
+    that pass are kept, the first `at` only, at most POINTS in all; what was left out comes back as short notes."""
+    from pydantic import TypeAdapter, ValidationError
+
+    try:
+        return checked_points(points), []
+    except ValueError:
+        pass
+    if not isinstance(points, list):
+        return None, ["points must be a list of {kind, said, place?}; this turn went on without them"]
+    kept, notes, seen_at = [], [], False
+    for index, point in enumerate(points):
+        if isinstance(point, dict) and isinstance(point.get("said"), str):
+            point = dict(point, said=point["said"][:60])
+        try:
+            found = TypeAdapter(Point).validate_python(point).model_dump()
+        except ValidationError as error:
+            notes.append(f"points.{index} left out: " + "; ".join(problem["msg"] for problem in error.errors()))
+            continue
+        if found["kind"] == "at":
+            if seen_at:
+                notes.append(f"points.{index} left out: only one 'at'")
+                continue
+            seen_at = True
+        if len(kept) >= POINTS:
+            notes.append(f"points.{index} left out: at most {POINTS} points")
+            continue
+        kept.append(found)
+    return kept, notes
+
+
 def spaced(*parts: str) -> str:
     """Words joined the way the answer writes them: a space only where a Latin letter or digit meets another word (not
     before a comma)."""

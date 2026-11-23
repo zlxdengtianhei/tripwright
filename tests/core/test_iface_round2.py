@@ -19,7 +19,8 @@ def test_english_message_gets_english_first_part_and_next(seeded):
                          points=[dict(kind="do", said=place["name_local"], place=place["id"])])
     assert result["first_part"]["lines"][0].startswith("From the stored plan first")
     assert "按现在" not in result["first_part"]["text"] and "第二段" not in result["first_part"]["text"]
-    assert result["next"].startswith("Send first_part.text")
+    # trip60: the first part is material for the first message the host writes before any other tool
+    assert result["next"].startswith("Reply in English") and "Write the first message before any other tool" in result["next"]
 
 
 def test_turn_resolves_people_names_in_speaker_subject_and_record(seeded):

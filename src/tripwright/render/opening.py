@@ -30,10 +30,13 @@ ADDRESS = re.compile(r"地址\s*([^；;（(。\n]+)")
 WORDS = {
     "zh": dict(archive="（存档，没核）", tomorrow="明天 ", today="今天", bought="已买", booked="已订",
                place="下一个地点：{name}", place_address="下一个地点：{name}，{address}",
-               ticket="{status}：{what}（{when}，存档，没核）"),
+               ticket="{status}：{what}（{when}，存档，没核）",
+               no_day="存档里 {date} 没有日程：第一条按这句话、consider 里的偏好和常识直接答，不用先取 state"),
     "en": dict(archive=" (archived, not checked)", tomorrow="tomorrow ", today="today", bought="bought", booked="booked",
                place="Next place: {name}", place_address="Next place: {name}, {address}",
-               ticket="{status}: {what} ({when}; archived, not checked)"),
+               ticket="{status}: {what} ({when}; archived, not checked)",
+               no_day="The plan stores no day for {date}: answer the first message from these words, the preferences in "
+                      "consider and common sense; no state read first"),
 }
 
 
@@ -52,7 +55,12 @@ def material(plan: dict | None, at: str, language: str = "zh") -> list[dict]:
              *_place(planned, places, today, moment, zone, words)]
     taken = [_bare(item["text"]) for item in items]
     items += _claims(planned, today, words, taken)
-    return items[:LIMIT]
+    items = items[:LIMIT]
+    if not any(day["date"] == today.isoformat() for day in planned):
+        # trip60: with nothing stored for today the host went looking (state plan, memory, day, the files) for minutes;
+        # saying so is the material for a first message from the words and the preferences
+        items.append(dict(kind="no_day", date=today.isoformat(), text=words["no_day"].format(date=today.isoformat())))
+    return items
 
 
 def _bare(text: str) -> str:

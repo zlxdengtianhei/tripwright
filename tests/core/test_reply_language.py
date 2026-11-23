@@ -173,11 +173,12 @@ def test_a_first_part_with_stored_chinese_is_sent_in_english_and_any_other_first
     english = gallery(service, "Is the gallery open now?", "the gallery")
     chinese = gallery(service, "画廊现在开着吗？", "画廊")
 
+    from tripwright.service import OPEN_FIRST, REPLY_IN_ENGLISH
+
     assert HAN.search(english["first_part"]["text"])  # the stored key time keeps its Chinese words
-    assert english["next"].startswith("Send first_part.text in English (translate its stored text; keep names, times and "
-                                      "numbers as written) as this reply's first and only message")
-    assert "as it is" not in english["next"]
-    assert chinese["next"] == SEND_AND_END["zh"]
+    # trip60: the host writes the first message from first_part; on an English question it says so in English first
+    assert english["next"].startswith(REPLY_IN_ENGLISH + " " + OPEN_FIRST["en"])
+    assert chinese["next"].startswith(OPEN_FIRST["zh"]) and SEND_AND_END["zh"] not in chinese["next"]
 
 
 def test_an_english_first_part_without_stored_chinese_is_sent_as_it_is(service, plan, monkeypatch):
@@ -186,8 +187,10 @@ def test_an_english_first_part_without_stored_chinese_is_sent_as_it_is(service, 
     chinese_trip(service, plan, monkeypatch, anchor_text="Check-in desk closes (fictional)")
     english = gallery(service, "Is the gallery open now?", "the gallery")
 
+    from tripwright.service import OPEN_FIRST
+
     assert not HAN.search(english["first_part"]["text"])
-    assert english["next"] == SEND_AND_END["en"]
+    assert OPEN_FIRST["en"] in english["next"] and SEND_AND_END["en"] not in english["next"]  # trip60
 
 
 def test_an_older_context_written_later_does_not_win(seeded):
