@@ -498,6 +498,7 @@ class Tripwright:
         self.jobs.handlers["deep_check"] = self.versions.deep_check
         self.jobs.handlers["plan_day"] = self._plan_day
         self.query_router = query_router or QueryRouter(store)
+        self.query_router.repository = repository  # `query(kind="saved")` finds entries through the repository's index
         self.query_timeout = query_timeout
         self.deep_timeout = deep_timeout
         # How long commit waits for the Git commit and push (and so for write.state `effective`). 0: it returns once the
@@ -933,8 +934,8 @@ class Tripwright:
                                          for point in points or [] if isinstance(point, dict)])
         zone = (plan or {}).get("timezone") or (self.repository.timezone() if self.repository is not None else None)
         found = recall.search(self.store, owner, plan, words, at=aware(at), zone=zone, language=language, limit=RECALL_LIMIT,
-                              exclude_events={event_id}, kind_cap=recall.KIND_CAP)
-        return dict(found=[dict({key: entry[key] for key in ("found", "id", "source") if key in entry},
+                              exclude_events={event_id}, kind_cap=recall.KIND_CAP, repository=self.repository)
+        return dict(found=[dict({key: entry[key] for key in ("found", "id", "source", "path", "line", "commit") if key in entry},
                                 text=recall.short(entry["text"], None, RECALL_TEXT), **({} if entry["in_force"] else dict(in_force=False)))
                            for entry in found["found"]])
 

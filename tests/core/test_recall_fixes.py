@@ -10,11 +10,8 @@ boulderbar) and its Halloween activity.
 """
 import asyncio
 import time
-from pathlib import Path
-
-import yaml
-
 from tripwright import recall
+from tripwright.example_trip import reserved_names
 
 
 def seeded(service, plan, monkeypatch, when="2030-06-10T09:00:00+02:00"):
@@ -98,19 +95,9 @@ def test_two_open_questions_answer_only_the_one_answered_and_ask_the_other_after
 
 
 def test_the_word_table_holds_no_place_or_operator_of_the_example_trip():
-    root = Path(__file__).resolve().parents[2]
-    trip = root / "examples/trip-2026-10-bud-wien/trips/2026-10-bud-wien"
-    meta = yaml.safe_load((trip / "trip.yaml").read_text(encoding="utf-8"))
-    places = yaml.safe_load((trip / "plan/places.yaml").read_text(encoding="utf-8")) or []
-    names = {str(area) for area in meta.get("areas") or []}
-    for place in places:
-        head = str(place.get("name") or "").split("（")[0].strip()
-        if head:
-            names.add(head)
-        local = str(place.get("name_local") or "").split(",")[0].strip()
-        if local:
-            names.add(local.split()[0])
-        names.add(str(place.get("id") or ""))
+    # one list for the generator and both guards: the plan's places and areas plus the destinations the trip's own
+    # words and entries name (Hallstatt, Sankt Wolfgang, Bad Ischl, Gosau, its two cities)
+    names = set(reserved_names())
     # generic words an address happens to carry name nothing of the trip (a main station, a street)
     generic = {"hauptbahnhof", "bahnhof", "station", "flughafen", "airport", "gasse", "strasse", "platz", "kirche", "hbf"}
     table = recall.table()

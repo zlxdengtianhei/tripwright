@@ -1543,6 +1543,7 @@ class QueryRouter:
                  weather: WeatherProvider | None = None, geocode: GeocodeProvider | None = None, mode: str | None = None,
                  pages: PageReader | None = None):
         self.store = store
+        self.repository = None  # set by the service when the trip lives in a Git repository: `saved` then asks its index
         self.mode = mode or os.environ.get("TRIPWRIGHT_PROVIDERS", "synthetic")
         if self.mode not in ("synthetic", "live"):
             raise ValueError("TRIPWRIGHT_PROVIDERS must be synthetic or live")
@@ -2169,10 +2170,13 @@ class QueryRouter:
         as stored; a fact, item, web check or lookup with `found`), each with `source` and `why`."""
         from tripwright import recall
 
-        found = recall.search(self.store, owner, plan, text, at=clock(), zone=zone, language=language, limit=limit)["found"]
+        found = recall.search(self.store, owner, plan, text, at=clock(), zone=zone, language=language, limit=limit,
+                              repository=self.repository)["found"]
         values = []
         for hit in found:
-            extra = dict(source=hit["source"], why=hit["why"], in_force=hit["in_force"])
+            # where the entry is stored: the file, the line of its `id:` and the commit of the working tree it is in
+            extra = dict(source=hit["source"], why=hit["why"], in_force=hit["in_force"], path=hit.get("path"),
+                         line=hit.get("line"), commit=hit.get("commit"))
             if hit["found"] == "place":
                 values.append(dict(hit["value"], **extra))
             elif hit["found"] in ("fact", "item", "decision", "check"):

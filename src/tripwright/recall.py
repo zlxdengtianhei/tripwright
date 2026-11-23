@@ -19,6 +19,8 @@ whole message) keeps the best entries by weight, at least a fifth of the best sc
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import re
 import unicodedata
@@ -102,32 +104,101 @@ def groups_in(text: str) -> set[str]:
     return hits
 
 
+@cache
+def aliases() -> dict:
+    """The general place names the generator wrote from GeoNames (`place_aliases.yaml`): name → its spellings, the
+    same shape as `names` in recall.yaml. A missing file is an empty table (an older package still runs)."""
+    try:
+        loaded = yaml.safe_load(files("tripwright").joinpath("place_aliases.yaml").read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return {}
+    return loaded.get("places") or {}
+
+
+def word_tables_digest() -> str:
+    """A digest of the two word tables as recall reads them (`recall.yaml`, `place_aliases.yaml`). The index carries
+    it in its signature: editing either table (the merged plan's "补表" step) rebuilds the index, so a question is
+    never searched with words cut by the old table while the scan cuts them with the new one."""
+    payload = json.dumps([table(), aliases()], sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+@cache
+def name_forms() -> dict:
+    """Every general place name, ready to look up: Chinese forms by their folded text, Latin forms as whole words,
+    multi-word Latin forms as strings. recall.yaml's hand-written `names` and the generated alias table are merged;
+    the hand-written spelling wins when both hold the same form."""
+    merged: dict[str, list[str]] = {}
+    for source in (aliases(), table().get("names") or {}):
+        for key, forms in source.items():
+            merged.setdefault(key, [])
+            merged[key] = list(forms or []) + merged[key]
+    cjk, latin, spaced = {}, {}, []
+    for key in sorted(merged):
+        for form in merged[key]:
+            folded = fold(form)
+            if not folded:
+                continue
+            if CJK.search(folded):
+                cjk.setdefault(folded, key)
+            elif " " in folded:
+                if not any(folded == other for other, _ in spaced):
+                    spaced.append((folded, key))
+            else:
+                latin.setdefault(folded, key)
+    return dict(cjk=cjk, latin=latin, spaced=spaced, longest=max((len(form) for form in cjk), default=0))
+
+
 def names_in(text: str) -> set[str]:
-    """The general place names (recall.yaml `names`) a text names, in any of its languages, as tokens `§name:<key>`:
-    慕尼黑 and Munich are the same hit, so an entry that says one answers a question that says the other."""
+    """The general place names (recall.yaml `names` and the generated alias table) a text names, in any of its
+    languages, as tokens `§name:<key>`: 慕尼黑 and Munich are the same hit, so an entry that says one answers a
+    question that says the other."""
     folded = fold(text)
-    words = set(LATIN.findall(folded))
+    forms = name_forms()
     hits = set()
-    for name, forms in (table().get("names") or {}).items():
-        for form in forms:
-            form = fold(form)
-            if (CJK.search(form) and form in folded) or (not CJK.search(form) and (form in words or " " in form and form in folded)):
-                hits.add(f"§name:{name}")
-                break
+    for word in set(LATIN.findall(folded)):
+        key = forms["latin"].get(word)
+        if key:
+            hits.add(f"§name:{key}")
+    for form, key in forms["spaced"]:
+        if form in folded:
+            hits.add(f"§name:{key}")
+    for run in CJK.findall(folded):
+        for start in range(len(run)):
+            for length in range(min(forms["longest"], len(run) - start), 1, -1):
+                key = forms["cjk"].get(run[start:start + length])
+                if key:
+                    hits.add(f"§name:{key}")
+                    break
     return hits
+
+
+@cache
+def cjk_table_forms() -> tuple[frozenset, int]:
+    """The Chinese forms of the groups, the general place names and the words for today and tomorrow, longest first."""
+    forms = {fold(form) for group in [*table()["groups"].values(), *((table().get("names") or {}).values()),
+                                     *(aliases().values()), table()["today"]["zh"], table()["tomorrow"]["zh"]]
+             for form in group if CJK.search(fold(form))}
+    return frozenset(forms), max((len(form) for form in forms), default=0)
 
 
 def without_table_words(text: str) -> str:
     """The text with the Chinese forms of the tables taken out: in a question they count once, as their group or name,
     not again as words (车站 行李寄存 is two things, station and luggage, not five); the words for today and tomorrow
-    count as the day they name."""
+    count as the day they name. Longest form first, so the longer name wins over a piece of it."""
     folded = fold(text)
-    forms = sorted({fold(form) for groups in [*table()["groups"].values(), *((table().get("names") or {}).values()),
-                                             table()["today"]["zh"], table()["tomorrow"]["zh"]]
-                    for form in groups if CJK.search(form)}, key=len, reverse=True)
-    for form in forms:
-        folded = folded.replace(form, " ")
-    return folded
+    forms, longest = cjk_table_forms()
+    out, position = [], 0
+    while position < len(folded):
+        taken = 0
+        if CJK.match(folded[position]):
+            for length in range(min(longest, len(folded) - position), 1, -1):
+                if folded[position:position + length] in forms:
+                    taken = length
+                    break
+        out.append(" " * taken if taken else folded[position])
+        position += taken or 1
+    return "".join(out)
 
 
 def place_names(place: dict) -> list[str]:
@@ -262,7 +333,8 @@ def corpus(store, owner: str, plan: dict | None, *, at: datetime, zone: str | No
             add("web", record["id"], record.get("claim") or "", source + (f"；{w['expired']}" if expired else ""),
                 " ".join(str(record.get(key) or "") for key in ("claim", "quote", "url", "type")), in_force=not expired,
                 url=record.get("url"), quote=record.get("quote"), counts_as_checked=record.get("counts_as_checked", False),
-                fetched_at=record.get("fetched_at"), valid_until=record.get("valid_until"), expired=expired)
+                date=record.get("date"), fetched_at=record.get("fetched_at"), valid_until=record.get("valid_until"),
+                expired=expired)
         elif record.get("kind") in LOOKUP_KINDS:
             told = record.get("sentences") or []
             question = record.get("question") or {}
@@ -287,36 +359,73 @@ def aware_utc(value: str) -> datetime:
     return moment if moment.tzinfo else moment.replace(tzinfo=ZoneInfo("UTC"))
 
 
+def query_terms(text: str, plan: dict | None, *, at: datetime, zone: str | None) -> set[str]:
+    """What a text is searched by: its words, travel-word groups, general place names, the plan's places and the days
+    it names."""
+    return (tokens(without_table_words(text)) | groups_in(text) | names_in(text) | places_in(text, plan)
+            | dates_in(text, at, zone))
+
+
+def entry_terms(entry: dict, plan: dict | None, *, zone: str | None = None) -> set[str]:
+    """What one entry is searched by: the same words over its `haystack`, its days, and its own place."""
+    terms = (tokens(entry["haystack"]) | groups_in(entry["haystack"]) | names_in(entry["haystack"])
+             | places_in(entry["haystack"], plan) | dates_in(entry["haystack"], None, zone)
+             | entry.get("days", set()))
+    if entry["found"] == "place":
+        terms.add(f"§place:{entry['id']}")
+    return terms
+
+
 def search(store, owner: str, plan: dict | None, text: str, *, at: datetime, zone: str | None = None, language: str = "zh",
            limit: int = 8, kinds: tuple[str, ...] | None = None, exclude_events: set[str] | None = None,
-           kind_cap: int | None = None) -> dict:
+           kind_cap: int | None = None, repository=None) -> dict:
     """The entries that best answer `text`, best first: {found: [...], terms, rule}. Empty text: nothing (say what to
     look for). `exclude_events`: messages whose own records are left out (a turn's own message: what it recorded is
     not something the repository already held).
 
     A short question (up to SHORT informative terms) keeps entries covering half of it, or naming one of its travel
     words or general place names; a long one (a whole message) keeps the best by weight, at least LONG_SHARE of the
-    best. A date in the question never scores by itself: it narrows, it does not rank."""
+    best. A date in the question never scores by itself: it narrows, it does not rank.
+
+    `repository`: the trip repository, when there is one. The words of every entry are then read from the rebuildable
+    FTS5 index beside it (`recall_index.py`) instead of being cut again on every query, and each hit carries the file
+    it is stored in, the line and the commit."""
+    if repository is not None:
+        from tripwright import recall_index
+
+        return recall_index.search(repository, store, owner, plan, text, at=at, zone=zone, language=language,
+                                   limit=limit, kinds=kinds, exclude_events=exclude_events, kind_cap=kind_cap)
     entries = [entry for entry in corpus(store, owner, plan, at=at, zone=zone, language=language)
                if (not kinds or entry["found"] in kinds) and not (exclude_events and entry.get("event") in exclude_events)]
-    query = (tokens(without_table_words(text)) | groups_in(text) | names_in(text) | places_in(text, plan)
-             | dates_in(text, at, zone))
+    query = query_terms(text, plan, at=at, zone=zone)
     if not query:
         return dict(found=[], terms=[], rule="empty")
     for entry in entries:
-        entry["terms"] = (tokens(entry["haystack"]) | groups_in(entry["haystack"]) | names_in(entry["haystack"])
-                          | places_in(entry["haystack"], plan) | dates_in(entry["haystack"], None, zone)
-                          | entry.get("days", set()))
-        if entry["found"] == "place":
-            entry["terms"].add(f"§place:{entry['id']}")
-    count = len(entries) or 1
-    frequency = {term: sum(term in entry["terms"] for entry in entries) for term in query}
+        entry["terms"] = entry_terms(entry, plan, zone=zone)
+    return rank(entries, query, plan=plan, at=at, zone=zone, language=language, limit=limit, kind_cap=kind_cap)
+
+
+def rank(entries: list[dict], query: set[str], *, plan: dict | None, at: datetime, zone: str | None, language: str = "zh",
+         limit: int = 8, kind_cap: int | None = None, total: int | None = None, frequency: dict[str, int] | None = None,
+         widen: bool = False) -> dict:
+    """The scoring part of `search`, over entries already chosen (all of them, or the index's candidates). `total` and
+    `frequency` come from the whole corpus when the entries given are only the ones the index matched; `widen` also
+    counts a query word the entry spells but did not cut into (the trigram fallback)."""
+    if not query:
+        return dict(found=[], terms=[], rule="empty")
+    count = (total if total is not None else len(entries)) or 1
+    if frequency is None:
+        frequency = {term: sum(term in entry["terms"] for entry in entries) for term in query}
     weight = {term: math.log(1 + count / (1 + frequency[term])) * scale(term) for term in query}
+    folded_haystacks = {entry["id"]: fold(entry["haystack"]) for entry in entries} if widen else {}
     informative = [term for term in query if not term.startswith("§day:")]
     rule = "short" if len(informative) <= SHORT else "long"
     scored = []
     for entry in entries:
         matched = query & entry["terms"]
+        if widen and entry["id"] in folded_haystacks:
+            matched |= {term for term in query - matched
+                        if not term.startswith("§") and fold(term) in folded_haystacks[entry["id"]]}
         if not matched:
             continue
         score = sum(weight[term] for term in matched)
@@ -341,11 +450,11 @@ def search(store, owner: str, plan: dict | None, text: str, *, at: datetime, zon
     scored = [row for row in scored if any(not term.startswith("§day:") for term in row[2])]
     # `kind_cap`: no more than that many entries of one kind while others wait (a turn's short list: six places
     # must not hide the one web check); a search the host asked for keeps the plain ranking
-    kept, count = [], {}
+    kept, seen = [], {}
     for row in scored:
-        if count.get(row[1]["found"], 0) < (kind_cap or limit):
+        if seen.get(row[1]["found"], 0) < (kind_cap or limit):
             kept.append(row)
-            count[row[1]["found"]] = count.get(row[1]["found"], 0) + 1
+            seen[row[1]["found"]] = seen.get(row[1]["found"], 0) + 1
     kept += [row for row in scored if row not in kept]
     found = []
     for score, entry, matched in kept[:limit]:
