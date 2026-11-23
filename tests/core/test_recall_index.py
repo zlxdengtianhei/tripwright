@@ -14,11 +14,12 @@ import os
 import subprocess
 import time
 from copy import deepcopy
-from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from tripwright import recall, recall_index
+from tripwright.example_trip import reserved_names
 from tripwright.demo import example
 from tripwright.repo import workspace
 from tripwright.repo.workspace import Repository
@@ -146,14 +147,107 @@ def test_one_new_record_is_cut_again_and_the_rest_is_not(tmp_path, monkeypatch):
         store.close()
 
 
-def test_a_word_the_word_table_cuts_differently_still_matches_through_the_trigram_fallback(tmp_path, monkeypatch):
+def test_the_trigram_fallback_widens_a_spelling_the_word_table_misses(tmp_path, monkeypatch):
     root, repo, store, service, plan = repo_with_trip(tmp_path, monkeypatch=monkeypatch)
     try:
-        save_item(service, "哈尔施塔特盐矿最后入场时间以门口牌子为准", "mine", "2032-01-10T10:10:00+01:00")
-        # a spelling no word of the table cuts out of the question: the trigram table finds the entry, and only then
-        found = recall.search(store, OWNER, plan, "哈尔施塔特盐矿", at=recall.aware_utc("2032-01-10T12:00:00+00:00"),
-                              zone=plan.get("timezone"), language="zh", limit=8, repository=repo)
-        assert any(hit["found"] == "item" and "盐矿" in hit["text"] for hit in found["found"])
+        # the entry spells a German compound the word table does not know; the question names a piece of it
+        save_item(service, "Salzbergwerk 的最后入场时间以门口牌子为准", "mine", "2032-01-10T10:10:00+01:00")
+        at, zone = recall.aware_utc("2032-01-10T12:00:00+00:00"), plan.get("timezone")
+        scan = recall.search(store, OWNER, plan, "salzberg", at=at, zone=zone, language="zh", limit=8)
+        assert not scan["found"], "the word table cuts no word of `salzberg` out of the entry"
+        found = recall.search(store, OWNER, plan, "salzberg", at=at, zone=zone, language="zh", limit=8, repository=repo)
+        assert any(hit["found"] == "item" for hit in found["found"]), "the trigram table finds the piece"
+        monkeypatch.setattr(recall_index, "_trigram", lambda index, text: [])
+        without = recall.search(store, OWNER, plan, "salzberg", at=at, zone=zone, language="zh", limit=8, repository=repo)
+        assert not without["found"], "with the trigram fallback gone the same question finds nothing"
+    finally:
+        service.jobs.stop()
+        store.close()
+
+
+def test_a_change_to_a_word_table_rebuilds_the_index(tmp_path, monkeypatch):
+    root, repo, store, service, plan = repo_with_trip(tmp_path, monkeypatch=monkeypatch)
+    try:
+        # the entry spells the German word; the question uses the Chinese one, which no table joins yet
+        save_item(service, "湖区船票可以在 Schifffahrt 的柜台买", "boat", "2032-01-10T10:05:00+01:00")
+        at, zone = recall.aware_utc("2032-01-10T12:00:00+00:00"), plan.get("timezone")
+        before = recall.search(store, OWNER, plan, "船运", at=at, zone=zone, language="zh", limit=8, repository=repo)
+        assert not before["found"]
+        # the merged plan's next step: add a group to recall.yaml (the same edit in the running process)
+        table = deepcopy(recall.table())
+        table["groups"]["shipping"] = ["船运", "Schifffahrt"]
+        monkeypatch.setattr(recall, "table", lambda: table)
+        recall.name_forms.cache_clear()
+        recall.cjk_table_forms.cache_clear()
+        scan = recall.search(store, OWNER, plan, "船运", at=at, zone=zone, language="zh", limit=8)
+        fast = recall.search(store, OWNER, plan, "船运", at=at, zone=zone, language="zh", limit=8, repository=repo)
+        assert scan["found"], "the scan cuts the entry with the new table"
+        assert [hit["id"] for hit in fast["found"]] == [hit["id"] for hit in scan["found"]], "the index must rebuild"
+        assert [hit["score"] for hit in fast["found"]] == [hit["score"] for hit in scan["found"]]
+    finally:
+        service.jobs.stop()
+        store.close()
+
+
+def test_the_location_prefers_the_record_file_over_an_earlier_copy(tmp_path):
+    # a query writes its hits, ids and all, into an evidence file; a walk that meets that file first used to point
+    # every hit at the copy. The record's own file wins; the global walk is only the last resort.
+    files = {
+        f"trips/{TRIP}/evidence/2032-01-10/EV-261024-x.yaml": (
+            "value:\n- found: plan\n  id: 2032-01-10/notes\n- found: plan\n  id: a1031\n- found: item\n  id: I-1\n"),
+        f"trips/{TRIP}/plan/days/2032-01-10.yaml": "anchors:\n- text: x\n  id: a1031\nnotes: y\n",
+        f"trips/{TRIP}/ledger/items/I-1.yaml": "id: I-1\ntext: z\n",
+    }
+    repo = SimpleNamespace(root=tmp_path, git=SimpleNamespace(rev=lambda: "", run=lambda *a: ""), working=lambda prefix="": files)
+    index = recall_index.Index(repo)
+    try:
+        located = index.locations(files)
+        assert located["2032-01-10/notes"][0].endswith("EV-261024-x.yaml"), "the walk meets the copy first"
+        for entry, want in [
+            (dict(found="plan", id="2032-01-10/notes"), f"trips/{TRIP}/plan/days/2032-01-10.yaml"),
+            (dict(found="plan", id="2032-01-10/a1031"), f"trips/{TRIP}/plan/days/2032-01-10.yaml"),
+            (dict(found="item", id="I-1"), f"trips/{TRIP}/ledger/items/I-1.yaml"),
+        ]:
+            path, line = index.location_of(entry, {"id": TRIP}, located, files)
+            assert path == want and line > 0, (entry, path, line)
+    finally:
+        index.close()
+
+
+def test_a_hit_points_at_its_own_file_after_a_query_wrote_the_evidence(tmp_path, monkeypatch):
+    root, repo, store, service, plan = repo_with_trip(tmp_path, monkeypatch=monkeypatch)
+    try:
+        save_item(service, "圣沃尔夫冈湖畔的民宿要提前三周订", "stay", "2032-01-10T10:00:00+01:00")
+        plan_question, item_question = "after dinner cafe", "圣沃尔夫冈 民宿 订房"
+        first = {question: saved(service, question) for question in (plan_question, item_question)}
+        assert any(hit["found"] == "plan" for hit in first[plan_question])
+        assert any(hit["found"] == "item" for hit in first[item_question])
+        # the query's answer (the hits, with their ids) is stored in the repository once the next write is committed
+        save_item(service, "湖区船票 26.50 欧", "ticket", "2032-01-10T10:05:00+01:00")
+        assert list(root.rglob("evidence/*/*.yaml")), "the query's answer is a file in the tree"
+        # walk that file first: the order in which the copy used to win, then rebuild the derived index as a user can
+        files = repo.working()
+        ordered = {path: text for path, text in files.items() if "/evidence/" in path}
+        ordered.update({path: text for path, text in files.items() if "/evidence/" not in path})
+        monkeypatch.setattr(repo, "working", lambda prefix="": dict(ordered))
+        index = recall_index.index_path(repo)
+        for suffix in ("", "-wal", "-shm"):
+            extra = index.with_name(index.name + suffix)
+            if extra.exists():
+                extra.unlink()
+        hits = {question: saved(service, question) for question in (plan_question, item_question)}
+        assert {question: [hit["id"] for hit in found] for question, found in hits.items()}             == {question: [hit["id"] for hit in found] for question, found in first.items()}
+        for found in hits.values():
+            for hit in found:
+                assert "/evidence/" not in hit["path"], hit
+                lines = (root / hit["path"]).read_text(encoding="utf-8").splitlines()
+                tail = hit["id"].split("/")[-1]
+                line = lines[hit["line"] - 1].strip()
+                assert line == f"id: {tail}" or line.startswith("notes:")
+        plan_hits = [hit for hit in hits[plan_question] if hit["found"] == "plan"]
+        assert plan_hits and all(hit["path"] == f"trips/{TRIP}/plan/days/{hit['id'].split('/')[0]}.yaml" for hit in plan_hits)
+        items = [hit for hit in hits[item_question] if hit["found"] == "item"]
+        assert items and all(hit["path"] == f"trips/{TRIP}/ledger/items/{hit['id']}.yaml" for hit in items)
     finally:
         service.jobs.stop()
         store.close()
@@ -161,21 +255,7 @@ def test_a_word_the_word_table_cuts_differently_still_matches_through_the_trigra
 
 def test_the_alias_table_holds_no_place_or_operator_of_the_example_trip():
     """The same guard as recall.yaml's, over the generated table: no city, sight or operator of the example trip."""
-    root = Path(__file__).resolve().parents[2]
-    trip = root / "examples/trip-2026-10-bud-wien/trips/2026-10-bud-wien"
-    import yaml
-
-    meta = yaml.safe_load((trip / "trip.yaml").read_text(encoding="utf-8"))
-    places = yaml.safe_load((trip / "plan/places.yaml").read_text(encoding="utf-8")) or []
-    names = {str(area) for area in meta.get("areas") or []}
-    for place in places:
-        head = str(place.get("name") or "").split("（")[0].strip()
-        if head:
-            names.add(head)
-        local = str(place.get("name_local") or "").split(",")[0].strip()
-        if local:
-            names.add(local.split()[0])
-        names.add(str(place.get("id") or ""))
+    names = set(reserved_names())  # one list for the generator and both guards
     generic = {"hauptbahnhof", "bahnhof", "station", "flughafen", "airport", "gasse", "strasse", "platz", "kirche", "hbf"}
     forms = {recall.fold(form) for group in recall.aliases().values() for form in group}
     for name in names:
@@ -189,9 +269,10 @@ def test_the_alias_table_holds_no_place_or_operator_of_the_example_trip():
 def test_the_alias_table_joins_a_chinese_question_to_the_local_spelling(tmp_path, monkeypatch):
     root, repo, store, service, plan = repo_with_trip(tmp_path, monkeypatch=monkeypatch)
     try:
-        save_item(service, "Sankt Wolfgang 的住宿夏天常满，最好提前订", "stay", "2032-01-10T10:00:00+01:00")
-        [hit] = [value for value in saved(service, "圣沃尔夫冈 住宿") if value.get("found") == "item"]
-        assert "name:sanktwolfgang" in hit["why"]
+        # a place outside the example trip (its own names are kept out of the table): Graz, spelled in the entry
+        save_item(service, "Graz 的住宿夏天常满，最好提前订", "stay", "2032-01-10T10:00:00+01:00")
+        [hit] = [value for value in saved(service, "格拉茨 住宿") if value.get("found") == "item"]
+        assert "name:graz" in hit["why"]
     finally:
         service.jobs.stop()
         store.close()

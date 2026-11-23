@@ -1,6 +1,11 @@
-# General place names and their other spellings, generated from GeoNames cities500 (CC BY 4.0) by
-# scripts/build_place_aliases.py. Shape and use: recall.names_in. No place, area or operator of the example
-# trip is here (the generator drops them, and tests/core/test_recall_fixes.py checks this file too).
+# General place names and their other spellings, generated from GeoNames cities500
+# (https://www.geonames.org/, data https://download.geonames.org/export/dump/cities500.zip, CC BY 4.0
+# https://creativecommons.org/licenses/by/4.0/) by scripts/build_place_aliases.py.
+# Shape and use: recall.names_in. Changes: only places of 100,000+ people worldwide and 500+ in the
+# region(s) the script was run with are kept, each name cut to at most 8 spellings, region prefixes and
+# administrative suffixes and German qualifiers removed. No place, area or operator of the example trip
+# is here (example_trip.reserved_names() names them, the generator drops them, and the guard tests on
+# both word tables check this file too).
 places:
   aachen: ["亚琛", "阿臣", "Aachen", "AAH", "Aakhen", "Aaxen", "Achen", "Achenas"]
   aalborg: ["奥尔堡", "Aalborg", "AAL", "Alaborg", "Alborg", "Almpornk", "Ol'barg", "Ol'borg"]
@@ -244,10 +249,9 @@ places:
   baderlach: ["巴特埃拉赫", "Bad Erlach", "Ehrlakh", "Erlach", "ba te ai la he"]
   badgams: ["巴特加姆斯", "Bad Gams", "Bad-Gams", "Gams", "Gams ob Frauental", "Gams ob Frauenthal", "ba te jia mu si"]
   badgleichenberg: ["巴特格莱兴贝格", "Bad Gleichenberg", "Bad Glajkhenberg", "Bad-Glajkhenberg", "Gleichenberg", "ba te ge lai xing", "ba te ge lai xing bei ge"]
-  badgoisern: ["巴特戈伊瑟恩", "Bad Goisern", "Bad Goisern am Hallstaettersee", "Bad Goisern am Hallstättersee", "Bad-Gojzern", "Bod Goisan", "Goisern", "ba te ge yi se en"]
+  badgoisern: ["巴特戈伊瑟恩", "Bad Goisern", "Bad Goisern am Hallstaettersee", "Bad-Gojzern", "Bod Goisan", "Goisern", "ba te ge yi se en"]
   badhall: ["巴特哈尔", "Bad Hall", "Bad-Khall'", "Bod Hoi", "ba te ha er"]
   badhofgastein: ["巴特霍夫加施泰因", "Bad Hofgastein", "Bad Khofgashhajn", "Bad-Gofgashtajn", "Bad-Khofgashtajn", "Bad-Khofgastajn", "Hofgastein", "Hofgoschdei"]
-  badischl: ["巴德伊舍", "Bad Ischl", "Bad Ishl", "Bad Ishul", "Bad Islis", "Bad-Ishl'", "Bod Ischl", "Ischi"]
   badkreuzen: ["巴特克罗伊岑", "Bad Kreuzen", "Bad-Krojcen", "ba te ke luo yi cen"]
   badlapur: ["巴德拉普尔", "Badlapur", "ba de la pu er", "badalapura", "bdlapwr"]
   badradkersburg: ["巴特拉德克斯堡", "Bad Radkersburg", "Bad-Radkersburg", "Donja Radjona", "Obrajna", "Radgona", "Radkersburg", "ba te la de ke si bao"]
@@ -1116,7 +1120,7 @@ places:
   george: ["喬治", "George", "Dzhordzh", "GRJ", "jarj tavun", "joji", "qiao zhi"]
   georgetown: ["乔治敦", "佐治城", "Georgetown", "Demerara", "Dzhordzhtaun", "Dzordztaun", "Dzordztauna", "Dzordztaunas"]
   gera: ["格拉", "Gera", "Gerapolis", "ZGA", "ge la", "gela", "gera", "gra"]
-  gerasdorf: ["维也纳附近格拉斯多夫", "Gerasdorf", "Gerasdorf-Vin", "Gerasdorf-baj-Vin", "Gerasdorfas", "wei ye na fu jin ge la si duo fu"]
+  gerasdorf: ["Gerasdorf", "Gerasdorf-Vin", "Gerasdorf-baj-Vin", "Gerasdorfas", "wei ye na fu jin ge la si duo fu"]
   germiston: ["傑米斯頓", "Germiston", "Dzhermiston", "Germinston", "jie mi si dun", "kwaDukathole"]
   getafe: ["赫塔费", "Getafe", "Chetafe", "Khetafe", "Khetafeh", "Tituacia", "Xetafe", "he ta fei"]
   geylang: ["芽笼", "Geylang", "Gejlang", "Geylang Serai", "Geylang Serai Village", "geiran", "gylang", "ya long"]
@@ -1160,7 +1164,6 @@ places:
   gongheyong: ["共和涌", "Gongheyong", "Gunkhejong", "gong he yong"]
   gorakhpur: ["戈勒克布尔", "戈勒克布爾", "Gorakhpur", "GOP", "Gorakhpuras", "Gorakkhpur", "Gorakpur", "Gorakpura"]
   gorzowwielkopolski: ["大波蘭地區戈茹夫", "Gorzów Wielkopolski", "Gorzow Wielkopolski", "Gorzow Velikopolski", "Gorzuw Wjelgopolski", "Gozhau Vel'kapol'ski", "Gozhov Velkopolski", "Gozhov Vjelkopolski"]
-  gosau: ["戈绍", "Gosau", "Gozau", "ge shao"]
   gothenburg: ["哥德堡", "Gothenburg", "G'oteborg", "GOT", "Gautaborg", "Geteborg", "Geteborga", "Geteborgas"]
   governadorvaladares: ["瓦拉達里斯州長市", "瓦拉達里斯州長", "Governador Valadares", "Figueira", "GVR", "Gov. Valadares", "Governador Valadaresas", "Governador Valadaris"]
   gqeberha: ["伊莉莎白港", "Gqeberha", "IBhayi", "Ibhayi", "PLZ", "Port Elisabeth", "Port Elizabet", "Port Elizabetas"]
@@ -1267,7 +1270,6 @@ places:
   halbturn: ["哈布图恩", "Halbturn", "Feltorony", "Féltorony", "Gal'bturn", "Khal'bturn", "ha bu tu en"]
   hallein: ["哈萊因", "Hallein", "Gallajn", "Khalajn", "Khallajn", "Salinae", "ha lai yin", "halaini"]
   hallintirol: ["蒂羅爾州霍爾", "Hall in Tirol", "Gall'-in-Tirol'", "Hall", "Hall en Tyrol", "Hall în Tirol", "Khal in Tirol", "Khal u Tirolu"]
-  hallstatt: ["哈尔施塔特", "Hallstatt", "Chalstat", "Gal'shtat", "Halstat", "Halstatas", "Hoistod", "Khal'shtat"]
   halong: ["下龍市", "下龍", "下龙市", "下龙", "Ha Long", "Hon Cay", "Hon Gai", "Hon Gay"]
   hamamatsu: ["浜松", "浜松市", "滨松市", "滨松", "Hamamatsu", "Hamamacu", "Hamamatsu City", "Hamamatsu-shi"]
   hamburg: ["汉堡市", "漢堡", "Amborg", "Ambourgo", "Amburgo", "Amburgu", "Augusta Gambriviorum", "Gamburg"]
@@ -3078,7 +3080,6 @@ places:
   sanktradegund: ["格拉茨附近圣拉德贡德", "Sankt Radegund", "Sankt Radegund bei Graz", "Radegund", "Radegund bei Graz", "ge la ci fu jin sheng la de gong de"]
   sanktstefan: ["罗森谷地圣斯特凡", "Sankt Stefan", "Sankt Stefan im Rosental", "Sankt Stefan im Rosenthal", "Sankt Stefan im Rosenthale", "Sankt-Shtefan", "Sankt-Shtefan-im-Rozental'", "luo sen gu de sheng si te fan"]
   sanktveit: ["格蘭河畔聖法伊特", "Sankt Veit", "Sankt Veit an der Glan", "Sankt Fajt", "Sankt Fajt an der Glan", "Sankt Fajt na Glanu", "Sankt-Fajt-an-der-Glan", "Sankt-Vajt-an-der-Glan"]
-  sanktwolfgang: ["萨尔茨卡默古特地区圣沃尔夫冈", "圣沃尔夫冈", "Sankt Wolfgang", "Sankt-Vol'fgang-im-Zal'ckammergut", "St. Wolfgang"]
   sanlorenzo: ["聖洛倫索", "San Lorenzo", "San Lorensas", "San Lorenso", "San Lorenzo del Campo Grande", "San-Lorenso", "san lwrynzw", "san-lorenso"]
   sanluis: ["聖路易斯", "San Luis", "Ciudad de San Luis", "LUQ", "San Luisas", "San-Luis", "Sanctus Ludovicus", "saina lu'isa"]
   sanluispotosi: ["圣路易斯波托西市", "圣路易斯波托西", "San Luis Potosí", "San Luis Potosi", "Altepetl San Luis Potosi", "Altepetl San Luis Potosí", "SLP", "San Louis Potosi"]
@@ -4062,6 +4063,6 @@ places:
   zonguldak: ["宗古爾達克", "Zonguldak", "ONQ", "Sandaraca", "Songuldak", "Sungul", "Zanguldak", "Zon'nkoulntak"]
   zoucheng: ["邹城市", "邹城", "鄒城市", "鄒城", "Zoucheng", "Chou-hsien", "Czouchehn", "Czouchen"]
   zuerich: ["蘇黎世", "Zuerich", "Cirihe", "Cirikh", "Ciurichas", "Cjurikh", "Cjurikh khot", "Cjurykh"]
-  zuglo: ["布达佩斯第十四区", "布达佩斯第十四", "Zugló", "Zuglo", "Budimpeshta XIV okrug", "Lerchenfeld", "Quan XIV", "bu da pei si di shi si qu"]
+  zuglo: ["Zugló", "Zuglo", "Budimpeshta XIV okrug", "Lerchenfeld", "Quan XIV", "bu da pei si di shi si qu"]
   zunyi: ["遵义", "遵义市", "遵義", "遵義市", "Zunyi", "Chun-gi-chhi", "Cong-ngie", "Cuenji"]
   zwolle: ["兹沃勒", "Zwolle", "Gemeen Zwolle", "Svolla", "Swol", "Zolle", "Zvole", "Zvolle"]

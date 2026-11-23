@@ -9,13 +9,14 @@ Which places, which spellings:
 
 - everywhere: a place of 100,000 people or more that has a Chinese name among its alternate names;
 - the regions given by `--regions` (default `AT`, the country of the packaged example trip): every place of 500
-  people or more that has a Chinese name — small towns such as Hallstatt or Sankt Wolfgang are exactly the ones a
-  traveller asks about and the hand-written table does not hold. Pass other country codes for another trip's region;
+  people or more that has a Chinese name — small towns are exactly the ones a traveller asks about and the
+  hand-written table does not hold. Pass other country codes for another trip's region;
 - a Chinese name with a region in it ("萨尔茨卡默古特地区圣沃尔夫冈") also gives its tail ("圣沃尔夫冈"); a German name
   with a qualifier ("St. Wolfgang im Salzkammergut") also gives its head ("St. Wolfgang");
-- no name of the packaged example trip: the script drops every key and spelling that the guard test on recall.yaml
-  would recognise as a place, area or operator of that trip (`tests/core/test_recall_fixes.py`), so a city of that
-  trip (Wien, Budapest) stays out of the table and the test keeps passing.
+- no name of the packaged example trip: the script drops every key and spelling that `example_trip.reserved_names()`
+  names — the plan's places and areas, and the destinations the trip's own words and entries name (Hallstatt, Sankt
+  Wolfgang, Bad Ischl, Gosau, the two cities). The guard tests on both word tables check that same list, so the
+  generator and the guards cannot disagree about what a place of that trip is.
 
 GeoNames is CC BY 4.0. Usage: download `cities500.zip` from https://download.geonames.org/export/dump/ , unzip, then
 
@@ -31,6 +32,8 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
+
+from tripwright.example_trip import reserved_names
 
 CHINESE = re.compile(r"^[\u4e00-\u9fff]{2,24}$")
 LATIN = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'’()-]{1,39}$")
@@ -71,25 +74,6 @@ def latin_forms(form: str, names: set[str]) -> list[str]:
     return out
 
 
-def example_trip_names(root: Path) -> set[str]:
-    """The names the guard test recognises: areas, place names, the first word of each local name, and place IDs."""
-    import yaml
-
-    trip = root / "examples/trip-2026-10-bud-wien/trips/2026-10-bud-wien"
-    meta = yaml.safe_load((trip / "trip.yaml").read_text(encoding="utf-8")) or {}
-    places = yaml.safe_load((trip / "plan/places.yaml").read_text(encoding="utf-8")) or []
-    names = {str(area) for area in meta.get("areas") or []}
-    for place in places:
-        head = str(place.get("name") or "").split("（")[0].strip()
-        if head:
-            names.add(head)
-        local = str(place.get("name_local") or "").split(",")[0].strip()
-        if local:
-            names.add(local.split()[0])
-        names.add(str(place.get("id") or ""))
-    return {fold(name) for name in names if name}
-
-
 def same(form: str, trip_names: set[str]) -> bool:
     """The whole place is one of the example trip's own: a city of it under any language it is written in."""
     return fold(form) in trip_names
@@ -118,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
 
     root = Path(__file__).resolve().parents[1]
     regions = {code.strip().upper() for code in options.regions.split(",") if code.strip()}
-    trip_names = example_trip_names(root)
+    trip_names = set(reserved_names())
     hand = __import__("yaml").safe_load((root / "src/tripwright/recall.yaml").read_text(encoding="utf-8")) or {}
     hand_names = {fold(form) for forms in (hand.get("names") or {}).values() for form in forms}
 
@@ -158,9 +142,14 @@ def main(argv: list[str] | None = None) -> int:
             # a spelling the hand-written table already carries is not repeated; the hand-written entry stays
             places[key] = [form for form in kept if fold(form) not in hand_names][:8] or kept[:8]
 
-    lines = ["# General place names and their other spellings, generated from GeoNames cities500 (CC BY 4.0) by",
-             "# scripts/build_place_aliases.py. Shape and use: recall.names_in. No place, area or operator of the example",
-             "# trip is here (the generator drops them, and tests/core/test_recall_fixes.py checks this file too).",
+    lines = ["# General place names and their other spellings, generated from GeoNames cities500",
+             "# (https://www.geonames.org/, data https://download.geonames.org/export/dump/cities500.zip, CC BY 4.0",
+             "# https://creativecommons.org/licenses/by/4.0/) by scripts/build_place_aliases.py.",
+             "# Shape and use: recall.names_in. Changes: only places of 100,000+ people worldwide and 500+ in the",
+             "# region(s) the script was run with are kept, each name cut to at most 8 spellings, region prefixes and",
+             "# administrative suffixes and German qualifiers removed. No place, area or operator of the example trip",
+             "# is here (example_trip.reserved_names() names them, the generator drops them, and the guard tests on",
+             "# both word tables check this file too).",
              "places:"]
     for key in sorted(places):
         forms = ", ".join(__import__("json").dumps(form, ensure_ascii=False) for form in places[key])

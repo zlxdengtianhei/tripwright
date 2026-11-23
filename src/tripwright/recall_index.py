@@ -17,6 +17,12 @@ The index is derived: deleting it rebuilds the same rows from the repository's f
 query, their order and their scores are the same as the scan's. Each query compares the entries with the rows it holds
 and cuts again only the entries that changed (one new record is one new entry); the commit and file of unchanged rows
 are refreshed without cutting their words again.
+
+The signature that decides whether to rebuild carries both word tables (`recall.yaml` and `place_aliases.yaml`):
+editing a table rebuilds the index, so a question is never scored with words cut by the old table while the scan cuts
+them with the new one. A hit's file is the record's own canonical file (`layout.record_path`, `plan/days/<day>.yaml`,
+`layout.evidence_path`, the raw message file); a copy of its `id:` inside another file (the evidence a query writes)
+never takes its place.
 """
 from __future__ import annotations
 
@@ -122,7 +128,10 @@ class Index:
     # --- building -----------------------------------------------------------------
 
     def locations(self, files: dict[str, str]) -> dict[str, tuple[str, int]]:
-        """Record ID → (file, line of its `id:`) over the working tree; one pass, first file wins."""
+        """Record ID → (file, line of its `id:`) over the working tree; one pass, first file wins. Only the last
+        resort: a query writes its hits (with their ids) into an evidence file, so a copy of an entry can sit in a
+        file the walk reaches before the entry's own file; `location_of` therefore tries the record's canonical file
+        first and falls back here only when that file holds no `id:` line for it."""
         found: dict[str, tuple[str, int]] = {}
         for path, text in files.items():
             if not path.endswith((".yaml", ".md", ".jsonl")):
@@ -135,6 +144,43 @@ class Index:
             found.setdefault(stem, (path, 1))
         return found
 
+    def line_in(self, path: str, text: str, record_id: str) -> int:
+        """The line of `id: <record id>` in one file's text, 0 when that file does not hold it."""
+        for number, raw in enumerate(text.splitlines(), 1):
+            match = ID_LINE.match(raw) or (JSON_ID.search(raw) if path.endswith(".jsonl") else None)
+            if match and match.group(1) == record_id:
+                return number
+        return 0
+
+    def canonical_path(self, entry: dict, plan: dict | None, files: dict[str, str],
+                       raw: dict[str, str] | None = None) -> str:
+        """The file the entry's record is stored in, by the repository's own layout: a plan entry in
+        `plan/days/<day>.yaml`, a place in `plan/places.yaml`, a booking in `plan/bookings.yaml`, a ledger record by
+        `layout.record_path`, a web check or lookup by `layout.evidence_path`, the user's words in their raw file.
+        Empty when the layout cannot name the file (no plan yet, a message the tree no longer holds)."""
+        if not plan:
+            return ""
+        base = layout.trip_folder(plan["id"])
+        found, record_id = entry["found"], entry["id"]
+        if found == "plan":
+            return f"{base}/plan/days/{record_id.partition('/')[0]}.yaml"
+        if found == "place":
+            return f"{base}/plan/places.yaml"
+        if found == "booking":
+            return f"{base}/plan/bookings.yaml"
+        table = {"fact": "facts", "item": "items", "decision": "decisions", "check": "pending_checks"}.get(found)
+        if table:
+            return f"{base}/{layout.record_path(table, {'id': record_id})}"
+        if found in ("web", "lookup"):
+            try:
+                return f"{base}/{layout.evidence_path({'id': record_id, 'date': entry.get('date'),
+                                                     'fetched_at': entry.get('fetched_at')})}"
+            except (TypeError, ValueError):
+                return ""
+        if found == "said":
+            return (raw if raw is not None else layout.raw_paths(files)).get(record_id.rsplit("-", 1)[-1], "")
+        return ""
+
     def committed_paths(self) -> set[str]:
         head = self.repository.git.rev()
         if not head:
@@ -145,21 +191,29 @@ class Index:
             return set()
 
     def location_of(self, entry: dict, plan: dict | None, located: dict[str, tuple[str, int]],
-                    files: dict[str, str]) -> tuple[str, int]:
+                    files: dict[str, str], raw: dict[str, str] | None = None) -> tuple[str, int]:
         record_id = entry["id"]
+        path = self.canonical_path(entry, plan, files, raw)
+        text = files.get(path) if path else None
+        if path and text is not None:
+            if entry["found"] == "plan" and record_id.endswith("/notes"):
+                for number, line_text in enumerate(text.splitlines(), 1):
+                    if NOTE_LINE.match(line_text):
+                        return path, number
+            # a plan entry's id carries its day ("2032-01-10/a1031"); the day file holds the block's own id
+            wanted = record_id.partition("/")[2] if entry["found"] == "plan" and "/" in record_id else record_id
+            number = self.line_in(path, text, wanted)
+            if number:
+                return path, number
         if record_id in located:
             return located[record_id]
-        if "/" in record_id and plan:
-            day, _, tail = record_id.partition("/")
-            path = f"{layout.trip_folder(plan['id'])}/plan/days/{day}.yaml"
-            if tail == "notes":
-                for number, raw in enumerate((files.get(path) or "").splitlines(), 1):
-                    if NOTE_LINE.match(raw):
-                        return path, number
+        if entry["found"] == "plan" and plan and "/" in record_id:
+            tail = record_id.partition("/")[2]
             if tail in located and located[tail][0] == path:
                 return located[tail]
-            return path, 1
-        return "", 0
+        # the canonical file is the right file but does not hold the id yet (a record written before its commit):
+        # line 0 says "position unknown", so `refresh` relocates the row on the next query instead of keeping a guess
+        return (path, 0) if path else ("", 0)
 
     def digest_of(self, entry: dict) -> str:
         return sha256(json.dumps([entry["haystack"], entry.get("text") or "", entry.get("source") or "",
@@ -169,18 +223,20 @@ class Index:
         """The rows for every entry, cut again; the commit and the file of each come from the working tree."""
         files = self.repository.working()
         located = self.locations(files)
+        raw = layout.raw_paths(files)
         head = self.repository.git.rev() or ""
         committed = self.committed_paths()
         with self.db:
             self.clear()
             for entry in entries:
-                path, line = self.location_of(entry, plan, located, files)
+                path, line = self.location_of(entry, plan, located, files, raw)
                 commit = head if path and path in committed else ""
                 self.replace(f"{entry['found']}:{entry['id']}", entry["found"], entry["id"], self.digest_of(entry),
                              recall.entry_terms(entry, plan, zone=zone), entry["haystack"], path, line, commit)
             self.reindex()
             self.set_meta(dict(schema=str(SCHEMA), owner=owner, language=language, zone=zone or "",
-                               plan=plan_mark(plan), head=head, built=str(len(entries))))
+                               plan=plan_mark(plan), words=recall.word_tables_digest(), head=head,
+                               built=str(len(entries))))
 
     def refresh(self, entries: list[dict], plan: dict | None, *, zone: str | None, language: str, owner: str):
         """Cut again only the entries that changed; refresh the file and the commit of the rest."""
@@ -194,10 +250,11 @@ class Index:
         meta = self.meta()
         if not changed and not removed and not relocate and meta.get("head") == head:
             return
-        located, files, committed = {}, {}, set()
+        located, files, raw, committed = {}, {}, {}, set()
         if changed or relocate:
             files = self.repository.working()
             located = self.locations(files)
+            raw = layout.raw_paths(files)
             committed = self.committed_paths() if head else set()
         elif head != meta.get("head"):
             committed = self.committed_paths() if head else set()
@@ -206,14 +263,14 @@ class Index:
                 self.remove(key)
             for key in changed:
                 entry = current[key]
-                path, line = self.location_of(entry, plan, located, files)
+                path, line = self.location_of(entry, plan, located, files, raw)
                 commit = head if path and path in committed else ""
                 self.replace(key, entry["found"], entry["id"], self.digest_of(entry),
                              recall.entry_terms(entry, plan, zone=zone), entry["haystack"], path, line, commit)
             for key in relocate:
                 if key in changed:
                     continue
-                path, line = self.location_of(current[key], plan, located, files)
+                path, line = self.location_of(current[key], plan, located, files, raw)
                 commit = head if path and path in committed else ""
                 self.db.execute("UPDATE docs SET path=?, line=?, revision=? WHERE key=?", (path, line, commit, key))
             if changed or removed:
@@ -230,7 +287,8 @@ class Index:
         """The entries of the corpus, with the index brought up to date and closed."""
         entries = recall.corpus(store, owner, plan, at=at, zone=zone, language=language)
         meta = self.meta()
-        signature = dict(schema=str(SCHEMA), owner=owner, language=language, zone=zone or "", plan=plan_mark(plan))
+        signature = dict(schema=str(SCHEMA), owner=owner, language=language, zone=zone or "", plan=plan_mark(plan),
+                         words=recall.word_tables_digest())
         if any(meta.get(key) != value for key, value in signature.items()):
             self.rebuild(entries, plan, zone=zone, language=language, owner=owner)
         else:

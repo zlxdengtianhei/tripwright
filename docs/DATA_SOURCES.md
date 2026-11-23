@@ -55,6 +55,8 @@ MCP 服务只有设置 `TRIPWRIGHT_PROVIDERS=live` 才使用这些真实来源�
 
 **地名：** Nominatim 使用 OpenStreetMap 数据，保留 © OpenStreetMap contributors 与 [ODbL 署名](https://www.openstreetmap.org/copyright)。公共接口要求识别用的 User-Agent、缓存与不超过每秒一次请求；本实现单实例串行并至少间隔一秒。多实例部署还需控制合计用量。详见 [Nominatim 使用政策](https://operations.osmfoundation.org/policies/nominatim/)。它用于地名解析，不是自动补全或批量抓取入口。
 
+**地名别名表：** `src/tripwright/place_aliases.yaml` 由 [GeoNames](https://www.geonames.org/) 的 cities500 数据生成，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 使用；数据下载自 <https://download.geonames.org/export/dump/cities500.zip>，生成脚本是 `scripts/build_place_aliases.py`。改动：只保留全球人口 10 万以上、以及生成时指定地区（默认 `AT`）500 人以上且带中文别名的地点；每种拼法最多保留 8 条；去掉地区前缀与行政后缀、德文名的修饰语；剔除示例行程自己的地名（`example_trip.reserved_names()`）。生成结果随代码签入，运行时不联网、不建表。许可证全文见 <https://creativecommons.org/licenses/by/4.0/legalcode>。
+
 ## 额外实时来源
 
 Transitous 没有某地区的数据或没有实时时，部署可以自己跑一个 MOTIS，喂这个地区的 GTFS 与 GTFS-RT，用 `TRIPWRIGHT_TRANSIT_SOURCES` 指过去；两端都在它范围里的查询走它，其余照旧走 Transitous。做法见 [transit-sources.zh-CN.md](transit-sources.zh-CN.md)。做计划时，没接实时源的地区会被点名问一次要不要配，附上这份做法。
@@ -72,5 +74,6 @@ Google 数据 API 和非官方 HAFAS 接口当前没有接入。回答中的 Goo
 - [Transitous 数据来源](https://transitous.org/sources/)。
 - [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright)，用于交通与地名数据。
 - [Open-Meteo](https://open-meteo.com/)，天气数据 CC BY 4.0。
+- [GeoNames](https://www.geonames.org/)，地名别名表，CC BY 4.0（见上文“地名别名表”）。
 
 额外来源接入后，再按其实际条款补充署名与使用边界。

@@ -19,6 +19,8 @@ whole message) keeps the best entries by weight, at least a fifth of the best sc
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import re
 import unicodedata
@@ -111,6 +113,14 @@ def aliases() -> dict:
     except (OSError, yaml.YAMLError):
         return {}
     return loaded.get("places") or {}
+
+
+def word_tables_digest() -> str:
+    """A digest of the two word tables as recall reads them (`recall.yaml`, `place_aliases.yaml`). The index carries
+    it in its signature: editing either table (the merged plan's "补表" step) rebuilds the index, so a question is
+    never searched with words cut by the old table while the scan cuts them with the new one."""
+    payload = json.dumps([table(), aliases()], sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
 @cache
@@ -323,7 +333,8 @@ def corpus(store, owner: str, plan: dict | None, *, at: datetime, zone: str | No
             add("web", record["id"], record.get("claim") or "", source + (f"；{w['expired']}" if expired else ""),
                 " ".join(str(record.get(key) or "") for key in ("claim", "quote", "url", "type")), in_force=not expired,
                 url=record.get("url"), quote=record.get("quote"), counts_as_checked=record.get("counts_as_checked", False),
-                fetched_at=record.get("fetched_at"), valid_until=record.get("valid_until"), expired=expired)
+                date=record.get("date"), fetched_at=record.get("fetched_at"), valid_until=record.get("valid_until"),
+                expired=expired)
         elif record.get("kind") in LOOKUP_KINDS:
             told = record.get("sentences") or []
             question = record.get("question") or {}
