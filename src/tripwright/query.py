@@ -1518,6 +1518,26 @@ def day_word(moment_at: datetime, now_at: datetime, tz: ZoneInfo, language: str)
     return local.strftime("%m-%d ")
 
 
+def stored_web(store: Store, owner: str, new: dict) -> dict | None:
+    """An earlier web record of the same page whose quote is the new one's (or contains it, or is contained in it),
+    still valid, and that counts as checked whenever the new one does; None when there is none."""
+    page = lambda url: re.sub(r"^https?://(www\.)?", "", str(url or "")).rstrip("/").split("#")[0]
+    letters = lambda text: re.sub(r"\s+", " ", str(text or "")).strip().casefold()
+    quote = letters(new["quote"])
+    for record in store.all("evidence", owner):
+        if record.get("kind") != "web" or page(record.get("url")) != page(new["url"]):
+            continue
+        old = letters(record.get("quote"))
+        if not old or not (old == quote or old in quote or quote in old):
+            continue
+        if record.get("valid_until") and aware(record["valid_until"]) <= aware(new["fetched_at"]):
+            continue
+        if new.get("counts_as_checked") and not record.get("counts_as_checked"):
+            continue
+        return record
+    return None
+
+
 class QueryRouter:
     def __init__(self, store: Store, *, transit: TransitProvider | None = None,
                  weather: WeatherProvider | None = None, geocode: GeocodeProvider | None = None, mode: str | None = None,
@@ -2144,6 +2164,38 @@ class QueryRouter:
                     unknown=unknown, summary=summary,
                     notice="Opening hours as the trip stores them, with where they were read; a place without stored hours is not known to be open.")
 
+    def _saved(self, owner: str, plan: dict | None, text: str, *, zone: str | None, language: str, limit: int = 8) -> list[dict]:
+        """`query(kind="saved")`'s values: the ranked hits of recall.search in the shapes hosts already read (a place
+        as stored; a fact, item, web check or lookup with `found`), each with `source` and `why`."""
+        from tripwright import recall
+
+        found = recall.search(self.store, owner, plan, text, at=clock(), zone=zone, language=language, limit=limit)["found"]
+        values = []
+        for hit in found:
+            extra = dict(source=hit["source"], why=hit["why"], in_force=hit["in_force"])
+            if hit["found"] == "place":
+                values.append(dict(hit["value"], **extra))
+            elif hit["found"] in ("fact", "item", "decision", "check"):
+                table = dict(fact="facts", item="items", decision="decisions", check="pending_checks")[hit["found"]]
+                record = self.store.get(table, owner, hit["id"])
+                values.append(dict(found=hit["found"], id=record["id"], kind=record.get("kind"), key=record.get("key"), text=hit["text"],
+                                   quote=record.get("quote"), value=record.get("value"), status=record.get("status"),
+                                   nature=(record.get("source") or {}).get("nature"), **extra))
+            elif hit["found"] == "web":
+                values.append(dict(found="web", id=hit["id"], claim=hit["text"], quote=hit.get("quote"), url=hit.get("url"),
+                                   fetched_at=hit.get("fetched_at"), valid_until=hit.get("valid_until"), expired=hit.get("expired"),
+                                   counts_as_checked=hit.get("counts_as_checked", False), **extra))
+            elif hit["found"] == "lookup":
+                record = self.store.get("evidence", owner, hit["id"])
+                values.append(dict(found="lookup", id=record["id"], kind=record["kind"], date=record.get("date"),
+                                   question=record.get("question"), told=(record.get("sentences") or [])[:4] or None,
+                                   value=record.get("value") if record["kind"] == "weather" else None,
+                                   fetched_at=record["fetched_at"], valid_until=record.get("valid_until"), expired=hit.get("expired", False),
+                                   synthetic=hit.get("synthetic", False), **extra))
+            else:
+                values.append(dict(found=hit["found"], id=hit["id"], text=hit["text"], **extra))
+        return values
+
     async def _web(self, owner: str, arguments: dict, language: str) -> dict:
         read_from = arguments.get("read_from", "page")
         found, check = "unchecked", None
@@ -2160,6 +2212,15 @@ class QueryRouter:
             except PageUnavailable as error:
                 check = f"The page could not be checked: {error.reason}"
         evidence = web_record(arguments, quote_found=found, check=check)
+        # Q19 (2026-11-23) 收到就入库 without copies: the same page and the same quote (or one containing the other), still
+        # valid and counted the same, is the record already in the repository; it is returned as it is (`reused`)
+        earlier = stored_web(self.store, owner, evidence)
+        if earlier is not None:
+            words = ("已存过 {id}（{when} 读的同一页同一句），没再记" if language == "zh" else "Already recorded as {id} (the same page and quote, read {when}); not recorded again")
+            return dict(status="sourced" if earlier.get("counts_as_checked") else "unverified", kind="web_evidence", evidence=earlier,
+                        quote_found=earlier.get("quote_found"), counts_as_checked=earlier.get("counts_as_checked", False), reused=True,
+                        summary=words.format(id=earlier["id"], when=earlier.get("fetched_at")),
+                        notice="Recorded only: no plan or locked field changes. To change a protected value, cite this evidence in changes.corrections.")
         self.store.put("evidence", owner, evidence, insert=True)
         counted = evidence["counts_as_checked"]
         quote_word = {True: "原句在页面上", False: "原句不在抓到的页面上", "unchecked": "原句没核"}[found] if language == "zh" else \
@@ -2239,39 +2300,14 @@ class QueryRouter:
             elif kind in ("nearby", "saved"):
                 places = (plan or {}).get("places", [])
                 if kind == "saved":
-                    words = arguments.get("text", "").casefold().split()
-
-                    def hit(record):
-                        return all(word in str(record).casefold() for word in words)
-
-                    values = [place for place in places if hit(place)]
                     # 2026-11-12 (the user: guides sent as screenshots and the agent's research become the user's own
-                    # database for later answers): besides places, the facts and items in force and the web checks
-                    # recorded, each with its words, where it came from and whether it counts as checked
-                    values += [dict(found="fact", id=record["id"], key=record["key"], text=record["text"], value=record.get("value"),
-                                    nature=(record.get("source") or {}).get("nature"))
-                               for record in self.store.all("facts", owner) if record.get("status") == "active" and hit(record)]
-                    values += [dict(found="item", id=record["id"], kind=record["kind"], key=record["key"], text=record["text"],
-                                    quote=record.get("quote"), nature=(record.get("source") or {}).get("nature"))
-                               for record in self.store.all("items", owner) if record.get("status") in ("active", "pending") and hit(record)]
-                    values += [dict(found="web", id=record["id"], claim=record["claim"], quote=record["quote"], url=record["url"],
-                                    fetched_at=record["fetched_at"], counts_as_checked=record.get("counts_as_checked", False))
-                               for record in self.store.all("evidence", owner)
-                               if record.get("kind") == "web" and hit([record.get(key) for key in ("claim", "quote", "url")])]
-                    # 2026-11-12 (the user: what was looked up once is recorded and reused): transit, last-departure and
-                    # weather lookups too, by what was asked and what was told, with when they were fetched and whether
-                    # they have expired since; the answer still re-checks before relying on one
-                    looked_at = clock()
-                    values += [dict(found="lookup", id=record["id"], kind=record["kind"], date=record.get("date"),
-                                    question=record.get("question"), told=(record.get("sentences") or [])[:4] or None,
-                                    value=record.get("value") if record["kind"] == "weather" else None,
-                                    fetched_at=record["fetched_at"], valid_until=record.get("valid_until"),
-                                    expired=bool(record.get("stale")) or bool(record.get("valid_until")) and aware(record["valid_until"]) <= looked_at,
-                                    synthetic=bool(record.get("synthetic")) or str(record.get("source", "")).startswith("demo:"))
-                               for record in self.store.all("evidence", owner)
-                               if record.get("kind") in LOOKUPS
-                               and hit([record.get(key) for key in ("kind", "date", "question", "sentences", "source")]
-                                       + ([record.get("value")] if record["kind"] == "weather" else []))]
+                    # database for later answers) and 2026-11-23 (Q19: the database is the user's Git repository; the
+                    # core is finding the right entries in it): ranked over places, days, bookings, the ledger, web
+                    # checks, earlier lookups and the user's own messages, each with where it came from (recall.py).
+                    # Before, every space-separated word had to occur verbatim, so a Chinese phrase or a few words
+                    # found nothing (11 of 17 calls in the 11-22 replays) and an empty text returned everything.
+                    values = self._saved(owner, plan, arguments.get("text", ""), zone=self._zone(arguments, plan, zone),
+                                         language=language, limit=min(20, max(1, int(arguments.get("limit", 8)))))
                 else:
                     latitude, longitude = arguments["lat"], arguments["lon"]
                     values = []

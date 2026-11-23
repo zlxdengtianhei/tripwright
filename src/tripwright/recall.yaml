@@ -1,0 +1,128 @@
+# What recall.py reads as one word across languages, and what it never matches on.
+# groups: travel words that name the same thing in the user's language and the local one (any form found in a
+# question or an entry counts as the group). Forms in Latin script match a whole word, folded (Flughafen = flughafen);
+# Chinese forms match anywhere in the text. Only general travel words: names of places come from the plan itself
+# (recall.places_in), so the table holds no city, sight or operator of any one trip.
+# stop: Latin words and Chinese character pairs too common to tell entries apart.
+groups:
+  airport: [机场, 航站楼, airport, flughafen, terminal]
+  station: [火车站, 车站, 中央车站, 总站, hbf, hauptbahnhof, bahnhof, station, bahnhst]
+  train: [火车, 列车, 车次, 班次, 末班, train, zug, bahn]
+  ticket: [车票, 票价, 补票, 买票, 门票, ticket, tickets, fahrkarte, karte, fare, eintritt, einzeleintritt]
+  climbing: [岩馆, 攀岩, 抱石, climbing, bouldering, boulder, kletterhalle, klettern]
+  church: [教堂, 大教堂, church, kirche, dom, cathedral]
+  museum: [博物馆, 美术馆, 画廊, 展览, museum, galerie, gallery, exhibition, ausstellung]
+  food: [吃饭, 吃点, 饿, 餐厅, 饭, 外卖, 打包, food, restaurant, essen, kitchen, imbiss, eat]
+  stay: [民宿, 青旅, 酒店, 入住, 住宿, 过夜, 夜里, 夜间, 通宵, 停留, 睡, hostel, hotel, unterkunft, check-in, checkin, overnight, sleep, night]
+  luggage: [行李, 箱子, 寄存, 储物柜, luggage, baggage, gepack, locker, schliessfach]
+  opening: [营业, 开门, 关门, 几点开, 开放, opening, hours, offnungszeiten, open, closes, geoffnet]
+  price: [价格, 多少钱, 便宜, 省钱, 优惠, 折扣, price, prices, preise, discount, ermassigung, cheap]
+  discount_card: [优惠卡, 客人卡, gastekarte, guest card]
+  weather: [天气, 下雨, 晴天, weather, wetter, rain, sunny]
+  flight: [航班, 飞机, 值机, 登机, flight, boarding, gate]
+  halloween: [万圣节, halloween]
+  missed: [错过, 误车, 误了, 没赶上, 赶不上, 下一趟, 下一班, 改乘, 改坐, 改签, 晚点, 延误, 取消, verpasst, missed, delay, delayed, cancelled, next train]
+  latest: [最晚, 末班, 最后一班, 最后一趟, 最迟, 最后开, latest, last train, last connection, letzte]
+  how_to_go: [怎么走, 怎么去, 走法, 路线, 换乘, 坐车, route, directions, connection, verbindung]
+  walk: [走路, 步行, 走过去, walk, walking, fussweg]
+  taxi: [打车, 出租车, taxi, uber, bolt]
+  lake: [湖区, 湖边, 湖上, lake, see]
+# the words for today and tomorrow in a question (a day the question is about)
+today:
+  zh: [今天, 今晚, 现在, 今早, 今日, 刚刚, 这会儿]
+  en: [today, tonight, now, heute]
+tomorrow:
+  zh: [明天, 明早, 明晚, 明日]
+  en: [tomorrow, morgen]
+# Latin words too common in place names to tell one place from another by a loose prefix
+generic_names: [wien, vienna, station, kirche, church, boulderbar, flughafen, airport, hauptbahnhof, platz, strasse, gasse]
+stop:
+  - 几点
+  - 多少
+  - 哪里
+  - 哪个
+  - 哪儿
+  - 怎样
+  - 为什
+  - 什么
+  - 能不
+  - 不能
+  - 可不
+  - 是不
+  - 吗？
+  - the
+  - and
+  - for
+  - with
+  - from
+  - der
+  - die
+  - das
+  - und
+  - von
+  - mit
+  - nach
+  - zum
+  - zur
+  - den
+  - dem
+  - des
+  - ein
+  - eine
+  - 我们
+  - 我的
+  - 现在
+  - 这个
+  - 那个
+  - 一下
+  - 就是
+  - 然后
+  - 可以
+  - 的话
+  - 什么
+  - 怎么
+  - 还是
+  - 如果
+  - 一个
+  - 没有
+  - 觉得
+  - 应该
+  - 知道
+  - 是不
+  - 不是
+  - 这样
+  - 那么
+  - 因为
+  - 所以
+  - 其实
+  - 我想
+  - 你可
+  - 以后
+  - 之后
+  - 这些
+  - 那些
+  - 一些
+  - 时候
+  - 我觉
+  - 我们的
+  - 他们
+  - 自己
+  - 的时
+  - 是说
+  - 说的
+  - 了吧
+  - 我要
+  - 要是
+  - 一点
+  - 有点
+  - 有没
+  - 看看
+  - 看一
+  - 一看
+  - 是否
+  - 部分
+  - 东西
+  - 问题
+  - 原话
+  - cet
+  - cest
