@@ -549,7 +549,7 @@ def fetch(repository, store, owner: str, plan: dict | None, ids: list[str], *, a
     snippet is), or the line of its `id:` when none of them is spelled there."""
     index = Index(repository)
     try:
-        entries = recall.ordered(index.ensure(store, owner, plan, at=at, zone=zone, language=language), ids)
+        entries = recall.ordered(index.ensure(store, owner, plan, at=at, zone=zone, language=language), ids, at=at)
         keys = [f"{entry['found']}:{entry['id']}" for entry in entries]
         rows = {key: (path, line, revision, passage, passage_line) for key, path, line, revision, passage, passage_line in
                 index.db.execute(f"SELECT key, path, line, revision, passage, passage_line FROM docs WHERE key IN "

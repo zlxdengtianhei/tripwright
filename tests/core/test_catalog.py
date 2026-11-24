@@ -9,7 +9,7 @@ found with the catalog, against about half with the lexical six). After: `recall
 budget cannot list is counted in `omitted` and opened with `arguments={list}`."""
 import asyncio
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -18,6 +18,7 @@ from tripwright import catalog
 
 AT = datetime(2030, 6, 10, 9, 0, tzinfo=ZoneInfo("Europe/Oslo"))
 ZONE = "Europe/Oslo"
+POOL_AT = datetime(2030, 6, 10, 7, 0, tzinfo=ZoneInfo("UTC"))  # the moment `recall_pool` and the probes below read the corpus at
 
 
 def entry(kind, ident, text, day=None, in_force=True, valid_until=None):
@@ -77,6 +78,19 @@ def test_an_entry_that_ended_in_the_last_48_hours_is_listed_marked_and_older_one
 def test_the_mark_is_in_the_language_of_the_trip():
     fresh = entry("web", "EV-new", "fare", in_force=False, valid_until="2030-06-09T12:00:00+00:00")
     assert build([fresh], language="en")["lines"] == ["EV-new|web|expired, look again fare"]
+
+
+def test_the_48_hour_window_lists_an_entry_that_ended_47_hours_ago_and_only_counts_one_that_ended_49_hours_ago():
+    """Judge, 2026-11-24: setting EXPIRED_HOURS to 72 left all 37 catalog tests green, so the edge had no test."""
+    def gone(ident, hours, text):
+        until = AT.astimezone(ZoneInfo("UTC")) - timedelta(hours=hours)
+        return entry("web", ident, text, day="2030-06-07", in_force=False, valid_until=until.isoformat())
+
+    result = build([gone("EV-47", 47, "四十七小时前过期的票价"), gone("EV-49", 49, "四十九小时前过期的开放时间")])
+    rows = {line.split("|")[0]: line for line in result["lines"]}
+    assert set(rows) == {"EV-47"} and rows["EV-47"].split("|", 2)[2].startswith("过期，要重查 ")
+    assert result["omitted"] == [dict(list="web 06-07", n=1)]
+    assert catalog.EXPIRED_HOURS == 48
 
 
 def test_an_expired_row_is_not_merged_with_a_live_one_that_begins_alike():
@@ -209,10 +223,10 @@ def test_a_small_repository_lists_everything_and_omits_nothing():
 def test_expand_gives_the_entries_of_a_kind_and_day_newest_first_and_a_merged_rows_members_by_its_id():
     entries = [entry("web", "EV-1", "甲" * 30, day="2030-06-01"), entry("web", "EV-2", "乙", day="2030-06-02"),
                entry("web", "EV-3", "甲" * 30 + "后面不同", day="2030-06-03"), entry("fact", "F-1", "丙", day="2030-06-02")]
-    assert [e["id"] for e in catalog.expand(entries, "web")] == ["EV-3", "EV-2", "EV-1"]
-    assert [e["id"] for e in catalog.expand(entries, "web 06-02")] == ["EV-2"]
-    assert [e["id"] for e in catalog.expand(entries, "EV-1")] == ["EV-3", "EV-1"]  # the row `EV-1 … +1`
-    assert catalog.expand(entries, "nothing 01-01") == []
+    assert [e["id"] for e in catalog.expand(entries, "web", AT)] == ["EV-3", "EV-2", "EV-1"]
+    assert [e["id"] for e in catalog.expand(entries, "web 06-02", AT)] == ["EV-2"]
+    assert [e["id"] for e in catalog.expand(entries, "EV-1", AT)] == ["EV-3", "EV-1"]  # the row `EV-1 … +1`
+    assert catalog.expand(entries, "nothing 01-01", AT) == []
 
 
 # ---- through the service ---------------------------------------------------------------------------------------
@@ -380,7 +394,7 @@ def test_every_omitted_group_can_be_paged_out_whole_through_list(service, plan, 
             offset = page.get("next_offset")
             assert (offset is None) == ("more" not in page)
         assert len(got) == len(set(got)) == page["n"]  # no row twice, none short
-        assert {entry["id"] for entry in catalog.expand(pool, group["list"])} == set(got)
+        assert {entry["id"] for entry in catalog.expand(pool, group["list"], POOL_AT)} == set(got)
         paged |= set(got)
     unlisted = {entry["id"] for entry in pool} - listed
     assert unlisted <= paged  # every entry the catalog did not list is reachable through some group's pages
@@ -433,6 +447,66 @@ def test_the_id_of_a_plus_n_row_brings_the_merged_entries_marked_with_the_row(se
     assert [value["id"] for value in alone] == [other]  # a row that is not merged brings nothing with it
     member = [i for i in ids if i != head][0]
     assert [value["id"] for value in saved(service, ids=[member])["evidence"]["value"]] == [member]  # a member asked for itself: itself
+
+
+def put_web(service, ident, claim, fetched, until):
+    service.store.put("evidence", "alice", dict(id=ident, kind="web", source="example.org", url=f"https://example.org/{ident}",
+                                                claim=claim, quote="q", type="price", fetched_at=fetched, valid_until=until,
+                                                counts_as_checked=True), insert=True)
+
+
+SAME_START = "同一个开头的检查结果 一样的开头 一样的开头 一样的开头 一样的开头 一样的开头"
+
+
+def test_the_id_of_an_expired_plus_n_row_brings_its_expired_members_and_not_an_older_one_counted_apart(service, plan, monkeypatch):
+    """Judge, 2026-11-24, counterexample A: an entry that ended more than 48 hours ago is only counted by the catalog, but
+    `ids` grouped it with the live-looking ones, so the row `EV-r1 … +2` came back without EV-r2 and EV-r3."""
+    seeded(service, plan, monkeypatch)  # now 2030-06-10 07:00 UTC
+    put_web(service, "EV-old", SAME_START + " 旧", "2030-05-01T10:00:00+00:00", "2030-05-02T10:00:00+00:00")  # ended long ago
+    put_web(service, "EV-r1", SAME_START + " 一", "2030-06-09T10:00:00+00:00", "2030-06-10T01:00:00+00:00")
+    put_web(service, "EV-r2", SAME_START + " 二", "2030-06-09T11:00:00+00:00", "2030-06-10T02:00:00+00:00")
+    put_web(service, "EV-r3", SAME_START + " 三", "2030-06-09T12:00:00+00:00", "2030-06-10T03:00:00+00:00")
+    [row] = [line for line in service.turn("alice", "你好呀", "qm")["recall"]["catalog"]["lines"] if SAME_START in line]
+    assert row.split("|", 2)[2].startswith("过期，要重查 ") and row.endswith(" +2")
+    got = [(value["id"], value.get("via_row")) for value in saved(service, ids=[row.split("|")[0]])["evidence"]["value"]]
+    assert {i for i, _ in got} == {"EV-r1", "EV-r2", "EV-r3"} and all(via in (None, "EV-r1") for _, via in got)
+    assert [value["id"] for value in saved(service, ids=["EV-old"])["evidence"]["value"]] == ["EV-old"]  # counted, heads no row
+
+
+def test_the_id_of_an_expired_plus_n_row_does_not_bring_an_entry_the_row_did_not_merge(service, plan, monkeypatch):
+    """Judge, 2026-11-24, counterexample B: with the old entry stored after r1 and r2, `ids` brought EV-old into the row."""
+    seeded(service, plan, monkeypatch)
+    put_web(service, "EV-r1", SAME_START + " 一", "2030-06-09T10:00:00+00:00", "2030-06-10T01:00:00+00:00")
+    put_web(service, "EV-r2", SAME_START + " 二", "2030-06-09T11:00:00+00:00", "2030-06-10T02:00:00+00:00")
+    put_web(service, "EV-old", SAME_START + " 旧", "2030-05-01T10:00:00+00:00", "2030-05-02T10:00:00+00:00")
+    [row] = [line for line in service.turn("alice", "你好呀", "qm")["recall"]["catalog"]["lines"] if SAME_START in line]
+    assert row.endswith(" +1")
+    head = row.split("|")[0]
+    assert {value["id"] for value in saved(service, ids=[head])["evidence"]["value"]} == {"EV-r1", "EV-r2"}
+    assert {entry["id"] for entry in catalog.expand(recall_pool(service), head, POOL_AT)} == {"EV-r1", "EV-r2"}  # `list` agrees
+
+
+def test_the_row_a_member_is_merged_into_is_one_function_for_the_catalog_and_for_ids():
+    live = entry("web", "EV-a", "甲" * 30, in_force=True)
+    fresh = entry("web", "EV-b", "甲" * 30, in_force=False, valid_until="2030-06-09T12:00:00+00:00")
+    old = entry("web", "EV-c", "甲" * 30, in_force=False, valid_until="2030-06-01T12:00:00+00:00")
+    assert catalog.row_key(live, AT) != catalog.row_key(fresh, AT) and catalog.row_key(old, AT) is None
+    assert catalog.row_key(fresh, AT) == catalog.row_key(dict(fresh, id="EV-d", text="甲" * 24 + "不同"), AT)
+    from tripwright import recall
+    assert [e["id"] for e in recall.ordered([fresh, old, live], ["EV-b"], at=AT)] == ["EV-b"]  # old is no member of the fresh row
+    assert [e["id"] for e in recall.ordered([old, live, dict(live, id="EV-e")], ["EV-a"], at=AT)] == ["EV-a", "EV-e"]
+
+
+def test_the_words_to_the_host_name_ids_for_a_plus_n_row_and_list_only_for_the_groups_of_omitted(service, plan, monkeypatch):
+    """Judge, 2026-11-24: the `list` error still called the id of a `+n` row a `list` value, and the zh text did not say `ids`."""
+    seeded(service, plan, monkeypatch)
+    with pytest.raises(ValueError, match="catalog.omitted") as error:
+        saved(service, list="  ")
+    assert "+n" not in str(error.value) and "id of a row" not in str(error.value)
+    from tripwright import service as module
+    zh = module.RECALL_USE["zh"]
+    assert "点行末带 +n 的行（用 ids 取它的 id）" in zh and "list: 那一组的 list 值" in zh
+    assert "+n" not in zh.split("list: 那一组的 list 值")[0].rsplit("catalog.omitted", 1)[1]
 
 
 def test_the_merged_entries_count_toward_the_limit_and_the_overflow_is_skipped(service, plan, monkeypatch):

@@ -498,13 +498,13 @@ def fetch(store, owner: str, plan: dict | None, ids: list[str], *, at: datetime,
 
         return recall_index.fetch(repository, store, owner, plan, ids, at=at, zone=zone, language=language)
     entries = corpus(store, owner, plan, at=at, zone=zone, language=language)
-    return [fetched(entry) for entry in ordered(entries, ids)]
+    return [fetched(entry) for entry in ordered(entries, ids, at=at)]
 
 
-def ordered(entries: list[dict], ids: list[str]) -> list[dict]:
+def ordered(entries: list[dict], ids: list[str], *, at: datetime) -> list[dict]:
     """The entries whose id is in `ids`, grouped by id in the order asked (an id that two kinds share gives both). An
-    id that heads a catalog row ending ` +n` (catalog.py: the first entry, in corpus order, of the entries of one kind
-    in force alike whose first MERGE characters agree) is followed by the entries merged into that row, each a copy
+    id that heads a catalog row ending ` +n` (catalog.py `row_key`: the first entry, in corpus order, of the entries the
+    row merged; an entry the catalog only counts heads no row) is followed by the entries merged into that row, each a copy
     marked `via` (the head's id); an entry asked for by its own id is given once, as asked."""
     from tripwright import catalog
 
@@ -516,8 +516,8 @@ def ordered(entries: list[dict], ids: list[str]) -> list[dict]:
                 continue
             seen.add((entry["found"], entry["id"]))
             out.append(entry)
-            group = [other for other in entries if catalog.merged_key(other) == catalog.merged_key(entry)
-                     and other["in_force"] == entry["in_force"]]
+            key = catalog.row_key(entry, at)
+            group = [other for other in entries if catalog.row_key(other, at) == key] if key else [entry]
             if len(group) > 1 and group[0] is entry:
                 for member in group[1:]:
                     if (member["found"], member["id"]) not in seen and member["id"] not in asked:

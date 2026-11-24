@@ -312,7 +312,7 @@ RECALL_USE = dict(
        "写回答前把 catalog 从头看一遍，只挑回答这句话真用得上的——票的规则、订了什么、用户以前说过的、以前查过的事——"
        "即使和用户的说法没有一个词相同；用 query(kind='saved', arguments={ids:[…]}) 一次取回全文和出处，最多 8 条；用不上就一条也不取。"
        "着急的第一段先用 found 和 catalog 里已经写全的行，取回放在第二段之前。标“过期”的行不能直接用，但说明以前查过、去哪重查。"
-       "catalog.omitted 是装不下、没列出的条数：看哪一组就 query(kind='saved', arguments={list: 那一组的 list 值，条数多时加 offset 翻页})；点行末带 +n 的行（取它的 id）会连同并在一起的几条一起取回，随行的成员在回执里标 via_row。"
+       "catalog.omitted 是装不下、没列出的条数：看哪一组就 query(kind='saved', arguments={list: 那一组的 list 值，条数多时加 offset 翻页})；点行末带 +n 的行（用 ids 取它的 id）会连同并在一起的几条一起取回，随行的成员在回执里标 via_row。"
        "catalog 里没有的，就说仓里没存，再去查；用词找用 query(kind='saved', arguments={text: 用户的词加当地语言词})——地名只写中文常对不上仓里的当地拼法。"
        "网上读到、写进回答的事实，一页一次 query(kind='web_evidence') 记进仓。",
     en="recall.found is the few entries that match the words best, in full (the “In the repository” lines of opening_material are the best "
