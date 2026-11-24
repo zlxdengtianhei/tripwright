@@ -504,39 +504,76 @@ def _frequency(index: Index, query: set[str]) -> dict[str, int]:
 
 def search(repository, store, owner: str, plan: dict | None, text: str, *, at, zone: str | None,
            language: str = "zh", limit: int = 8, kinds: tuple[str, ...] | None = None,
-           exclude_events: set[str] | None = None, kind_cap: int | None = None) -> dict:
+           exclude_events: set[str] | None = None, kind_cap: int | None = None, pool: bool = False) -> dict:
     """`recall.search` through the index: the same entries, order and scores, with `path`, `line` and `commit`, and
     for each hit the line of its file the match falls on (`snippet`, `snippet_line`) and a source a person can read
     back to the screenshot a transcript came from (`cited_as`)."""
     index = Index(repository)
     try:
         entries = index.ensure(store, owner, plan, at=at, zone=zone, language=language)
-        pool = {f"{entry['found']}:{entry['id']}": entry for entry in entries
+        held = {f"{entry['found']}:{entry['id']}": entry for entry in entries
                 if (not kinds or entry["found"] in kinds) and not (exclude_events and entry.get("event") in exclude_events)}
         query = recall.query_terms(text, plan, at=at, zone=zone)
         if not query:
-            return dict(found=[], terms=[], rule="empty")
-        keys = [key for key in _matches(index, query) if key in pool]
+            return dict(found=[], terms=[], rule="empty", **(dict(pool=dict(entries=list(held.values()), scores={})) if pool else {}))
+        keys = [key for key in _matches(index, query) if key in held]
         widen = not keys
         if widen:
-            keys = [key for key in _trigram(index, text) if key in pool]
+            keys = [key for key in _trigram(index, text) if key in held]
         rows = {key: (words, path, line, revision, passage, passage_line) for key, words, path, line, revision, passage, passage_line in
                 index.db.execute(f"SELECT key, words, path, line, revision, passage, passage_line FROM docs WHERE key IN "
                                  f"({','.join('?' for _ in keys)})", keys).fetchall()} if keys else {}
         candidates = []
         for key in keys:
-            entry = dict(pool[key])
+            entry = dict(held[key])
             entry["terms"] = set(json.loads(rows[key][0])) if key in rows else recall.entry_terms(entry, plan, zone=zone)
             entry["path"], entry["line"], entry["commit"] = rows[key][1], rows[key][2], rows[key][3]
             entry["passage"], entry["passage_line"] = (rows[key][4], rows[key][5]) if key in rows else ("", 0)
             candidates.append(entry)
         frequency = _frequency(index, query) if widen else {term: sum(term in entry["terms"] for entry in candidates) for term in query}
         result = recall.rank(candidates, query, plan=plan, at=at, zone=zone, language=language, limit=limit,
-                            kind_cap=kind_cap, total=len(pool), frequency=frequency, widen=widen)
+                            kind_cap=kind_cap, total=len(held), frequency=frequency, widen=widen)
+        if pool:
+            result["pool"] = dict(entries=list(held.values()), scores=recall.scores_of(
+                candidates, query, plan=plan, at=at, zone=zone, language=language, total=len(held), frequency=frequency, widen=widen))
         _add_snippets(index, result, candidates, query, plan=plan, language=language, widen=widen)
         return result
     finally:
         index.close()
+
+
+def fetch(repository, store, owner: str, plan: dict | None, ids: list[str], *, at, zone: str | None,
+          language: str = "zh") -> list[dict]:
+    """The entries with these ids as `recall.fetch` returns them, with `path`, `line` and `commit` from the index and
+    the snippet of each: the line of its file that holds its own longest words (the record's own line, as a hit's
+    snippet is), or the line of its `id:` when none of them is spelled there."""
+    index = Index(repository)
+    try:
+        entries = recall.ordered(index.ensure(store, owner, plan, at=at, zone=zone, language=language), ids)
+        keys = [f"{entry['found']}:{entry['id']}" for entry in entries]
+        rows = {key: (path, line, revision, passage, passage_line) for key, path, line, revision, passage, passage_line in
+                index.db.execute(f"SELECT key, path, line, revision, passage, passage_line FROM docs WHERE key IN "
+                                 f"({','.join('?' for _ in keys)})", keys).fetchall()} if keys else {}
+        candidates = []
+        for entry, key in zip(entries, keys):
+            candidate = dict(entry)
+            candidate["terms"] = recall.entry_terms(candidate, plan, zone=zone)
+            candidate["path"], candidate["line"], candidate["commit"], candidate["passage"], candidate["passage_line"] = \
+                rows.get(key, ("", 0, "", "", 0))
+            candidates.append(candidate)
+        result = dict(found=[recall.fetched(entry) for entry in entries])
+        for hit, candidate in zip(result["found"], candidates):
+            hit["path"], hit["line"], hit["commit"] = candidate["path"], candidate["line"], candidate["commit"]
+        _add_snippets_for(index, result, candidates, plan=plan, language=language)
+        return result["found"]
+    finally:
+        index.close()
+
+
+def _add_snippets_for(index: "Index", result: dict, candidates: list[dict], *, plan: dict | None, language: str) -> None:
+    for hit, candidate in zip(result["found"], candidates):
+        words = sorted(recall.tokens(candidate["text"]), key=lambda word: (-len(word), word))[:4]
+        _add_snippets(index, dict(found=[hit]), [dict(candidate, terms=set(words))], set(words), plan=plan, language=language, widen=False)
 
 
 def _add_snippets(index: "Index", result: dict, candidates: list[dict], query: set[str], *,
