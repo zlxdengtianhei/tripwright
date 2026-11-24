@@ -117,3 +117,22 @@ def test_the_catalog_through_the_index_leaves_out_what_the_message_itself_record
     finally:
         service.jobs.stop()
         store.close()
+
+
+def test_the_id_of_an_expired_plus_n_row_through_the_index_brings_the_row_and_not_an_older_entry(tmp_path, monkeypatch):
+    """Judge, 2026-11-24: `ids` through the index must give the members of the row the catalog wrote, as the scan does."""
+    root, repo, store, service = repo_with_trip(tmp_path, monkeypatch)
+    try:
+        same = "同一个开头的检查结果 一样的开头 一样的开头 一样的开头 一样的开头 一样的开头"
+        for ident, suffix, fetched, until in (("EV-old", "旧", "2032-01-01T10:00:00+00:00", "2032-01-02T10:00:00+00:00"),
+                                              ("EV-r1", "一", "2032-01-09T10:00:00+00:00", "2032-01-10T01:00:00+00:00"),
+                                              ("EV-r2", "二", "2032-01-09T11:00:00+00:00", "2032-01-10T02:00:00+00:00")):
+            store.put("evidence", OWNER, dict(id=ident, kind="web", source="example.org", url=f"https://example.org/{ident}",
+                                              claim=f"{same} {suffix}", quote="q", type="price", fetched_at=fetched, valid_until=until,
+                                              counts_as_checked=True), insert=True)
+        [row] = [line for line in service.turn(OWNER, "你好呀", "qm")["recall"]["catalog"]["lines"] if same in line]
+        assert row.endswith(" +1") and row.startswith("EV-r1|")
+        assert {value["id"] for value in query(service, ids=["EV-r1"])["evidence"]["value"]} == {"EV-r1", "EV-r2"}
+    finally:
+        service.jobs.stop()
+        store.close()

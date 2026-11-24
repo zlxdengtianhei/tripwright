@@ -2204,12 +2204,12 @@ class QueryRouter:
         from tripwright import catalog, recall
 
         if not isinstance(group, str) or not group.strip():
-            raise ValueError("Invalid query arguments: arguments.list must be a group of catalog.omitted, or the id of a row ending in +n")
+            raise ValueError("Invalid query arguments: arguments.list must be a group of catalog.omitted")
         entries = recall.search(self.store, owner, plan, "", at=clock(), zone=zone, language=language,
                                 repository=self.repository, pool=True)["pool"]["entries"]
         if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
             raise ValueError("Invalid query arguments: arguments.offset must be a whole number from 0")
-        chosen = catalog.expand(entries, group)
+        chosen = catalog.expand(entries, group, clock())
         rows = [dict(id=entry["id"], found=entry["found"], day=entry.get("day"), in_force=entry["in_force"], text=catalog.shown(entry))
                 for entry in chosen[offset:offset + catalog.EXPAND_LIMIT]]
         more = max(0, len(chosen) - offset - len(rows))

@@ -96,6 +96,14 @@ def merged_key(entry: dict) -> tuple[str, str]:
     return entry["found"], normal(entry["text"])[:MERGE]
 
 
+def row_key(entry: dict, at: datetime) -> tuple[str, str, bool] | None:
+    """The key of the catalog row an entry is merged into: its kind, its first MERGE characters, and whether it is marked
+    expired. None for an entry the catalog does not list (ended more than EXPIRED_HOURS hours ago): it is only counted in
+    `omitted`, so it is no member of any row. `build` and `expand` here and `recall.ordered` all take their members from this."""
+    mark = ended(entry, at, "zh")
+    return None if mark is None else (*merged_key(entry), bool(mark))
+
+
 def order(kind: str) -> int:
     return KIND_ORDER.index(kind) if kind in KIND_ORDER else len(KIND_ORDER)
 
@@ -205,7 +213,7 @@ def build(entries: list[dict], *, at: datetime, zone: str | None, language: str 
         (older if mark is None else live).append((entry, mark))
     rows, seen = [], {}
     for entry, mark in live:
-        key = (*merged_key(entry), bool(mark))
+        key = row_key(entry, at)
         if key in seen:
             seen[key]["entries"].append(entry)
             continue
@@ -239,14 +247,14 @@ def build(entries: list[dict], *, at: datetime, zone: str | None, language: str 
                 omitted=groups([entry for row in rest for entry in row["entries"]] + old_entries))
 
 
-def expand(entries: list[dict], group: str) -> list[dict]:
+def expand(entries: list[dict], group: str, at: datetime) -> list[dict]:
     """The entries `list` names: a group (`<kind>` or `<kind> <MM-DD>`, as `omitted` writes it) or the id of a catalog
-    row that ends in ` +n` (the entries whose first MERGE characters it shares). Newest first. Not capped here."""
+    row that ends in ` +n` (the entries `build` merged into that row: `row_key`). Newest first. Not capped here."""
     group = normal(group)
     chosen = [entry for entry in entries if entry["id"] == group]
     if chosen:
-        head = chosen[0]
-        return sorted([entry for entry in entries if merged_key(entry) == merged_key(head)],
+        key = row_key(chosen[0], at)
+        return sorted([entry for entry in entries if key is not None and row_key(entry, at) == key] or chosen[:1],
                       key=lambda entry: (ordinal(entry), entry["id"]), reverse=True)
     kind, _, day = group.partition(" ")
     return sorted([entry for entry in entries if entry["found"] == kind and (not day or mmdd(entry) == day)],
