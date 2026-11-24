@@ -2187,23 +2187,33 @@ class QueryRouter:
         taken, skipped = wanted[:SAVED_IDS], wanted[SAVED_IDS:]
         found = recall.fetch(self.store, owner, plan, taken, at=clock(), zone=zone, language=language, repository=self.repository)
         held = {hit["id"] for hit in found}
+        # a row ending +n comes with the entries merged into it (`via_row` names the row); the limit counts them too
+        skipped += [hit["id"] for hit in found[SAVED_IDS:]]
+        found = found[:SAVED_IDS]
         return self._saved_values(owner, found), dict(unknown=[item for item in taken if item not in held],
                                                       **(dict(skipped=skipped) if skipped else {}))
 
-    def _saved_list(self, owner: str, plan: dict | None, group: str, *, zone: str | None, language: str) -> tuple[list[dict], dict]:
+    def _saved_list(self, owner: str, plan: dict | None, group: str, *, zone: str | None, language: str,
+                    offset: int = 0) -> tuple[list[dict], dict]:
         """`query(kind="saved", arguments={list})`: the catalog rows of one group of `catalog.omitted` (`<kind>` or
-        `<kind> <MM-DD>`) or of the entries a `+n` row merged (its id), newest first, at most EXPAND_LIMIT, each as
-        the catalog writes it (id, kind, day, the text whole or cut); `ids` then fetches the ones that are needed."""
+        `<kind> <MM-DD>`) or of the entries a `+n` row merged (its id), newest first, EXPAND_LIMIT a page from `offset`
+        (the answer says `next_offset` while more follow), each as the catalog writes it (id, kind, day, the text whole
+        or cut); `ids` then fetches the ones that are needed. The whole group is paged, the rows the turn's catalog
+        already listed included: a turn's catalog depends on the message (the scores), which a later query cannot
+        know, so no row can be left out or marked here; the host has the catalog and skips what it has read."""
         from tripwright import catalog, recall
 
         if not isinstance(group, str) or not group.strip():
             raise ValueError("Invalid query arguments: arguments.list must be a group of catalog.omitted, or the id of a row ending in +n")
         entries = recall.search(self.store, owner, plan, "", at=clock(), zone=zone, language=language,
                                 repository=self.repository, pool=True)["pool"]["entries"]
+        if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
+            raise ValueError("Invalid query arguments: arguments.offset must be a whole number from 0")
         chosen = catalog.expand(entries, group)
         rows = [dict(id=entry["id"], found=entry["found"], day=entry.get("day"), in_force=entry["in_force"], text=catalog.shown(entry))
-                for entry in chosen[:catalog.EXPAND_LIMIT]]
-        return rows, dict(list=group, n=len(chosen), **(dict(more=len(chosen) - len(rows)) if len(chosen) > len(rows) else {}))
+                for entry in chosen[offset:offset + catalog.EXPAND_LIMIT]]
+        more = max(0, len(chosen) - offset - len(rows))
+        return rows, dict(list=group, n=len(chosen), offset=offset, **(dict(more=more, next_offset=offset + len(rows)) if more else {}))
 
     def _saved_values(self, owner: str, found: list[dict]) -> list[dict]:
         """The hits of recall (a search, or `fetch` by id) in the shapes hosts read."""
@@ -2212,6 +2222,7 @@ class QueryRouter:
             # where the entry is stored: the file, the line of its `id:` and the commit of the working tree it is in;
             # the line the match falls on (Q20, 2026-11-23: the user could not tell which source a screenshot was)
             extra = dict(source=hit["source"], why=hit["why"], in_force=hit["in_force"], path=hit.get("path"),
+                         **({"via_row": hit["via"]} if hit.get("via") else {}),
                          line=hit.get("line"), commit=hit.get("commit"), snippet=hit.get("snippet"),
                          snippet_line=hit.get("snippet_line"), snippet_exact=hit.get("snippet_exact"),
                          **({"cited_as": hit["cited_as"]} if hit.get("cited_as") else {}))
@@ -2356,7 +2367,7 @@ class QueryRouter:
                                                              language=language)
                     elif arguments.get("list") is not None:
                         values, saved_info = self._saved_list(owner, plan, arguments["list"], zone=self._zone(arguments, plan, zone),
-                                                              language=language)
+                                                              language=language, offset=arguments.get("offset", 0))
                     else:
                         values = self._saved(owner, plan, arguments.get("text", ""), zone=self._zone(arguments, plan, zone),
                                              language=language, limit=min(20, max(1, int(arguments.get("limit", 8)))))

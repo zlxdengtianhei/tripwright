@@ -298,6 +298,8 @@ CONFLICT_USE = dict(
 AFTER_OPEN = dict(zh="第一条发出去以后照这里做：", en="After the first message is sent: ")
 # Q19 (2026-11-23): the user's repository is the database. `recall` lists what it already holds for this message;
 # what it lacks is looked up, and what is looked up goes back into it.
+# 2026-11-24 (hold-out): the text is `recall.use`, inside `recall`, so no rewrite of `after_first_part` can lose it; the
+# answer's `after_first_part` only points to it (RECALL_POINTER).
 # 2026-11-24 (route F, the catalog): `recall.found` is still the lexical six; `recall.catalog` lists every entry as one row so the
 # host picks by meaning what the words missed, and fetches those with `ids`. The text is the host's instruction for it: read the
 # catalog from the top, take only what this message needs (none is allowed: a message that needs nothing from the repository
@@ -310,7 +312,7 @@ RECALL_USE = dict(
        "写回答前把 catalog 从头看一遍，只挑回答这句话真用得上的——票的规则、订了什么、用户以前说过的、以前查过的事——"
        "即使和用户的说法没有一个词相同；用 query(kind='saved', arguments={ids:[…]}) 一次取回全文和出处，最多 8 条；用不上就一条也不取。"
        "着急的第一段先用 found 和 catalog 里已经写全的行，取回放在第二段之前。标“过期”的行不能直接用，但说明以前查过、去哪重查。"
-       "catalog.omitted 是装不下、没列出的条数：看哪一组就 query(kind='saved', arguments={list: 那一组的 list 值})，行末带 +n 的行要看并在一起的几条，list 用它的 id。"
+       "catalog.omitted 是装不下、没列出的条数：看哪一组就 query(kind='saved', arguments={list: 那一组的 list 值，条数多时加 offset 翻页})；点行末带 +n 的行（取它的 id）会连同并在一起的几条一起取回，随行的成员在回执里标 via_row。"
        "catalog 里没有的，就说仓里没存，再去查；用词找用 query(kind='saved', arguments={text: 用户的词加当地语言词})——地名只写中文常对不上仓里的当地拼法。"
        "网上读到、写进回答的事实，一页一次 query(kind='web_evidence') 记进仓。",
     en="recall.found is the few entries that match the words best, in full (the “In the repository” lines of opening_material are the best "
@@ -322,10 +324,12 @@ RECALL_USE = dict(
        "when none is needed. In an urgent first message use found and the catalog rows that are already whole; fetch before the second "
        "message. A row marked expired cannot be used as it stands, but it says something was looked up before and where to look again. "
        "catalog.omitted counts what did not fit and is not listed: to see a group, query(kind='saved', arguments={list: that group's list "
-       "value}); for a row ending in +n, use its id as list to see the merged entries. What the catalog lacks: say the repository does not "
+       "value, with offset to page a big group}); fetching a row that ends in +n (its id) brings the merged entries with it, marked via_row in "
+       "the answer. What the catalog lacks: say the repository does not "
        "hold it, then look it up; to search by words use query(kind='saved', arguments={text: the user's words and the local-language "
        "words}) — a place named only in Chinese often does not match the local spelling in the repository. A fact read on the web that "
        "goes into the answer is recorded with query(kind='web_evidence'), once per page.")
+RECALL_POINTER = dict(zh="仓里已有的东西见 recall：先读 recall.use。", en="What the repository already holds is in recall: read recall.use first. ")
 AFTER_FIRST = dict(zh="用户回了话、或 researcher 的报告回来之后照这里做，不再调 turn：",
                    en="After the user replies or the researcher's report returns, do this without calling turn again: ")
 # explain(record_id) (S5): the ledger tables a record ID is looked up in, and the fields each adds to the record
@@ -809,11 +813,18 @@ class Tripwright:
                 lead = ASK_OPEN[language].format(id=opened[0]["id"])
                 response["next"] = whole_sentences(lead + (" " if language == "en" else "") + response["next"], 1100)
             if recalled["found"] or recalled.get("catalog"):
-                response["recall"] = recalled
+                # the instruction for `recall` travels inside it (hold-out 2026-11-24: with a dispatch the answer's
+                # `after_first_part` is written again and the text put into it was lost; no later step rewrites this)
+                response["recall"] = dict(use=RECALL_USE[language], **recalled)
+
+            def with_use(text: str) -> str:
+                """`text` (an `after_first_part`) with what the host does with a conflict, and where `recall` is read."""
+                use = (RECALL_POINTER[language] if held else "") + CONFLICT_USE[language]
+                return text.replace(AFTER_OPEN[language], AFTER_OPEN[language] + use, 1) \
+                    if text.startswith(AFTER_OPEN[language]) else text + use
+
             if "after_first_part" in response:
-                use = (RECALL_USE[language] if held else "") + CONFLICT_USE[language]
-                response["after_first_part"] = response["after_first_part"].replace(AFTER_OPEN[language], AFTER_OPEN[language] + use, 1) \
-                    if response["after_first_part"].startswith(AFTER_OPEN[language]) else response["after_first_part"] + use
+                response["after_first_part"] = with_use(response["after_first_part"])
             mode = consider.save_mode(self.store, owner, at=at)
             response.update(consider={key: considered[key] for key in ("entries", "more", "more_how") if key in considered},
                             ask=asked, offer=consider.offer(known["languages"], language),
@@ -839,7 +850,7 @@ class Tripwright:
                 lead = ("Then dispatch " if language == "en" else "第一条发出后先派 ") + ("; " if language == "en" else "；").join(
                     f"{entry['role']} ({entry['why']})" if language == "en" else f"{entry['role']}（{entry['why']}）" for entry in named)
                 lead += ". " if language == "en" else "。"
-                response["after_first_part"] = AFTER_OPEN[language] + whole_sentences(lead + instructions, 700)
+                response["after_first_part"] = with_use(AFTER_OPEN[language] + whole_sentences(lead + instructions, 700))
             elif named and scenario in PLANNING:  # on the road the first instruction stays the first part or the answer
                 lead = ("Dispatch " if language == "en" else "先派 ") + ("; " if language == "en" else "；").join(
                     f"{entry['role']} ({entry['why']})" if language == "en" else f"{entry['role']}（{entry['why']}）" for entry in named)

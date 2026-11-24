@@ -100,3 +100,20 @@ def test_list_through_the_repository_gives_the_catalog_rows_of_a_kind(tmp_path, 
     finally:
         service.jobs.stop()
         store.close()
+
+
+def test_the_catalog_through_the_index_leaves_out_what_the_message_itself_recorded(tmp_path, monkeypatch):
+    """The path the product takes (a repository): this message's own record is not in the catalog, an earlier one is."""
+    root, repo, store, service = repo_with_trip(tmp_path, monkeypatch)
+    try:
+        save_item(service, "下午想去湖边的咖啡馆坐一会儿", "earlier", "2032-01-10T10:00:00+01:00")
+        os.environ["TRIPWRIGHT_NOW"] = "2032-01-10T11:00:00+01:00"
+        os.environ["TRIPWRIGHT_NOW_SET_AT"] = str(time.time())
+        turn = service.turn(OWNER, "晚上想吃烤鱼，别太贵", "now", nature="user_verbatim", native_ref="fixture:now")
+        rows = turn["recall"]["catalog"]["lines"]
+        assert any("下午想去湖边的咖啡馆" in row for row in rows)
+        assert not any("晚上想吃烤鱼" in row for row in rows)
+        assert not any("晚上想吃烤鱼" in hit["text"] for hit in turn["recall"]["found"])
+    finally:
+        service.jobs.stop()
+        store.close()

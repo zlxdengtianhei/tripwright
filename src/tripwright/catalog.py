@@ -9,7 +9,9 @@ A row is `id|kind|text`: the text whole when it has at most WHOLE characters, el
 ellipsis (LEVELS: when the rows do not fit, the text is cut shorter, level by level, until they fit or the lines, not
 the characters, are what stops the listing). Rows of one kind whose first MERGE characters agree are one row marked ` +n`. An entry that is no longer in
 force is listed, marked, only when it ended in the last EXPIRED_HOURS hours (it tells the host that something was
-looked up before and where to look again); older ones are only counted.
+looked up before and where to look again); older ones are only counted. A ledger record (fact, item, decision, check) that is expired has its `valid_until` as the
+end time; one that is superseded has none, because the ledger does not store when a record was superseded, so a
+superseded record is only counted, never listed (no time is made up).
 
 The budget is MAX_LINES rows and MAX_CHARS characters, counting the lines of `omitted`. Over it (D-07, after the
 600-entry reading of 2026-11-24 showed that listing the plan, places and what the user said first left no row for a

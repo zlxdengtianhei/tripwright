@@ -349,7 +349,11 @@ def corpus(store, owner: str, plan: dict | None, *, at: datetime, zone: str | No
                 " ".join(str(record.get(key) or "") for key in ("key", "text", "question", "title", "what"))
                 + (f" {record['quote']}" if record.get("quote") and len(record["quote"]) <= QUOTE_LIMIT else "")
                 + " " + " ".join([*(record.get("names") or []), *(record.get("asks") or [])]),
-                in_force=in_force, status=record.get("status"), event=source.get("event"), day=day_of(said, zone), **({"key": record["key"]} if record.get("key") else {}))
+                in_force=in_force, status=record.get("status"), event=source.get("event"), day=day_of(said, zone),
+                # when a record ended, for the catalog's 48-hour rule: only an expired record has an end time
+                # (`valid_until`); a superseded one has none (the ledger does not store when), so it is only counted
+                **({"valid_until": record["valid_until"]} if record.get("status") == "expired" and record.get("valid_until") else {}),
+                **({"key": record["key"]} if record.get("key") else {}))
     for record in store.all("evidence", owner):
         expired = bool(record.get("stale")) or bool(record.get("valid_until")) and aware_utc(record["valid_until"]) <= at
         if record.get("kind") == "web":
@@ -498,8 +502,28 @@ def fetch(store, owner: str, plan: dict | None, ids: list[str], *, at: datetime,
 
 
 def ordered(entries: list[dict], ids: list[str]) -> list[dict]:
-    """The entries whose id is in `ids`, grouped by id in the order asked (an id that two kinds share gives both)."""
-    return [entry for wanted in dict.fromkeys(ids) for entry in entries if entry["id"] == wanted]
+    """The entries whose id is in `ids`, grouped by id in the order asked (an id that two kinds share gives both). An
+    id that heads a catalog row ending ` +n` (catalog.py: the first entry, in corpus order, of the entries of one kind
+    in force alike whose first MERGE characters agree) is followed by the entries merged into that row, each a copy
+    marked `via` (the head's id); an entry asked for by its own id is given once, as asked."""
+    from tripwright import catalog
+
+    asked = set(ids)
+    out, seen = [], set()
+    for wanted in dict.fromkeys(ids):
+        for entry in entries:
+            if entry["id"] != wanted or (entry["found"], entry["id"]) in seen:
+                continue
+            seen.add((entry["found"], entry["id"]))
+            out.append(entry)
+            group = [other for other in entries if catalog.merged_key(other) == catalog.merged_key(entry)
+                     and other["in_force"] == entry["in_force"]]
+            if len(group) > 1 and group[0] is entry:
+                for member in group[1:]:
+                    if (member["found"], member["id"]) not in seen and member["id"] not in asked:
+                        seen.add((member["found"], member["id"]))
+                        out.append(dict(member, via=entry["id"]))
+    return out
 
 
 def fetched(entry: dict) -> dict:

@@ -243,7 +243,8 @@ def test_the_turn_lists_the_catalog_even_when_no_entry_matches_the_words(service
     rows = recall["catalog"]["lines"]
     assert any("|web|Sparschiene 票只对订票选定的那一班车有效" in row for row in rows)
     assert any(row.startswith("oslo-art|place|") for row in rows)
-    assert "recall.catalog" in turn["after_first_part"] and "ids:[" in turn["after_first_part"]
+    assert "recall.catalog" in recall["use"] and "ids:[" in recall["use"]  # the instruction travels inside `recall`
+    assert "recall.use" in turn["after_first_part"]  # and the answer's after_first_part points to it
 
 
 def test_the_catalog_leaves_out_what_the_message_itself_recorded(service, plan, monkeypatch):
@@ -332,3 +333,120 @@ def test_a_big_repository_counts_what_it_cannot_list_and_list_reaches_it(service
     assert opened["n"] >= group["n"] > 0 and opened["evidence"]["value"]
     listed = {row.split("|")[0] for row in listing["lines"]}
     assert len(listed) + sum(g["n"] for g in listing["omitted"]) >= 260 + 1  # the places and the rest are counted too
+
+
+# ---- judge's three repairs (2026-11-24) ---------------------------------------------------------------------------
+
+def test_an_expired_ledger_record_of_the_last_48_hours_is_listed_marked_and_a_superseded_one_is_only_counted(service, plan, monkeypatch):
+    seeded(service, plan, monkeypatch)  # now: 2030-06-10 09:00 +02:00
+    base = dict(subject=["p1"], scope=dict(), source=dict(event="seed", basis="user_explicit"), kind="preference", strength="prefer",
+                true_from="2030-06-01T00:00:00+00:00")
+    service.store.put("facts", "alice", dict(id="F-EXP-recent", key="k1", value=1, text="两小时前过期的事实", status="expired",
+                                             valid_until="2030-06-10T05:00:00+00:00", **base), insert=True)
+    service.store.put("facts", "alice", dict(id="F-EXP-old", key="k2", value=1, text="一周前过期的事实", status="expired",
+                                             valid_until="2030-06-03T05:00:00+00:00", **base), insert=True)
+    service.store.put("facts", "alice", dict(id="F-SUP", key="k3", value=1, text="被取代的事实", status="superseded",
+                                             valid_until="2031-01-01T00:00:00+00:00", **base), insert=True)
+    rows = {row.split("|")[0]: row for row in service.turn("alice", "你好呀", "qx")["recall"]["catalog"]["lines"]}
+    assert rows["F-EXP-recent"].split("|", 2)[2] == "过期，要重查 两小时前过期的事实"
+    assert "F-EXP-old" not in rows and "F-SUP" not in rows  # an older one and a superseded one (no time of its own) are counted
+    omitted = {group["list"].split()[0] for group in service.turn("alice", "你好呀", "qy")["recall"]["catalog"]["omitted"]}
+    assert "fact" in omitted
+
+
+def test_every_omitted_group_can_be_paged_out_whole_through_list(service, plan, monkeypatch):
+    seeded(service, plan, monkeypatch)
+    for n in range(420):
+        service.store.put("evidence", "alice", dict(id=f"EV-pg-{n:03d}", kind="web", source="example.org", url=f"https://example.org/{n}",
+                                                    claim=f"第 {n:03d} 号检查的内容，各不相同 {n * 31 % 97}", quote="q", type="price",
+                                                    fetched_at="2030-06-0%dT10:00:00+00:00" % (1 + n % 9), valid_until="2031-01-01T00:00:00+00:00",
+                                                    counts_as_checked=True), insert=True)
+    for n in range(180):
+        service.store.put("facts", "alice", dict(id=f"F-pg-{n:03d}", key=f"k{n}", value=n, text=f"第 {n:03d} 条事实 各不相同 {n * 17 % 89}", status="active",
+                                                 subject=["p1"], scope=dict(), source=dict(event="seed", basis="user_explicit"), kind="preference",
+                                                 true_from="2030-06-01T00:00:00+00:00"), insert=True)
+    turn = service.turn("alice", "票的规则是什么？", "qpage", scenario="quick")
+    listing = turn["recall"]["catalog"]
+    assert listing["omitted"] and any(group["n"] > catalog.EXPAND_LIMIT for group in listing["omitted"])  # a group over one page
+    pool = recall_pool(service)
+    listed = {row.split("|")[0] for row in listing["lines"]}
+    paged = set()
+    for group in listing["omitted"]:
+        got, offset = [], 0
+        while offset is not None:
+            page = saved(service, list=group["list"], offset=offset)
+            got += [row["id"] for row in page["evidence"]["value"]]
+            assert page["offset"] == offset
+            offset = page.get("next_offset")
+            assert (offset is None) == ("more" not in page)
+        assert len(got) == len(set(got)) == page["n"]  # no row twice, none short
+        assert {entry["id"] for entry in catalog.expand(pool, group["list"])} == set(got)
+        paged |= set(got)
+    unlisted = {entry["id"] for entry in pool} - listed
+    assert unlisted <= paged  # every entry the catalog did not list is reachable through some group's pages
+
+
+def test_list_offset_must_be_a_whole_number(service, plan, monkeypatch):
+    seeded(service, plan, monkeypatch)
+    for bad in (-1, "3", 1.5, True):
+        with pytest.raises(ValueError, match="arguments.offset"):
+            saved(service, list="web", offset=bad)
+
+
+def recall_pool(service):
+    from tripwright import recall
+    plan = service.versions.current("alice")["plan"]
+    return recall.search(service.store, "alice", plan, "", at=recall.aware_utc("2030-06-10T07:00:00+00:00"), zone="Europe/Oslo",
+                         language="zh", pool=True)["pool"]["entries"]
+
+
+def test_the_recall_instruction_is_in_the_receipt_when_a_dispatch_rewrites_after_first_part(service, plan, monkeypatch):
+    """Hold-out 2026-11-24: with a dispatch and an opening, `after_first_part` is written again and the recall text that
+    was put into it was lost, so the host got a catalog and no word on how to use it."""
+    seeded(service, plan, monkeypatch)
+    web(service, url="https://example.org/ticket", quote="valid only on the booked train", claim="Sparschiene 票只对订票选定的那一班车有效", type="rule")
+    turn = service.turn("alice", "今晚最晚几点出发回住处？", "qd", scenario="replan")
+    assert turn["flow"]["dispatch"] and turn["after_first_part"].startswith("第一条发出去以后照这里做：")
+    assert "第一条发出后先派" in turn["after_first_part"]  # the rewritten branch ran
+    assert turn["recall"]["catalog"]["lines"] and "recall.catalog" in turn["recall"]["use"] and "ids:[" in turn["recall"]["use"]
+    assert "recall.use" in turn["after_first_part"] and "query(kind='conflict')" in turn["after_first_part"]  # both uses survive
+    from tripwright import service as module
+    assert all("via_row" in module.RECALL_USE[language] and "recall.catalog" in module.RECALL_USE[language] for language in ("zh", "en"))
+    assert "+n" in module.RECALL_USE["zh"] and "list" in module.RECALL_USE["en"] and "offset" in module.RECALL_USE["en"]
+
+
+def test_the_id_of_a_plus_n_row_brings_the_merged_entries_marked_with_the_row(service, plan, monkeypatch):
+    seeded(service, plan, monkeypatch)
+    same = "ÖBB 多功能储物柜地点包括 Wien Hbf"
+    ids = [web(service, url=f"https://example.org/l{n}", quote=f"q{n}", claim=f"{same} 第{n}页补充", type="place")["evidence"]["id"] for n in range(3)]
+    other = web(service, url="https://example.org/o", quote="o", claim="完全不同开头的一条", type="place")["evidence"]["id"]
+    rows = service.turn("alice", "你好呀", "qm")["recall"]["catalog"]["lines"]
+    [row] = [line for line in rows if same in line]
+    assert row.endswith(" +2")
+    head = row.split("|")[0]
+    result = saved(service, ids=[head, other])
+    values = result["evidence"]["value"]
+    assert [value["id"] for value in values][:1] == [head] and set(value["id"] for value in values) == set(ids) | {other}
+    assert {value["id"]: value.get("via_row") for value in values} == {head: None, other: None, **{i: head for i in ids if i != head}}
+    assert "skipped" not in result and result["unknown"] == []
+    alone = saved(service, ids=[other])["evidence"]["value"]
+    assert [value["id"] for value in alone] == [other]  # a row that is not merged brings nothing with it
+    member = [i for i in ids if i != head][0]
+    assert [value["id"] for value in saved(service, ids=[member])["evidence"]["value"]] == [member]  # a member asked for itself: itself
+
+
+def test_the_merged_entries_count_toward_the_limit_and_the_overflow_is_skipped(service, plan, monkeypatch):
+    seeded(service, plan, monkeypatch)
+    same = "同一个开头的二十个条目 一样的开头 一样的开头 一样的开头"
+    for n in range(20):
+        web(service, url=f"https://example.org/m{n}", quote=f"q{n}", claim=f"{same} 第{n:02d}页", type="place")
+    rows = service.turn("alice", "你好呀", "qn")["recall"]["catalog"]["lines"]
+    [row] = [line for line in rows if same in line]
+    assert row.endswith(" +19")
+    result = saved(service, ids=[row.split("|")[0]])
+    assert len(result["evidence"]["value"]) == catalog_limit() and len(result["skipped"]) == 20 - catalog_limit()
+
+
+def catalog_limit():
+    from tripwright import query
+    return query.SAVED_IDS
