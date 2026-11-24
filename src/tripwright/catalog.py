@@ -6,15 +6,19 @@ runs here, and nothing is stored: the catalog is computed from `recall.corpus` o
 same repository.
 
 A row is `id|kind|text`: the text whole when it has at most WHOLE characters, else its first CUT characters and an
-ellipsis. Rows of one kind whose first MERGE characters agree are one row marked ` +n`. An entry that is no longer in
+ellipsis (LEVELS: when the rows do not fit, the text is cut shorter, level by level, until they fit or the lines, not
+the characters, are what stops the listing). Rows of one kind whose first MERGE characters agree are one row marked ` +n`. An entry that is no longer in
 force is listed, marked, only when it ended in the last EXPIRED_HOURS hours (it tells the host that something was
 looked up before and where to look again); older ones are only counted.
 
-The budget is MAX_LINES rows and MAX_CHARS characters, counting the lines of `omitted`. Over it, the rows are packed in
-this order: the places, the plan and the bookings of today and the two days either side of it, and what the user
-said (fact, item, decision, message); then the rest by how well it matches the message, then newest first. What does
-not fit is counted per kind and day in `omitted` (`list`: the argument that expands it, `n`: how many are not
-listed); over OMIT_GROUPS groups it is counted per kind.
+The budget is MAX_LINES rows and MAX_CHARS characters, counting the lines of `omitted`. Over it (D-07, after the
+600-entry reading of 2026-11-24 showed that listing the plan, places and what the user said first left no row for a
+web check): first the rows are cut shorter (LEVELS); then the plan and the bookings of today and the two days either
+side of it are listed first, all of them; then every other class (places, what the user said [fact, item, decision,
+message], checks, web checks, lookups) gets an equal share of what is left, taking inside the class the best match
+to the message first, then the newest; then what is left of the room goes to the rest of the rows (including the
+plan and bookings of other days) by match, then newest. What does not fit is counted per kind and day in `omitted`
+(`list`: the argument that expands it, `n`: how many are not listed); over OMIT_GROUPS groups it is counted per kind.
 """
 from __future__ import annotations
 
@@ -24,11 +28,12 @@ from zoneinfo import ZoneInfo
 KIND_ORDER = ["place", "plan", "booking", "fact", "item", "decision", "check", "web", "lookup", "said"]
 MAX_LINES, MAX_CHARS = 150, 9000
 WHOLE, CUT, MERGE = 90, 56, 24
+LEVELS = ((WHOLE, CUT), (40, 40), (32, 32), (24, 24))  # (whole up to, else cut to) at each level of shortening
 EXPIRED_HOURS = 48
-NEAR_DAYS = 2  # the days either side of today whose plan and bookings are packed first
+NEAR_DAYS = 2  # the days either side of today whose plan and bookings are listed first
+CLASSES = ("place", "said", "check", "web", "lookup")  # what shares the room left after the plan near today
 OMIT_GROUPS = 30  # the most lines `omitted` takes; the rows get what is left of the budget
 OMIT_CHARS = 1200
-FIRST_SHARE = 1.0  # the share of the room the first group (plan near today, places, what the user said) may take: 1.0 is D-06 as designed
 EXPAND_LIMIT = 60  # rows `query(kind="saved", arguments={list})` returns
 FULL_TEXT = 4000  # the longest full text `ids` returns for one entry
 TAGS = dict(zh="过期，要重查 ", en="expired, look again ")
@@ -79,18 +84,14 @@ def ended(entry: dict, at: datetime, language: str) -> str | None:
     return TAGS["en" if language == "en" else "zh"] if at - moment <= timedelta(hours=EXPIRED_HOURS) else None
 
 
-def shown(entry: dict) -> str:
+def shown(entry: dict, level: int = 0) -> str:
+    whole, cut = LEVELS[level]
     text = normal(entry["text"])
-    return text if len(text) <= WHOLE else text[:CUT] + "…"
+    return text if len(text) <= whole else text[:cut] + "…"
 
 
 def merged_key(entry: dict) -> tuple[str, str]:
     return entry["found"], normal(entry["text"])[:MERGE]
-
-
-def render(row: dict) -> str:
-    extra = f" +{len(row['entries']) - 1}" if len(row["entries"]) > 1 else ""
-    return f"{row['entries'][0]['id']}|{row['kind']}|{row['text']}{extra}"
 
 
 def order(kind: str) -> int:
@@ -110,23 +111,6 @@ def ordinal(entry: dict) -> int:
         return date.fromisoformat(str(entry.get("day"))[:10]).toordinal()
     except ValueError:
         return 0
-
-
-def priority(row: dict, today: date, scores: dict) -> tuple:
-    """Sort key of a row, in the order of the module doc: the plan and bookings of today and the two days either side
-    (the nearest day first), the places (as the corpus gives them), what the user said (newest first); then every other
-    row by its best score, then newest first."""
-    kind, entries = row["kind"], row["entries"]
-    newest = -max(ordinal(entry) for entry in entries)
-    distance = min((d for d in (near(entry, today) for entry in entries) if d is not None), default=None)
-    if kind in ("plan", "booking") and distance is not None and distance <= NEAR_DAYS:
-        return (0, 0, distance, newest, order(kind), entries[0]["id"])
-    if kind == "place":
-        return (0, 1, row["at"], 0, 0, entries[0]["id"])
-    if kind in SAID_KINDS:
-        return (0, 2, newest, 0, order(kind), entries[0]["id"])
-    best = max(scores.get((entry["found"], entry["id"]), 0.0) for entry in entries)
-    return (1, -best, newest, 0, order(kind), entries[0]["id"])
 
 
 def listing(row: dict) -> tuple[int, int]:
@@ -150,8 +134,64 @@ def size(lines: list[str], omitted: list[dict]) -> int:
     return sum(len(line) + 1 for line in lines) + sum(len(f"{group['list']} {group['n']}") + 18 for group in omitted)
 
 
-def build(entries: list[dict], *, at: datetime, zone: str | None, language: str = "zh", scores: dict | None = None,
-          first_share: float | None = None) -> dict:
+def class_of(row: dict) -> str | None:
+    """The class of a row that shares the room (CLASSES), or None for a plan or booking row."""
+    kind = row["kind"]
+    return "said" if kind in SAID_KINDS else kind if kind in CLASSES else None
+
+
+def is_near(row: dict, today: date) -> bool:
+    distance = min((d for d in (near(entry, today) for entry in row["entries"]) if d is not None), default=None)
+    return row["kind"] in ("plan", "booking") and distance is not None and distance <= NEAR_DAYS
+
+
+def best_first(row: dict, scores: dict) -> tuple:
+    """Inside a class and in the rest: the best match to the message first, then (the same score) one in force before
+    an expired one, then the newest."""
+    best = max(scores.get((entry["found"], entry["id"]), 0.0) for entry in row["entries"])
+    # at the same score an entry in force comes before one that only says where to look again
+    return (-best, bool(row["mark"]), -max(ordinal(entry) for entry in row["entries"]), order(row["kind"]), row["entries"][0]["id"])
+
+
+def pack(rows: list[dict], today: date, scores: dict, room_lines: int, room_chars: int) -> tuple[list[dict], list[dict]]:
+    """The rows that are listed and those that are not, by the order of the module doc."""
+    kept, used = [], [0]
+
+    def take(row) -> bool:
+        cost = len(row["line"]) + 1
+        if len(kept) >= room_lines or used[0] + cost > room_chars:
+            return False
+        kept.append(row)
+        used[0] += cost
+        return True
+
+    chosen: set[int] = set()
+    for row in sorted((row for row in rows if is_near(row, today)),
+                      key=lambda row: (min(near(entry, today) or 0 for entry in row["entries"]), best_first(row, scores)[1:])):
+        if take(row):
+            chosen.add(row["at"])
+    classes: dict[str, list[dict]] = {}
+    for row in rows:
+        if row["at"] not in chosen and class_of(row):
+            classes.setdefault(class_of(row), []).append(row)
+    if classes:
+        share_lines, share_chars = max(0, room_lines - len(kept)) // len(classes), max(0, room_chars - used[0]) // len(classes)
+        for name in sorted(classes, key=CLASSES.index):
+            count = chars = 0
+            for row in sorted(classes[name], key=lambda row: best_first(row, scores)):
+                cost = len(row["line"]) + 1
+                if count >= share_lines or chars + cost > share_chars:
+                    continue
+                if take(row):
+                    chosen.add(row["at"])
+                    count, chars = count + 1, chars + cost
+    for row in sorted((row for row in rows if row["at"] not in chosen), key=lambda row: best_first(row, scores)):
+        if take(row):
+            chosen.add(row["at"])
+    return [row for row in rows if row["at"] in chosen], [row for row in rows if row["at"] not in chosen]
+
+
+def build(entries: list[dict], *, at: datetime, zone: str | None, language: str = "zh", scores: dict | None = None) -> dict:
     """The catalog of `entries` (corpus entries, this message's own already left out): {lines, omitted}. `scores` maps
     (kind, id) to how well the entry matches the message (recall.rank's score); an entry not in it counts as 0."""
     scores = scores or {}
@@ -167,29 +207,34 @@ def build(entries: list[dict], *, at: datetime, zone: str | None, language: str 
         if key in seen:
             seen[key]["entries"].append(entry)
             continue
-        seen[key] = row = dict(kind=entry["found"], text=mark + shown(entry), entries=[entry], at=len(rows))
+        seen[key] = row = dict(kind=entry["found"], mark=mark, entries=[entry], at=len(rows))
         rows.append(row)
     stale_groups = groups([entry for entry, _ in older])
-    lines = [render(row) for row in sorted(rows, key=listing)]
-    if len(lines) + len(stale_groups) <= MAX_LINES and size(lines, stale_groups) <= MAX_CHARS:
-        return dict(lines=lines, omitted=stale_groups)
-    # over the budget: the lines of `omitted` take at most OMIT_GROUPS lines and OMIT_CHARS characters of it
-    room_lines, room_chars = MAX_LINES - OMIT_GROUPS, MAX_CHARS - OMIT_CHARS
-    share = FIRST_SHARE if first_share is None else first_share
-    kept, rest, used, first_lines, first_chars = [], [], 0, 0, 0
-    for row in sorted(rows, key=lambda row: priority(row, today, scores)):
-        line = render(row)
-        first = priority(row, today, scores)[0] == 0
-        if len(kept) >= room_lines or used + len(line) + 1 > room_chars or \
-                first and (first_lines >= room_lines * share or first_chars + len(line) + 1 > room_chars * share):
-            rest.append(row)
-            continue
-        kept.append(row)
-        used += len(line) + 1
-        if first:
-            first_lines, first_chars = first_lines + 1, first_chars + len(line) + 1
-    unlisted = [entry for row in rest for entry in row["entries"]] + [entry for entry, _ in older]
-    return dict(lines=[render(row) for row in sorted(kept, key=listing)], omitted=groups(unlisted))
+    old_entries = [entry for entry, _ in older]
+    for level in range(len(LEVELS)):
+        for row in rows:
+            row["line"] = f"{row['entries'][0]['id']}|{row['kind']}|{row['mark']}{shown(row['entries'][0], level)}" + \
+                (f" +{len(row['entries']) - 1}" if len(row["entries"]) > 1 else "")
+        lines = [row["line"] for row in sorted(rows, key=listing)]
+        if len(lines) + len(stale_groups) <= MAX_LINES and size(lines, stale_groups) <= MAX_CHARS:
+            return dict(lines=lines, omitted=stale_groups)
+        # shorter text only helps while the characters, not the lines, stop the listing
+        room_lines = MAX_LINES - OMIT_GROUPS
+        longest = sorted((len(row["line"]) + 1 for row in rows), reverse=True)[:room_lines]
+        if len(rows) > room_lines and sum(longest) <= MAX_CHARS - OMIT_CHARS:
+            break  # any room_lines rows fit the characters: the lines are what stops the listing
+    # the lines of `omitted` take what they need: try with a few, then with what the first try left out
+    reserve = min(OMIT_GROUPS, 10)
+    for attempt in range(4):
+        kept, rest = pack(rows, today, scores, MAX_LINES - reserve, MAX_CHARS - reserve * 40)
+        omitted = groups([entry for row in rest for entry in row["entries"]] + old_entries)
+        out = [row["line"] for row in sorted(kept, key=listing)]
+        if len(out) + len(omitted) <= MAX_LINES and size(out, omitted) <= MAX_CHARS:
+            return dict(lines=out, omitted=omitted)
+        reserve = min(OMIT_GROUPS, max(reserve + 1, len(omitted)))
+    kept, rest = pack(rows, today, scores, MAX_LINES - OMIT_GROUPS, MAX_CHARS - OMIT_CHARS)
+    return dict(lines=[row["line"] for row in sorted(kept, key=listing)],
+                omitted=groups([entry for row in rest for entry in row["entries"]] + old_entries))
 
 
 def expand(entries: list[dict], group: str) -> list[dict]:

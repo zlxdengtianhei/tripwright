@@ -107,6 +107,8 @@ def test_a_600_entry_repository_fits_the_budget_and_counts_the_rest_per_kind_and
     assert result["omitted"] and all(set(group) == {"list", "n"} and group["n"] > 0 for group in result["omitted"])
     listed = {line.split("|")[0] for line in result["lines"]}
     assert len(entries) - len(listed) == sum(group["n"] for group in result["omitted"])  # nothing is lost: listed or counted
+    counts = classes_listed(result["lines"])  # D-07: no class is squeezed out by another
+    assert all(counts.get(name, 0) >= 10 for name in ("place", "said", "check", "web", "lookup")), counts
 
 
 def test_over_the_budget_the_places_and_the_plan_and_bookings_of_the_two_days_around_today_are_listed_first():
@@ -120,45 +122,66 @@ def test_over_the_budget_the_places_and_the_plan_and_bookings_of_the_two_days_ar
     assert [i for i in far if i not in listed]  # the budget did leave out plan entries of other days
 
 
-def test_a_tight_budget_keeps_the_best_match_and_then_the_newest_among_the_rest():
-    said = [entry("said", f"E-{i:03d}", f"用户的话 {i}", day="2030-06-01") for i in range(118)]
-    web = [entry("web", "EV-a-weak-old", "甲", day="2030-06-01"), entry("web", "EV-b-weak-new", "乙", day="2030-06-09"),
-           entry("web", "EV-c-strong-old", "丙", day="2030-06-01")]
-    filler = [entry("check", f"C-{i:02d}", f"待核的事 {i} 各不相同", day="2030-05-01") for i in range(30)]
-    scores = {("web", "EV-c-strong-old"): 4.0, ("web", "EV-a-weak-old"): 1.0, ("web", "EV-b-weak-new"): 1.0}
-    assert len(said) + len(web) + len(filler) > catalog.MAX_LINES
-    assert catalog.MAX_LINES - catalog.OMIT_GROUPS - len(said) == 2  # room for two of the rest
-    result = build([*filler, *web, *said], scores=scores)
+def classes_listed(lines):
+    out = {}
+    for line in lines:
+        kind = line.split("|")[1]
+        name = "said" if kind in catalog.SAID_KINDS else kind
+        out[name] = out.get(name, 0) + 1
+    return out
+
+
+def test_the_room_left_after_the_near_plan_is_shared_equally_by_the_classes_best_match_first():
+    near = [entry("plan", f"2030-06-10/b{i:02d}", f"2030-06-10 {i:02d}:00 计划块", day="2030-06-10") for i in range(20)]
+    others = [entry(kind, f"{kind}-{i:03d}", f"{kind} 条目 {i:03d} 各不相同", day=f"2030-06-{1 + i % 9:02d}")
+              for kind in ("place", "item", "check", "web", "lookup") for i in range(100)]
+    scores = {("web", "web-050"): 5.0, ("web", "web-051"): 4.0}
+    result = build([*near, *others], scores=scores)
     listed = {line.split("|")[0] for line in result["lines"]}
-    assert {f"E-{i:03d}" for i in range(118)} <= listed  # what the user said is packed first
-    assert {"EV-c-strong-old", "EV-b-weak-new"} <= listed and "EV-a-weak-old" not in listed
-    assert not [i for i in listed if i.startswith("C-")]
-    assert {group["list"]: group["n"] for group in result["omitted"]} == {"check 05-01": 30, "web 06-01": 1}
+    assert {e["id"] for e in near} <= listed
+    counts = classes_listed(result["lines"])
+    floor = (catalog.MAX_LINES - 10 - 20) // 5 - 1
+    assert counts.pop("plan") == 20 and set(counts) == {"place", "said", "check", "web", "lookup"}
+    assert all(n >= floor for n in counts.values()), counts  # every class got its floor, none the whole room
+    assert max(counts.values()) - min(counts.values()) <= 1
+    assert {"web-050", "web-051"} <= listed  # inside a class the best match comes first
+    web_days = [e["day"] for e in others if e["id"] in listed and e["found"] == "web" and e["id"] not in ("web-050", "web-051")]
+    assert min(web_days) >= "2030-06-04"  # among equal scores the newest
 
 
-def test_over_the_character_budget_the_plan_near_today_comes_first_then_the_places_then_what_the_user_said():
-    wide = "，内容很长的一句话" * 7  # about 60 characters of text: a row of about 90, so the 9,000-character budget binds first
-    near = [entry("plan", f"2030-06-10/b{i:02d}", f"2030-06-10 {i:02d}:00 {wide}{i}", day="2030-06-10") for i in range(60)]
-    places = [entry("place", f"place-{i:02d}", f"地点{i:02d}：{wide}") for i in range(50)]
-    said = [entry("item", f"I-{i:03d}", f"偏好 {i}：{wide}", day="2030-06-05") for i in range(40)]
-    result = build([*said, *places, *near])
+def test_a_class_with_few_entries_gives_its_unused_share_to_the_rest():
+    near = [entry("plan", f"2030-06-10/b{i:02d}", f"2030-06-10 {i:02d}:00 计划块", day="2030-06-10") for i in range(20)]
+    few = [entry("place", f"place-{i}", f"地点 {i}") for i in range(3)]
+    many = [entry("web", f"web-{i:03d}", f"检查 {i:03d} 各不相同", day="2030-06-01") for i in range(300)]
+    counts = classes_listed(build([*near, *few, *many])["lines"])
+    assert counts["place"] == 3 and counts["web"] > (catalog.MAX_LINES - 10 - 20) // 2  # more than an equal share
+
+
+def test_text_is_cut_shorter_before_rows_are_dropped():
+    entries = [entry("web", f"EV-{i:03d}", f"{i:03d} " + "很长的内容" * 18, day="2030-06-01") for i in range(140)]
+    result = build(entries)
+    assert len(result["lines"]) == 140 and result["omitted"] == []  # all rows fit once the text is cut to 40
+    assert all(line.split("|", 2)[2].endswith("…") and len(line.split("|", 2)[2]) == 41 for line in result["lines"])
+    assert catalog.size(result["lines"], []) <= catalog.MAX_CHARS
+
+
+def test_shortening_stops_when_the_lines_not_the_characters_are_what_limits_the_listing():
+    entries = [entry("web", f"EV-{i:03d}", f"{i:03d} " + "很长的内容" * 18, day="2030-06-01") for i in range(300)]
+    result = build(entries)
+    assert len(result["lines"]) + len(result["omitted"]) <= catalog.MAX_LINES and result["omitted"]
+    texts = [line.split("|", 2)[2] for line in result["lines"]]
+    assert all(len(text) == 41 for text in texts)  # 40 characters and the ellipsis, not 32 or 24: shorter would add no row
+
+
+def test_over_the_character_budget_the_plan_near_today_is_still_listed_whole_before_the_classes():
+    wide = "，内容很长的一句话" * 7
+    near = [entry("plan", f"2030-06-10/b{i:03d}", f"2030-06-10 {i:03d} {wide}", day="2030-06-10") for i in range(120)]
+    others = [entry("item", f"I-{i:03d}", f"偏好 {i}：{wide}", day="2030-06-05") for i in range(60)] + \
+             [entry("web", f"EV-{i:03d}", f"检查 {i}：{wide}", day="2030-06-05") for i in range(60)]
+    result = build([*others, *near])
     listed = {line.split("|")[0] for line in result["lines"]}
-    assert len(result["lines"]) < 120  # the characters, not the lines, ran out
-    assert {entry_["id"] for entry_ in near} <= listed  # the plan of today first
-    assert any(i.startswith("place-") for i in listed) and sum(i.startswith("place-") for i in listed) < 50  # then places, not all
-    assert not any(i.startswith("I-") for i in listed)  # what the user said got no room
-    assert {group["list"] for group in result["omitted"]} >= {"item 06-05", "place"}
-
-
-def test_first_share_keeps_room_for_the_checks_when_the_first_group_alone_would_fill_the_budget():
-    near = [entry("plan", f"2030-06-10/b{i:03d}", f"2030-06-10 {i:03d} 计划块 各不相同", day="2030-06-10") for i in range(200)]
-    web = [entry("web", f"EV-{i:02d}", f"检查 {i:02d} 各不相同", day="2030-06-01") for i in range(20)]
-    as_designed = build([*near, *web], scores={("web", "EV-03"): 3.0})
-    assert not [line for line in as_designed["lines"] if "|web|" in line]  # D-06 as designed: the plan takes it all
-    shared = catalog.build([*near, *web], at=AT, zone=ZONE, scores={("web", "EV-03"): 3.0}, first_share=0.5)
-    rows = [line.split("|")[0] for line in shared["lines"]]
-    assert rows.count("EV-03") == 1 and len([line for line in shared["lines"] if "|plan|" in line]) <= (catalog.MAX_LINES - catalog.OMIT_GROUPS) // 2
-    assert catalog.FIRST_SHARE == 1.0  # the default is the designed order
+    assert {e["id"] for e in near} <= listed  # near plan: all of it, even when it nearly fills the room
+    assert catalog.size(result["lines"], result["omitted"]) <= catalog.MAX_CHARS
 
 
 def test_omitted_is_counted_per_kind_when_there_are_more_groups_than_lines():
