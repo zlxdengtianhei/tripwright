@@ -18,7 +18,7 @@ from tripwright.events import Events
 from tripwright.jobs import Jobs
 from tripwright.ledger import Carry, Changes, Fact, Item, Ledger, PendingCheck, Proposal, Relation
 from tripwright.query import QueryRouter, checked_arguments, lookup_failed
-from tripwright import decide, recall, standing
+from tripwright import catalog, decide, recall, standing
 from tripwright.render import first_part
 from tripwright.render.opening import material as opening_material
 from tripwright.repo import files as repo_files, memory, notices, replay
@@ -298,14 +298,34 @@ CONFLICT_USE = dict(
 AFTER_OPEN = dict(zh="第一条发出去以后照这里做：", en="After the first message is sent: ")
 # Q19 (2026-11-23): the user's repository is the database. `recall` lists what it already holds for this message;
 # what it lacks is looked up, and what is looked up goes back into it.
+# 2026-11-24 (route F, the catalog): `recall.found` is still the lexical six; `recall.catalog` lists every entry as one row so the
+# host picks by meaning what the words missed, and fetches those with `ids`. The text is the host's instruction for it: read the
+# catalog from the top, take only what this message needs (none is allowed: a message that needs nothing from the repository
+# must not pull entries in), fetch before the second message, an expired row says where to look again. Two sentences beyond the
+# designed text say what `+n` and `omitted` are and how `list` opens them (without them a merged row's other members, and the
+# entries the budget left out, cannot be reached by id).
 RECALL_USE = dict(
-    zh="recall 与 opening_material 里“仓里存的”是仓里已有的：没过期的直接用、写出处，不重查。"
-       "仓里找别的用 query(kind='saved', arguments={text: 用户的词加当地语言词})——地名只写中文常对不上仓里的当地拼法；"
+    zh="recall.found 是字面最像的几条全文（opening_material 里“仓里存的”是其中最好的）：没过期的直接用、写出处，不重查。"
+       "recall.catalog 是仓里现有条目的目录，一行一条：id、类别、开头几十个字（短的整条都在；行尾 +n 是开头相同、并在这一行的条数）。"
+       "写回答前把 catalog 从头看一遍，只挑回答这句话真用得上的——票的规则、订了什么、用户以前说过的、以前查过的事——"
+       "即使和用户的说法没有一个词相同；用 query(kind='saved', arguments={ids:[…]}) 一次取回全文和出处，最多 8 条；用不上就一条也不取。"
+       "着急的第一段先用 found 和 catalog 里已经写全的行，取回放在第二段之前。标“过期”的行不能直接用，但说明以前查过、去哪重查。"
+       "catalog.omitted 是装不下、没列出的条数：看哪一组就 query(kind='saved', arguments={list: 那一组的 list 值})，行末带 +n 的行要看并在一起的几条，list 用它的 id。"
+       "catalog 里没有的，就说仓里没存，再去查；用词找用 query(kind='saved', arguments={text: 用户的词加当地语言词})——地名只写中文常对不上仓里的当地拼法。"
        "网上读到、写进回答的事实，一页一次 query(kind='web_evidence') 记进仓。",
-    en="recall and the “In the repository” lines are what the repository already holds: use what has not expired, with its "
-       "source, without looking again. To find more, query(kind='saved', arguments={text: the user's words and the "
-       "local-language words}) — a place named only in Chinese often does not match the local spelling in the repository; "
-       "a fact read on the web that goes into the answer is recorded with query(kind='web_evidence'), once per page.")
+    en="recall.found is the few entries that match the words best, in full (the “In the repository” lines of opening_material are the best "
+       "of them): use what has not expired, with its source, without looking again. recall.catalog lists everything the repository holds, "
+       "one row each: id, kind, the first few dozen characters (a short entry is whole; a trailing +n counts the entries with the same "
+       "beginning merged into the row). Before writing the answer read the catalog from the top and pick only what this message really needs "
+       "— the ticket rules, what is booked, what the user said before, what was looked up before — even when it shares no word with what "
+       "the user wrote; fetch them with one query(kind='saved', arguments={ids:[…]}) for the full text and source, at most 8; fetch none "
+       "when none is needed. In an urgent first message use found and the catalog rows that are already whole; fetch before the second "
+       "message. A row marked expired cannot be used as it stands, but it says something was looked up before and where to look again. "
+       "catalog.omitted counts what did not fit and is not listed: to see a group, query(kind='saved', arguments={list: that group's list "
+       "value}); for a row ending in +n, use its id as list to see the merged entries. What the catalog lacks: say the repository does not "
+       "hold it, then look it up; to search by words use query(kind='saved', arguments={text: the user's words and the local-language "
+       "words}) — a place named only in Chinese often does not match the local spelling in the repository. A fact read on the web that "
+       "goes into the answer is recorded with query(kind='web_evidence'), once per page.")
 AFTER_FIRST = dict(zh="用户回了话、或 researcher 的报告回来之后照这里做，不再调 turn：",
                    en="After the user replies or the researcher's report returns, do this without calling turn again: ")
 # explain(record_id) (S5): the ledger tables a record ID is looked up in, and the fields each adds to the record
@@ -731,7 +751,7 @@ class Tripwright:
             opens = bool(not undo and scenario != "system" and self._reply_flow() == "two")
             opening = opening_material(plan or {}, at, language) if road or opens else None
             recalled = self._recall(owner, plan or None, text, points, at, event_id, language)
-            held = bool(recalled["found"])  # the repository held something for this message (in recall or the opening)
+            held = bool(recalled["found"] or recalled.get("catalog"))  # the repository held something (in recall or the opening)
             decision = (decide.answer(self.store, owner, event_id, receipt["received_at"], aware) if not undo
                         else dict(answered=[], opened=[]))
             decided, opened = decision["answered"], decision["opened"]
@@ -744,7 +764,7 @@ class Tripwright:
                 shown = recall.lines(recalled, language, limit=2, kinds=("place", "plan", "booking", "web", "lookup", "said"))
                 opening = opening + shown
                 # what the opening lines carry is not listed twice
-                recalled = dict(found=[entry for entry in recalled["found"] if entry["id"] not in {line["id"] for line in shown}])
+                recalled = dict(recalled, found=[entry for entry in recalled["found"] if entry["id"] not in {line["id"] for line in shown}])
             second_title = SECOND_TITLES[language] if first or road or opens else None
             context.update(points=packs.point_record(told),
                            frame=dict(scenario=scenario, asks_latest=first_part.asks_latest(text)),
@@ -788,7 +808,7 @@ class Tripwright:
             if opened:
                 lead = ASK_OPEN[language].format(id=opened[0]["id"])
                 response["next"] = whole_sentences(lead + (" " if language == "en" else "") + response["next"], 1100)
-            if recalled["found"]:
+            if recalled["found"] or recalled.get("catalog"):
                 response["recall"] = recalled
             if "after_first_part" in response:
                 use = (RECALL_USE[language] if held else "") + CONFLICT_USE[language]
@@ -934,12 +954,16 @@ class Tripwright:
                                          for point in points or [] if isinstance(point, dict)])
         zone = (plan or {}).get("timezone") or (self.repository.timezone() if self.repository is not None else None)
         found = recall.search(self.store, owner, plan, words, at=aware(at), zone=zone, language=language, limit=RECALL_LIMIT,
-                              exclude_events={event_id}, kind_cap=recall.KIND_CAP, repository=self.repository)
+                              exclude_events={event_id}, kind_cap=recall.KIND_CAP, repository=self.repository, pool=True)
+        # the catalog (catalog.py): a row for every entry the repository holds, so the host can pick by meaning what
+        # the lexical top few missed; computed from the same entries, without this message's own records
+        listed = catalog.build(found["pool"]["entries"], at=aware(at), zone=zone, language=language, scores=found["pool"]["scores"])
         return dict(found=[dict({key: entry[key] for key in ("found", "id", "source", "path", "line", "commit", "snippet",
                                                               "snippet_line", "snippet_exact", "cited_as") if key in entry},
                                 text=recall.short(entry["text"], None, RECALL_TEXT),
                                 **({} if entry["in_force"] else dict(in_force=False)))
-                           for entry in found["found"]])
+                           for entry in found["found"]],
+                    **(dict(catalog=listed) if listed["lines"] or listed["omitted"] else {}))
 
     def _quick_first(self, text: str, scenario: str, clock: dict, anchors: list[dict], plan: dict | None,
                      told: dict | None, *, language: str | None = None) -> dict | None:

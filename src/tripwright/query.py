@@ -206,6 +206,7 @@ REQUIRED = {("transit", None): ("origin", "destination", "when"), ("transit", "s
             ("open_places", None): ("near",)}
 # A web check's time is the service's clock: a time the host writes is refused, not stored.
 LOOKUPS = ("transit", "latest_departure", "weather")  # stored lookups that query(kind="saved") finds again
+SAVED_IDS = 16  # entries one query(kind="saved", arguments={ids}) returns
 HOST_TIMES = ("fetched_at", "checked_at", "recorded_at", "at", "time", "valid_until")
 SHAPES = {"arguments.target": "{block_id or anchor_id, date, fact, optional place_id and draft_id}",
           "arguments.place": "{name, lat, lon}", "arguments.day": "{day, timezone, start, end, candidates}",
@@ -2172,6 +2173,40 @@ class QueryRouter:
 
         found = recall.search(self.store, owner, plan, text, at=clock(), zone=zone, language=language, limit=limit,
                               repository=self.repository)["found"]
+        return self._saved_values(owner, found)
+
+    def _saved_ids(self, owner: str, plan: dict | None, ids: list, *, zone: str | None, language: str) -> tuple[list[dict], dict]:
+        """`query(kind="saved", arguments={ids})`: the entries with these ids, whole, in the shape of a hit of `text`
+        (not ranked, no `why`), at most SAVED_IDS; the response also says which ids the repository does not hold
+        (`unknown`) and which it did not take for the limit (`skipped`)."""
+        from tripwright import recall
+
+        if not isinstance(ids, list) or not all(isinstance(item, str) and item for item in ids):
+            raise ValueError("Invalid query arguments: arguments.ids must be a list of the ids the catalog shows")
+        wanted = list(dict.fromkeys(ids))
+        taken, skipped = wanted[:SAVED_IDS], wanted[SAVED_IDS:]
+        found = recall.fetch(self.store, owner, plan, taken, at=clock(), zone=zone, language=language, repository=self.repository)
+        held = {hit["id"] for hit in found}
+        return self._saved_values(owner, found), dict(unknown=[item for item in taken if item not in held],
+                                                      **(dict(skipped=skipped) if skipped else {}))
+
+    def _saved_list(self, owner: str, plan: dict | None, group: str, *, zone: str | None, language: str) -> tuple[list[dict], dict]:
+        """`query(kind="saved", arguments={list})`: the catalog rows of one group of `catalog.omitted` (`<kind>` or
+        `<kind> <MM-DD>`) or of the entries a `+n` row merged (its id), newest first, at most EXPAND_LIMIT, each as
+        the catalog writes it (id, kind, day, the text whole or cut); `ids` then fetches the ones that are needed."""
+        from tripwright import catalog, recall
+
+        if not isinstance(group, str) or not group.strip():
+            raise ValueError("Invalid query arguments: arguments.list must be a group of catalog.omitted, or the id of a row ending in +n")
+        entries = recall.search(self.store, owner, plan, "", at=clock(), zone=zone, language=language,
+                                repository=self.repository, pool=True)["pool"]["entries"]
+        chosen = catalog.expand(entries, group)
+        rows = [dict(id=entry["id"], found=entry["found"], day=entry.get("day"), in_force=entry["in_force"], text=catalog.shown(entry))
+                for entry in chosen[:catalog.EXPAND_LIMIT]]
+        return rows, dict(list=group, n=len(chosen), **(dict(more=len(chosen) - len(rows)) if len(chosen) > len(rows) else {}))
+
+    def _saved_values(self, owner: str, found: list[dict]) -> list[dict]:
+        """The hits of recall (a search, or `fetch` by id) in the shapes hosts read."""
         values = []
         for hit in found:
             # where the entry is stored: the file, the line of its `id:` and the commit of the working tree it is in;
@@ -2248,6 +2283,7 @@ class QueryRouter:
     async def _query(self, owner: str, kind: str, arguments: dict, plan: dict | None, *, zone: str | None = None,
                      language: str = "zh") -> dict:
         target = arguments.get("target")
+        saved_info: dict = {}  # what `kind="saved"` says besides its values: unknown ids, the group a `list` opened
         if target:
             if plan is None:
                 raise ValueError("A fact target needs a current plan or draft")
@@ -2313,8 +2349,17 @@ class QueryRouter:
                     # checks, earlier lookups and the user's own messages, each with where it came from (recall.py).
                     # Before, every space-separated word had to occur verbatim, so a Chinese phrase or a few words
                     # found nothing (11 of 17 calls in the 11-22 replays) and an empty text returned everything.
-                    values = self._saved(owner, plan, arguments.get("text", ""), zone=self._zone(arguments, plan, zone),
-                                         language=language, limit=min(20, max(1, int(arguments.get("limit", 8)))))
+                    # 2026-11-24 (route F, the catalog in `turn`'s recall): `ids` fetches the entries a catalog row names,
+                    # `list` opens a group of `catalog.omitted` or a `+n` row; `text` is as before
+                    if arguments.get("ids") is not None:
+                        values, saved_info = self._saved_ids(owner, plan, arguments["ids"], zone=self._zone(arguments, plan, zone),
+                                                             language=language)
+                    elif arguments.get("list") is not None:
+                        values, saved_info = self._saved_list(owner, plan, arguments["list"], zone=self._zone(arguments, plan, zone),
+                                                              language=language)
+                    else:
+                        values = self._saved(owner, plan, arguments.get("text", ""), zone=self._zone(arguments, plan, zone),
+                                             language=language, limit=min(20, max(1, int(arguments.get("limit", 8)))))
                 else:
                     latitude, longitude = arguments["lat"], arguments["lon"]
                     values = []
@@ -2400,6 +2445,8 @@ class QueryRouter:
                         evidence=evidence, notice="Only facts explicitly bound to the matching plan object can pass; weather evidence establishes forecast availability, not outdoor safety.")
         if shown:
             response.update(shown)
+        if saved_info:
+            response.update(saved_info)
         if target and not evidence["facts"]:
             response.update(reason="The provider result does not establish this exact planned fact, or is synthetic/stale.",
                             consequence="The planned connection or external condition remains unverified.",

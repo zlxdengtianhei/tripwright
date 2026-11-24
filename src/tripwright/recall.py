@@ -32,6 +32,7 @@ from zoneinfo import ZoneInfo
 import yaml
 
 from tripwright import segments
+from tripwright.catalog import day_of
 
 SHORT = 6  # informative words up to which a question is short (coverage rule) rather than long (best weight)
 COVERAGE = 0.5
@@ -319,24 +320,28 @@ def corpus(store, owner: str, plan: dict | None, *, at: datetime, zone: str | No
     for day in (plan or {}).get("days", []):
         for anchor in day.get("anchors") or []:
             text = " ".join(str(anchor.get(key) or "") for key in ("time", "text", "alternative", "consequence", "app"))
-            add("plan", f"{day['date']}/{anchor['id']}", f"{day['date']} {text}", w["plan"], f"{day['date']} {text} {anchor.get('place') or ''} {anchor.get('destination') or ''}")
+            add("plan", f"{day['date']}/{anchor['id']}", f"{day['date']} {text}", w["plan"], f"{day['date']} {text} {anchor.get('place') or ''} {anchor.get('destination') or ''}",
+                    day=day["date"])
         for option in day.get("plans") or []:
             for track in option.get("tracks") or []:
                 for block in track.get("blocks") or []:
                     text = f"{day['date']} {block.get('start') or ''}–{block.get('end') or ''} {block.get('text') or ''} {block.get('note') or ''}"
-                    add("plan", f"{day['date']}/{block['id']}", text, w["plan"], f"{text} {block.get('place') or ''} {block.get('kind') or ''}")
+                    add("plan", f"{day['date']}/{block['id']}", text, w["plan"], f"{text} {block.get('place') or ''} {block.get('kind') or ''}",
+                        day=day["date"])
         if day.get("notes"):
-            add("plan", f"{day['date']}/notes", f"{day['date']} {day['notes']}", w["plan"], f"{day['date']} {day['notes']}")
+            add("plan", f"{day['date']}/notes", f"{day['date']} {day['notes']}", w["plan"], f"{day['date']} {day['notes']}", day=day["date"])
     for booking in (plan or {}).get("bookings", []):
         text = f"{booking.get('date') or ''} {booking.get('what') or ''} {' '.join(booking.get('where') or [])}"
-        add("booking", booking["id"], f"{text}（{booking.get('status')}）", w["booking"], f"{text} {booking.get('kind') or ''} {booking.get('place') or ''}")
+        add("booking", booking["id"], f"{text}（{booking.get('status')}）", w["booking"], f"{text} {booking.get('kind') or ''} {booking.get('place') or ''}",
+            day=booking.get("date") or None)
 
     taken = set()
     for table_name, found in (("facts", "fact"), ("items", "item"), ("decisions", "decision"), ("pending_checks", "check")):
         for record in store.all(table_name, owner):
             source = record.get("source") or {}
             taken.add(source.get("event"))
-            when = local(said_time(store, owner, source.get("event")), zone) or w["unknown"]
+            said = said_time(store, owner, source.get("event"))
+            when = local(said, zone) or w["unknown"]
             text = record.get("text") or record.get("question") or record.get("title") or record.get("what") or ""
             in_force = record.get("status") in LIVE
             add(found, record["id"], text, w["said"].format(who=w["user"] if source.get("basis") in ("user_explicit", None) else w["someone"], when=when)
@@ -344,7 +349,7 @@ def corpus(store, owner: str, plan: dict | None, *, at: datetime, zone: str | No
                 " ".join(str(record.get(key) or "") for key in ("key", "text", "question", "title", "what"))
                 + (f" {record['quote']}" if record.get("quote") and len(record["quote"]) <= QUOTE_LIMIT else "")
                 + " " + " ".join([*(record.get("names") or []), *(record.get("asks") or [])]),
-                in_force=in_force, status=record.get("status"), event=source.get("event"), **({"key": record["key"]} if record.get("key") else {}))
+                in_force=in_force, status=record.get("status"), event=source.get("event"), day=day_of(said, zone), **({"key": record["key"]} if record.get("key") else {}))
     for record in store.all("evidence", owner):
         expired = bool(record.get("stale")) or bool(record.get("valid_until")) and aware_utc(record["valid_until"]) <= at
         if record.get("kind") == "web":
@@ -355,7 +360,7 @@ def corpus(store, owner: str, plan: dict | None, *, at: datetime, zone: str | No
                 + " " + " ".join([*(record.get("names") or []), *(record.get("asks") or [])]), in_force=not expired,
                 url=record.get("url"), quote=record.get("quote"), counts_as_checked=record.get("counts_as_checked", False),
                 date=record.get("date"), fetched_at=record.get("fetched_at"), valid_until=record.get("valid_until"),
-                expired=expired)
+                expired=expired, day=day_of(record.get("fetched_at"), zone))
         elif record.get("kind") in LOOKUP_KINDS:
             told = record.get("sentences") or []
             question = record.get("question") or {}
@@ -363,20 +368,21 @@ def corpus(store, owner: str, plan: dict | None, *, at: datetime, zone: str | No
             add("lookup", record["id"], text, w["lookup"].format(source=record.get("source"), when=local(record.get("fetched_at"), zone))
                 + (f"；{w['expired']}" if expired else ""), f"{record['kind']} {record.get('date') or ''} {question} {' '.join(told)}",
                 in_force=not expired, kind=record["kind"], date=record.get("date"), fetched_at=record.get("fetched_at"),
-                valid_until=record.get("valid_until"), expired=expired,
+                valid_until=record.get("valid_until"), expired=expired, day=day_of(record.get("fetched_at"), zone),
                 synthetic=bool(record.get("synthetic")) or str(record.get("source", "")).startswith("demo:"))
     for event in store.all("events", owner):
         receipt, received = event.get("receipt") or {}, event.get("received") or {}
         if event["id"] in taken or receipt.get("nature") not in ("user_verbatim", "screenshot_extraction", "voice_transcript", "paste"):
             continue
         text = received.get("text") or receipt.get("received_text") or ""
-        when = local(said_time(store, owner, event["id"]), zone) or w["unknown"]
+        said = said_time(store, owner, event["id"])
+        when = local(said, zone) or w["unknown"]
         if receipt.get("nature") == "screenshot_extraction":
             # Q20: the user could not tell which screenshot a source came from; a transcript now says which one
             origin = shot_origin(receipt.get("native_ref"))
-            add("said", event["id"], text, shot_phrase(origin, language), text, event=event["id"], origin=origin)
+            add("said", event["id"], text, shot_phrase(origin, language), text, event=event["id"], origin=origin, day=day_of(said, zone))
         else:
-            add("said", event["id"], text, w["said"].format(who=w["user"], when=when), text, event=event["id"])
+            add("said", event["id"], text, w["said"].format(who=w["user"], when=when), text, event=event["id"], day=day_of(said, zone))
     return entries
 
 
@@ -446,10 +452,12 @@ def term_forms(term: str, plan: dict | None = None) -> list[str]:
 
 def search(store, owner: str, plan: dict | None, text: str, *, at: datetime, zone: str | None = None, language: str = "zh",
            limit: int = 8, kinds: tuple[str, ...] | None = None, exclude_events: set[str] | None = None,
-           kind_cap: int | None = None, repository=None) -> dict:
+           kind_cap: int | None = None, repository=None, pool: bool = False) -> dict:
     """The entries that best answer `text`, best first: {found: [...], terms, rule}. Empty text: nothing (say what to
     look for). `exclude_events`: messages whose own records are left out (a turn's own message: what it recorded is
-    not something the repository already held).
+    not something the repository already held). `pool`: the result also carries `pool`, {entries, scores}: every
+    entry the search could return (those `exclude_events` leaves out are not in it) and each one's score for the
+    text, for the catalog (catalog.py); it is not part of the answer a host reads.
 
     A short question (up to SHORT informative terms) keeps entries covering half of it, or naming one of its travel
     words or general place names; a long one (a whole message) keeps the best by weight, at least LONG_SHARE of the
@@ -462,15 +470,54 @@ def search(store, owner: str, plan: dict | None, text: str, *, at: datetime, zon
         from tripwright import recall_index
 
         return recall_index.search(repository, store, owner, plan, text, at=at, zone=zone, language=language,
-                                   limit=limit, kinds=kinds, exclude_events=exclude_events, kind_cap=kind_cap)
+                                   limit=limit, kinds=kinds, exclude_events=exclude_events, kind_cap=kind_cap, pool=pool)
     entries = [entry for entry in corpus(store, owner, plan, at=at, zone=zone, language=language)
                if (not kinds or entry["found"] in kinds) and not (exclude_events and entry.get("event") in exclude_events)]
     query = query_terms(text, plan, at=at, zone=zone)
     if not query:
-        return dict(found=[], terms=[], rule="empty")
+        return dict(found=[], terms=[], rule="empty", **(dict(pool=dict(entries=entries, scores={})) if pool else {}))
     for entry in entries:
         entry["terms"] = entry_terms(entry, plan, zone=zone)
-    return rank(entries, query, plan=plan, at=at, zone=zone, language=language, limit=limit, kind_cap=kind_cap)
+    result = rank(entries, query, plan=plan, at=at, zone=zone, language=language, limit=limit, kind_cap=kind_cap)
+    if pool:
+        result["pool"] = dict(entries=entries, scores=scores_of(entries, query, plan=plan, at=at, zone=zone, language=language))
+    return result
+
+
+def fetch(store, owner: str, plan: dict | None, ids: list[str], *, at: datetime, zone: str | None = None,
+          language: str = "zh", repository=None) -> list[dict]:
+    """The entries with these ids, in the order asked, shaped like the hits of `search` (the whole text, `why` empty,
+    no score) and, through the repository's index, with the file, line and commit each is stored in and the line of
+    that file the record's words fall on. An id the repository does not hold is left out; the caller names it."""
+    if repository is not None:
+        from tripwright import recall_index
+
+        return recall_index.fetch(repository, store, owner, plan, ids, at=at, zone=zone, language=language)
+    entries = corpus(store, owner, plan, at=at, zone=zone, language=language)
+    return [fetched(entry) for entry in ordered(entries, ids)]
+
+
+def ordered(entries: list[dict], ids: list[str]) -> list[dict]:
+    """The entries whose id is in `ids`, grouped by id in the order asked (an id that two kinds share gives both)."""
+    return [entry for wanted in dict.fromkeys(ids) for entry in entries if entry["id"] == wanted]
+
+
+def fetched(entry: dict) -> dict:
+    """An entry as `fetch` returns it: no working fields, the whole text (to FULL_TEXT characters), no ranking."""
+    from tripwright import catalog
+
+    shown = {key: value for key, value in entry.items() if key not in ("haystack", "terms", "passage", "passage_line", "origin", "day")}
+    shown["text"] = re.sub(r"\s+", " ", str(entry.get("text") or "")).strip()[:catalog.FULL_TEXT]
+    shown["why"] = []
+    return shown
+
+
+def scores_of(entries: list[dict], query: set[str], *, total: int | None = None, frequency: dict[str, int] | None = None,
+              widen: bool = False, **kwargs) -> dict:
+    """How well each entry matches the query, {(kind, id): score}: `rank` over all of them. An entry the ranking
+    rules leave out has no score (the catalog counts it as 0)."""
+    ranked = rank(entries, query, limit=len(entries) + 1, total=total, frequency=frequency, widen=widen, **kwargs)
+    return {(hit["found"], hit["id"]): hit["score"] for hit in ranked["found"]}
 
 
 def rank(entries: list[dict], query: set[str], *, plan: dict | None, at: datetime, zone: str | None, language: str = "zh",
@@ -528,7 +575,7 @@ def rank(entries: list[dict], query: set[str], *, plan: dict | None, at: datetim
     for score, entry, matched in kept[:limit]:
         # `passage`, `passage_line` and `origin` are the index's working copies for cutting the snippet; the hit
         # carries the result (`snippet`, `snippet_line`, `cited_as`) instead
-        shown = {key: value for key, value in entry.items() if key not in ("haystack", "terms", "passage", "passage_line", "origin")}
+        shown = {key: value for key, value in entry.items() if key not in ("haystack", "terms", "passage", "passage_line", "origin", "day")}
         shown["text"] = short(entry["text"], matched)
         shown["why"] = sorted(term.removeprefix("§") for term in matched)[:6]
         shown["score"] = round(score, 2)
