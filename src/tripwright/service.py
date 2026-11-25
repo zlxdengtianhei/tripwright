@@ -314,7 +314,11 @@ RECALL_USE = dict(
        "着急的第一段先用 found 和 catalog 里已经写全的行，取回放在第二段之前。标“过期”的行不能直接用，但说明以前查过、去哪重查。"
        "catalog.omitted 是装不下、没列出的条数：看哪一组就 query(kind='saved', arguments={list: 那一组的 list 值，条数多时加 offset 翻页})；点行末带 +n 的行（用 ids 取它的 id）会连同并在一起的几条一起取回，随行的成员在回执里标 via_row。"
        "catalog 里没有的，就说仓里没存，再去查；用词找用 query(kind='saved', arguments={text: 用户的词加当地语言词})——地名只写中文常对不上仓里的当地拼法。"
-       "网上读到、写进回答的事实，一页一次 query(kind='web_evidence') 记进仓。",
+       "网上读到、写进回答的事实，一页一次 query(kind='web_evidence') 记进仓。"
+       # 2026-11-25 (W1, D-16): the four cases for a point the repository may not hold; the text is the measured one (cmp2_20261125-0226)
+       "仓里没有怎么办：每个要答的点，取回之前先判它是哪一种。①仓里有、没过期：用它，写出处。②仓里有、标了过期：按那一行说的地方重查。"
+       "③仓里没有，而这是公开能查到的事（营业时间、票价、规则、活动、交通、景点）：说仓里没存，用你自己的网页搜索查，搜当地语言的关键词加城市名，官方页优先，最多 3 页；"
+       "读到要写进回答的，一页一次 query(kind='web_evidence') 记进仓，asks 写用户这句原话。④仓里没有，而这事只有用户自己知道（订了什么、偏好、以前说过什么）：说仓里没存，问用户，不上网。",
     en="recall.found is the few entries that match the words best, in full (the “In the repository” lines of opening_material are the best "
        "of them): use what has not expired, with its source, without looking again. recall.catalog lists everything the repository holds, "
        "one row each: id, kind, the first few dozen characters (a short entry is whole; a trailing +n counts the entries with the same "
@@ -328,7 +332,13 @@ RECALL_USE = dict(
        "the answer. What the catalog lacks: say the repository does not "
        "hold it, then look it up; to search by words use query(kind='saved', arguments={text: the user's words and the local-language "
        "words}) — a place named only in Chinese often does not match the local spelling in the repository. A fact read on the web that "
-       "goes into the answer is recorded with query(kind='web_evidence'), once per page.")
+       "goes into the answer is recorded with query(kind='web_evidence'), once per page. "
+       "When the repository lacks it: for each point to answer, decide which case it is before fetching. (1) In the repository and not expired: "
+       "use it, with its source. (2) In the repository but marked expired: look again where that row says. (3) Not in the repository, and a public "
+       "fact (opening hours, prices, rules, events, transport, sights): say the repository does not hold it and look it up with your own web search "
+       "— local-language keywords plus the city, official pages first, at most 3 pages; record each page that goes into the answer once with "
+       "query(kind='web_evidence'), with the user's own words as asks. (4) Not in the repository, and only the user knows it (what was booked, "
+       "preferences, what they said before): say the repository does not hold it and ask the user; do not search the web.")
 RECALL_POINTER = dict(zh="仓里已有的东西见 recall：先读 recall.use。", en="What the repository already holds is in recall: read recall.use first. ")
 AFTER_FIRST = dict(zh="用户回了话、或 researcher 的报告回来之后照这里做，不再调 turn：",
                    en="After the user replies or the researcher's report returns, do this without calling turn again: ")
