@@ -302,6 +302,58 @@ def test_ids_return_the_entries_whole_with_their_source_in_the_shape_of_a_hit(se
     assert result["unknown"] == ["no-such-id"]
 
 
+def test_an_id_the_repository_lacks_is_read_as_the_one_id_it_is_the_tail_of_and_the_answer_says_so(service, plan, monkeypatch):
+    """A host (Haiku, 2026-11-25) writes `b1031-to-hbf` for `2026-10-31/b1031-to-hbf`: 13 short ids over 3 rounds, each the
+    tail of exactly one id. Now such an id is taken as that id, and `resolved` says which."""
+    seeded(service, plan, monkeypatch)
+    result = saved(service, ids=["d1-art", "oslo-park", "2030-06-10/d1-dinner"])
+    assert [value["id"] for value in result["evidence"]["value"]] == ["2030-06-10/d1-art", "oslo-park", "2030-06-10/d1-dinner"]
+    assert result["resolved"] == {"d1-art": "2030-06-10/d1-art"} and result["unknown"] == []
+
+
+def test_a_short_id_is_one_entry_even_when_asked_twice_or_with_its_full_id(service, plan, monkeypatch):
+    seeded(service, plan, monkeypatch)
+    result = saved(service, ids=["d1-art", "2030-06-10/d1-art"])
+    assert [value["id"] for value in result["evidence"]["value"]] == ["2030-06-10/d1-art"]
+    assert result["resolved"] == {"d1-art": "2030-06-10/d1-art"} and result["unknown"] == []
+
+
+def test_a_short_id_that_ends_two_ids_stays_unknown(service, plan, monkeypatch):
+    seeded(service, plan, monkeypatch)
+    twin = dict(next(place for place in plan["places"] if place["id"] == "oslo-art"), id="2030-06-11/d1-art")
+    plan["places"].append(twin)
+    draft = service.propose("alice", ctx_id=service.turn("alice", "加一个地点", "twin")["ctx_id"], base_version=1, plan=plan, idempotency_key="twin")
+    service.commit("alice", draft["draft_id"], "twin", accept_unverified=True)
+    result = saved(service, ids=["d1-art", "d1-coffee"])
+    assert [value["id"] for value in result["evidence"]["value"]] == ["2030-06-10/d1-coffee"]
+    assert result["unknown"] == ["d1-art"] and result["resolved"] == {"d1-coffee": "2030-06-10/d1-coffee"}
+
+
+def test_only_the_part_after_a_slash_is_matched_nothing_else_is_guessed(service, plan, monkeypatch):
+    seeded(service, plan, monkeypatch)
+    result = saved(service, ids=["d1-ar", "1-art", "D1-ART", "06-10/d1-art", "2030-06-10", "/d1-art"])
+    # a prefix, an inner cut, another case, a tail that does not start after a "/", a day alone: none is taken
+    assert result["unknown"] == ["d1-ar", "1-art", "D1-ART", "06-10/d1-art", "2030-06-10", "/d1-art"]
+    assert "resolved" not in result and result["evidence"]["value"] == []
+
+
+def test_the_ids_that_are_there_need_no_search_and_say_nothing_of_resolving(service, plan, monkeypatch):
+    seeded(service, plan, monkeypatch)
+    result = saved(service, ids=["2030-06-10/d1-art", "oslo-art", "no-such-id"])
+    assert "resolved" not in result and result["unknown"] == ["no-such-id"]
+
+
+def test_a_short_id_counts_toward_the_limit_like_the_full_one(service, plan, monkeypatch):
+    seeded(service, plan, monkeypatch)
+    made = [web(service, url=f"https://example.org/s{n}", quote=f"q{n}", claim=f"第 {n} 条检查的内容", type="price")["evidence"]["id"]
+            for n in range(17)]
+    inside = saved(service, ids=[*made[:15], "d1-art"])
+    assert len(inside["evidence"]["value"]) == 16 and inside["evidence"]["value"][-1]["id"] == "2030-06-10/d1-art"
+    assert inside["resolved"] == {"d1-art": "2030-06-10/d1-art"} and "skipped" not in inside
+    beyond = saved(service, ids=[*made[:16], "d1-art"])  # past the 16 taken: skipped under the name asked, not looked up
+    assert len(beyond["evidence"]["value"]) == 16 and beyond["skipped"] == ["d1-art"] and "resolved" not in beyond
+
+
 def test_ids_are_not_ranked_and_at_most_sixteen_are_taken(service, plan, monkeypatch):
     seeded(service, plan, monkeypatch)
     made = [web(service, url=f"https://example.org/p{n}", quote=f"q{n}", claim=f"第 {n} 条检查的内容", type="price")["evidence"]["id"]

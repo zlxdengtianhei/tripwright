@@ -2178,7 +2178,9 @@ class QueryRouter:
     def _saved_ids(self, owner: str, plan: dict | None, ids: list, *, zone: str | None, language: str) -> tuple[list[dict], dict]:
         """`query(kind="saved", arguments={ids})`: the entries with these ids, whole, in the shape of a hit of `text`
         (not ranked, no `why`), at most SAVED_IDS; the response also says which ids the repository does not hold
-        (`unknown`) and which it did not take for the limit (`skipped`)."""
+        (`unknown`) and which it did not take for the limit (`skipped`). An id the repository does not hold but that is
+        the part after the "/" of exactly one id it does (`b1031-to-hbf` for `2026-10-31/b1031-to-hbf`) is read as that
+        id, and `resolved` says so ({the id asked: the id taken})."""
         from tripwright import recall
 
         if not isinstance(ids, list) or not all(isinstance(item, str) and item for item in ids):
@@ -2187,10 +2189,26 @@ class QueryRouter:
         taken, skipped = wanted[:SAVED_IDS], wanted[SAVED_IDS:]
         found = recall.fetch(self.store, owner, plan, taken, at=clock(), zone=zone, language=language, repository=self.repository)
         held = {hit["id"] for hit in found}
+        resolved: dict[str, str] = {}
+        if any(item not in held for item in taken):
+            # A host that writes `b1031-to-hbf` for `2026-10-31/b1031-to-hbf` (a plan entry's id carries its day; measured
+            # 2026-11-25 with Haiku playing the host: 13 short ids over 3 rounds, each the tail of exactly one id): an id the repository
+            # does not hold is taken as the one id that ends with "/" and it. No other fuzzy match; none or several: unknown.
+            stored = {entry["id"] for entry in recall.search(self.store, owner, plan, "", at=clock(), zone=zone, language=language,
+                                                             repository=self.repository, pool=True)["pool"]["entries"]}
+            for item in taken:
+                tails = sorted(other for other in stored if other.endswith("/" + item)) if item not in held else []
+                if len(tails) == 1:
+                    resolved[item] = tails[0]
+            if resolved:
+                taken = list(dict.fromkeys(resolved.get(item, item) for item in taken))
+                found = recall.fetch(self.store, owner, plan, taken, at=clock(), zone=zone, language=language, repository=self.repository)
+                held = {hit["id"] for hit in found}
         # a row ending +n comes with the entries merged into it (`via_row` names the row); the limit counts them too
         skipped += [hit["id"] for hit in found[SAVED_IDS:]]
         found = found[:SAVED_IDS]
         return self._saved_values(owner, found), dict(unknown=[item for item in taken if item not in held],
+                                                      **(dict(resolved=resolved) if resolved else {}),
                                                       **(dict(skipped=skipped) if skipped else {}))
 
     def _saved_list(self, owner: str, plan: dict | None, group: str, *, zone: str | None, language: str,
