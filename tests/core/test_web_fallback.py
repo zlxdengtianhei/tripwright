@@ -1,4 +1,4 @@
-"""D-16 (2026-11-25): what the host does with a point the repository does not hold.
+"""2026-11-25: what the host does with a point the repository does not hold.
 
 Before: `recall.use` said "say the repository does not hold it, then look it up" and nothing more, so a host that found nothing
 in the repository mostly answered from memory or never searched. After: `recall.use` ends with four cases (in the repository and

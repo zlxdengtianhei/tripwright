@@ -315,7 +315,7 @@ RECALL_USE = dict(
        "catalog.omitted 是装不下、没列出的条数：看哪一组就 query(kind='saved', arguments={list: 那一组的 list 值，条数多时加 offset 翻页})；点行末带 +n 的行（用 ids 取它的 id）会连同并在一起的几条一起取回，随行的成员在回执里标 via_row。"
        "catalog 里没有的，就说仓里没存，再去查；用词找用 query(kind='saved', arguments={text: 用户的词加当地语言词})——地名只写中文常对不上仓里的当地拼法。"
        "网上读到、写进回答的事实，一页一次 query(kind='web_evidence') 记进仓。"
-       # 2026-11-25 (W1, D-16): the four cases for a point the repository may not hold; the text is the measured one (cmp2_20261125-0226)
+       # 2026-11-25: the four cases for a point the repository may not hold; this wording is the one measured with simulated hosts
        "仓里没有怎么办：每个要答的点，取回之前先判它是哪一种。①仓里有、没过期：用它，写出处。②仓里有、标了过期：按那一行说的地方重查。"
        "③仓里没有，而这是公开能查到的事（营业时间、票价、规则、活动、交通、景点）：说仓里没存，用你自己的网页搜索查，搜当地语言的关键词加城市名，官方页优先，最多 3 页；"
        "读到要写进回答的，一页一次 query(kind='web_evidence') 记进仓，asks 写用户这句原话。④仓里没有，而这事只有用户自己知道（订了什么、偏好、以前说过什么）：说仓里没存，问用户，不上网。",

@@ -2192,7 +2192,7 @@ class QueryRouter:
         resolved: dict[str, str] = {}
         if any(item not in held for item in taken):
             # A host that writes `b1031-to-hbf` for `2026-10-31/b1031-to-hbf` (a plan entry's id carries its day; measured
-            # 2026-11-25, Haiku as host: 13 short ids over 3 rounds, each the tail of exactly one id): an id the repository
+            # 2026-11-25 with Haiku playing the host: 13 short ids over 3 rounds, each the tail of exactly one id): an id the repository
             # does not hold is taken as the one id that ends with "/" and it. No other fuzzy match; none or several: unknown.
             stored = {entry["id"] for entry in recall.search(self.store, owner, plan, "", at=clock(), zone=zone, language=language,
                                                              repository=self.repository, pool=True)["pool"]["entries"]}
