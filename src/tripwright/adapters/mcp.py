@@ -68,9 +68,10 @@ BlocksArgument = Annotated[Any, WithJsonSchema({"type": ["array", "null"], "desc
     "applied after days."), "items": {"type": "object", "properties": {"id": {"type": "string"}, "delete": {"type": "boolean"}}}})]
 # "undo" (analysis 5.13, 2026-11-13); the propose description has no room left for it
 RestoreArgument = Annotated[int | None, WithJsonSchema({"type": ["integer", "null"], "description": (
-    "The host's own way to take a change back (turn does an undo itself when the user says so): the version number whose "
-    "whole plan becomes the draft, with everything the turns after it recorded taken back. Send no plan or patches with "
-    "it; nothing holds it, the change log says which version was restored.")})]
+    "Go back to this version (2026-11-28: you decide which one the user means, from turn's `versions` and the conversation; "
+    "the service does not read their words): with ctx_id it saves in this one call, no commit, and returns undo.say. "
+    "The version's whole plan becomes the plan, and everything the turns after it recorded is taken back; entries only an "
+    "earlier undo took back, which that version had, come back. Send no plan or patches with it.")})]
 UsageArguments = Annotated[Any, WithJsonSchema({
     "type": "array", "items": {
         "type": "object", "additionalProperties": False, "required": ["item_id", "status"],

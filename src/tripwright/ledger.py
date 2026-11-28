@@ -288,6 +288,13 @@ class Withdrawal(Model):
     filled_by: SkipJsonSchema[Literal["service"] | None] = None  # set by propose(restore_version) only, never by a host
 
 
+class Reinstatement(Model):
+    """A record put back in force by the service when an undo goes forward again to a version that had it (2026-11-28):
+    it had been taken back only by an earlier undo (`withdrawn.by` is `service`)."""
+    id: str
+    reason: str = Field(min_length=1)
+
+
 def record_values(table: str, record: dict) -> list[tuple[str, Any]]:
     """The values a withdrawal's words may name to point at this record: a decision's locked values and its choice; an
     item's value and the times its own words state."""
@@ -356,6 +363,7 @@ class Changes(Model):
         "drop it (撤、取消、删、去掉、remove, cancel, drop…) and give its value (19:00); anything else is refused with how "
         "to ask. propose(restore_version=N) fills it in itself for a decision the undone turns locked that the restored "
         "plan changes."))
+    reinstate: SkipJsonSchema[list[Reinstatement]] = Field(default_factory=list)  # set by propose(restore_version) only, never by a host
     revisions: list[Revision] = Field(default_factory=list, description=(
         "The plan changes what the user decided earlier but did not mark a must: one {decision, reason} per such decision. "
         "A plan that changes it without one is refused; the change log shows the reason (D-53)."))
@@ -1253,9 +1261,25 @@ class Ledger:
             if received.get("nature") not in USER_NATURES or received.get("speaker") not in people:
                 raise ValueError(f"withdraw: {entry.id} is the user's; only the user's own message (turn with the speaker) takes it back")
             self._user_says_withdraw(owner, table, record, answered, received.get("text") or "")
-        record.update(status="superseded", withdrawn=dict(event=answered, reason=entry.reason))
+        record.update(status="superseded", withdrawn=dict(event=answered, reason=entry.reason,
+                                                          **({"by": "service"} if entry.filled_by == "service" else {})))
         self.store.put(table, owner, record)
         self._audit(owner, answered or record["source"]["event"], "withdraw", entry.id, {"reason": entry.reason})
+        return dict(id=entry.id, reason=entry.reason)
+
+    def _reinstate(self, owner: str, entry: Reinstatement, answered: str | None) -> dict:
+        """Put back in force a record the service took back with an undo (`withdrawn.by` is `service`), because the version
+        an undo now goes back to had it (2026-11-28). A record anyone else took back is refused: it stays out."""
+        table = next((name for name in ("decisions", "items", "facts") if any(record["id"] == entry.id for record in self.store.all(name, owner))), None)
+        if table is None:
+            raise ValueError(f"reinstate: no item, decision or fact {entry.id!r}")
+        record = self.store.get(table, owner, entry.id)
+        if record.get("status") != "superseded" or (record.get("withdrawn") or {}).get("by") != "service":
+            raise ValueError(f"reinstate: {entry.id} was not taken back by the service's undo")
+        record = {key: value for key, value in record.items() if key != "withdrawn"}
+        record.update(status="active", reinstated=dict(event=answered, reason=entry.reason))
+        self.store.put(table, owner, record)
+        self._audit(owner, answered or record["source"]["event"], "reinstate", entry.id, {"reason": entry.reason})
         return dict(id=entry.id, reason=entry.reason)
 
     def apply(self, owner: str, changes: Changes | dict, *, answered: str | None = None, at: str | None = None,
@@ -1271,6 +1295,9 @@ class Ledger:
         with self.store.transaction():
             for entry in changes.withdraw:
                 operations["withdrawn"].append(self._withdraw(owner, entry, answered))
+                changed.append(entry.id)
+            for entry in changes.reinstate:
+                self._reinstate(owner, entry, answered)
                 changed.append(entry.id)
             contradictory = set()
             pairs = []

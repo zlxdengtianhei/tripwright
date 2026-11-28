@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model
 
-from tripwright import agents, consider, packs
+from tripwright import agents, consider, packs, version_brief
 from tripwright import locks as lock_paths
 from tripwright.flow import FULL, PLANNING, SHORT_ROAD, Flow
 from tripwright.checks import check_plan, departure_clock
@@ -135,17 +135,17 @@ def save_options(asks: bool, n: int, base: int, language: str) -> list[dict]:
 # In the proactive save mode (the user's save_mode setting, or the default without one) nothing waits for the
 # user: propose names the same facts as tell_user, and the answer says how to get the previous version back.
 TELL_USER = dict(zh="这次改动新带来 {n} 条没核的事实；现在是主动模式，不等回话：commit(draft_id, accept_unverified=true) 存下，"
-                    "回答里说改了什么、哪几条没核、各自的后果与备选，末尾原样带上 commit 返回的 tell_user.say（用户回“撤回”时，服务在 turn 里直接回到上一版）。",
+                    "回答里说改了什么、哪几条没核、各自的后果与备选，末尾原样带上 commit 返回的 tell_user.say（用户回“撤回”或想退回时，看 turn 给的 versions 定退到哪一版）。",
                  en="This change brings in {n} unverified fact(s); the save mode is proactive, so nothing waits for the user: "
                     "commit(draft_id, accept_unverified=true), then tell the user what changed, which facts are unknown, what "
-                    "follows from each and the alternative, and end with the tell_user.say commit returns, as it is (on “undo”, "
-                    "the service goes back to the previous version in turn).")
+                    "follows from each and the alternative, and end with the tell_user.say commit returns, as it is (when the user wants "
+                    "to go back, read turn's versions and decide which one).")
 # The sentence a proactive answer ends with (2026-11-13: GPT-6 Luna saved in the same turn 2 times in 2 and named the
 # unverified fact, but said nothing about undoing it).
 # No version number (D-22, 2026-11-14): before the commit the number is not known for certain (a host that commits the
 # message's requirements first makes another version; GLM said “我恢复到第 5 版” when the undo went back to 3). The exact
 # number is only in the commit receipt's tell_user.say.
-UNDO_SAY = dict(zh="不想要这次改动，回“撤回”，我恢复上一版。", en="If you don't want this change, reply “undo” and I'll restore the previous version.")
+UNDO_SAY = dict(zh="不想要这次改动，回“撤回”，我帮你退回去。", en="If you don't want this change, reply “undo” and I'll take it back.")
 # The sentence every plan change saved in the proactive mode ends with (the user, 2026-11-14: "第一轮回复完后可以提示：
 # 当前在主动模式，现在开始更新页面；如果想撤回可以直接回复'撤回'"). commit returns it, so it does not rest on the model
 # remembering it; `page` when a public page is connected (it is rebuilt in the background), `plain` otherwise.
@@ -157,36 +157,29 @@ PROACTIVE_SAY = dict(zh=dict(page="当前是主动模式：改动已存，现在
 # (the user, 2026-11-14: "用户回复撤回后，再告诉他我们有谨慎模式可选，建议他考虑谨慎模式"; once, not on every undo).
 RESTORED_SAY = dict(zh=dict(page="已撤回：计划回到第 {restored} 版，页面也在更新。", plain="已撤回：计划回到第 {restored} 版。",
                             taken="随撤回一起撤掉：{what}。", join="；",
-                            keep="其中哪条要留，再说一次就行。",
+                            keep="其中哪条要留，再说一次就行。", back="随回到这一版恢复：{what}。",
                             tickets="这些票和预订也随撤回撤了：{what}；票本身要你自己去退或留。",
                             still="你之前定的「{what}」仍然有效，和现在的计划不一致；要不要改，你说。",
                             offer="另外我们有谨慎模式：改计划前先把改动给你看，你同意了再存。建议考虑；想用就回“以后先问我”。"),
                     en=dict(page="Undone: the plan is back to version {restored}, and the page is being updated.",
                             plain="Undone: the plan is back to version {restored}.",
                             taken="Taken back with it: {what}.", join="; ",
-                            keep="If you want to keep one of them, say it again.",
+                            keep="If you want to keep one of them, say it again.", back="Back in force with this version: {what}.",
                             tickets="These bookings went with the undo: {what}; the tickets themselves are yours to cancel or keep.",
                             still="What you decided earlier, “{what}”, still stands and does not match the plan now; tell me if you want it changed.",
                             offer="We also have a cautious mode: I show you a change first and save it only after you agree. "
                                   "Worth considering; to switch, reply “ask me first from now on”."))
 SAY_HOW = dict(zh="回答末尾原样带上 say。", en="End the answer with say as it is.")
-# A message that only takes the last change back (“撤回”, “undo”): the service restores it in the same turn, so the
-# agent neither works out the version nor calls propose and commit (round 4, 2.1).
-UNDO_WORDS = re.compile(r"^\s*(?:撤回|撤销|改回去|恢复上一版|不要这次改动|undo|revert|change it back|undo (?:that|it|the change))"
-                        r"[\s。．.!！~～吧了啊呀，,]*$", re.IGNORECASE)
-UNDO_NEXT = dict(zh=dict(taken="撤回已经做好了（服务在 turn 里回到第 {number} 版，那几轮记下的条目随撤回撤掉）：不要再调 propose 或 commit，"
-                              "照 undo.say 原样告诉用户，说回到第几版、撤掉了哪几条；用户说哪条要留，再记一次。",
-                         plain="撤回已经做好了（服务在 turn 里回到第 {number} 版，没有条目要撤）：不要再调 propose 或 commit，"
-                               "照 undo.say 原样告诉用户，说回到第几版。"),
-                 en=dict(taken="The undo is done (the service went back to version {number} in this turn, and the entries those turns "
-                              "recorded went with it): do not call propose or commit; tell the user as undo.say says, naming the version "
-                              "and what was taken back. When the user says which to keep, record it again.",
-                         plain="The undo is done (the service went back to version {number} in this turn; no entries were taken back): "
-                               "do not call propose or commit; tell the user as undo.say says, naming the version."))
-# The reminder a turn that is itself an undo carries: the service has done the work, so the planning line (which asks for a
-# record, a verifier and a commit) would contradict this response's `next` (round 4 review).
-UNDO_LINE = dict(zh="撤回：服务已经在 turn 里做完，照 undo.say 原样回答，不要再 propose 或 commit。",
-                 en="Undo: the service did it in this turn; answer as undo.say says and do not propose or commit again.")
+# What `propose(ctx_id, restore_version=N)` tells the host to do next: the version is saved already (2026-11-28: the host
+# decides which version the user wants back; the service only does it, in this one call).
+RESTORE_NEXT = dict(zh=dict(taken="撤回已经做好了（服务已回到第 {number} 版，那几轮记下的条目随撤回撤掉）：不要再 commit，"
+                                  "照 undo.say 原样告诉用户，说回到第几版、撤掉了哪几条；用户说哪条要留，再记一次。",
+                            plain="撤回已经做好了（服务已回到第 {number} 版，没有条目要撤）：不要再 commit，照 undo.say 原样告诉用户，说回到第几版。"),
+                    en=dict(taken="The undo is done (the service is back at version {number}, and the entries those turns recorded went "
+                                  "with it): do not commit; tell the user as undo.say says, naming the version and what was taken back. "
+                                  "When the user says which to keep, record it again.",
+                            plain="The undo is done (the service is back at version {number}; no entries were taken back): do not commit; "
+                                  "tell the user as undo.say says, naming the version."))
 # What the main agent does once the verifier's report is recorded (analysis 5.14): by verdict, and for an incomplete
 # check by save mode. The cautious question comes with options, as ask_user's do.
 REPORT_NEXT = dict(
@@ -194,7 +187,7 @@ REPORT_NEXT = dict(
             conflict="核对员判冲突：这份草稿存不下。照它说的冲突改草稿、重新 propose，再派核对员。",
             ask="核对员有没核到的：先问用户，至多三个选项，每个一句后果：① 照这样存，没核到的到时自己看一眼（推荐）；② 我先补核再存；③ 不改（不回话就按这个）。"
                 "用户回话后 commit(accept_unverified=true)。",
-            tell="核对员有没核到的：现在是主动模式，commit(accept_unverified=true) 存下，回答里逐条说没核到的和后果，末尾说回“撤回”能恢复上一版。",
+            tell="核对员有没核到的：现在是主动模式，commit(accept_unverified=true) 存下，回答里逐条说没核到的和后果，末尾说想退回就告诉我。",
             incomplete="核对员判不完整，但没列出没核到的：可以 commit。"),
     en=dict(passed="The verifier passed the draft: commit.",
             conflict="The verifier found a conflict: this draft cannot be saved. Change the draft as it says, propose again and dispatch the verifier again.",
@@ -708,11 +701,6 @@ class Tripwright:
                                       at=context["snapshot"]["taken_at"], subject=subject, scope=dict(scope or {}, channel=channel),
                                       live=True)
             current = self.versions.current(owner)
-            # An undo is done here, in the one call the user's words arrive in (round 4, 2.1): the version goes back
-            # and the records the undone turns made go with it, without asking and without a draft for the agent.
-            undo = self._undo(owner, text, current, language, ctx_id=context_id)
-            if undo:
-                current = self.versions.current(owner)  # the version the undo wrote: the answer and the pages read it
             plan = current["plan"] or {}
             at = context["snapshot"]["taken_at"]
             known = consider.sources(self.store, owner, plan or None, at=at, language=language)
@@ -762,12 +750,11 @@ class Tripwright:
             # trip message opens with a short first message written before any other tool, on the road or not; the
             # service's first_part, when there is one, is material for it, not a text to send as it is (replays of
             # 2026-11-22: two of three drafts sent as they were did not answer the question).
-            opens = bool(not undo and scenario != "system" and self._reply_flow() == "two")
+            opens = bool(scenario != "system" and self._reply_flow() == "two")
             opening = opening_material(plan or {}, at, language) if road or opens else None
             recalled = self._recall(owner, plan or None, text, points, at, event_id, language)
             held = bool(recalled["found"] or recalled.get("catalog"))  # the repository held something (in recall or the opening)
-            decision = (decide.answer(self.store, owner, event_id, receipt["received_at"], aware) if not undo
-                        else dict(answered=[], opened=[]))
+            decision = decide.answer(self.store, owner, event_id, receipt["received_at"], aware)
             decided, opened = decision["answered"], decision["opened"]
             for question in opened:  # the question that waited its turn is asked in this answer, once
                 asked.append(dict(id=question["id"], say=question["say"], default=question["default"],
@@ -843,15 +830,13 @@ class Tripwright:
             if review:
                 response["review"] = review
             waiting = self._waiting_draft(owner, event_id, language) if self.asks_first(owner) else None
-            # An undo is done here, so no planning line may ask for a draft again; a road question with no first part opens
-            # with a short message, and its whole flow says that too (round 4 review).
+            # A road question with no first part opens with a short message, and its whole flow says that too (round 4 review).
             response["flow"] = self.flow.turn(owner, clock(), scenario=scenario, language=language,
                                               second=bool(first), latest=first_part.asks_latest(text),
                                               unknown=bool(self._unknown_places(plan, told, language=language)),
                                               ids=dict(event_id=event_id, ctx_id=context_id, base_version=current["number"]),
-                                              line=UNDO_LINE[language] if undo else (SHORT_ROAD[language] if road else None),
-                                              full_line=FULL[language]["quick_road"] if road and not undo else None,
-                                              whole=not undo)
+                                              line=SHORT_ROAD[language] if road else None,
+                                              full_line=FULL[language]["quick_road"] if road else None)
             # The agent acts on the instruction it reads first: whom to dispatch leads it (2026-11-12 live runs: as a
             # separate field only, a short planning edit went to the requirements role 2 times in 10).
             named = response["flow"]["dispatch"]
@@ -878,11 +863,11 @@ class Tripwright:
                 response["waiting_draft"] = waiting
                 if not first:  # a first part keeps its own first instruction; the pointer is in waiting_draft all the same
                     response["next"] = whole_sentences(waiting["say"] + (" " if language == "en" else "") + response["next"], 600)
-            if undo:
-                response["undo"] = undo
-                if not first:
-                    said = UNDO_NEXT["en" if language == "en" else "zh"]["taken" if undo.get("taken_back") else "plain"]
-                    response["next"] = whole_sentences(said.format(number=undo["restore_version"]), 700)
+            # The newest versions, always: which one a user who wants to go back means is the host's call, from these and
+            # from what the conversation was doing (2026-11-28); nothing here reads the user's words.
+            brief = self._versions_brief(owner, current, language)
+            if brief:
+                response["versions"] = brief
             if told is not None:
                 response["points"] = told
             if points_note:
@@ -901,47 +886,64 @@ class Tripwright:
         mode = consider.save_mode(self.store, owner, at=now()) if owner is not None else dict(mode=consider.deployment_mode())
         return mode["mode"] == "cautious"
 
-    def _undo(self, owner: str, text: str, current: dict, language: str, *, ctx_id: str | None = None) -> dict | None:
-        """A message that only takes the last change back (“撤回”, “undo”): the plan goes back to the version before the
-        first version the last message made (its requirements may be a version of their own before the plan: 2026-11-14,
-        ChatGPT went 1 → 3 for one message), and everything those turns recorded goes with it, in the same call. Nothing
-        holds an undo: the version was saved once with the records in force then (round 4, 2.1). None when there is
-        nothing to go back to."""
+    def _versions_brief(self, owner: str, current: dict, language: str) -> list[dict]:
+        """The newest versions, newest first, for the host agent to choose the one a user who wants to go back means
+        (`version_brief`). Nothing here reads the user's words; `turn` carries it on every receipt once there is a version
+        to go back to (2026-11-28)."""
+        if current.get("number", 0) < 2:
+            return []
+        zone = (current.get("plan") or {}).get("timezone") or "UTC"
         versions = sorted(self.store.all("versions", owner), key=lambda version: version["number"])
-        said = {event["id"]: event["received"]["text"] for event in self.versions.messages(owner)}
-        target = current.get("base_version")
-        event = current.get("source_event")
-        words = said.get(event)
-        if current.get("restored_from") is not None and words == text:
-            # the same words sent again (a host retrying after a lost answer): this message's undo is already saved, and
-            # the once-only cautious-mode offer is not said a second time (`replay`)
-            return self._undo_said(owner, current, current["restored_from"], language, replay=True)
-        for version in reversed(versions):
-            if version["number"] > current.get("number", 0):
-                continue
-            # the same message, or the same words sent through turn again (a host retrying after a refusal)
-            if event is None or not (version.get("source_event") == event or (words and said.get(version.get("source_event")) == words)):
-                break
-            target = version.get("base_version")
-        if not UNDO_WORDS.match(text or "") or not isinstance(target, int) or target < 1 or current.get("number", 0) < 2:
-            return None
-        if not any(version["number"] == target and version.get("plan") for version in self.store.all("versions", owner)):
-            return None
-        if ctx_id is None:  # not this message's own turn: nothing to put the restored plan on
-            return None
-        draft = self._propose_tool(owner, ctx_id=ctx_id, base_version=current["number"], restore_version=target)
-        version = self._commit_tool(owner, draft["draft_id"], f"undo:{draft['draft_id']}")
-        return self._undo_said(owner, version, target, language)
+        before = {version["number"]: version for version in versions}
+        brief = []
+        for version in reversed(versions[-version_brief.SHOWN:]):
+            try:
+                draft = self.store.get("drafts", owner, version["draft_id"]) if version.get("draft_id") else None
+            except ValueError:
+                draft = None  # a version replayed from another machine has no draft here
+            try:
+                said = self.store.get("events", owner, version["source_event"])["received"]["text"] if version.get("source_event") else None
+            except ValueError:
+                said = None
+            taken = [entry for entry in ((draft or {}).get("changes") or {}).get("withdraw") or [] if entry.get("filled_by") == "service"]
+            brief.append(version_brief.entry(
+                version, previous=before.get(version["number"] - 1), said=said, why=((draft or {}).get("changes") or {}).get("why"),
+                taken_back=len(taken), language=language,
+                local_at=packs.clock(version["committed_at"], zone)["at"][:16].replace("T", " ")))
+        return brief
+
+    def _restore_now(self, owner: str, arguments: dict) -> dict:
+        """`propose(ctx_id, restore_version=N)`: the host has decided which version the user wants back, and the service
+        does it in this one call: the draft and its commit, with the answer `undo` says (2026-11-28; before, the service
+        read the user's words and went to one fixed version). The lock, requirement, booking and verifier checks do not
+        hold it, and the cautious mode saves it as it saves any undo. The same call sent again returns the same version
+        and the same words, without the cautious-mode offer a second time."""
+        number = arguments["restore_version"]
+        self.bound(owner)
+        draft = next((entry for entry in self.store.all("drafts", owner)
+                      if entry.get("idempotency_key") == arguments["idempotency_key"] and entry["status"] == "committed"), None)
+        replay = draft is not None  # the same call again: what was saved then, not worked out again from the ledger as it is now
+        if replay:
+            version = self.store.get("versions", owner, draft["version_id"])
+        else:
+            draft = self.store.get("drafts", owner, self._propose_tool(owner, **arguments)["draft_id"])
+            version = self._commit_tool(owner, draft["id"], f"undo:{draft['id']}")
+        language = "en" if self._reply_language(owner) == "en" else "zh"
+        undo = self._undo_said(owner, version, number, language, replay=replay)
+        said = RESTORE_NEXT[language]["taken" if undo.get("taken_back") else "plain"]
+        return self._flowed(owner, "propose", dict(draft_id=draft["id"], status="committed", base_version=draft["base_version"],
+                                                    version=version["number"], undo=undo,
+                                                    next=said.format(number=number)))
 
     def _undo_said(self, owner: str, version: dict, target: int, language: str, *, replay: bool = False) -> dict:
-        """What turn returns for an undo: the version restored, the entries taken back and the answer as the receipt has
-        it (`_saved_say`), so the agent writes the user's words from the service. `replay`: the same words again, whose
-        undo is already saved; its answer is the first one without the offer that is made only once."""
+        """What `propose(restore_version)` returns: the version restored, the entries taken back and the answer as the
+        receipt has it (`_saved_say`), so the agent writes the user's words from the service. `replay`: the same call
+        again, whose undo is already saved; its answer is the first one without the offer that is made only once."""
         draft = self.store.get("drafts", owner, version["draft_id"]) if version.get("draft_id") else None
         tell = (self._saved_say(owner, draft, version, False, replay=replay) if draft else None) or {}
         return dict(restore_version=target, version=version["number"], done=True,
                     say=tell.get("say"), how=tell.get("how"),
-                    **{key: tell[key] for key in ("taken_back", "offer") if key in tell})
+                    **{key: tell[key] for key in ("taken_back", "put_back", "offer") if key in tell})
 
     def _waiting_draft(self, owner: str, event_id: str, language: str) -> dict | None:
         """The plan draft this message answers: proposed for the message before this one, still on the current
@@ -1477,8 +1479,14 @@ class Tripwright:
         arguments = self._this_message(owner, arguments)
         # G16: a client may leave the bookkeeping out. The key is made from the whole call here, before the
         # requirements are split off, so the same call sent again finds both of its drafts.
-        arguments = dict(arguments, idempotency_key=arguments.get("idempotency_key") or proposal_key(arguments))
+        restoring = arguments.get("restore_version") is not None and arguments.get("ctx_id")
+        arguments = dict(arguments, idempotency_key=arguments.get("idempotency_key") or (
+            f"restore:{arguments['ctx_id']}:{arguments['restore_version']}" if restoring else proposal_key(arguments)))
         arguments, first = self._requirements_first(owner, arguments)
+        if restoring:
+            # the host decided which version the user wants back: one call does it (2026-11-28), no commit after it
+            response = self._restore_now(owner, arguments)
+            return dict(response, recorded_first=first) if first else response
         response = self._propose_tool(owner, **arguments)
         if first:
             response = dict(response, recorded_first=first)
@@ -1498,9 +1506,9 @@ class Tripwright:
         return self._flowed(owner, "propose", response, named)
 
     def _restored(self, owner: str, number: int, arguments: dict) -> dict:
-        """`propose(restore_version=N)`: kept for hosts that still send it (round 4, 2.1: `turn` now does an undo itself).
-        The draft is version N's whole plan with the records the turns after it made taken back, through the same commit
-        as an undo from `turn`; nothing holds it."""
+        """`propose(restore_version=N)`: the draft is version N's whole plan with the records the turns after it made taken
+        back, and the records that were in force at N and were taken back only by an earlier undo put back (2026-11-28:
+        going forward again to a version an undo had passed must bring its entries back too); `_restore_now` commits it."""
         if any(arguments.get(name) is not None for name in ("plan", "days", "places", "bookings", "blocks")):
             raise ValueError("restore_version takes that version's whole plan; send no plan, days, places, bookings or blocks with it")
         if isinstance(number, bool) or not isinstance(number, int):
@@ -1517,6 +1525,11 @@ class Tripwright:
                  for record in self._undone_records(owner, number) if record["id"] not in named]
         if taken:
             changes["withdraw"] = [*(changes.get("withdraw") or []), *taken]
+        back = [dict(id=record["id"], reason=(f"back in force with the return to version {number}" if english
+                                                else f"随回到第 {number} 版恢复"))
+                for record in self._put_back_records(owner, number)]
+        if back:
+            changes["reinstate"] = back
         return dict(arguments, plan=encode_copy(old["plan"]), changes=changes)
 
     def _undone_events(self, owner: str, number: int, *, besides: str | None = None) -> set:
@@ -1531,6 +1544,18 @@ class Tripwright:
         events = self._undone_events(owner, number)
         return [record for table in ("items", "decisions", "facts") for record in self.store.all(table, owner)
                 if record.get("status") == "active" and record["source"].get("event") in events]
+
+    def _put_back_records(self, owner: str, number: int) -> list[dict]:
+        """The records that were in force at version `number` and that only an earlier undo took back (`withdrawn.by` is
+        `service`): going back to `number` puts them in force again. A record the user took back, or the host did on the
+        user's words, stays out; so does one whose statement is in force again by a newer record (same key or question)."""
+        events = self._undone_events(owner, number)
+        active = {(table, record.get("key") or record.get("question")) for table in ("items", "decisions", "facts")
+                  for record in self.store.all(table, owner) if record.get("status") == "active"}
+        return [record for table in ("items", "decisions", "facts") for record in self.store.all(table, owner)
+                if record.get("status") == "superseded" and (record.get("withdrawn") or {}).get("by") == "service"
+                and record["source"].get("event") not in events
+                and (table, record.get("key") or record.get("question")) not in active]
 
     def _settings_not_in_effect(self, owner: str, items: list[dict], language: str) -> list[dict]:
         """The settings among `items` that do not take effect, each with why and how to record it again
@@ -1604,6 +1629,8 @@ class Tripwright:
             # only the service marks what it takes back with an undo (filled_by=service); a host's mark is dropped
             arguments["changes"] = dict(changes, withdraw=[{key: value for key, value in entry.items() if key != "filled_by"}
                                                            if isinstance(entry, dict) else entry for entry in changes["withdraw"]])
+        if isinstance(arguments.get("changes"), dict) and "reinstate" in arguments["changes"]:
+            arguments["changes"] = {key: value for key, value in arguments["changes"].items() if key != "reinstate"}  # the service's only
         restored = arguments.pop("restore_version", None)
         if restored is not None:
             arguments = self._restored(owner, restored, arguments)
@@ -1714,6 +1741,16 @@ class Tripwright:
     def _commit_tool(self, owner: str, draft_id: str, idempotency_key: str | None = None, *, accept_unverified: bool = False,
                      ask_first: bool = False, wait: float | None = None) -> dict:
         self.bound(owner)
+        try:
+            draft = self.store.get("drafts", owner, draft_id)
+        except ValueError:
+            draft = {}  # not known here yet (a replay on a new head brings it): versions.commit says what is wrong
+        if draft.get("restored_from") is not None and draft.get("status") == "committed":
+            # propose(restore_version) saved it already; a host that still commits it gets that version again, not an error
+            version = self.store.get("versions", owner, draft["version_id"])
+            undo = self._saved_say(owner, draft, version, ask_first, replay=True)
+            return dict(version, accepted=True, write=self.write_ref(owner, self.outbox.find(owner, "commit", version["idempotency_key"])),
+                        **(dict(tell_user=undo) if undo else {}))
         idempotency_key = idempotency_key or commit_key(draft_id, accept_unverified)
         with self.store.transaction():
             prior = self.outbox.find(owner, "commit", idempotency_key)
@@ -1778,6 +1815,9 @@ class Tripwright:
                 # the user can say which to keep instead of being asked before the undo.
                 say += gap + words["taken"].format(what=words["join"].join(entry["text"].rstrip("。.；;，, ") for entry in taken))
                 say += gap + words["keep"]
+            back = self._put_back(owner, draft)
+            if back:
+                say += gap + words["back"].format(what=words["join"].join(entry["text"].rstrip("。.；;，, ") for entry in back))
             gone = self._bookings_gone(owner, draft, version)
             if gone:
                 # the boundary the design names: a ticket bought in those turns is not the service's to cancel
@@ -1789,7 +1829,7 @@ class Tripwright:
                 say += gap + gap.join(words["still"].format(what=what) for what in still)
             say += gap + words["offer"] if offer else ""
             return dict(say=say, how=SAY_HOW[language], **({"taken_back": taken} if taken else {}),
-                        **({"offer": "cautious_mode"} if offer else {}))
+                        **({"put_back": back} if back else {}), **({"offer": "cautious_mode"} if offer else {}))
         if not proactive:
             return None
         return dict(say=PROACTIVE_SAY[language][page], how=SAY_HOW[language], restore_version=version["base_version"])
@@ -1848,10 +1888,11 @@ class Tripwright:
                 found.append(item.get("text") or item.get("key"))
         return found
 
-    def _taken_back(self, owner: str, draft: dict) -> list[dict]:
-        """What this commit withdrew (changes.withdraw), each with the words the answer names it by."""
+    def _taken_back(self, owner: str, draft: dict, part: str = "withdraw") -> list[dict]:
+        """What this commit withdrew (changes.withdraw), or put back in force (changes.reinstate), each with the words the
+        answer names it by."""
         found = []
-        for entry in (draft.get("changes") or {}).get("withdraw") or []:
+        for entry in (draft.get("changes") or {}).get(part) or []:
             for table in ("decisions", "items", "facts"):
                 try:
                     record = self.store.get(table, owner, entry["id"])
@@ -1861,6 +1902,9 @@ class Tripwright:
                 found.append(dict(id=record["id"], text=text, reason=entry.get("reason")))
                 break
         return found
+
+    def _put_back(self, owner: str, draft: dict) -> list[dict]:
+        return self._taken_back(owner, draft, "reinstate")
 
     def _page_connected(self) -> bool:
         """A public page is connected: the committer's publisher rebuilds it in the background after each new version."""

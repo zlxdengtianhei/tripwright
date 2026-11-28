@@ -173,7 +173,7 @@ class Versions:
             return context
 
     def _only_own_ledger_commits(self, owner: str, context: dict, current: dict) -> bool:
-        """Every version since the context's is a ledger-only commit proposed against this same context."""
+        """Every version since the context's is a ledger-only commit, or an undo, proposed against this same context."""
         if current["number"] <= context["base_version"]:
             return False
         later = [version for version in self.store.all("versions", owner) if version["number"] > context["base_version"]]
@@ -184,8 +184,8 @@ class Versions:
                 draft = self.store.get("drafts", owner, version["draft_id"])
             except ValueError:
                 return False
-            if not ledger_only(draft):
-                return False
+            if not ledger_only(draft) and draft.get("restored_from") is None:
+                return False  # an undo this context made counts too: the host may change its mind about the version (2026-11-28)
         return True
 
     def fresh(self, owner: str, bound: dict | None) -> list[str]:
