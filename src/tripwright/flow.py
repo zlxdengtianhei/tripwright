@@ -36,6 +36,19 @@ WHY = {
                verifier="The draft changes the plan: before commit, the verifier checks it from the wide pack",
                fares="Tickets still to buy: dispatch the researcher once more for fares and discounts only"),
 }
+# Which version a user who wants one back means is the host's call (2026-11-28): the service lists the versions in
+# `turn`'s `versions` and does what `propose(restore_version=N)` says; it reads no word of the user's for it.
+UNDO_HOST = dict(
+    zh="用户想退回之前的某一版时（不论怎样说），看 versions 和前几轮在做什么，定退到第几版：例如刚撤回过又说“撤回”，要看他是想再往前退（只有前几轮他明说了在一步步往回找，才这样判：退到比现在更早、他还没看过的那一版，刚恢复来的那版和它恢复的那版是同一个样子，要越过它们；前文没有这条线索，就问一句），还是想把刚撤掉的拿回来；"
+       "说的是某一次具体改动（“不要改晚饭那次”），就退到那次之前。拿得准就 propose(ctx_id, restore_version=N)，一次做完，不用 commit。"
+       "拿不准就问一句，说清两版各是什么样（第几版、和现在差在哪），答之前不存。只撤掉某一条要求、不是退整版的，照普通改动走。",
+    en="When the user wants an earlier version back, in whatever words, read `versions` and what the last turns were doing, and decide which version: "
+       "“undo” right after an undo may mean going further back (only when the last turns say they are stepping back one by one: then to a version earlier than any they have seen, skipping a restored version and the one it restored, which look the same; without that clue, ask) or getting back what was just taken back; a named change (“not that dinner change”) means the version before it. "
+       "When sure, propose(ctx_id, restore_version=N): it saves in this one call, no commit. When not, ask one question naming both versions "
+       "(the number, and how each differs from now) and save nothing until the answer. Taking back only one requirement, not a whole version, is an ordinary change.")
+UNDO_SHORT = dict(
+    zh="想退回某一版（不论怎样说）：看 versions 与前几轮定第几版（只有前文明说在一步步往回找，再撤回才是退到更早、没看过的样子，恢复来的版和它恢复的版算同一个样子；没有这线索就问），拿得准 propose(restore_version=N) 一次做完；拿不准问一句说清两版，答之前不存。",
+    en="To go back to a version (whatever the words): read versions and the last turns (only when they said they are stepping back one by one does it mean a look not seen yet, and a restored version and the one it restored look the same; without that clue, ask), then propose(restore_version=N) in one call; when unsure ask one question naming both versions, save nothing before the answer.")
 SHORT = {
     "zh": dict(quick="路上急问：先发 first_part，要核的自己查（宿主能开后台 worker 时才派查询员），第二段先说不同。",
                plan="做计划：把这句的要求、事实、决定放进 record（引文照抄）；要查的交查询员；改计划后交核对员，再提交。",
@@ -88,6 +101,12 @@ FULL = {
                     "subagents, read the order with state(view=\"role\", role=\"single\"), then do each role's steps yourself in turn."),
 }
 
+for _language in ("zh", "en"):  # the undo sentence goes on every planning and road line (2026-11-28)
+    for _mode in ("quick", "plan"):
+        SHORT[_language][_mode] += " " + UNDO_SHORT[_language]
+    for _mode in ("quick", "quick_road", "plan"):
+        FULL[_language][_mode] += " " + UNDO_HOST[_language]
+
 # A minimal task packet on every named role (2026-11-13, analysis 5.3): the IDs to hand over, the one thing it returns
 # and where its steps are, so a host without the skill files can still do the role, and a subagent needs no long brief.
 READS = {"tripwright-researcher": ("ctx_id", "draft_id"),
@@ -137,11 +156,10 @@ class Flow:
 
     def turn(self, owner: str, at: datetime, *, scenario: str, language: str,
              second: bool, latest: bool, unknown: bool, ids: dict | None = None, line: str | None = None,
-             full_line: str | None = None, whole: bool = True) -> dict:
+             full_line: str | None = None) -> dict:
         """flow for a turn. Nothing here names a recorder: since round 4 the main agent records what the message states
         itself, in `turn`'s `record`, and only a lookup or a check of a draft is dispatched. `line` replaces this turn's
-        short reminder, `full_line` the whole flow; `whole=False` gives `line` instead of the whole flow at all (an undo
-        is done in `turn`, so asking for a draft in the same receipt would contradict its `next`)."""
+        short reminder, `full_line` the whole flow."""
         language = "en" if language == "en" else "zh"
         seen = self.seen.setdefault(owner, Seen())
         mode = mode_of(scenario)
@@ -163,7 +181,7 @@ class Flow:
         seen.named = {entry["role"] for entry in dispatch if not entry.get("optional")}  # an optional role is never missed
         dispatch = [packet(entry, ids, language) for entry in dispatch]
         seen.did, seen.committed_since_turn = set(), False
-        if full and whole:
+        if full:
             seen.last_full, seen.turns_since_full = at, 0
             return dict(dispatch=dispatch, full=full_line or FULL[language][mode])
         if not full:
