@@ -1546,14 +1546,17 @@ class Tripwright:
                 if record.get("status") == "active" and record["source"].get("event") in events]
 
     def _put_back_records(self, owner: str, number: int) -> list[dict]:
-        """The records that were in force at version `number` and that only an earlier undo took back (`withdrawn.by` is
-        `service`): going back to `number` puts them in force again. A record the user took back, or the host did on the
-        user's words, stays out; so does one whose statement is in force again by a newer record (same key or question)."""
+        """The records that were in force at version `number` and that only an undo after it took back (`withdrawn.by` is
+        `service`, and the undo's message made a version after `number`): going back to `number` puts them in force again.
+        One an undo had already taken back by version `number` was not in force then and stays out (2026-11-28 review:
+        v4, an undo to v1, took a must back; going back to v4 must not bring it in force). A record the user took back, or
+        the host did on the user's words, stays out; so does one whose statement is in force again by a newer record."""
         events = self._undone_events(owner, number)
         active = {(table, record.get("key") or record.get("question")) for table in ("items", "decisions", "facts")
                   for record in self.store.all(table, owner) if record.get("status") == "active"}
         return [record for table in ("items", "decisions", "facts") for record in self.store.all(table, owner)
                 if record.get("status") == "superseded" and (record.get("withdrawn") or {}).get("by") == "service"
+                and (record.get("withdrawn") or {}).get("event") in events
                 and record["source"].get("event") not in events
                 and (table, record.get("key") or record.get("question")) not in active]
 

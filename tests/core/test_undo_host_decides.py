@@ -165,6 +165,24 @@ def test_going_forward_to_a_version_an_undo_passed_brings_its_entries_back(trip)
     assert "随撤回一起撤掉" not in back["undo"]["say"]
 
 
+def test_going_back_to_a_version_made_by_an_undo_keeps_out_what_that_undo_took_back(trip):
+    """2026-11-28 review: v2, v3 record a must and move dinner; v4 is an undo to v1 that takes the must back; v5 moves dinner
+    again. Going back to v4 restores a version at which the must was not in force: it stays taken back, and the answer does
+    not say it came back."""
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    chatgpt_move(server, trip)
+    lock = next(d for d in trip.store.all("decisions", "alice") if d.get("question") == "晚饭时间")
+    turn = call(server, "turn", text="撤回", scenario="replan", speaker="p1")
+    call(server, "propose", ctx_id=turn["ctx_id"], restore_version=1)
+    assert trip.store.get("decisions", "alice", lock["id"])["status"] == "superseded"
+    change(server, trip, "m2", ("18:00", "19:00"), "晚饭改 18:00。")
+    turn = call(server, "turn", text="撤回", scenario="replan", speaker="p1")
+    back = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=4)
+    assert back["status"] == "committed"
+    assert trip.store.get("decisions", "alice", lock["id"])["status"] == "superseded"
+    assert "put_back" not in back["undo"]
+
+
 def test_what_the_user_took_back_with_their_own_words_stays_out(trip):
     server = create_server(trip, local_user="alice", manage_jobs=False)
     lock = older_lock(server, trip)
