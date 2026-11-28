@@ -6,7 +6,8 @@ whole version) still needs the user's own words that name it, as D-21 reads them
 import pytest
 
 from tripwright.adapters.mcp import create_server
-from tripwright.service import RESTORED_SAY, UNDO_LINE
+from tripwright.flow import UNDO_HOST, UNDO_SHORT
+from tripwright.service import RESTORED_SAY
 from test_ask_before_saving import call, day_with, trip  # noqa: F401
 
 MOVE = "把第一天的晚饭改到 19:00，晚饭必须 19:00。"
@@ -39,11 +40,14 @@ def chatgpt_move(server, service, items=(), text=MOVE):
     assert dinner(service) == "19:00"
 
 
-def undo(server, words="撤回"):
-    """The one call an undo takes now: turn. It returns what the service did and the answer as it goes to the user."""
+def undo(server, to=1, words="撤回"):
+    """What an undo takes since 2026-11-28: turn with the words (it goes back to nothing itself), then the host's
+    propose(restore_version=to), which saves it in that one call. Returns the answer as it goes to the user."""
     turn = call(server, "turn", text=words, scenario="replan", speaker="p1")
-    assert turn.get("undo", {}).get("done"), turn.get("undo")
-    return turn["undo"]
+    assert "undo" not in turn
+    answer = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=to)
+    assert answer["undo"].get("done"), answer
+    return answer["undo"]
 
 
 def test_p1_an_undo_goes_back_and_takes_the_must_the_undone_turns_recorded(trip):
@@ -81,7 +85,7 @@ def test_p4_a_must_from_an_earlier_message_does_not_hold_the_undo(trip):
     turn = call(server, "turn", text="第一天的咖啡改到 20:30。", scenario="replan", speaker="p1")
     plan = call(server, "propose", ctx_id=turn["ctx_id"], days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
     call(server, "commit", draft_id=plan["draft_id"], accept_unverified=True)
-    back = undo(server)
+    back = undo(server, to=2)
     lock = next(d for d in trip.store.all("decisions", "alice") if d.get("question") == "晚饭时间")
     assert back["restore_version"] == 2 and dinner(trip) == "17:00"
     assert lock["status"] == "active"
@@ -103,24 +107,27 @@ def test_p6_a_must_item_older_than_the_undone_turns_is_named_as_still_in_force(t
     plan = call(server, "propose", ctx_id=turn["ctx_id"], days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
     call(server, "commit", draft_id=plan["draft_id"], accept_unverified=True)
     assert dinner(trip) == "19:00"
-    back = call(server, "turn", text="撤回", scenario="replan", speaker="p1")
+    turn = call(server, "turn", text="撤回", scenario="replan", speaker="p1")
+    assert not turn["ask"]  # nothing is asked before the undo, and nothing after it
+    assert UNDO_HOST["zh"] in (turn["flow"].get("full") or "") or UNDO_SHORT["zh"] in (turn["flow"].get("reminder") or "")
+    back = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=2)
     assert back["undo"]["done"] and dinner(trip) == "17:00"
-    assert not back["ask"]  # nothing is asked before the undo, and nothing after it
-    assert back["flow"].get("reminder") == UNDO_LINE["zh"] and "full" not in back["flow"]
     item = next(i for i in trip.store.all("items", "alice") if i["key"] == "dinner-1900")
     say = back["undo"]["say"]
     assert item["status"] == "active" and "晚饭必须 19:00" in say and "仍然有效" in say and "要不要改，你说" in say
     assert "随撤回一起撤掉" not in say and not back["undo"].get("taken_back")
 
 
-def test_p3_the_same_words_sent_again_add_no_version(trip):
+def test_p3_the_same_call_sent_again_adds_no_version(trip):
+    """A host retrying after a lost answer sends the same ctx_id and version: the idempotency key (`restore:<ctx_id>:<N>`)
+    returns the same version and the first answer's words, without the once-only offer."""
     server = create_server(trip, local_user="alice", manage_jobs=False)
     chatgpt_move(server, trip)
-    back = undo(server)
+    turn = call(server, "turn", text="撤回", scenario="replan", speaker="p1")
+    back = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=1)["undo"]
+    again = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=1)["undo"]
     numbers = [version["number"] for version in trip.store.all("versions", "alice")]
-    again = undo(server)
     assert numbers == [1, 2, 3, 4] and again["version"] == back["version"]
-    assert [version["number"] for version in trip.store.all("versions", "alice")] == numbers
     # the once-only cautious-mode offer is not said a second time; the rest of the answer is the first one
     offer = RESTORED_SAY["zh"]["offer"]
     assert offer in back["say"] and offer not in again["say"]

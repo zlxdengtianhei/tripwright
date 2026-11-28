@@ -1,6 +1,7 @@
 """One sentence takes a change back: `propose(restore_version=N)` puts version N's whole plan back, with the records the
-turns after it made, through the same commit `turn` uses for an undo (round 4, 2.1: `turn` does an undo itself, and this
-argument stays for a host that still sends it, e.g. when the words reach it another way)."""
+turns after it made, and saves it in that one call (2026-11-28: the host decides which version the user means; the
+service no longer reads the user's words for an undo). A host that still commits the draft afterwards gets the same
+version back, not an error."""
 import pytest
 from test_flow_dispatch import seeded
 
@@ -29,11 +30,12 @@ def test_restoring_version_one_gives_its_day_back_and_leaves_the_ledger(service,
     assert day_json(service) != before
 
     undo = service.turn("alice", "回到刚改之前那版吧。", "undo", scenario="replan")
-    assert "undo" not in undo  # not the undo words: this path is the host's own call
+    assert "undo" not in undo  # turn does nothing for undo words; the host calls propose
     back = service.propose("alice", ctx_id=undo["ctx_id"], restore_version=1)
-    assert back["status"] != "rejected", back
-    saved = service.commit("alice", back["draft_id"], accept_unverified=True)
-    assert saved["number"] == 3 and day_json(service) == before
+    assert back["status"] == "committed" and back["version"] == 3, back
+    assert day_json(service) == before
+    saved = service.commit("alice", back["draft_id"], accept_unverified=True)  # an old host commits what is saved already
+    assert saved["number"] == 3 and saved["accepted"] and service.versions.current("alice")["number"] == 3
     assert service.ledger.current("alice")["items"] == ledger["items"]
     history = service.state("alice", view="history")["versions"]
     assert history[-1]["restored_from"] == 1
@@ -49,7 +51,7 @@ def test_restore_refuses_an_unknown_version_and_a_plan_sent_with_it(service, pla
         service.propose("alice", ctx_id=turn["ctx_id"], restore_version=1, plan=service.state("alice")["plan"])
 
 
-def test_the_proactive_hint_says_the_service_undoes_in_turn():
+def test_the_proactive_hint_sends_the_host_to_versions_not_to_a_turn_undo():
     from tripwright.service import TELL_USER
 
     assert "turn" in TELL_USER["zh"] and "turn" in TELL_USER["en"]

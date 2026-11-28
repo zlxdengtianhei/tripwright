@@ -4,8 +4,8 @@ In ChatGPT on the web (2026-11-14) the user moved dinner to 19:00; the host reco
 ledger-only commit, then the plan (version 1 → 3). The undo then could not be saved: the restored plan broke that must,
 and the host made up an “undo draft”. Round 3 took back only what the service could tell broke something; round 4 takes
 back every requirement, decision and fact of those turns — a judgement made on a wrong plan must not stand, and the
-answer names each one so the user can say which to keep. The version to go back to is still the one before that
-message's first commit."""
+answer names each one so the user can say which to keep. Since 2026-11-28 the host picks the version (here: the one before
+that message's first commit) and `propose(restore_version=N)` does it; the service no longer finds it from the user's words."""
 import pytest
 
 from tripwright.adapters.mcp import create_server
@@ -49,10 +49,13 @@ def dinner(service):
                 if block["id"] == "d1-dinner")
 
 
-def undo(server):
+def undo(server, to=1):
+    """The host's two calls: turn with the words, then propose(restore_version=to). Returns propose's answer and its `undo`."""
     turn = call(server, "turn", text="撤回", scenario="replan", speaker="p1")
-    assert turn["undo"]["done"], turn["undo"]
-    return turn, turn["undo"]
+    assert "undo" not in turn
+    answer = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=to)
+    assert answer["undo"]["done"], answer
+    return answer, answer["undo"]
 
 
 def test_undo_goes_back_before_the_messages_first_commit_and_takes_its_requirements_along(trip):
@@ -66,8 +69,8 @@ def test_undo_goes_back_before_the_messages_first_commit_and_takes_its_requireme
     assert sorted(entry["text"] for entry in back["taken_back"]) == sorted(["第一天晚饭几点：19:00", "对花生过敏"])
     assert "随撤回一起撤掉" in back["say"] and "第一天晚饭几点：19:00" in back["say"] and "对花生过敏" in back["say"]
     assert "其中哪条要留，再说一次就行" in back["say"]
-    # no propose and no commit: the turn did it
-    assert "不要再调 propose 或 commit" in turn["next"]
+    # no commit after it: propose did it, and its `next` says so
+    assert "不要再 commit" in turn["next"]
 
 
 def test_the_answer_names_one_taken_entry_without_a_list_separator(trip):
@@ -90,7 +93,7 @@ def test_an_earlier_must_no_longer_holds_the_undo_and_is_named_as_still_in_force
     turn = call(server, "turn", text=MOVE, scenario="replan", speaker="p1")
     plan = call(server, "propose", ctx_id=turn["ctx_id"], days=[day_with(trip, d1_dinner=("19:00", "20:00"), d1_coffee=("20:30", "21:30"))])
     assert call(server, "commit", draft_id=plan["draft_id"], accept_unverified=True)["number"] == 3
-    _, back = undo(server)
+    _, back = undo(server, to=2)
     lock = next(entry for entry in trip.store.all("decisions", "alice") if entry.get("must"))
     assert back["restore_version"] == 2 and dinner(trip) == "17:00" and lock["status"] == "active"
     # round 4 review: not taken back, but not silent either: named as still in force, the user decides whether to change it

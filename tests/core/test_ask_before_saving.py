@@ -490,7 +490,7 @@ def test_tell_user_offers_keep_or_undo_to_the_previous_version(trip):
     assert options[0].get("recommended") and options[0].get("if_no_answer")
     assert options[1]["then"] == "计划回到这次改动之前"
     # D-22: no version number before the commit; the exact one is only in the commit receipt
-    assert draft["tell_user"]["say"] == "不想要这次改动，回“撤回”，我恢复上一版。" and "tell_user.say" in draft["tell_user"]["how"]
+    assert draft["tell_user"]["say"] == "不想要这次改动，回“撤回”，我帮你退回去。" and "tell_user.say" in draft["tell_user"]["how"]
 
 
 def test_propose_says_how_to_undo_without_a_version_number_and_the_receipt_has_the_number(trip, monkeypatch):
@@ -506,8 +506,10 @@ def test_propose_says_how_to_undo_without_a_version_number_and_the_receipt_has_t
         assert not re.search(r"\d", tell["say"]), tell["say"]
         assert not re.search(r"\d", next(option["then"] for option in tell["options"] if option["id"] == "undo"))
         version = trip.commit("alice", draft["draft_id"], f"commit-{key}", accept_unverified=True)
-        back = trip.turn("alice", "撤回" if key == "zh" else "undo", f"undo-{key}", scenario="replan")
-        # round 4: turn itself restores the version and says which one; the number is in turn's undo, not guessed
+        turn = trip.turn("alice", "撤回" if key == "zh" else "undo", f"undo-{key}", scenario="replan")
+        assert "undo" not in turn  # 2026-11-28: turn goes back to nothing itself; the host picks the version and calls propose
+        back = trip.propose("alice", ctx_id=turn["ctx_id"], restore_version=version["number"] - 1)
+        # the number is in propose's undo, not guessed
         assert back["undo"]["done"] and re.search(rf"\b{back['undo']['restore_version']}\b", back["undo"]["say"])
         assert version["number"] > back["undo"]["restore_version"]
 

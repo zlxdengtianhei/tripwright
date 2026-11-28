@@ -1,11 +1,12 @@
 """The proactive mode as the user set it on 2026-11-14: the default when nobody chose; a saved plan change ends the
 answer with “当前是主动模式……想撤回，直接回复‘撤回’” from the commit receipt; “撤回” restores the version before, and the
 first time this user undoes a change the answer offers the cautious mode once. Both sentences come from the service,
-so they do not rest on the model remembering them."""
+so they do not rest on the model remembering them. Since 2026-11-28 the host decides which version an undo goes to and
+does it with `propose(restore_version=N)`; the service reads no word of the user's for it."""
 import pytest
 
 from tripwright.adapters.mcp import create_server
-from tripwright.service import PROACTIVE_SAY, RESTORED_SAY, UNDO_WORDS
+from tripwright.service import PROACTIVE_SAY, RESTORED_SAY
 
 from test_ask_before_saving import MOVE, call, day_with, moved, trip  # noqa: F401  (trip is a fixture)
 
@@ -25,10 +26,13 @@ def host_change(server, service, key, dinner=("19:00", "20:00"), text=MOVE):
     return turn, draft, call(server, "commit", draft_id=draft["draft_id"], idempotency_key=key, accept_unverified=True)
 
 
-def host_undo(server, words="撤回"):
-    """Round 4: turn itself goes back; there is no propose or commit to make. `back` is what turn returned as undo."""
+def host_undo(server, to, words="撤回"):
+    """2026-11-28: turn goes back to nothing itself; the host picks the version (`to`) and `propose(restore_version=to)` saves
+    it in that one call. Returns turn's receipt, the `undo` block and propose's whole answer."""
     turn = call(server, "turn", text=words, scenario="replan")
-    return turn, turn.get("undo"), turn.get("undo") or {}
+    assert "undo" not in turn
+    answer = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=to)
+    return turn, answer["undo"], answer
 
 
 def test_without_a_choice_a_host_change_is_saved_in_its_turn_and_the_receipt_ends_the_answer(trip):
@@ -62,14 +66,14 @@ def test_a_ledger_only_commit_and_a_cautious_commit_say_nothing(trip, monkeypatc
 def test_undo_restores_the_version_in_the_same_turn_and_offers_the_cautious_mode_once(trip):
     server = create_server(trip, local_user="alice", manage_jobs=False)
     host_change(server, trip, "a")
-    turn, back, _ = host_undo(server)
+    turn, back, answer = host_undo(server, 1)
     assert back["restore_version"] == 1 and back["version"] == 3 and back["done"]
-    assert turn["next"].startswith("撤回已经做好了（服务在 turn 里回到第 1 版")
+    assert answer["next"].startswith("撤回已经做好了（服务已回到第 1 版") and answer["status"] == "committed"
     assert turn["flow"]["dispatch"] == []  # an undo is no new requirement
     assert back["say"] == "已撤回：计划回到第 1 版。" + OFFER and back["offer"] == "cautious_mode"
     # a second change and a second undo: the plan comes back, the offer does not
     host_change(server, trip, "b", dinner=("18:30", "19:30"))
-    _, again, _ = host_undo(server, "撤销")
+    _, again, _ = host_undo(server, 3, "撤销")
     assert again["restore_version"] == 3 and again["say"] == "已撤回：计划回到第 3 版。" and "offer" not in again
 
 
@@ -79,7 +83,7 @@ def test_a_user_who_chose_the_proactive_mode_is_not_offered_the_cautious_one(tri
     mode_said(trip, "proactive", "以后直接改，不用问我。", "mode")
     server = create_server(trip, local_user="alice", manage_jobs=False)
     host_change(server, trip, "a")
-    _, back, _ = host_undo(server)
+    _, back, _ = host_undo(server, 1)
     assert back["say"] == "已撤回：计划回到第 1 版。" and "offer" not in back
 
 
@@ -91,24 +95,26 @@ def test_what_an_earlier_message_recorded_stays_when_a_later_change_is_taken_bac
                               strength="forbid", source={"event": "this", "basis": "user_explicit"})])
     call(server, "turn", text=MOVE + "我对花生过敏。", scenario="quick", speaker="p1", record=record)
     host_change(server, trip, "a")
-    _, back, _ = host_undo(server)
+    _, back, _ = host_undo(server, 1)
     assert [item["key"] for item in trip.ledger.current("alice")["items"] if item["key"] == "diet:peanut"] == ["diet:peanut"]
     assert "对花生过敏" not in (back["say"] or "")
 
 
-@pytest.mark.parametrize("words", ["撤回", "撤回吧。", "  改回去！", "undo", "Undo that.", "revert", "change it back"])
-def test_undo_words(words):
-    assert UNDO_WORDS.match(words)
+@pytest.mark.parametrize("words", ["撤回", "撤回吧。", "  改回去！", "undo", "Undo that.", "revert", "change it back",
+                                   "撤回昨天说的花生过敏", "不要撤回", "undo the hotel booking and book another"])
+def test_turn_reads_no_word_for_an_undo_and_goes_back_to_nothing(trip, words):
+    """Before, a whole message of undo words made the service go back by itself; now no wording does: the receipt lists the
+    versions (`versions`) and the host decides."""
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    host_change(server, trip, "a")
+    turn = call(server, "turn", text=words, scenario="replan")
+    assert "undo" not in turn and trip.versions.current("alice")["number"] == 2
+    assert [entry["number"] for entry in turn["versions"]] == [2, 1]
 
 
-@pytest.mark.parametrize("words", ["撤回昨天说的花生过敏", "不要撤回", "undo the hotel booking and book another", "晚饭挪到 19:00"])
-def test_a_message_that_says_more_is_no_undo(words):
-    assert not UNDO_WORDS.match(words)
-
-
-def test_nothing_to_go_back_to_gives_no_undo(trip):
+def test_nothing_to_go_back_to_gives_no_versions_list(trip):
     turn = trip.turn("alice", "撤回", "nothing", scenario="replan")
-    assert "undo" not in turn
+    assert "undo" not in turn and "versions" not in turn
 
 
 def test_with_a_public_page_the_sentence_says_the_page_is_being_updated(trip, monkeypatch):
@@ -116,7 +122,7 @@ def test_with_a_public_page_the_sentence_says_the_page_is_being_updated(trip, mo
     server = create_server(trip, local_user="alice", manage_jobs=False)
     _, _, version = host_change(server, trip, "page")
     assert version["tell_user"]["say"] == "当前是主动模式：改动已存，现在开始更新页面；想撤回，直接回复“撤回”。"
-    _, back, _ = host_undo(server)
+    _, back, _ = host_undo(server, 1)
     assert back["say"].startswith("已撤回：计划回到第 1 版，页面也在更新。")
 
 
