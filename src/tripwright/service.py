@@ -920,8 +920,16 @@ class Tripwright:
         and the same words, without the cautious-mode offer a second time."""
         number = arguments["restore_version"]
         self.bound(owner)
-        draft = next((entry for entry in self.store.all("drafts", owner)
-                      if entry.get("idempotency_key") == arguments["idempotency_key"] and entry["status"] == "committed"), None)
+        key = arguments["idempotency_key"]
+        default = key == f"restore:{arguments['ctx_id']}:{number}"
+        done = [entry for entry in self.store.all("drafts", owner) if entry["status"] == "committed"
+                and (entry.get("idempotency_key") == key or (default and str(entry.get("idempotency_key", "")).startswith(key + "@")))]
+        draft = max(done, key=lambda entry: self.store.get("versions", owner, entry["version_id"])["number"], default=None)
+        current = self.versions.current(owner)
+        if draft is not None and default and draft["version_id"] != current["id"]:
+            # the default key, but versions were saved after it (the host went 2 -> 1 -> 2 for one message): this is a new
+            # undo, not the same call again (2026-11-28 review); its key carries the version it starts from
+            draft, arguments = None, dict(arguments, idempotency_key=f"{key}@{current['number']}")
         replay = draft is not None  # the same call again: what was saved then, not worked out again from the ledger as it is now
         if replay:
             version = self.store.get("versions", owner, draft["version_id"])
@@ -1547,18 +1555,49 @@ class Tripwright:
 
     def _put_back_records(self, owner: str, number: int) -> list[dict]:
         """The records that were in force at version `number` and that only an undo after it took back (`withdrawn.by` is
-        `service`, and the undo's message made a version after `number`): going back to `number` puts them in force again.
+        `service`, and at `number` it was still in force: `_out_at`): going back to `number` puts them in force again.
         One an undo had already taken back by version `number` was not in force then and stays out (2026-11-28 review:
         v4, an undo to v1, took a must back; going back to v4 must not bring it in force). A record the user took back, or
         the host did on the user's words, stays out; so does one whose statement is in force again by a newer record."""
         events = self._undone_events(owner, number)
+        out = self._out_at(owner, number)
         active = {(table, record.get("key") or record.get("question")) for table in ("items", "decisions", "facts")
                   for record in self.store.all(table, owner) if record.get("status") == "active"}
         return [record for table in ("items", "decisions", "facts") for record in self.store.all(table, owner)
                 if record.get("status") == "superseded" and (record.get("withdrawn") or {}).get("by") == "service"
-                and (record.get("withdrawn") or {}).get("event") in events
+                and not out(record)
                 and record["source"].get("event") not in events
                 and (table, record.get("key") or record.get("question")) not in active]
+
+    def _out_at(self, owner: str, number: int):
+        """Whether the service had taken a record back at version `number`: its withdrawals and puts-back (the
+        `changes.withdraw` entries marked `filled_by: service` and `changes.reinstate` of each version's draft), played in
+        version order up to `number`, the last one standing. By version, not by message: one message can make an undo
+        version and then another change, and the same record can be taken back, put back and taken back again
+        (2026-11-28 review, probes A, H, I). A version whose draft is not stored here (replayed from another machine)
+        counts by the record's own withdrawal: its message made that version."""
+        state, missing = {}, set()
+        for version in sorted(self.store.all("versions", owner), key=lambda version: version["number"]):
+            if version["number"] > number:
+                break
+            draft = None
+            if version.get("draft_id"):
+                try:
+                    draft = self.store.get("drafts", owner, version["draft_id"])
+                except ValueError:
+                    draft = None
+            if draft is None:
+                missing.add(version.get("source_event"))
+                continue
+            changes = draft.get("changes") or {}
+            for entry in changes.get("withdraw") or []:
+                if isinstance(entry, dict) and entry.get("filled_by") == "service":
+                    state[entry.get("id")] = True
+            for entry in changes.get("reinstate") or []:
+                if isinstance(entry, dict):
+                    state[entry.get("id")] = False
+        missing.discard(None)
+        return lambda record: state.get(record["id"], (record.get("withdrawn") or {}).get("event") in missing)
 
     def _settings_not_in_effect(self, owner: str, items: list[dict], language: str) -> list[dict]:
         """The settings among `items` that do not take effect, each with why and how to record it again

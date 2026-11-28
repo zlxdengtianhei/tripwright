@@ -119,8 +119,13 @@ def test_the_default_key_is_the_context_and_the_version_and_another_version_is_a
     assert first["version"] == 4 and dinner(trip) == "19:00"
     changed = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=1)
     assert changed["version"] == 5 and dinner(trip) == "17:00"
-    again = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=2)  # the first one sent again: its own version, no new one
-    assert again["version"] == 4 and trip.versions.current("alice")["number"] == 5
+    # back to 2 once more after 1 was saved: the host changed its mind again, so the plan goes to 2 in a new version (the
+    # 2026-11-28 review: answering with version 4 said "back to version 2" while the plan stood at 1); sent again it is
+    # the same call and makes nothing new
+    again = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=2)
+    assert again["version"] == 6 and dinner(trip) == "19:00"
+    retried = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=2)
+    assert retried["version"] == 6 and trip.versions.current("alice")["number"] == 6
     drafts = [draft["idempotency_key"] for draft in trip.store.all("drafts", "alice") if draft.get("restored_from") is not None]
     assert f"restore:{turn['ctx_id']}:2" in drafts and f"restore:{turn['ctx_id']}:1" in drafts
 
@@ -181,6 +186,43 @@ def test_going_back_to_a_version_made_by_an_undo_keeps_out_what_that_undo_took_b
     assert back["status"] == "committed"
     assert trip.store.get("decisions", "alice", lock["id"])["status"] == "superseded"
     assert "put_back" not in back["undo"]
+
+
+def test_one_message_that_undoes_and_then_changes_keeps_out_what_its_undo_took_back(trip):
+    """2026-11-28 review, second pass: one message makes an undo version and then another change; going back to the undo's
+    version later restores a version at which the must was taken back, so it stays out."""
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    chatgpt_move(server, trip)
+    lock = next(d for d in trip.store.all("decisions", "alice") if d.get("question") == "晚饭时间")
+    turn = call(server, "turn", text="撤回，然后晚饭改 18:00", scenario="replan", speaker="p1")
+    undo = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=1)
+    draft = call(server, "propose", ctx_id=turn["ctx_id"], days=[day_with(trip, d1_dinner=("18:00", "19:00"), d1_coffee=("21:30", "22:30"))])
+    assert draft["status"] == "proposed", draft
+    call(server, "commit", draft_id=draft["draft_id"], accept_unverified=True)
+    turn = call(server, "turn", text="撤回", scenario="replan", speaker="p1")
+    back = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=undo["version"])
+    assert trip.store.get("decisions", "alice", lock["id"])["status"] == "superseded"
+    assert "put_back" not in back["undo"]
+
+
+def test_taken_back_put_back_and_taken_back_again_follows_the_version_gone_back_to(trip):
+    """2026-11-28 review, second pass: back to 1 (the must goes), forward to 3 (it comes back), back to 1 again (it goes);
+    going back to that last version keeps it out, going back to the middle one brings it in."""
+    server = create_server(trip, local_user="alice", manage_jobs=False)
+    chatgpt_move(server, trip)
+    lock = next(d for d in trip.store.all("decisions", "alice") if d.get("question") == "晚饭时间")
+    turn = call(server, "turn", text="撤回", scenario="replan", speaker="p1")
+    call(server, "propose", ctx_id=turn["ctx_id"], restore_version=1)
+    middle = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=3)
+    assert trip.store.get("decisions", "alice", lock["id"])["status"] == "active"
+    last = call(server, "propose", ctx_id=turn["ctx_id"], restore_version=1)
+    assert trip.store.get("decisions", "alice", lock["id"])["status"] == "superseded"
+    turn = call(server, "turn", text="撤回", scenario="replan", speaker="p1")
+    call(server, "propose", ctx_id=turn["ctx_id"], restore_version=last["version"])
+    assert trip.store.get("decisions", "alice", lock["id"])["status"] == "superseded"
+    turn = call(server, "turn", text="不对，回到刚才晚饭 19:00 必须的那版", scenario="replan", speaker="p1")
+    call(server, "propose", ctx_id=turn["ctx_id"], restore_version=middle["version"])
+    assert trip.store.get("decisions", "alice", lock["id"])["status"] == "active"
 
 
 def test_what_the_user_took_back_with_their_own_words_stays_out(trip):
