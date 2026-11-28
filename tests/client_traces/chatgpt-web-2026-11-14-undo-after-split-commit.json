@@ -1,7 +1,7 @@
 {
   "client": "ChatGPT (web)",
   "seen": "2026-11-14",
-  "about": "One message moving day 1 dinner saved as two commits: the must first (ledger only), then the plan. Before 27d581c the undo went back one version only and the restored plan broke that must, so it could not be saved.",
+  "about": "One message moving day 1 dinner saved as two commits: the must first (ledger only), then the plan. Before 27d581c the undo went back one version only and the restored plan broke that must, so it could not be saved. Since 2026-11-28 the host picks the version (turn lists `versions`) and propose(restore_version) saves it in one call; a commit after it, as an old host sends it, returns the same version.",
   "setup": {
     "trip": "fjord_demo",
     "now": "2030-06-10T16:00:00+02:00"
@@ -220,6 +220,26 @@
       },
       "expect": [
         {
+          "path": "versions.0.number",
+          "equals": 3
+        },
+        {
+          "path": "versions.0.said",
+          "equals": "第一天的晚饭挪到 19:00。"
+        }
+      ]
+    },
+    {
+      "tool": "propose",
+      "args": {
+        "ctx_id": {
+          "$from": 6,
+          "path": "ctx_id"
+        },
+        "restore_version": 1
+      },
+      "expect": [
+        {
           "path": "undo.restore_version",
           "equals": 1
         },
@@ -238,20 +258,6 @@
       ]
     },
     {
-      "tool": "propose",
-      "args": {
-        "ctx_id": {
-          "$from": 6,
-          "path": "ctx_id"
-        },
-        "restore_version": {
-          "$from": 6,
-          "path": "undo.restore_version"
-        }
-      },
-      "refused": "Stale version"
-    },
-    {
       "tool": "commit",
       "args": {
         "draft_id": {
@@ -260,7 +266,12 @@
         },
         "accept_unverified": true
       },
-      "not_sent": "step 7 was refused, so the client had no draft_id"
+      "expect": [
+        {
+          "path": "number",
+          "equals": 4
+        }
+      ]
     }
   ],
   "after": [

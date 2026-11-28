@@ -26,10 +26,11 @@ How to do a role:
 4. Verifier, when `propose` names it: check the draft from `state(view="pack", draft_id=...)` and hand the verdict back with `result(job_id, report=...)`; `report.next` says whether to commit.
 5. Main: `commit` after the answer, as the save mode says; the page update follows the answer. Cautious (`ask_user`): ask once with its options and commit after the user's answer. Proactive (`tell_user`): commit now, after the answer. Read the receipt's `changelog` and `tell_user.say` and say them right after the commit (a short follow-up when the answer is already sent). The service updates the repository and the page in the background; do not wait for them. A commit refused because the version or the ledger changed: start again from step 1 with a new `turn`; never force it.
 
-## Undo (“撤回”, “undo”, “改回去”)
+## Undo (“撤回”, “undo”, “改回去”, or naming a change to drop)
 
-1. Main: `turn` with the words. The service goes back itself, in this one call: nothing holds an undo, and everything those turns recorded goes with it.
-2. Main: write the answer from `undo.say` as it is: the version back, and each withdrawn entry named; when the user says one should stay, record it again. No other role, and no `propose` or `commit` — `undo.done` says it is done.
+1. Main: `turn` with the words. It goes back to nothing itself: read `versions` (newest first: number, time, the words that made it, what it changed) and the conversation so far, and decide which version the user wants. “Undo” right after an undo may mean one version further back or getting back what was just taken back; a named change means the version before it.
+2. Main: sure → `propose(ctx_id, restore_version=N)`: it saves that version in this one call, no `commit`. Not sure → ask one question that names both versions (the number and how each differs from now), save nothing, and call `propose(restore_version=N)` from the answer. Taking back only one requirement is an ordinary change, not a version.
+3. Main: write the answer from `undo.say` as it is: the version back, each withdrawn entry named and each one that came back; when the user says one should stay, record it again. No other role, and no `commit` — `undo.done` says it is done.
 
 ## Screenshots or a batch of new requirements
 
